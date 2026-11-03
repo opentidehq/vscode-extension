@@ -3,7 +3,7 @@
 // The file is not committed, so features added in parallel never conflict on it.
 //   node scripts/features-index.mjs          write it
 //   node scripts/features-index.mjs --check  fail when it is stale
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,6 +48,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       process.exit(1);
     }
   } else if (current !== next) {
+    // A fresh clone has no src/features/ until a feature lands: git keeps no empty folder.
+    mkdirSync(featuresDir, { recursive: true });
     writeFileSync(out, next);
   }
 }
