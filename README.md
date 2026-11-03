@@ -40,8 +40,10 @@ platforms without a dedicated package, the extension needs an opentide of your o
 | Lucene | `.lucene` | `lucene` |
 | Falco | `.falco` | `falco` |
 
-Queries embedded in a rule (`configurations.sentinel.query`, `splunk.query`, …) are highlighted,
-commented and bracket-matched in their own language.
+The queries of Sentinel, Defender, Splunk, Carbon Black and Sysdig in a rule
+(`configurations.<platform>.query`) are highlighted, commented and bracket-matched in their own
+language. An Elastic query's language depends on its `language` key, so it gets the language server's
+semantic highlighting only: comment toggling and bracket pairs there are YAML's.
 
 ### Problems: live, validate and lint
 
