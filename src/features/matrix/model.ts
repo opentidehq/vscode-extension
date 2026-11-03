@@ -270,3 +270,33 @@ export function cellDetail(
     unaddressed: refs(idx.unaddressed),
   };
 }
+
+/**
+ * The filters without a platform or tenant this folder's data lacks. Filters are saved once for every
+ * folder: a tenant saved in a folder with deployment records filtered every rule out of a folder
+ * without any, behind a disabled Tenant select, and a platform the rules lack showed as "All" while
+ * still filtering.
+ */
+export function cleanFilters(
+  filters: MatrixFilters,
+  view: Pick<MatrixView, "platforms" | "tenants">,
+): MatrixFilters {
+  const { platform, tenant, ...rest } = filters;
+  return {
+    ...rest,
+    ...(platform && view.platforms.includes(platform) ? { platform } : {}),
+    ...(tenant && view.tenants.includes(tenant) ? { tenant } : {}),
+  };
+}
+
+/** The platforms and tenants the folder's rules have: what the Platform and Tenant filters offer. */
+export function filterChoices(catalog: CatalogDocument): Pick<MatrixView, "platforms" | "tenants"> {
+  const platforms = new Set<string>();
+  const tenants = new Set<string>();
+  for (const object of catalog.objects) {
+    if (object.type !== "rule") continue;
+    for (const p of object.platforms) platforms.add(p.id);
+    for (const d of object.deployment) if (d.tenant) tenants.add(d.tenant);
+  }
+  return { platforms: [...platforms].sort(), tenants: [...tenants].sort() };
+}

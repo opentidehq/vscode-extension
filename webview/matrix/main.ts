@@ -40,7 +40,7 @@ channel.on("state", (next) => {
   render();
 });
 channel.on("detail", (next) => {
-  detail = next;
+  detail = next ?? undefined;
   renderDetail();
 });
 channel.on("focus", (technique) => {
@@ -185,6 +185,13 @@ function checkbox(label: string, checked: boolean, onChange: (checked: boolean) 
   ]);
 }
 
+/** The options, plus the filter's own value when the data lacks it, so the select shows what filters. */
+function withCurrent(values: readonly string[], current: string | undefined): [string, string][] {
+  const options = values.map((v): [string, string] => [v, v]);
+  if (current && !values.includes(current)) options.push([current, `${current} (not in this folder)`]);
+  return options;
+}
+
 function filtersBar(s: MatrixState, view: MatrixView): HTMLElement {
   const f = s.filters;
   return h("div", { class: "toolbar", attrs: { role: "toolbar", "aria-label": "Filters" } }, [
@@ -201,18 +208,16 @@ function filtersBar(s: MatrixState, view: MatrixView): HTMLElement {
     select(
       "Platform ",
       f.platform ?? "",
-      [["", "All"], ...view.platforms.map((p): [string, string] => [p, p])],
+      [["", "All"], ...withCurrent(view.platforms, f.platform)],
       (platform) => setFilters({ platform: platform || undefined }),
     ),
     select(
       "Tenant ",
       f.tenant ?? "",
-      [
-        ["", view.tenants.length ? "All" : "No deployments recorded"],
-        ...view.tenants.map((t): [string, string] => [t, t]),
-      ],
+      [["", view.tenants.length ? "All" : "No deployments recorded"], ...withCurrent(view.tenants, f.tenant)],
       (tenant) => setFilters({ tenant: tenant || undefined }),
-      view.tenants.length === 0,
+      // A set filter must stay clearable, even with nothing to choose from.
+      view.tenants.length === 0 && !f.tenant,
     ),
     checkbox(
       "Exclude INERT",

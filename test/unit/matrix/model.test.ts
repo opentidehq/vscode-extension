@@ -7,8 +7,10 @@ import {
   buildMatrix,
   type Cell,
   cellDetail,
+  cleanFilters,
   covers,
   DEFAULT_FILTERS,
+  filterChoices,
   level,
 } from "../../../src/features/matrix/model";
 import { isFilters } from "../../../src/features/matrix/protocol";
@@ -268,5 +270,25 @@ describe("ATT&CK matrix (#20)", () => {
       technique: "T1003",
     });
     assert.deepEqual(parseOpenArgs(undefined), {});
+  });
+});
+
+describe("matrix: filters saved in another folder", () => {
+  it("drops a tenant or platform this folder's rules lack, so not every cell reads as a gap", () => {
+    const choices = filterChoices(CATALOG);
+    assert.deepEqual(choices, { platforms: ["sentinel", "splunk"], tenants: ["prod"] });
+    const saved = { ...DEFAULT_FILTERS, tenant: "staging", platform: "elastic" };
+    const cleaned = cleanFilters(saved, choices);
+    assert.equal(cleaned.tenant, undefined);
+    assert.equal(cleaned.platform, undefined);
+    assert.ok(buildMatrix(CATALOG, cleaned).columns.some((c) => c.covered > 0));
+    const kept = cleanFilters({ ...DEFAULT_FILTERS, tenant: "prod", platform: "sentinel" }, choices);
+    assert.equal(kept.tenant, "prod");
+    assert.equal(kept.platform, "sentinel");
+  });
+
+  it("lists a technique's rules under the same cleaned filters the cells use", () => {
+    const filters = cleanFilters({ ...DEFAULT_FILTERS, tenant: "gone" }, filterChoices(CATALOG));
+    assert.ok(cellDetail(CATALOG, "T1003.001", filters).rules.length > 0);
   });
 });

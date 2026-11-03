@@ -3,10 +3,18 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { CatalogState } from "../../core/catalog/store";
+import type { CatalogDocument } from "../../core/catalog/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import type { OpentidePanel } from "../../core/webview/panel";
-import { buildMatrix, cellDetail, DEFAULT_FILTERS, type MatrixFilters } from "./model";
+import {
+  buildMatrix,
+  cellDetail,
+  cleanFilters,
+  DEFAULT_FILTERS,
+  filterChoices,
+  type MatrixFilters,
+} from "./model";
 import { hostValidators, isFilters, type MatrixProtocol, type MatrixState } from "./protocol";
 
 /** Owned by other features; used only when the window has them. */
@@ -74,6 +82,8 @@ class MatrixPanel implements vscode.Disposable {
   private filters: MatrixFilters;
   private features = { search: false, newObjective: false, navigator: false };
   private pendingFocus: string | undefined;
+  /** The technique the detail aside lists, re-listed whenever filters, folder or catalogue change. */
+  private selected: string | undefined;
 
   constructor(
     private readonly ctx: FeatureContext,
@@ -113,7 +123,7 @@ class MatrixPanel implements vscode.Disposable {
       }),
       channel.on("exportNavigator", () => this.exportNavigator()),
       channel.on("folder", (folder) => {
-        this.folder = this.chooseFolder(folder);
+        this.setFolder(this.chooseFolder(folder));
         this.post();
       }),
       channel.on("action", async (id) => {
@@ -128,7 +138,7 @@ class MatrixPanel implements vscode.Disposable {
       }),
       ctx.folders.onDidChange(() => {
         if (!this.folder || !ctx.folders.all.some((f) => f.path === this.folder?.path))
-          this.folder = this.chooseFolder();
+          this.setFolder(this.chooseFolder());
         this.post();
       }),
       ctx.capabilities.onDidChange(async () => {
@@ -140,6 +150,20 @@ class MatrixPanel implements vscode.Disposable {
         onDispose();
       }),
     );
+  }
+
+  /** A new folder clears the selection: the detail would list another folder's objects. */
+  private setFolder(folder: OpentideFolder | undefined): void {
+    if (folder?.path !== this.folder?.path && this.selected) {
+      this.selected = undefined;
+      void this.view.channel.post("detail", null);
+    }
+    this.folder = folder;
+  }
+
+  /** The saved filters, less a platform or tenant the catalogue does not have. */
+  private filtersFor(catalog: CatalogDocument): MatrixFilters {
+    return cleanFilters(this.filters, filterChoices(catalog));
   }
 
   private chooseFolder(wanted?: string): OpentideFolder | undefined {
@@ -155,7 +179,7 @@ class MatrixPanel implements vscode.Disposable {
 
   reveal(args: OpenArgs): void {
     if (args.folder) {
-      this.folder = this.chooseFolder(args.folder);
+      this.setFolder(this.chooseFolder(args.folder));
       this.post();
     }
     this.view.panel.reveal(undefined, false);
@@ -201,11 +225,13 @@ class MatrixPanel implements vscode.Disposable {
     const named = { path: folder.path, name: folder.folder.name };
     const catalog: CatalogState = this.ctx.catalog.get(folder.path);
     if (catalog.catalog) {
+      const filters = this.filtersFor(catalog.catalog);
       return {
         ...base,
+        filters,
         status: "ready",
         folder: named,
-        view: buildMatrix(catalog.catalog, this.filters),
+        view: buildMatrix(catalog.catalog, filters),
         refreshing: catalog.refreshing || catalog.status === "loading",
         message:
           catalog.status === "error" ? `The last refresh failed: ${catalog.error ?? "unknown error"}` : null,
@@ -253,18 +279,31 @@ class MatrixPanel implements vscode.Disposable {
 
   private post(): void {
     void this.view.channel.post("state", this.state());
+    // The detail follows the filters, the folder and the catalogue, like the cells do.
+    if (this.selected) this.postDetail(this.selected);
   }
 
   private select(technique: string): void {
+    this.selected = technique;
+    this.postDetail(technique);
+  }
+
+  private postDetail(technique: string): void {
     const catalog = this.folder ? this.ctx.catalog.get(this.folder.path).catalog : undefined;
-    if (catalog) void this.view.channel.post("detail", cellDetail(catalog, technique, this.filters));
+    if (catalog)
+      void this.view.channel.post("detail", cellDetail(catalog, technique, this.filtersFor(catalog)));
   }
 
   private async openObject(uuid: string): Promise<void> {
     const object = this.folder
       ? this.ctx.catalog.get(this.folder.path).catalog?.objects.find((o) => o.uuid === uuid)
       : undefined;
-    if (!object) return;
+    if (!object) {
+      void vscode.window.showWarningMessage(
+        "That object is no longer in this folder's catalogue. Select the technique again.",
+      );
+      return;
+    }
     const line = Math.max(0, object.line - 1);
     await vscode.window.showTextDocument(vscode.Uri.file(object.file_path), {
       selection: new vscode.Range(line, 0, line, 0),
