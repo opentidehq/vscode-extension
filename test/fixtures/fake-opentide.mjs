@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // A fake `opentide` for tests: `--version`, `--json <command>` and `serve` (CONTRACTS.md).
 // FAKE_VERSION sets the version; FAKE_NO_SERVE=1 leaves `serve` out of `commands`.
+// FAKE_INFO_CATALOG=1 adds `info catalog`; FAKE_CATALOG_FILE names a JSON file whose keys (objects,
+// edges, signals, attack, summary) it prints. FAKE_UNREVIEWED lists the paths (comma-separated) that
+// `rules unreviewed` reports.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -88,10 +91,10 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
     }
     case "info":
       if (rest[0] === "catalog" && process.env.FAKE_INFO_CATALOG === "1") {
-        return [
-          envelope("info", { objects: [], edges: [], signals: [], attack: { tactics: [], techniques: {} } }),
-          0,
-        ];
+        const catalog = process.env.FAKE_CATALOG_FILE
+          ? JSON.parse(readFileSync(process.env.FAKE_CATALOG_FILE, "utf8"))
+          : { objects: [], edges: [], signals: [], attack: { tactics: [], techniques: {} } };
+        return [envelope("info", catalog), 0];
       }
       return [
         envelope("info", {}, 2, {
@@ -100,6 +103,18 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
         }),
         2,
       ];
+    case "rules":
+      if (rest[0] === "unreviewed") {
+        const at = rest.indexOf("--older-than");
+        const window = at >= 0 ? rest[at + 1] : "90d";
+        const paths = (process.env.FAKE_UNREVIEWED ?? "").split(",").filter(Boolean);
+        const rules = paths.map((path) => ({ path, schema: "rule::1.1", reason: "absent", reviewed: null }));
+        return [
+          envelope("rules", { evaluated_at: "2026-11-03T00:00:00Z", window, count: rules.length, rules }),
+          0,
+        ];
+      }
+      return [envelope("rules", {}, 2, { code: "usage_missing_command", message: "Missing command." }), 2];
     default:
       return [
         envelope(name ?? "", {}, 2, { code: "usage_unknown_command", message: `No such command '${name}'.` }),
