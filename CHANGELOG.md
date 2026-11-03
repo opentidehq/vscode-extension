@@ -109,7 +109,8 @@ pre-releases odd ones.
   a failed tenant's error and the platform's detail). Each tab has a virtual table to sort, filter and
   move through with the keyboard. Copy a cell, a row or the rows as CSV, JSON or Markdown, or export
   CSV or JSONL. Results stay in memory and are dropped when the panel closes
-  (`opentide.query.retainResults`).
+  (`opentide.query.retainResults`). In CSV, a cell a spreadsheet would read as a formula (`=`, `+`,
+  `-`, `@` first) gets a leading `'`, since rows carry attacker-controlled telemetry.
 - The deploy plan ("opentide: Preview Deploy"): `opentide deploy --dry-run` for the current, selected
   or changed rules. It shows each rule's action per platform and tenant, compile failures (also in
   Problems), skipped rules and missing tenants. API payloads open as read-only JSON, and you can copy

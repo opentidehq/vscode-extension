@@ -647,7 +647,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - one tab per tenant;
   - typed columns, sortable and filterable, with a virtual table (up to the CLI's 5,000-row limit);
   - copy a cell, a row or the table as Markdown;
-  - export CSV or JSONL;
+  - export CSV or JSONL (in CSV, and in Copy as CSV, a cell starting with `=`, `+`, `-`, `@`, tab or CR gets a leading `'` so a spreadsheet does not evaluate it; plain numbers are left alone; `opentide query --format csv` does not do this);
   - `sent` (the query as sent) and `vendor_query_id` in a details drawer;
   - failures show `error` and `detail`;
   - partial and truncated results are labelled.

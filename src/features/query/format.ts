@@ -80,11 +80,27 @@ export function filterRows(
   return rows.filter((row) => names.some((name) => cellText(row[name]).toLowerCase().includes(wanted)));
 }
 
-function csvField(text: string): string {
+const NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+
+/**
+ * A cell a spreadsheet would read as a formula (`=`, `+`, `-`, `@`, tab or CR first, OWASP's list) gets a
+ * leading `'`. Query rows carry attacker-controlled telemetry (command lines, user agents, file
+ * names), and Excel or LibreOffice evaluate `=HYPERLINK(…)` in a CSV even when it is quoted. A plain
+ * number such as `-2` is left as it is.
+ */
+export function neutraliseFormula(text: string): string {
+  return /^[=+\-@\t\r]/.test(text) && !NUMBER.test(text) ? `'${text}` : text;
+}
+
+function csvField(raw: string): string {
+  const text = neutraliseFormula(raw);
   return /[",\r\n]/.test(text) || /^\s|\s$/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-/** RFC 4180 CSV with a header row (objects as JSON, as `opentide query --format csv` writes them). */
+/**
+ * RFC 4180 CSV with a header row (objects as JSON, as `opentide query --format csv` writes them), for
+ * Export and Copy CSV. Unlike the CLI's, cells that would be formulas are neutralised.
+ */
 export function toCsv(columns: readonly Column[], rows: readonly Row[]): string {
   const lines = [columns.map((c) => csvField(c.name)).join(",")];
   for (const row of rows) lines.push(columns.map((c) => csvField(cellText(row[c.name]))).join(","));
