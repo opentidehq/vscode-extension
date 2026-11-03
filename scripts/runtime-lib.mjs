@@ -141,6 +141,25 @@ export function recordArchiveSha(text, name, archive, hash) {
 
 export const REQUIREMENTS_IN = "runtime/requirements.in";
 
+/** Text with CRLF line endings read as LF: a Windows checkout may convert the committed files. */
+export function lf(text) {
+  return text.replaceAll("\r\n", "\n");
+}
+
+/** The version `uv --version` prints ("uv 0.11.32 (…)"), or undefined. */
+export function uvVersion(output) {
+  return /^uv (\d+\.\d+\.\d+)/.exec(output.trim())?.[1];
+}
+
+/**
+ * The tar that unpacks python-build-standalone. On Windows it is System32's bsdtar: a Git for Windows
+ * shell puts GNU tar first on PATH, and GNU tar reads `D:\…` as a remote `host:file`.
+ */
+export function tarCommand(platform, env = {}) {
+  if (platform !== "win32") return "tar";
+  return `${(env.SystemRoot ?? env.SYSTEMROOT ?? "C:\\Windows").replace(/[\\/]+$/, "")}\\System32\\tar.exe`;
+}
+
 export function lockPath(name) {
   return `runtime/locks/${name}.txt`;
 }

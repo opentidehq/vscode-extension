@@ -10,7 +10,6 @@
 //   node scripts/runtime-lock.mjs --check            fail when requirements.in or a lock is stale
 import { spawnSync } from "node:child_process";
 import {
-  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -22,6 +21,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  lf,
   lockArgs,
   lockPath,
   noWheelsError,
@@ -33,6 +33,7 @@ import {
   target,
   universalReason,
   uvEnv,
+  uvVersion,
 } from "./runtime-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -65,10 +66,18 @@ function main() {
   const names = only ? [only] : runtimeTargets(pins);
   for (const name of names) target(name);
 
+  // The lock is uv's output: another uv may write it differently (CI installs pins.json uv.version).
+  const want = pins.uv?.version;
+  const version = spawnSync(uv, ["--version"], { encoding: "utf8" });
+  const have = version.error ? undefined : uvVersion(version.stdout ?? "");
+  if (want && have && have !== want) {
+    console.warn(`runtime:lock: uv ${have} is not pins.json's uv ${want}; the locks may differ in format`);
+  }
+
   const stale = [];
   const wantIn = requirementsIn(pins);
   const inPath = join(root, REQUIREMENTS_IN);
-  const currentIn = existsSync(inPath) ? readFileSync(inPath, "utf8") : undefined;
+  const currentIn = existsSync(inPath) ? lf(readFileSync(inPath, "utf8")) : undefined;
   if (currentIn !== wantIn) {
     if (check) stale.push(REQUIREMENTS_IN);
     else {
@@ -89,9 +98,9 @@ function main() {
         // Compile against a copy of the committed lock: uv keeps its versions where it can, so the lock
         // is stale only when requirements.in or the target's platform no longer give the same closure.
         const out = join(scratch, `${name}.txt`);
-        copyFileSync(file, out);
+        writeFileSync(out, lf(readFileSync(file, "utf8")));
         compile(pins, name, out);
-        if (readFileSync(out, "utf8") !== readFileSync(file, "utf8")) stale.push(lockPath(name));
+        if (lf(readFileSync(out, "utf8")) !== lf(readFileSync(file, "utf8"))) stale.push(lockPath(name));
         continue;
       }
       mkdirSync(dirname(file), { recursive: true });

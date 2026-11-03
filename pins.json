@@ -3,6 +3,10 @@
   "opentide": {
     "version": "0.21.0"
   },
+  "uv": {
+    "$comment": "The uv that writes runtime/locks and installs the closure; CI and publish.yml install this version, so runtime:lock --check compares like with like.",
+    "version": "0.11.32"
+  },
   "python": {
     "pythonBuildStandalone": "20260718",
     "cpython": "3.13.14",
