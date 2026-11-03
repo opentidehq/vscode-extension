@@ -25,6 +25,7 @@ import {
 } from "./form";
 import { commandLabel } from "./result";
 import type { Runner } from "./run";
+import { reachesTenants } from "./safety";
 import { describeReach, type PlatformReach } from "./tenants";
 
 /** `opentide.runner.run`'s argument, for keybindings: `{ "argv": ["validate", "--strict"], "mode": "terminal" }`. */
@@ -107,12 +108,14 @@ async function review(
 ): Promise<void> {
   const command = entry.command;
   const optional = optionalFields(fields);
-  const reaches = entry.classification.contactsTenant || entry.classification.class === "deploys";
   let reach: PlatformReach[] | undefined;
   for (;;) {
     const argv = buildArgv(command, fields, values);
     const modes = modesOf(command.path, argv);
-    if (reaches && reach === undefined) reach = await runner.reach(folder, argv);
+    // From this argv, not the bare command: an option such as `--live` is what makes it reach tenants.
+    const reaches = reachesTenants(ctx.capabilities.classify(argv));
+    if (!reaches) reach = undefined;
+    else if (reach === undefined) reach = await runner.reach(folder, argv);
     const missing = reach ? await runner.missingCredentials(folder, reach) : [];
     const items: ReviewItem[] = [];
     if (reach) {
