@@ -396,6 +396,12 @@
         "category": "opentide"
       },
       {
+        "command": "opentide.matrix.open",
+        "title": "Open ATT&CK Matrix",
+        "category": "opentide",
+        "icon": "$(table)"
+      },
+      {
         "command": "opentide.query.run",
         "title": "Run Query on Tenants…",
         "category": "opentide",
@@ -440,6 +446,10 @@
         {
           "command": "opentide.createPinnedVenv",
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
+        },
+        {
+          "command": "opentide.matrix.open",
+          "when": "opentide.hasWorkspace"
         },
         {
           "command": "opentide.query.run",
