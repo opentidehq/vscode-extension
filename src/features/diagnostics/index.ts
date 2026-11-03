@@ -38,6 +38,7 @@ import {
   withoutDuplicates,
 } from "./plan";
 import { Runs, runKey } from "./runs";
+import { type SaveBatch, SaveBatcher } from "./saves";
 
 export const SERVER_SOURCE = "opentide";
 export const COLLECTION: Record<FindingSource, string> = {
@@ -109,11 +110,10 @@ class Diagnostics implements vscode.Disposable {
   private readonly explainPages = new Map<string, string>();
   private readonly explainChanged = new vscode.EventEmitter<vscode.Uri>();
   private readonly fixDiffs = new Map<string, string>();
-  private readonly pendingSaves = new Map<
-    string,
-    { folder: OpentideFolder; files: Set<string>; configuration: boolean }
-  >();
-  private saveTimer: NodeJS.Timeout | undefined;
+  private readonly saves = new SaveBatcher<OpentideFolder>({
+    invalidate: (paths) => this.ctx.backend.invalidate(paths),
+    flush: (batches) => this.flushSaves(batches),
+  });
   private countTimer: NodeJS.Timeout | undefined;
   private startupFor: unknown;
   private knownFolders: readonly string[];
@@ -239,22 +239,11 @@ class Diagnostics implements vscode.Disposable {
     const isConfiguration = relative.startsWith(".opentide/configurations/");
     const isObject = this.ctx.folders.isObjectFile(document.uri);
     if (!isObject && !isConfiguration) return;
-    let pending = this.pendingSaves.get(folder.path);
-    if (!pending) {
-      pending = { folder, files: new Set(), configuration: false };
-      this.pendingSaves.set(folder.path, pending);
-    }
-    if (isObject) pending.files.add(document.uri.fsPath);
-    else pending.configuration = true;
-    // Saving several files at once (Save All) gives one run per folder.
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => void this.flushSaves(), 300);
+    // Saving several files at once (Save All) gives one run per folder; serve forgets the saved file first.
+    this.saves.add(folder.path, folder, document.uri.fsPath, isObject ? "object" : "configuration");
   }
 
-  private async flushSaves(): Promise<void> {
-    this.saveTimer = undefined;
-    const batches = [...this.pendingSaves.values()];
-    this.pendingSaves.clear();
+  private async flushSaves(batches: readonly SaveBatch<OpentideFolder>[]): Promise<void> {
     const capabilities = await this.ctx.capabilities.ready();
     const features = {
       validateFile: capabilities?.hasOption("validate", "--file") ?? false,
@@ -802,7 +791,7 @@ class Diagnostics implements vscode.Disposable {
   }
 
   dispose(): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saves.dispose();
     if (this.countTimer) clearTimeout(this.countTimer);
     this.runs.cancel();
     for (const source of [SERVER_SOURCE, COLLECTION.validate, COLLECTION.lint])

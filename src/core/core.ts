@@ -228,6 +228,12 @@ export function createCore(context: vscode.ExtensionContext): Core {
         void catalog.refresh(run.folder);
       }
     }),
+    // A save reaches serve at once: the watcher's batch comes 300 ms after its event, and a feature's
+    // run after the save would otherwise read serve's snapshot of the file from before it.
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      if (document.uri.scheme === "file" && folders.folderOf(document.uri))
+        backend.invalidate([document.uri.fsPath]);
+    }),
     fileEvents.onDidChange(({ folder, uris }) => {
       backend.invalidate(uris.map((uri) => uri.fsPath));
       if (catalog.folders().includes(folder.path)) void catalog.refresh(folder.path);
