@@ -136,3 +136,40 @@ export function formatRows(format: CopyFormat, columns: readonly Column[], rows:
       return toMarkdown(columns, rows);
   }
 }
+
+/** A grid's focused cell kept inside its data: a tab with fewer rows or columns moves it in. */
+export function clampFocus(
+  focus: { readonly row: number; readonly column: number },
+  rows: number,
+  columns: number,
+): { row: number; column: number } {
+  return {
+    row: Math.max(0, Math.min(focus.row, rows - 1)),
+    column: Math.max(0, Math.min(focus.column, columns - 1)),
+  };
+}
+
+/** What a table's user chose (filter text, filter column, sort): UI preferences, no row data. */
+export interface TableViewState {
+  readonly filter: string;
+  readonly filterColumn: string;
+  readonly sort?: { readonly column: string; readonly descending: boolean };
+}
+
+/** A persisted TableViewState, or undefined when `value` is not one. */
+export function tableViewState(value: unknown): TableViewState | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const v = value as Record<string, unknown>;
+  if (typeof v.filter !== "string" || typeof v.filterColumn !== "string") return undefined;
+  const sort = v.sort as Record<string, unknown> | undefined;
+  const validSort =
+    typeof sort === "object" &&
+    sort !== null &&
+    typeof sort.column === "string" &&
+    typeof sort.descending === "boolean";
+  return {
+    filter: v.filter,
+    filterColumn: v.filterColumn,
+    ...(validSort ? { sort: { column: sort.column as string, descending: sort.descending as boolean } } : {}),
+  };
+}

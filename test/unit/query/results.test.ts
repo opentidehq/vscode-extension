@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import {
   cellText,
+  clampFocus,
   filterRows,
   formatRows,
   sortKind,
@@ -11,10 +12,12 @@ import {
 } from "../../../src/features/query/format";
 import {
   applyProgress,
+  exportable,
   formatMs,
   keepable,
   pendingTabs,
   progressFromEvent,
+  queryViewState,
   tabSummary,
   tabsFromDocument,
 } from "../../../src/features/query/results";
@@ -160,5 +163,40 @@ describe("query: results kept from a closed panel (opentide.query.retainResults)
     assert.equal(keepable({ phase: "running" }), false);
     assert.equal(keepable(undefined), false);
     for (const phase of ["done", "failed", "cancelled"]) assert.equal(keepable({ phase }), true);
+  });
+});
+
+describe("query: what Copy and Export act on", () => {
+  const [pending] = pendingTabs(["B"]);
+  const tab = (overrides: object) => ({ ...(pending as NonNullable<typeof pending>), ...overrides });
+  it("only a finished tab of its own rows: never a failed or empty one, whose table holds another's", () => {
+    const ok = tab({ status: "ok", rows: [{ a: 1 }], columns: [{ name: "a" }] });
+    assert.equal(exportable(ok, "done"), true);
+    assert.equal(exportable(ok, "running"), false);
+    assert.equal(exportable(tab({ status: "failed" }), "done"), false);
+    assert.equal(exportable(tab({ status: "ok", rows: [] }), "done"), false);
+    assert.equal(exportable(pending, "done"), false);
+    assert.equal(exportable(undefined, "done"), false);
+  });
+});
+
+describe("query: the table's focus and view across tabs", () => {
+  it("moves a focused cell into a tab with fewer columns or rows", () => {
+    assert.deepEqual(clampFocus({ row: 4, column: 8 }, 10, 3), { row: 4, column: 2 });
+    assert.deepEqual(clampFocus({ row: 40, column: 1 }, 10, 3), { row: 9, column: 1 });
+    assert.deepEqual(clampFocus({ row: 3, column: 3 }, 0, 0), { row: 0, column: 0 });
+  });
+
+  it("keeps the selected tab, filter and sort, and nothing it cannot read", () => {
+    const state = {
+      selected: "prod",
+      table: { filter: "lsass", filterColumn: "User", sort: { column: "Time", descending: true } },
+    };
+    assert.deepEqual(queryViewState(JSON.parse(JSON.stringify(state))), state);
+    assert.deepEqual(queryViewState({ selected: 3, table: { filter: 1 } }), {});
+    assert.deepEqual(queryViewState(undefined), {});
+    assert.deepEqual(queryViewState({ table: { filter: "", filterColumn: "", sort: { column: 1 } } }), {
+      table: { filter: "", filterColumn: "" },
+    });
   });
 });
