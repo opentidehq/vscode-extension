@@ -4,6 +4,9 @@ node_modules/
 /.vscode-test/
 /.cache/
 *.vsix
-/runtime/
+/runtime/*
+!/runtime/requirements.in
+!/runtime/locks/
+/dist-vsix/
 /src/features/index.generated.ts
 /coverage/

@@ -1,0 +1,480 @@
+import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  archiveName,
+  archiveUrl,
+  buildId,
+  buildInfo,
+  cyclonedx,
+  expectedArchiveSha,
+  hostTarget,
+  installArgs,
+  installedTags,
+  isStaticInterpreter,
+  licenseFiles,
+  licenseOf,
+  lockArgs,
+  noWheelsError,
+  packagesWithoutWheels,
+  parseLock,
+  parseMetadata,
+  parseSha256Sums,
+  pickWheel,
+  RuntimeError,
+  recordArchiveSha,
+  requirementsIn,
+  requireRuntimeTarget,
+  runtimeNotices,
+  runtimeTargets,
+  serialNumber,
+  shouldRemove,
+  TARGETS,
+  wheelTags,
+} from "../../scripts/runtime-lib.mjs";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const pinsText = readFileSync(join(root, "pins.json"), "utf8");
+const pins = JSON.parse(pinsText);
+const testPins = {
+  opentide: { version: "0.21.0" },
+  highlights: { version: "0.9.1" },
+  python: {
+    pythonBuildStandalone: "20260718",
+    cpython: "3.13.14",
+    flavor: "install_only_stripped",
+    macosDeploymentTarget: "11.0",
+  },
+  runtimeTargets: ["linux-x64", "win32-x64"],
+  universalTargets: { "win32-arm64": "no win_arm64 wheel" },
+  runtimeArchives: { "linux-x64": { sha256: null } },
+};
+
+describe("runtime build: targets and pins", () => {
+  it("knows the eight VS Code targets with their python-build-standalone and uv triples", () => {
+    assert.deepEqual(Object.keys(TARGETS).sort(), [
+      "alpine-arm64",
+      "alpine-x64",
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64",
+      "linux-x64",
+      "win32-arm64",
+      "win32-x64",
+    ]);
+    assert.equal(TARGETS["alpine-x64"].uv, "x86_64-unknown-linux-musl");
+    assert.equal(TARGETS["linux-arm64"].uv, "aarch64-manylinux_2_28");
+    assert.equal(hostTarget("linux", "x64"), "linux-x64");
+    assert.equal(hostTarget("linux", "arm64", true), "alpine-arm64");
+    assert.equal(hostTarget("win32", "ia32"), undefined);
+  });
+
+  it("the committed pins: runtimeTargets are known targets, the others say why they are universal", () => {
+    const targets = runtimeTargets(pins);
+    for (const name of Object.keys(TARGETS)) {
+      if (!targets.includes(name))
+        assert.ok(pins.universalTargets?.[name], `${name} needs a universalTargets reason`);
+    }
+    assert.throws(() => requireRuntimeTarget(pins, "win32-arm64"), /universal package.*win_arm64/);
+  });
+
+  it("an empty runtimeTargets means universal only", () => {
+    const universal = { ...testPins, runtimeTargets: [] };
+    assert.deepEqual(runtimeTargets(universal), []);
+    assert.throws(() => requireRuntimeTarget(universal, "linux-x64"), RuntimeError);
+    assert.throws(() => runtimeTargets({ ...testPins, runtimeTargets: ["linux-armhf"] }), /unknown target/);
+  });
+
+  it("names the python-build-standalone archive and its GitHub release URL", () => {
+    assert.equal(
+      archiveName(testPins, "darwin-arm64"),
+      "cpython-3.13.14+20260718-aarch64-apple-darwin-install_only_stripped.tar.gz",
+    );
+    assert.equal(
+      archiveUrl(testPins, "linux-x64"),
+      "https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-3.13.14%2B20260718-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+    );
+  });
+
+  it("checks the archive against SHA256SUMS until pins.json records it, then against pins.json", () => {
+    const name = archiveName(testPins, "linux-x64");
+    const sums = parseSha256Sums(`${"a".repeat(64)}  ${name}\n${"b".repeat(64)}  other.tar.gz\n`);
+    assert.deepEqual(expectedArchiveSha(testPins, "linux-x64", sums), {
+      sha256: "a".repeat(64),
+      record: true,
+      archive: name,
+    });
+    assert.equal(
+      expectedArchiveSha(testPins, "linux-x64"),
+      undefined,
+      "nothing recorded and no SHA256SUMS yet",
+    );
+    assert.throws(() => expectedArchiveSha(testPins, "darwin-x64", sums), /has no cpython/);
+
+    const recorded = {
+      ...testPins,
+      runtimeArchives: { "linux-x64": { archive: name, sha256: "C".repeat(64) } },
+    };
+    assert.deepEqual(expectedArchiveSha(recorded, "linux-x64", sums), {
+      sha256: "c".repeat(64),
+      record: false,
+      archive: name,
+    });
+    const bumped = { ...recorded, python: { ...testPins.python, pythonBuildStandalone: "20270101" } };
+    assert.throws(() => expectedArchiveSha(bumped, "linux-x64", sums), /set its archive and sha256 to null/);
+  });
+
+  it("the committed pins record every archive for the pinned python-build-standalone", () => {
+    for (const name of Object.keys(TARGETS)) {
+      const expected = expectedArchiveSha(pins, name);
+      assert.match(expected?.sha256 ?? "", /^[0-9a-f]{64}$/, name);
+    }
+  });
+
+  it("records an archive's SHA-256 in pins.json without touching the rest", () => {
+    const text =
+      '{\n  "a": 1,\n  "runtimeArchives": {\n    "linux-x64": { "sha256": null },\n    "linux-arm64": { "sha256": null }\n  }\n}\n';
+    const out = recordArchiveSha(text, "linux-x64", "x.tar.gz", "f".repeat(64));
+    assert.equal(
+      out,
+      `{\n  "a": 1,\n  "runtimeArchives": {\n    "linux-x64": {\n      "archive": "x.tar.gz",\n      "sha256": "${"f".repeat(64)}"\n    },\n    "linux-arm64": { "sha256": null }\n  }\n}\n`,
+    );
+    assert.deepEqual(JSON.parse(recordArchiveSha('{"x":1}', "linux-x64", "y", "0")).runtimeArchives, {
+      "linux-x64": { archive: "y", sha256: "0" },
+    });
+  });
+});
+
+describe("runtime build: locks", () => {
+  it("requirements.in pins the bundled opentide, and the committed one matches pins.json", () => {
+    assert.match(requirementsIn(testPins), /^opentide==0\.21\.0$/m);
+    assert.equal(readFileSync(join(root, "runtime", "requirements.in"), "utf8"), requirementsIn(pins));
+  });
+
+  it("locks wheels only, hashed, for the target's platform and CPython", () => {
+    const args = lockArgs(testPins, "alpine-arm64", "out.txt");
+    const value = (flag) => args[args.indexOf(flag) + 1];
+    assert.equal(value("--python-platform"), "aarch64-unknown-linux-musl");
+    assert.equal(value("--python-version"), "3.13.14");
+    assert.equal(value("--only-binary"), ":all:");
+    assert.ok(args.includes("--generate-hashes"));
+    assert.equal(value("-o"), "out.txt");
+  });
+
+  it("installs for another platform with --require-hashes and no sdists", () => {
+    const args = installArgs(testPins, "win32-x64", "lock.txt", "rt/Lib/site-packages");
+    const value = (flag) => args[args.indexOf(flag) + 1];
+    assert.equal(value("--target"), "rt/Lib/site-packages");
+    assert.equal(value("--python-platform"), "x86_64-pc-windows-msvc");
+    assert.ok(args.includes("--require-hashes"));
+    assert.equal(value("--only-binary"), ":all:");
+    assert.ok(!args.includes("--python"));
+    assert.equal(installArgs(testPins, "linux-x64", "l", "s", "/py").at(-3), "/py");
+  });
+
+  it("names the packages without wheels and fails clearly", () => {
+    const stderr =
+      "  × No solution found when resolving dependencies:\n  ╰─▶ Because opentide==0.21.0 has no usable wheels and you require\n      opentide==0.21.0, we can conclude that your requirements are\n      unsatisfiable.\n\nhint: Wheels are required for `opentide` because building from source is disabled";
+    assert.deepEqual(packagesWithoutWheels(stderr), ["opentide"]);
+    const error = noWheelsError("win32-arm64", stderr);
+    assert.ok(error instanceof RuntimeError);
+    assert.match(error.message, /win32-arm64: opentide has no wheel for aarch64-pc-windows-msvc/);
+    assert.match(error.message, /universal package/);
+    assert.equal(noWheelsError("linux-x64", "error: network unreachable"), undefined);
+  });
+
+  it("parses a hashed lock and refuses an unhashed entry", () => {
+    const lock = parseLock(
+      "# header\nPyYAML==6.0.3 \\\n    --hash=sha256:" +
+        "1".repeat(64) +
+        " \\\n    --hash=sha256:" +
+        "2".repeat(64) +
+        "\n    # via opentide\nruamel.yaml==0.19.1 ; python_version >= '3.10' \\\n    --hash=sha256:" +
+        "3".repeat(64) +
+        "\n",
+    );
+    assert.deepEqual(lock, [
+      { name: "pyyaml", version: "6.0.3", hashes: ["1".repeat(64), "2".repeat(64)] },
+      { name: "ruamel-yaml", version: "0.19.1", hashes: ["3".repeat(64)] },
+    ]);
+    assert.throws(() => parseLock("six==1.17.0\n"), /has no hash/);
+  });
+
+  it("every committed lock is hashed, pins the bundled opentide, and exists for each runtime target", () => {
+    for (const name of runtimeTargets(pins)) {
+      const lock = parseLock(readFileSync(join(root, "runtime", "locks", `${name}.txt`), "utf8"));
+      assert.equal(lock.find((pkg) => pkg.name === "opentide")?.version, pins.opentide.version, name);
+    }
+  });
+});
+
+describe("runtime build: trimming the interpreter", () => {
+  const posix = { name: "linux-x64", cpython: "3.13.14", staticInterpreter: true };
+  const win = { name: "win32-x64", cpython: "3.13.14", staticInterpreter: false };
+
+  it("removes what SPEC §3 lists on POSIX", () => {
+    for (const rel of [
+      "include",
+      "share",
+      "lib/libpython3.13.so",
+      "lib/libpython3.13.so.1.0",
+      "lib/libpython3.so",
+      "lib/libpython3.13.dylib",
+      "lib/libtcl9.0.so",
+      "lib/libtcl9tk9.0.so",
+      "lib/tcl9.0",
+      "lib/tk9.0",
+      "lib/itcl4.3.5",
+      "lib/pkgconfig",
+      "lib/python3.13/tkinter",
+      "lib/python3.13/idlelib",
+      "lib/python3.13/ensurepip",
+      "lib/python3.13/turtledemo",
+      "lib/python3.13/test",
+      "lib/python3.13/config-3.13-x86_64-linux-gnu",
+      "lib/python3.13/lib-dynload/_tkinter.cpython-313-x86_64-linux-gnu.so",
+      "lib/python3.13/lib-dynload/_testcapi.cpython-313-x86_64-linux-gnu.so",
+      "lib/python3.13/json/__pycache__",
+      "lib/python3.13/site-packages/pip",
+      "lib/python3.13/site-packages/pip-25.1.dist-info",
+      "lib/python3.13/site-packages/pandas/tests",
+      "lib/python3.13/site-packages/numpy/linalg/tests",
+      "bin/pip3.13",
+      "bin/idle3",
+      "bin/pydoc3.13",
+      "bin/python3.13-config",
+    ]) {
+      assert.ok(shouldRemove(rel, posix), rel);
+    }
+  });
+
+  it("keeps what opentide loads", () => {
+    for (const rel of [
+      "bin/python3",
+      "lib/python3.13",
+      "lib/python3.13/json/decoder.py",
+      "lib/python3.13/unittest/mock.py",
+      "lib/python3.13/lib-dynload/_ssl.cpython-313-x86_64-linux-gnu.so",
+      "lib/python3.13/site-packages/opentide/_native.abi3.so",
+      "lib/python3.13/site-packages/numpy/testing",
+      "lib/python3.13/site-packages/tests",
+      "lib/python3.13/site-packages/pipx",
+      "lib/python3.13/LICENSE.txt",
+    ]) {
+      assert.ok(!shouldRemove(rel, posix), rel);
+    }
+    assert.ok(!shouldRemove("lib/libpython3.13.so.1.0", { ...posix, staticInterpreter: false }));
+  });
+
+  it("removes what SPEC §3 lists on Windows and keeps python313.dll", () => {
+    for (const rel of [
+      "include",
+      "libs",
+      "tcl",
+      "Scripts",
+      "DLLs/_tkinter.pyd",
+      "DLLs/tcl86t.dll",
+      "DLLs/tk86t.dll",
+      "DLLs/_testcapi.pyd",
+      "DLLs/_ctypes_test.pyd",
+      "Lib/idlelib",
+      "Lib/test",
+      "Lib/site-packages/pip",
+    ]) {
+      assert.ok(shouldRemove(rel, win), rel);
+    }
+    for (const rel of [
+      "python.exe",
+      "python313.dll",
+      "python3.dll",
+      "DLLs/_ssl.pyd",
+      "DLLs/libssl-3-x64.dll",
+      "Lib/site-packages/opentide",
+    ]) {
+      assert.ok(!shouldRemove(rel, win), rel);
+    }
+  });
+
+  it("tells a static interpreter from one that loads libpython", () => {
+    assert.equal(isStaticInterpreter("linux-x64", "3.13.14", Buffer.from("\x7fELF...libc.so.6")), true);
+    assert.equal(
+      isStaticInterpreter("linux-x64", "3.13.14", Buffer.from("\x7fELF libpython3.13.so.1.0")),
+      false,
+    );
+    assert.equal(
+      isStaticInterpreter("darwin-arm64", "3.13.14", Buffer.from("@rpath/libpython3.13.dylib")),
+      false,
+    );
+    assert.equal(isStaticInterpreter("win32-x64", "3.13.14", Buffer.from("")), false);
+  });
+});
+
+describe("runtime build: metadata, SBOM and notices", () => {
+  const metadata = (text) => parseMetadata(text);
+
+  it("parses core metadata with repeated and folded fields", () => {
+    const meta = metadata(
+      "Metadata-Version: 2.4\nName: opentide\nVersion: 0.21.0\nLicense-Expression: EUPL-1.2\nLicense-File: LICENSE\nLicense-File: NOTICE\nDescription: one\n        two\n\nbody: not a header\n",
+    );
+    assert.deepEqual(meta.get("license-file"), ["LICENSE", "NOTICE"]);
+    assert.equal(meta.get("description")?.[0], "one\ntwo");
+    assert.equal(meta.get("body"), undefined);
+  });
+
+  it("finds the licence: expression, short field, classifiers, else the text", () => {
+    assert.deepEqual(licenseOf(metadata("License-Expression: EUPL-1.2\n")), { expression: "EUPL-1.2" });
+    assert.deepEqual(licenseOf(metadata("License: Apache 2.0\n")), { id: "Apache-2.0" });
+    assert.deepEqual(licenseOf(metadata("Classifier: License :: OSI Approved :: MIT License\n")), {
+      id: "MIT",
+    });
+    assert.deepEqual(
+      licenseOf(
+        metadata(
+          "Classifier: License :: OSI Approved :: MIT License\nClassifier: License :: OSI Approved :: Apache Software License\n",
+        ),
+      ),
+      { expression: "Apache-2.0 OR MIT" },
+    );
+    assert.deepEqual(licenseOf(metadata("License: Dual License\n")), { name: "Dual License" });
+    assert.deepEqual(licenseOf(metadata("Classifier: License :: OSI Approved :: BSD License\n")), {
+      name: "BSD License",
+    });
+  });
+
+  it("finds the licence files of a dist-info, PEP 639 or not", () => {
+    assert.deepEqual(
+      licenseFiles(metadata("License-File: LICENSE\nLicense-File: vendor/NOTICE\n"), [
+        "licenses/LICENSE",
+        "licenses/vendor/NOTICE",
+        "METADATA",
+      ]),
+      ["licenses/LICENSE", "licenses/vendor/NOTICE"],
+    );
+    assert.deepEqual(licenseFiles(metadata("License-File: LICENSE.txt\n"), ["LICENSE.txt", "RECORD"]), [
+      "LICENSE.txt",
+    ]);
+    assert.deepEqual(licenseFiles(metadata(""), ["AUTHORS.rst", "COPYING", "RECORD", "WHEEL"]), [
+      "AUTHORS.rst",
+      "COPYING",
+    ]);
+  });
+
+  it("identifies the installed wheel by its tags and the lock's hashes", () => {
+    assert.deepEqual(
+      [
+        ...wheelTags("pydantic_core-2.50.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"),
+      ].sort(),
+      ["cp313-cp313-manylinux2014_x86_64", "cp313-cp313-manylinux_2_17_x86_64"],
+    );
+    const tags = installedTags(
+      "Wheel-Version: 1.0\nTag: cp313-cp313-manylinux_2_17_x86_64\nTag: cp313-cp313-manylinux2014_x86_64\n",
+    );
+    const files = [
+      {
+        filename: "p-1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        digests: { sha256: "a" },
+        url: "u1",
+      },
+      { filename: "p-1-cp313-cp313-musllinux_1_2_x86_64.whl", digests: { sha256: "b" }, url: "u2" },
+      { filename: "p-1.tar.gz", digests: { sha256: "c" }, url: "u3" },
+    ];
+    assert.equal(pickWheel(files, tags, ["a", "b", "c"])?.url, "u1");
+    assert.equal(pickWheel(files, tags, ["b"]), undefined, "a wheel the lock does not hash is not it");
+  });
+
+  it("writes BUILD-INFO with a stable build id", () => {
+    const info = buildInfo({
+      pins: testPins,
+      name: "linux-x64",
+      archiveSha256: "a",
+      lockSha256: "b",
+      staticInterpreter: true,
+    });
+    assert.equal(
+      info.buildId,
+      buildId({ target: "linux-x64", archiveSha256: "a", lockSha256: "b", opentide: "0.21.0" }),
+    );
+    assert.notEqual(
+      info.buildId,
+      buildId({ target: "linux-x64", archiveSha256: "a", lockSha256: "c", opentide: "0.21.0" }),
+    );
+    assert.equal(info.python, "bin/python3");
+    assert.equal(info.engine, "0.9.1");
+    assert.equal(
+      buildInfo({ pins: testPins, name: "win32-x64", archiveSha256: "a", lockSha256: "b" }).python,
+      "python.exe",
+    );
+  });
+
+  it("writes a CycloneDX 1.5 SBOM of the interpreter and the closure", () => {
+    const info = buildInfo({
+      pins: testPins,
+      name: "linux-x64",
+      archiveSha256: "f".repeat(64),
+      lockSha256: "e",
+      staticInterpreter: true,
+    });
+    const sbom = cyclonedx({
+      info,
+      extensionVersion: "0.2.0",
+      dists: [
+        {
+          name: "pyyaml",
+          version: "6.0.3",
+          license: { id: "MIT" },
+          wheel: { filename: "x.whl", sha256: "1".repeat(64), url: "https://files/x.whl" },
+        },
+        {
+          name: "opentide",
+          version: "0.21.0",
+          license: { expression: "EUPL-1.2" },
+          wheel: { filename: "o.whl", sha256: "2".repeat(64), url: "https://files/o.whl" },
+        },
+      ],
+    });
+    assert.equal(sbom.bomFormat, "CycloneDX");
+    assert.equal(sbom.specVersion, "1.5");
+    assert.match(
+      sbom.serialNumber,
+      /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    assert.deepEqual(
+      sbom.components.map((c) => c.name),
+      ["cpython", "opentide", "pyyaml"],
+    );
+    const [cpython, opentide] = sbom.components;
+    assert.deepEqual(cpython.licenses, [{ license: { id: "PSF-2.0" } }]);
+    assert.deepEqual(cpython.hashes, [{ alg: "SHA-256", content: "f".repeat(64) }]);
+    assert.deepEqual(opentide.licenses, [{ expression: "EUPL-1.2" }]);
+    assert.equal(opentide.purl, "pkg:pypi/opentide@0.21.0");
+    assert.equal(sbom.dependencies[0].dependsOn.length, 3);
+    assert.equal(serialNumber("0".repeat(32)), "urn:uuid:00000000-0000-5000-8000-000000000000");
+  });
+
+  it("writes notices with each component's licence and files", () => {
+    const info = buildInfo({ pins: testPins, name: "linux-x64", archiveSha256: "a", lockSha256: "b" });
+    const text = runtimeNotices(info, [
+      {
+        title: "CPython 3.13.14",
+        license: "PSF-2.0",
+        texts: [{ file: "LICENSE.txt", text: "PSF LICENSE AGREEMENT\n" }],
+      },
+      { title: "solrq 1.1.2", license: "BSD", texts: [] },
+    ]);
+    assert.match(text, /opentide and its analysis engine are EUPL-1.2, CPython is PSF-2.0/);
+    assert.match(text, /CPython 3\.13\.14 \(PSF-2\.0\)[\s\S]*PSF LICENSE AGREEMENT/);
+    assert.match(text, /solrq 1\.1\.2 \(BSD\)[\s\S]*ships no licence file/);
+  });
+});
+
+describe("runtime build: committed pins.json", () => {
+  it("re-recording an archive leaves pins.json as it is (the format Biome keeps)", () => {
+    let text = pinsText;
+    for (const name of Object.keys(TARGETS)) {
+      const recorded = pins.runtimeArchives[name];
+      text = recordArchiveSha(text, name, recorded.archive, recorded.sha256);
+    }
+    assert.equal(text, pinsText);
+  });
+});
