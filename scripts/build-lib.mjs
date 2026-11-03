@@ -26,9 +26,16 @@ export function bundledPackages(metafile, root) {
   return new Map([...packages].sort(([a], [b]) => (a < b ? -1 : 1)));
 }
 
+/** One metafile whose inputs are those of every build (the extension and the webviews). */
+export function mergeMetafiles(metafiles) {
+  const inputs = {};
+  for (const metafile of metafiles) if (metafile) Object.assign(inputs, metafile.inputs);
+  return { inputs };
+}
+
 /** THIRD-PARTY-NOTICES text: each bundled package's name, version, licence and licence file. */
 export function thirdPartyNotices(packages, readFile) {
-  const sections = ["Third-party software bundled in dist/extension.js", ""];
+  const sections = ["Third-party software bundled in dist/extension.js and dist/webview/*.js", ""];
   for (const [name, dir] of packages) {
     const pkg = JSON.parse(readFile(join(dir, "package.json")));
     const licenseFile = readdirSync(dir).find((file) => /^(licen[cs]e|copying)(\.md|\.txt)?$/i.test(file));

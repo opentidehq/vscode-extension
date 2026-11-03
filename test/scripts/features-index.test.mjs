@@ -59,4 +59,17 @@ describe("third-party notices", () => {
     const text = thirdPartyNotices(packages, (file) => readFileSync(file, "utf8"));
     assert.match(text, /@scope\/pkg 1\.2\.3 \(MIT\)\n-+\nMIT text/);
   });
+
+  it("covers the webview bundles too", async () => {
+    const { mergeMetafiles } = await import("../../scripts/build-lib.mjs");
+    const merged = mergeMetafiles([
+      { inputs: { "node_modules/a/index.js": {} } },
+      undefined,
+      { inputs: { "node_modules/cytoscape/dist/cytoscape.esm.mjs": {} } },
+    ]);
+    assert.deepEqual(Object.keys(merged.inputs), [
+      "node_modules/a/index.js",
+      "node_modules/cytoscape/dist/cytoscape.esm.mjs",
+    ]);
+  });
 });

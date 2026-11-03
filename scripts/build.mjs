@@ -3,13 +3,13 @@
 //   src/extension.ts        -> dist/extension.js     (node, CommonJS, `vscode` external)
 //   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE)
 //   webview/shared/base.css -> dist/webview/base.css
-//   the bundled npm packages' licences -> dist/THIRD-PARTY-NOTICES.txt
+//   the npm packages bundled in any of them -> dist/THIRD-PARTY-NOTICES.txt
 // Flags: --production (minify, no source maps), --watch.
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
-import { bundledPackages, thirdPartyNotices, webviewEntries } from "./build-lib.mjs";
+import { bundledPackages, mergeMetafiles, thirdPartyNotices, webviewEntries } from "./build-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const production = process.argv.includes("--production");
@@ -43,6 +43,7 @@ const webview = {
   platform: "browser",
   format: "iife",
   target: "es2022",
+  metafile: true,
 };
 
 if (!watch) rmSync(join(root, "dist"), { recursive: true, force: true });
@@ -53,9 +54,8 @@ const configs = Object.keys(webviews).length > 0 ? [extension, webview] : [exten
 if (watch) {
   for (const config of configs) await (await esbuild.context(config)).watch();
 } else {
-  const [built] = await Promise.all(configs.map((config) => esbuild.build(config)));
-  const notices = thirdPartyNotices(bundledPackages(built.metafile, root), (file) =>
-    readFileSync(file, "utf8"),
-  );
+  const built = await Promise.all(configs.map((config) => esbuild.build(config)));
+  const metafile = mergeMetafiles(built.map((result) => result.metafile));
+  const notices = thirdPartyNotices(bundledPackages(metafile, root), (file) => readFileSync(file, "utf8"));
   writeFileSync(join(root, "dist", "THIRD-PARTY-NOTICES.txt"), notices);
 }
