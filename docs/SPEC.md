@@ -615,7 +615,7 @@ OPENTIDE
 Three levels, from fastest to richest:
 
 1. **Go to detection** (`Ctrl+T`, workspace symbols) comes free from the server: names, UUIDs and families.
-2. **Quick search** ("opentide: Find Detection…", `Ctrl+Alt+D`): a quick pick over the catalogue data. Query syntax: free text, plus `type:rule`, `platform:sentinel`, `status:release`, `technique:T1003`, `tactic:credential-access`, `actor:APT29`, `tlp:amber`, `author:me`, `has:errors`, `has:placeholders`, `unreviewed:>90d`.
+2. **Quick search** ("opentide: Find Detection…", `Ctrl+Shift+Alt+F`, `Cmd+Shift+Alt+F` on macOS; `Ctrl+Alt+D` was taken by macOS's Dock and Xfce's Show Desktop): a quick pick over the catalogue data. Query syntax: free text, plus `type:rule`, `platform:sentinel`, `status:release`, `technique:T1003`, `tactic:credential-access`, `actor:APT29`, `tlp:amber`, `author:me`, `has:errors`, `has:placeholders`, `unreviewed:>90d`.
 3. **Search panel:** the same query with facets and counts in a side list, results grouped by type, each with its techniques, platforms, status and problems.
    - Select many results, then act on them: validate them, show them in the graph, preview their deploy.
    - Saved searches are kept per workspace.

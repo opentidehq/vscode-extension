@@ -1619,19 +1619,19 @@
         "command": "opentide.placeholder.next",
         "key": "ctrl+alt+.",
         "mac": "ctrl+alt+.",
-        "when": "editorTextFocus && opentide.hasPlaceholders"
+        "when": "editorTextFocus && editorLangId == opentide-yaml && opentide.hasPlaceholders"
       },
       {
         "command": "opentide.placeholder.previous",
         "key": "ctrl+alt+,",
         "mac": "ctrl+alt+,",
-        "when": "editorTextFocus && opentide.hasPlaceholders"
+        "when": "editorTextFocus && editorLangId == opentide-yaml && opentide.hasPlaceholders"
       },
       {
         "command": "opentide.search.open",
-        "key": "ctrl+alt+d",
-        "mac": "cmd+alt+d",
-        "when": "opentide.hasWorkspace"
+        "key": "ctrl+shift+alt+f",
+        "mac": "cmd+shift+alt+f",
+        "when": "opentide.hasWorkspace && !inQuickOpen"
       }
     ],
     "colors": [

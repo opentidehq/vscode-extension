@@ -14,9 +14,9 @@
     "keybindings": [
       {
         "command": "opentide.search.open",
-        "key": "ctrl+alt+d",
-        "mac": "cmd+alt+d",
-        "when": "opentide.hasWorkspace"
+        "key": "ctrl+shift+alt+f",
+        "mac": "cmd+shift+alt+f",
+        "when": "opentide.hasWorkspace && !inQuickOpen"
       }
     ]
   }
