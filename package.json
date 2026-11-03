@@ -328,6 +328,34 @@
             "markdownDescription": "Traces the communication between VS Code and the opentide language server, in the `opentide Language Server Trace` output."
           }
         }
+      },
+      {
+        "title": "opentide: Query",
+        "properties": {
+          "opentide.query.lenses": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Show **Run**, **Validate live** and **Compiled query** lenses above each query in a rule and in query files."
+          },
+          "opentide.query.defaultWindow": {
+            "type": "string",
+            "default": "24h",
+            "pattern": "^(\\d+[smhdwSMHDW]|P.*)$",
+            "markdownDescription": "The look-back a query run offers first (`--since`): `15m`, `24h`, `7d` or ISO-8601 (`PT1H`)."
+          },
+          "opentide.query.defaultLimit": {
+            "type": "integer",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 5000,
+            "markdownDescription": "Rows per tenant (`--limit`, at most 5,000)."
+          },
+          "opentide.query.retainResults": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Keep a query's last results in memory after its panel closes, for this window. Results are never written to disk except by **Export**."
+          }
+        }
       }
     ],
     "commands": [
@@ -366,6 +394,29 @@
         "command": "opentide.showReferences",
         "title": "Show References",
         "category": "opentide"
+      },
+      {
+        "command": "opentide.query.run",
+        "title": "Run Query on Tenants…",
+        "category": "opentide",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "opentide.query.validateLive",
+        "title": "Validate Query on Tenants",
+        "category": "opentide",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "opentide.query.showCompiled",
+        "title": "Show Compiled Query",
+        "category": "opentide",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "opentide.query.configureTenant",
+        "title": "Configure a Tenant…",
+        "category": "opentide"
       }
     ],
     "menus": {
@@ -389,6 +440,29 @@
         {
           "command": "opentide.createPinnedVenv",
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
+        },
+        {
+          "command": "opentide.query.run",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(opentide-yaml|kql|spl|esql|eql|kuery|lucene)$/"
+        },
+        {
+          "command": "opentide.query.validateLive",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId == opentide-yaml"
+        },
+        {
+          "command": "opentide.query.showCompiled",
+          "when": "editorLangId =~ /^(opentide-yaml|kql|spl)$/"
+        },
+        {
+          "command": "opentide.query.configureTenant",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opentide.query.run",
+          "group": "opentide@10",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(kql|spl|esql|eql|kuery|lucene)$/"
         }
       ]
     },
