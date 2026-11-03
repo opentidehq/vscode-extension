@@ -278,6 +278,10 @@ opens a panel on `dist/webview/<entry>.js` with:
   `createChannel<GraphProtocol>(webviewValidators)` from `webview/shared/channel.ts`. Messages that
   fail validation are dropped on both sides.
 
+A page's own styles go in a `<style>` element carrying the page's nonce
+(`(document.currentScript as HTMLScriptElement).nonce`); the CSP allows no other inline style, while
+setting `element.style` from script is fine.
+
 For a `WebviewView`, use `ctx.webview.webviewOptions()`, `ctx.webview.html(webview, entry, title)` and
 `ctx.webview.connect(webview, validators)`. A webview never receives a secret, and every action goes
 through the host.

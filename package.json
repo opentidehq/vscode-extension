@@ -368,6 +368,24 @@
         "category": "opentide"
       },
       {
+        "command": "opentide.graph.open",
+        "title": "Show Graph",
+        "category": "opentide",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "opentide.graph.reveal",
+        "title": "Reveal in Graph",
+        "category": "opentide",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "opentide.graph.showInGraph",
+        "title": "Show in Graph",
+        "category": "opentide",
+        "icon": "$(type-hierarchy)"
+      },
+      {
         "command": "opentide.search.open",
         "title": "Find Detection…",
         "category": "opentide",
@@ -397,8 +415,34 @@
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
         },
         {
+          "command": "opentide.graph.open",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.graph.reveal",
+          "when": "false"
+        },
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml"
+        },
+        {
           "command": "opentide.search.open",
           "when": "opentide.hasWorkspace"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "group": "opentide@10"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "group": "opentide@10"
         }
       ]
     },
@@ -496,6 +540,8 @@
     "typescript": "6.0.3"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.3",
+    "cytoscape": "3.34.4",
     "vscode-languageclient": "10.1.2"
   }
 }
