@@ -112,6 +112,11 @@ export class CatalogStore {
     for (const folder of this.slots.keys()) void this.refresh(folder, options);
   }
 
+  /** Forget every folder not in `folders` (the workspace's opentide folders now). */
+  retain(folders: readonly string[]): void {
+    for (const folder of this.folders()) if (!folders.includes(folder)) this.delete(folder);
+  }
+
   /** Forget a folder (removed from the workspace). */
   delete(folder: string): void {
     const slot = this.slots.get(folder);
@@ -248,6 +253,7 @@ export function inFolderSpelling(
 ): CatalogDocument {
   let changed = false;
   const objects = document.objects.map((object) => {
+    if (typeof object.file_path !== "string") return object;
     const file_path = spell(object.file_path);
     if (file_path === object.file_path) return object;
     changed = true;

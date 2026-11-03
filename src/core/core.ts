@@ -222,6 +222,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
       if (catalog.folders().includes(folder.path)) void catalog.refresh(folder.path);
     }),
     folders.onDidChange((all) => {
+      // A removed folder's catalogue goes, so a restart's refreshAll does not run `info catalog` there.
+      catalog.retain(all.map((folder) => folder.path));
       // A new primary folder changes the runtime; a paths.toml edit only changes object folders.
       const primary = all[0]?.path;
       if (primary !== lastPrimary) {
