@@ -3,7 +3,14 @@ import * as path from "node:path";
 import type { CatalogDocument } from "../../../src/core/catalog/types";
 import { forkTarget, mergeMcpEntry } from "../../../src/features/agents/forks";
 import { parseJsonc, stripJsonc } from "../../../src/features/agents/jsonc";
-import { decideMcp, definesOpentide, type McpInputs, provideMode } from "../../../src/features/agents/mcp";
+import {
+  decideMcp,
+  definesOpentide,
+  entryUsable,
+  type McpInputs,
+  opentideEntryCommand,
+  provideMode,
+} from "../../../src/features/agents/mcp";
 import { activeObjectPayload, diagnosticsPayload } from "../../../src/features/agents/tools";
 import { fakeRuntime } from "../helpers";
 
@@ -95,6 +102,26 @@ describe("agents: MCP server", () => {
     assert.ok(!definesOpentide('{ "servers": { "other": {} } }'));
     assert.ok(!definesOpentide("not json"));
     assert.ok(!definesOpentide(undefined));
+  });
+
+  it("defers to a workspace opentide server only when VS Code can start its command", () => {
+    const written = '{ "servers": { "opentide": { "command": "opentide", "args": ["mcp", "start"] } } }';
+    assert.equal(opentideEntryCommand(written), "opentide");
+    assert.equal(opentideEntryCommand('{ "servers": { "opentide": { "url": "http://x" } } }'), null);
+    assert.equal(opentideEntryCommand('{ "servers": {} }'), undefined);
+    const lookup = (onPath: string[], files: string[] = []) => ({
+      isAbsolute: (file: string) => file.startsWith("/"),
+      exists: (file: string) => files.includes(file),
+      which: (name: string) => (onPath.includes(name) ? `/usr/bin/${name}` : undefined),
+    });
+    // `setup mcp --vscode` writes `opentide`; with only the bundled runtime it is on no PATH.
+    assert.equal(entryUsable("opentide", lookup([])), false);
+    assert.equal(entryUsable("opentide", lookup(["opentide"])), true);
+    assert.equal(entryUsable("/venv/bin/opentide", lookup([], ["/venv/bin/opentide"])), true);
+    assert.equal(entryUsable("/gone/opentide", lookup([])), false);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a VS Code variable, not a template
+    assert.equal(entryUsable("${workspaceFolder}/.venv/bin/opentide", lookup([])), true);
+    assert.equal(entryUsable(null, lookup([])), true);
   });
 
   it("reads the setting leniently", () => {

@@ -7,10 +7,11 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { which } from "../../core/runtime/process";
 import { cliCommand, hasCli } from "../../core/runtime/types";
 import { httpProxy, readRestricted } from "../../core/services/settings";
 import { forkTarget, mergeMcpEntry } from "./forks";
-import { decideMcp, definesOpentide, MCP_PROVIDER_ID, provideMode } from "./mcp";
+import { decideMcp, entryUsable, MCP_PROVIDER_ID, opentideEntryCommand, provideMode } from "./mcp";
 import {
   ACTIVE_OBJECT_TOOL,
   activeObjectPayload,
@@ -70,17 +71,32 @@ export default defineFeature({
   },
 });
 
-/** `.vscode/mcp.json` of any workspace folder defines `opentide`. */
-async function workspaceDefinesOpentide(): Promise<boolean> {
+/**
+ * `.vscode/mcp.json` of any workspace folder defines an `opentide` server VS Code can start. One whose
+ * command is not found (`opentide` with only the bundled runtime) does not count: deferring to it would
+ * leave the agents with a server that fails with ENOENT.
+ */
+async function workspaceDefinesOpentide(log: FeatureContext["log"]): Promise<boolean> {
+  const lookup = {
+    isAbsolute: (file: string) => path.isAbsolute(file),
+    exists: (file: string) => fs.existsSync(file),
+    which: (name: string) => which(name, process.env.PATH, process.platform),
+  };
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    let text: string;
     try {
-      const bytes = await vscode.workspace.fs.readFile(
-        vscode.Uri.joinPath(folder.uri, ".vscode", "mcp.json"),
+      text = new TextDecoder().decode(
+        await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder.uri, ".vscode", "mcp.json")),
       );
-      if (definesOpentide(new TextDecoder().decode(bytes))) return true;
     } catch {
-      // No file.
+      continue; // No file.
     }
+    const command = opentideEntryCommand(text);
+    if (command === undefined) continue;
+    if (entryUsable(command, lookup)) return true;
+    log.info(
+      `${folder.name}/.vscode/mcp.json's opentide server runs \`${command}\`, which is not found: providing the extension's server instead`,
+    );
   }
   return false;
 }
@@ -107,7 +123,7 @@ function registerMcpProvider(ctx: FeatureContext): void {
         runtime: ctx.runtime.current ?? runtime,
         hasMcpStart: ctx.capabilities.hasCommand("mcp start"),
         folder: ctx.folders.all[0]?.path ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-        workspaceDefines: mode === "auto" ? await workspaceDefinesOpentide() : false,
+        workspaceDefines: mode === "auto" ? await workspaceDefinesOpentide(ctx.log) : false,
         proxy: httpProxy(),
       });
       if (!decision.provide) {

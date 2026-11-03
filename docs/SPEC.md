@@ -733,7 +733,7 @@ Revises #6.
   - Registered with `vscode.lm.registerMcpServerDefinitionProvider` when the API exists and the runtime resolved: `McpStdioServerDefinition("opentide", <runtime>, ["mcp", "start"], { OPENTIDE_REPO_ROOT })`.
   - With the bundled runtime this works on install, so every VS Code agent gets opentide's tools with no `.vscode/mcp.json`.
   - The label `opentide` deduplicates against workspace MCP files.
-  - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when a workspace MCP file already defines `opentide`.
+  - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when a workspace MCP file already defines `opentide` with a command VS Code can start (an absolute path that exists, a name on `PATH`, or one with `${…}` variables). An entry whose command is not found, such as `setup mcp --vscode`'s `opentide` for a user with only the bundled runtime, is skipped with a log line, and the extension provides its server.
   - Off in Restricted Mode.
 - **Forks without the provider API** (Cursor, Windsurf): the Agents step of the wizard and the walkthrough offer "Add opentide to Cursor's MCP settings".
   - This is a **user-level** entry pointing at the resolved runtime's absolute path, because a committed `.cursor/mcp.json` with `command: opentide` fails for teammates without opentide on `PATH`.

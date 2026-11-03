@@ -18,16 +18,46 @@ export function provideMode(value: unknown): ProvideMode {
 
 /** Whether a `.vscode/mcp.json` text defines a server named `opentide` (`servers`, or `mcpServers`). */
 export function definesOpentide(text: string | undefined): boolean {
-  if (text === undefined) return false;
+  return opentideEntryCommand(text) !== undefined;
+}
+
+/**
+ * The `command` of a `.vscode/mcp.json` text's `opentide` server: undefined when there is no such server,
+ * null when it names no command (a URL server, say).
+ */
+export function opentideEntryCommand(text: string | undefined): string | null | undefined {
+  if (text === undefined) return undefined;
   const parsed = parseJsonc(text);
-  if (typeof parsed !== "object" || parsed === null) return false;
+  if (typeof parsed !== "object" || parsed === null) return undefined;
   for (const key of ["servers", "mcpServers"]) {
     const servers = (parsed as Record<string, unknown>)[key];
-    if (typeof servers === "object" && servers !== null && !Array.isArray(servers)) {
-      if (Object.keys(servers).some((name) => name.toLowerCase() === MCP_LABEL)) return true;
+    if (typeof servers !== "object" || servers === null || Array.isArray(servers)) continue;
+    for (const [name, entry] of Object.entries(servers)) {
+      if (name.toLowerCase() !== MCP_LABEL) continue;
+      const command = (entry as { command?: unknown } | null)?.command;
+      return typeof command === "string" && command.trim() ? command.trim() : null;
     }
   }
-  return false;
+  return undefined;
+}
+
+export interface CommandLookup {
+  isAbsolute(file: string): boolean;
+  exists(file: string): boolean;
+  /** The command found on the PATH VS Code starts MCP servers with, or undefined. */
+  which(name: string): string | undefined;
+}
+
+/**
+ * Whether VS Code can start the workspace entry's command: an absolute path that exists, a name on PATH,
+ * or one with `${…}` variables VS Code resolves itself. `setup mcp --vscode` writes `opentide`, which a
+ * user with only the bundled runtime does not have.
+ */
+export function entryUsable(command: string | null, lookup: CommandLookup): boolean {
+  if (command === null || command.includes("${")) return true;
+  if (lookup.isAbsolute(command)) return lookup.exists(command);
+  if (/[\\/]/.test(command)) return true;
+  return lookup.which(command) !== undefined;
 }
 
 export interface McpServerPlan {
@@ -53,7 +83,7 @@ export interface McpInputs {
   readonly hasMcpStart: boolean;
   /** The folder the server is for: the first opentide folder, else the first workspace folder. */
   readonly folder: string | undefined;
-  /** A workspace `.vscode/mcp.json` already defines `opentide`. */
+  /** A workspace `.vscode/mcp.json` already defines an `opentide` server VS Code can start. */
   readonly workspaceDefines: boolean;
   /** VS Code's `http.proxy`. */
   readonly proxy?: string;
