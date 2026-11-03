@@ -1,0 +1,3871 @@
+{
+  "program": "opentide",
+  "version": "0.20.1",
+  "global_options": [
+    {
+      "name": "repo",
+      "flags": ["--repo"],
+      "secondary_flags": [],
+      "type": "string",
+      "choices": null,
+      "default": null,
+      "required": false,
+      "multiple": false,
+      "is_flag": false,
+      "envvars": ["OPENTIDE_REPO_ROOT"],
+      "help": "Repository root"
+    },
+    {
+      "name": "data",
+      "flags": ["--data"],
+      "secondary_flags": [],
+      "type": "string",
+      "choices": null,
+      "default": null,
+      "required": false,
+      "multiple": false,
+      "is_flag": false,
+      "envvars": ["OPENTIDE_DATA_ROOT"],
+      "help": "Bundled data root"
+    },
+    {
+      "name": "debug",
+      "flags": ["--debug"],
+      "secondary_flags": [],
+      "type": "boolean",
+      "choices": null,
+      "default": false,
+      "required": false,
+      "multiple": false,
+      "is_flag": true,
+      "envvars": ["OPENTIDE_DEBUG"],
+      "help": "Enable debug logging. Also OPENTIDE_DEBUG=1"
+    },
+    {
+      "name": "quiet",
+      "flags": ["--quiet"],
+      "secondary_flags": [],
+      "type": "boolean",
+      "choices": null,
+      "default": false,
+      "required": false,
+      "multiple": false,
+      "is_flag": true,
+      "envvars": [],
+      "help": "Print only the outcome line and errors"
+    },
+    {
+      "name": "no_color",
+      "flags": ["--no-color"],
+      "secondary_flags": [],
+      "type": "boolean",
+      "choices": null,
+      "default": false,
+      "required": false,
+      "multiple": false,
+      "is_flag": true,
+      "envvars": [],
+      "help": "Disable colour"
+    },
+    {
+      "name": "json_output",
+      "flags": ["--json"],
+      "secondary_flags": [],
+      "type": "boolean",
+      "choices": null,
+      "default": false,
+      "required": false,
+      "multiple": false,
+      "is_flag": true,
+      "envvars": [],
+      "help": "Machine-readable output: one JSON object on stdout"
+    },
+    {
+      "name": "proxy",
+      "flags": ["--proxy"],
+      "secondary_flags": [],
+      "type": "string",
+      "choices": null,
+      "default": null,
+      "required": false,
+      "multiple": false,
+      "is_flag": false,
+      "envvars": ["OPENTIDE_PROXY"],
+      "help": "HTTP(S) proxy URL (http://[user:pass@]host:port) for platform and lookup calls. Overrides HTTP_PROXY and HTTPS_PROXY; hosts in NO_PROXY are still reached directly."
+    },
+    {
+      "name": "version",
+      "flags": ["--version", "-V"],
+      "secondary_flags": [],
+      "type": "boolean",
+      "choices": null,
+      "default": false,
+      "required": false,
+      "multiple": false,
+      "is_flag": true,
+      "envvars": [],
+      "help": "Print the installed opentide version and exit"
+    }
+  ],
+  "environment": [
+    {
+      "name": "OPENTIDE_OUTPUT",
+      "meaning": "Output mode: agent|human|json|plain"
+    },
+    {
+      "name": "OPENTIDE_DEBUG",
+      "meaning": "1 for debug logging, like --debug"
+    },
+    {
+      "name": "NO_COLOR",
+      "meaning": "Any value turns colour off, like --no-color"
+    },
+    {
+      "name": "OPENTIDE_JSON_INDENT",
+      "meaning": "0 for one-line JSON, 2 for indented; default: indented on a terminal"
+    },
+    {
+      "name": "OPENTIDE_REPO_ROOT",
+      "meaning": "Repository root, like --repo"
+    },
+    {
+      "name": "OPENTIDE_DATA_ROOT",
+      "meaning": "Bundled data root, like --data"
+    },
+    {
+      "name": "OPENTIDE_PROXY",
+      "meaning": "HTTP(S) proxy, like --proxy"
+    },
+    {
+      "name": "OPENTIDE_TIDE_WORKSPACE",
+      "meaning": "Folder whose objects are read, when not the repository root"
+    },
+    {
+      "name": "OPENTIDE_LINKS",
+      "meaning": "Link scheme in code frames: file|vscode|cursor|none; default vscode in VS Code, else file"
+    },
+    {
+      "name": "OPENTIDE_LOG_JSON",
+      "meaning": "1 for one JSON object per log line on stderr"
+    },
+    {
+      "name": "OPENTIDE_VALIDATE_WORKERS",
+      "meaning": "Most threads validate uses: a number or auto"
+    },
+    {
+      "name": "OPENTIDE_VALIDATE_PARALLEL_THRESHOLD",
+      "meaning": "Fewest objects before validate runs in parallel"
+    },
+    {
+      "name": "OPENTIDE_PROGRESS",
+      "meaning": "0 turns terminal progress (OSC 9;4) off; 1 sends it to any terminal"
+    },
+    {
+      "name": "OPENTIDE_CACHE_DIR",
+      "meaning": "Where opentide caches the language-server catalogs it generates"
+    },
+    {
+      "name": "AI_AGENT",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "CLAUDECODE",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "CURSOR_AGENT",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "GEMINI_CLI",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "CODEX_CI",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "COPILOT_AGENT",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "COPILOT_CLI",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "OPENCODE",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "AMP_CURRENT_THREAD_ID",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "AUGMENT_AGENT",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    },
+    {
+      "name": "CLINE_ACTIVE",
+      "meaning": "Set by a coding agent: selects agent output mode"
+    }
+  ],
+  "commands": [
+    {
+      "path": "validate",
+      "name": "validate",
+      "summary": "Validate objects and queries",
+      "help": "Validate objects and queries",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["query"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "check",
+          "flags": ["--check"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "id-uniqueness",
+            "uuid-format",
+            "schema",
+            "cve",
+            "sharing-config",
+            "configuration",
+            "queries"
+          ],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Run one check only: id-uniqueness, uuid-format, schema, cve, sharing-config, configuration, queries"
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Validate only this file (repeatable)"
+        },
+        {
+          "name": "uuid",
+          "flags": ["--uuid"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Validate only the object with this UUID (repeatable)"
+        },
+        {
+          "name": "object_type",
+          "flags": ["--type"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": ["rule", "threat", "objective"],
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Validate only this type: rule, threat or objective (repeatable)"
+        },
+        {
+          "name": "strict",
+          "flags": ["--strict"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Fail on warnings too"
+        },
+        {
+          "name": "queries",
+          "flags": ["--queries"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": ["error", "warn", "off"],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "How a query the platform would reject is reported: error (the default), warn (passes unless --strict) or off (queries are not checked)"
+        },
+        {
+          "name": "fix",
+          "flags": ["--fix"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Apply every safe fix (vocabulary typos), then validate again"
+        },
+        {
+          "name": "dry_run",
+          "flags": ["--dry-run"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "With --fix: print the edits as a diff and change nothing"
+        },
+        {
+          "name": "watch",
+          "flags": ["--watch"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Validate again each time an object file changes; Ctrl-C stops"
+        },
+        {
+          "name": "report_format",
+          "flags": ["--format"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": ["text", "sarif", "codequality"],
+          "default": "text",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "text: code frames. sarif: SARIF 2.1.0 for code scanning. codequality: GitLab Code Quality (Code Climate JSON). A report goes to --output, or to stdout instead of the text"
+        },
+        {
+          "name": "output",
+          "flags": ["--output"],
+          "secondary_flags": [],
+          "type": "path",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Write the --format report to this file and print the usual text output too"
+        }
+      ],
+      "example": "opentide validate",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "validate query",
+      "name": "query",
+      "summary": "Check rule queries offline, or on the tenants (--live)",
+      "help": "Check rule queries offline with the analysis engine, or on the tenants (--live).\n\nOffline, the engine reports the queries the platform would reject, as\n`opentide validate` does; `opentide lint` reports their style.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "platform",
+          "flags": ["--platform"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "sentinel",
+            "splunk",
+            "crowdstrike",
+            "defender_for_endpoint",
+            "sentinel_one",
+            "carbon_black_cloud",
+            "harfanglab",
+            "elastic"
+          ],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Check this platform's queries. Offline, default every platform the engine parses: carbon_black_cloud, defender_for_endpoint, elastic, sentinel, splunk. --live needs one of: carbon_black_cloud, defender_for_endpoint, elastic, sentinel, sentinel_one, splunk"
+        },
+        {
+          "name": "strategy",
+          "flags": ["--strategy"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Check only rules a run with this strategy deploys (repeatable), on the tenants that accept it. Default: PREVIEW and RELEASE"
+        },
+        {
+          "name": "wide",
+          "flags": ["--wide"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Check every status strategy but DISABLEMENT and DELETION (--live)"
+        },
+        {
+          "name": "live",
+          "flags": ["--live"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Check the queries on the platform's tenants (needs credentials)"
+        },
+        {
+          "name": "changed",
+          "flags": ["--changed"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Check only the rule files this run changed: the pull or merge request, the push, or outside CI the last commit (the files deploy reads)"
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Check only this rule file, or this query file (.kql, .spl, .esql, .eql, .kuery, .lucene) offline (repeatable)"
+        },
+        {
+          "name": "uuid",
+          "flags": ["--uuid"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Check only the rule with this UUID (repeatable)"
+        },
+        {
+          "name": "strict",
+          "flags": ["--strict"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Fail on warnings too"
+        },
+        {
+          "name": "queries",
+          "flags": ["--queries"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": ["error", "warn", "off"],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "How a rejected query is reported offline: error (the default) or warn"
+        }
+      ],
+      "example": "opentide validate query",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "query",
+      "name": "query",
+      "summary": "Run a read-only query on platform tenants and show rows",
+      "help": "Run a read-only query on platform tenants and show rows\n\nSends the query, or a rule's query, to each selected tenant over the\nwindow and prints at most --limit rows per tenant. No search or rule is\nsaved on the tenant.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [
+        {
+          "name": "query",
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "envvars": [],
+          "help": "The query, in the platform's language. '-' reads it from stdin"
+        }
+      ],
+      "options": [
+        {
+          "name": "platform",
+          "flags": ["--platform"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "sentinel",
+            "splunk",
+            "crowdstrike",
+            "defender_for_endpoint",
+            "sentinel_one",
+            "carbon_black_cloud",
+            "harfanglab",
+            "elastic"
+          ],
+          "default": null,
+          "required": true,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Detection platform: sentinel, splunk, crowdstrike, defender_for_endpoint, sentinel_one, carbon_black_cloud, harfanglab, elastic"
+        },
+        {
+          "name": "tenant",
+          "flags": ["--tenant"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Run on this tenant (repeatable), or 'all'. Default: the only tenant configured"
+        },
+        {
+          "name": "rule",
+          "flags": ["--rule"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Run the query this rule (by UUID) deploys to the platform"
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Run the query of the rule in this file"
+        },
+        {
+          "name": "query_file",
+          "flags": ["--query-file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Read the query from this file"
+        },
+        {
+          "name": "since",
+          "flags": ["--since"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Look back this far from --to or now: 15m, 24h, 7d, PT1H. Default: 24h"
+        },
+        {
+          "name": "start",
+          "flags": ["--from"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Start of the window, ISO-8601 (UTC unless it names an offset)"
+        },
+        {
+          "name": "end",
+          "flags": ["--to"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "End of the window, ISO-8601. Default: now"
+        },
+        {
+          "name": "limit",
+          "flags": ["--limit"],
+          "secondary_flags": [],
+          "type": "integer",
+          "choices": null,
+          "default": 100,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Rows per tenant, at most 5000"
+        },
+        {
+          "name": "language",
+          "flags": ["--language"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Elastic only: esql (default), eql, lucene or kuery"
+        },
+        {
+          "name": "index",
+          "flags": ["--index"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Elastic index pattern or CrowdStrike repository (repeatable)"
+        },
+        {
+          "name": "timeout",
+          "flags": ["--timeout"],
+          "secondary_flags": [],
+          "type": "number",
+          "choices": null,
+          "default": 120.0,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Seconds to wait for a search to finish"
+        },
+        {
+          "name": "columns",
+          "flags": ["--columns"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Comma-separated columns the table shows"
+        },
+        {
+          "name": "row_format",
+          "flags": ["--format"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": ["table", "jsonl", "csv"],
+          "default": "table",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "table, jsonl or csv (--json prints the envelope)"
+        }
+      ],
+      "example": "opentide query --platform sentinel 'SecurityEvent | take 10'",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "lint",
+      "name": "lint",
+      "summary": "Check file names and recommended metadata",
+      "help": "Check file names and recommended metadata\n\nCatalogue hygiene: filename slugs and recommended metadata, not schema validation.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "fix",
+          "flags": ["--fix"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Apply safe filename renames"
+        },
+        {
+          "name": "strict",
+          "flags": ["--strict"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Exit non-zero when findings exist (CI gate)"
+        },
+        {
+          "name": "check",
+          "flags": ["--check"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": ["filenames", "metadata", "placeholders", "queries"],
+          "default": [],
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to one check: filenames, metadata or placeholders (repeatable). Runs it even when lint.toml disables it"
+        },
+        {
+          "name": "report_format",
+          "flags": ["--format"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": ["text", "sarif", "codequality"],
+          "default": "text",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "text: code frames. sarif: SARIF 2.1.0 for code scanning. codequality: GitLab Code Quality (Code Climate JSON). A report goes to --output, or to stdout instead of the text"
+        },
+        {
+          "name": "output",
+          "flags": ["--output"],
+          "secondary_flags": [],
+          "type": "path",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Write the --format report to this file and print the usual text output too"
+        }
+      ],
+      "example": "opentide lint",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "info",
+      "name": "info",
+      "summary": "Show repository and platform information",
+      "help": "Show repository and platform information",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [
+        {
+          "name": "section",
+          "type": "string",
+          "choices": ["rules", "threats", "objectives", "coverage", "vocab"],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "envvars": [],
+          "help": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "envvars": [],
+          "help": "Vocabulary to inspect, with the vocab section (e.g. surface)"
+        }
+      ],
+      "options": [
+        {
+          "name": "platform",
+          "flags": ["--platform"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "sentinel",
+            "splunk",
+            "crowdstrike",
+            "defender_for_endpoint",
+            "sentinel_one",
+            "carbon_black_cloud",
+            "harfanglab",
+            "elastic"
+          ],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Detection platform: sentinel, splunk, crowdstrike, defender_for_endpoint, sentinel_one, carbon_black_cloud, harfanglab, elastic"
+        },
+        {
+          "name": "technique",
+          "flags": ["--technique"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "ATT&CK technique ID for the coverage section (T1059)"
+        },
+        {
+          "name": "strict",
+          "flags": ["--strict"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Exit non-zero when any object failed to load"
+        }
+      ],
+      "example": "opentide info",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "new",
+      "name": "new",
+      "summary": "Scaffold a threat, objective or rule from its template",
+      "help": "Scaffold a threat, objective or rule from its template\n\nThe new file gets a fresh UUID, today's date, your git author and the catalogue's organisation, and is named the way opentide lint expects. Required values nobody has chosen yet are placeholders, listed in the output: replace them, then run opentide validate --file on the path.",
+      "group": true,
+      "runs_alone": false,
+      "subcommands": ["threat", "objective", "rule"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide new threat --name \"Credential Dumping\"",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "new threat",
+      "name": "threat",
+      "summary": "Scaffold a threat",
+      "help": "Scaffold a threat.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "name",
+          "flags": ["--name"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Object name; the filename is its slug"
+        },
+        {
+          "name": "path",
+          "flags": ["--path"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "File to write, or a folder to write it in (default: the family's objects folder)"
+        }
+      ],
+      "example": "opentide new threat --name \"Credential Dumping\"",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "new objective",
+      "name": "objective",
+      "summary": "Scaffold a detection objective",
+      "help": "Scaffold a detection objective.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "name",
+          "flags": ["--name"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Object name; the filename is its slug"
+        },
+        {
+          "name": "threat",
+          "flags": ["--threat"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "UUID of a threat this objective addresses (repeatable)"
+        },
+        {
+          "name": "path",
+          "flags": ["--path"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "File to write, or a folder to write it in (default: the family's objects folder)"
+        }
+      ],
+      "example": "opentide new objective --name \"Detect Credential Dumping\" --threat <threat-uuid>",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "new rule",
+      "name": "rule",
+      "summary": "Scaffold a detection rule",
+      "help": "Scaffold a detection rule.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "name",
+          "flags": ["--name"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Object name; the filename is its slug"
+        },
+        {
+          "name": "platform",
+          "flags": ["--platform"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "sentinel",
+            "splunk",
+            "crowdstrike",
+            "defender_for_endpoint",
+            "sentinel_one",
+            "carbon_black_cloud",
+            "harfanglab",
+            "elastic"
+          ],
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Add a configuration block for this platform (repeatable): sentinel, splunk, crowdstrike, defender_for_endpoint, sentinel_one, carbon_black_cloud, harfanglab, elastic"
+        },
+        {
+          "name": "objective",
+          "flags": ["--objective"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "UUID of the objective this rule implements (detection_model)"
+        },
+        {
+          "name": "path",
+          "flags": ["--path"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "File to write, or a folder to write it in (default: the family's objects folder)"
+        }
+      ],
+      "example": "opentide new rule --name \"Suspicious LSASS Access\" --platform sentinel --objective <objective-uuid>",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate",
+      "name": "generate",
+      "summary": "Generate schemas, templates, docs and exports",
+      "help": "Generate schemas, templates, docs and exports\n\nRun with no argument for the full pipeline, or name one or more phases to run only those, in the order given: schemas, templates, vocabs, snippets.\n\nRegenerate editor schemas without paying for documentation: `opentide generate schemas templates vocabs snippets`.",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["explorer", "docs", "exports", "extract", "inflight"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate explorer",
+      "name": "explorer",
+      "summary": "Write the explorer bundle and search index",
+      "help": "Write explorer.bundle.json and explorer.search.json under .opentide/exports/.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate explorer",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate docs",
+      "name": "docs",
+      "summary": "Generate markdown documentation for detection objects",
+      "help": "Generate markdown documentation for detection objects",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["rules", "objectives", "threats", "index"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "output",
+          "flags": ["--output"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Write the pages here instead of the configured docs folder"
+        },
+        {
+          "name": "flavor",
+          "flags": ["--flavor"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Markdown flavour: github, gitlab, azure_devops or generic"
+        },
+        {
+          "name": "rules",
+          "flags": ["--rules"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Only rule pages; combine with --threats, --objectives"
+        },
+        {
+          "name": "threats",
+          "flags": ["--threats"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Only threat pages; combine with --rules, --objectives"
+        },
+        {
+          "name": "objectives",
+          "flags": ["--objectives"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Only objective pages; combine with --rules, --threats"
+        },
+        {
+          "name": "changed",
+          "flags": ["--changed"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Regenerate only the pages of objects git reports as changed"
+        }
+      ],
+      "example": "opentide generate docs",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate docs rules",
+      "name": "rules",
+      "summary": "Generate rule documentation",
+      "help": "",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "output",
+          "flags": ["--output"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Write the pages here instead of the configured docs folder"
+        },
+        {
+          "name": "flavor",
+          "flags": ["--flavor"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Markdown flavour: github, gitlab, azure_devops or generic"
+        }
+      ],
+      "example": "opentide generate docs rules",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate docs objectives",
+      "name": "objectives",
+      "summary": "Generate objective documentation",
+      "help": "",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "output",
+          "flags": ["--output"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Write the pages here instead of the configured docs folder"
+        },
+        {
+          "name": "flavor",
+          "flags": ["--flavor"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Markdown flavour: github, gitlab, azure_devops or generic"
+        }
+      ],
+      "example": "opentide generate docs objectives",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate docs threats",
+      "name": "threats",
+      "summary": "Generate threat documentation",
+      "help": "",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "output",
+          "flags": ["--output"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Write the pages here instead of the configured docs folder"
+        },
+        {
+          "name": "flavor",
+          "flags": ["--flavor"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Markdown flavour: github, gitlab, azure_devops or generic"
+        }
+      ],
+      "example": "opentide generate docs threats",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate docs index",
+      "name": "index",
+      "summary": "Generate the documentation index pages",
+      "help": "",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "output",
+          "flags": ["--output"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Write the pages here instead of the configured docs folder"
+        },
+        {
+          "name": "flavor",
+          "flags": ["--flavor"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Markdown flavour: github, gitlab, azure_devops or generic"
+        }
+      ],
+      "example": "opentide generate docs index",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate exports",
+      "name": "exports",
+      "summary": "Export catalogue artefacts",
+      "help": "Export catalogue artefacts",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["navigator", "objects", "revisions"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate exports",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate exports navigator",
+      "name": "navigator",
+      "summary": "Export the ATT&CK Navigator layer",
+      "help": "",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate exports navigator",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate exports objects",
+      "name": "objects",
+      "summary": "Export every object as one JSON file",
+      "help": "",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate exports objects",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate exports revisions",
+      "name": "revisions",
+      "summary": "Export the revisions snapshot",
+      "help": "",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate exports revisions",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate extract",
+      "name": "extract",
+      "summary": "Import rules from external platforms",
+      "help": "Import rules from external platforms",
+      "group": true,
+      "runs_alone": false,
+      "subcommands": ["sentinel", "defender", "elastic"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate extract sentinel",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate extract sentinel",
+      "name": "sentinel",
+      "summary": "Import Sentinel analytics rules",
+      "help": "Import Sentinel analytics rules (needs Sentinel tenant credentials).",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate extract sentinel",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate extract defender",
+      "name": "defender",
+      "summary": "Import Defender custom detections",
+      "help": "Import Defender custom detections (needs tenant credentials).",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate extract defender",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate extract elastic",
+      "name": "elastic",
+      "summary": "Import Elastic Security detection rules",
+      "help": "Import Elastic Security detection rules (needs tenant credentials).",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "space",
+          "flags": ["--space"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": "default",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Kibana space ID"
+        },
+        {
+          "name": "include_prebuilt",
+          "flags": ["--include-prebuilt"],
+          "secondary_flags": ["--custom-only"],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Include prebuilt rules converted to custom rules with derived UUIDs"
+        }
+      ],
+      "example": "opentide generate extract elastic --space default",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate inflight",
+      "name": "inflight",
+      "summary": "Inflight preview shard generation and prune",
+      "help": "Inflight preview shard generation and prune",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["prune"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate inflight",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "generate inflight prune",
+      "name": "prune",
+      "summary": "Remove inflight shards already on the default branch",
+      "help": "Remove inflight shards superseded by committed objects on the default branch.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide generate inflight prune",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "rules",
+      "name": "rules",
+      "summary": "Detection rule maintenance",
+      "help": "Detection rule maintenance",
+      "group": true,
+      "runs_alone": false,
+      "subcommands": ["unreviewed"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide rules unreviewed --older-than 90d",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "rules unreviewed",
+      "name": "unreviewed",
+      "summary": "List rules not reviewed within a window",
+      "help": "List rules with no review date, or a review older than the window.\n\n`rule::1.0` is always listed. `rule::1.1` is listed when `metadata.reviewed`\nis absent or strictly earlier than now minus the window. This command does not\nmodify rules.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "older_than",
+          "flags": ["--older-than"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": "90d",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Positive review window (90d, 12h, 30m). A review equal to T-W is fresh."
+        }
+      ],
+      "example": "opentide rules unreviewed --older-than 90d",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "deploy",
+      "name": "deploy",
+      "summary": "Deploy rules to platform tenants",
+      "help": "Deploy rules to platform tenants",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["migrate-state"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "platform",
+          "flags": ["--platform"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "sentinel",
+            "splunk",
+            "crowdstrike",
+            "defender_for_endpoint",
+            "sentinel_one",
+            "carbon_black_cloud",
+            "harfanglab",
+            "elastic"
+          ],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Detection platform: sentinel, splunk, crowdstrike, defender_for_endpoint, sentinel_one, carbon_black_cloud, harfanglab, elastic"
+        },
+        {
+          "name": "strategy",
+          "flags": ["--strategy"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": ["PREVIEW", "RELEASE"],
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Status strategy this run deploys (repeatable). PREVIEW: rules whose status maps to PREVIEW or UNIVERSAL. RELEASE: rules whose status maps to RELEASE or UNIVERSAL, and disables or deletes those mapping to DISABLEMENT or DELETION. Each rule goes to the tenants whose 'strategies' accept the run's strategy. Status names such as STAGING or PRODUCTION are not strategies"
+        },
+        {
+          "name": "all_files",
+          "flags": ["--all"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Read every rule file, not only those the run changed (the pull or merge request, the push, or outside CI the last commit)"
+        },
+        {
+          "name": "wide",
+          "flags": ["--wide"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Deploy the rule files read whatever their status strategy, INERT included"
+        },
+        {
+          "name": "dry_run",
+          "flags": ["--dry-run"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Print the plan and compile each rule; send nothing"
+        },
+        {
+          "name": "keep_deprecated",
+          "flags": ["--keep-deprecated"],
+          "secondary_flags": ["--drop-deprecated"],
+          "type": "boolean",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Include rules whose status maps to DISABLEMENT or DELETION, so a RELEASE run disables or deletes them. Default: on, off with --all"
+        },
+        {
+          "name": "skip_promotion",
+          "flags": ["--skip-promotion"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Skip the status promotion of a RELEASE run on a push"
+        },
+        {
+          "name": "skip_unconfigured",
+          "flags": ["--skip-unconfigured"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Exit 0 when every platform with rules to deploy has no [[tenants]] block"
+        },
+        {
+          "name": "persist_state_externally",
+          "flags": ["--persist-state-externally"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Allow Defender, SentinelOne and CrowdStrike creates in a CI run other than a RELEASE run on a push; this pipeline must commit .opentide/states/deployment/ itself"
+        }
+      ],
+      "example": "opentide deploy --strategy PREVIEW --all --dry-run",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "deploy migrate-state",
+      "name": "migrate-state",
+      "summary": "Move vendor ids from rules into deployment state",
+      "help": "Move vendor rule ids off rules into .opentide/states/deployment/ (no vendor calls).\n\nRefuses with deployment_state_ignored, and edits nothing, while .gitignore\nhides .opentide/states/deployment/. Exits 1 when any rule cannot be migrated;\nids dropped from other platforms (external_id_unused) are warnings only.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide deploy migrate-state",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "share",
+      "name": "share",
+      "summary": "Publish objects to intelligence platforms",
+      "help": "Publish objects to intelligence platforms",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["push", "preview", "status", "retract", "targets"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "flags": ["--target"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Destination block name. Repeatable."
+        },
+        {
+          "name": "uuid",
+          "flags": ["--uuid"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object UUIDs."
+        },
+        {
+          "name": "object_type",
+          "flags": ["--type"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to threat, objective, or rule."
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object files."
+        },
+        {
+          "name": "dry_run",
+          "flags": ["--dry-run"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Resolve the run locally and make no request."
+        },
+        {
+          "name": "publish",
+          "flags": ["--publish"],
+          "secondary_flags": ["--no-publish"],
+          "type": "boolean",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Override the block publish flag."
+        },
+        {
+          "name": "workers",
+          "flags": ["--workers"],
+          "secondary_flags": [],
+          "type": "integer",
+          "choices": null,
+          "default": 1,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Parallel object workers for one destination."
+        },
+        {
+          "name": "changed",
+          "flags": ["--changed"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Share only objects the default-branch CI diff changed."
+        },
+        {
+          "name": "since",
+          "flags": ["--since"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "With --changed: diff from this commit SHA or ref to HEAD."
+        }
+      ],
+      "example": "opentide share --dry-run",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "share push",
+      "name": "push",
+      "summary": "Create or update one MISP event per selected object",
+      "help": "Create or update one MISP Event per selected Tide object.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "flags": ["--target"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Destination block name. Repeatable."
+        },
+        {
+          "name": "uuid",
+          "flags": ["--uuid"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object UUIDs."
+        },
+        {
+          "name": "object_type",
+          "flags": ["--type"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to threat, objective, or rule."
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object files."
+        },
+        {
+          "name": "dry_run",
+          "flags": ["--dry-run"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Resolve the run locally and make no request."
+        },
+        {
+          "name": "publish",
+          "flags": ["--publish"],
+          "secondary_flags": ["--no-publish"],
+          "type": "boolean",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Override the block publish flag."
+        },
+        {
+          "name": "workers",
+          "flags": ["--workers"],
+          "secondary_flags": [],
+          "type": "integer",
+          "choices": null,
+          "default": 1,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Parallel object workers for one destination."
+        },
+        {
+          "name": "changed",
+          "flags": ["--changed"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Share only objects the default-branch CI diff changed."
+        },
+        {
+          "name": "since",
+          "flags": ["--since"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "With --changed: diff from this commit SHA or ref to HEAD."
+        }
+      ],
+      "example": "opentide share push --target misp-prod",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "share preview",
+      "name": "preview",
+      "summary": "Show what push would do, without a request",
+      "help": "Show what push would do. Makes no request and writes nothing.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "flags": ["--target"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Destination block name. Repeatable."
+        },
+        {
+          "name": "uuid",
+          "flags": ["--uuid"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object UUIDs."
+        },
+        {
+          "name": "object_type",
+          "flags": ["--type"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to threat, objective, or rule."
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object files."
+        },
+        {
+          "name": "workers",
+          "flags": ["--workers"],
+          "secondary_flags": [],
+          "type": "integer",
+          "choices": null,
+          "default": 1,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Parallel object workers for one destination."
+        }
+      ],
+      "example": "opentide share preview",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "share status",
+      "name": "status",
+      "summary": "Compare the local ledger with object versions",
+      "help": "Compare the local ledger with object versions. Does not contact the destination.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "flags": ["--target"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Destination block name. Repeatable."
+        },
+        {
+          "name": "uuid",
+          "flags": ["--uuid"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object UUIDs."
+        },
+        {
+          "name": "object_type",
+          "flags": ["--type"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to threat, objective, or rule."
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object files."
+        }
+      ],
+      "example": "opentide share status",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "share retract",
+      "name": "retract",
+      "summary": "Unpublish or delete a shared event",
+      "help": "Unpublish a shared event, or delete it when `--delete --yes` is set.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "target",
+          "flags": ["--target"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Destination block name. Repeatable."
+        },
+        {
+          "name": "uuid",
+          "flags": ["--uuid"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object UUIDs."
+        },
+        {
+          "name": "object_type",
+          "flags": ["--type"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to threat, objective, or rule."
+        },
+        {
+          "name": "file",
+          "flags": ["--file"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to these object files."
+        },
+        {
+          "name": "delete",
+          "flags": ["--delete"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Delete the remote event instead of unpublishing it."
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Confirm --delete."
+        },
+        {
+          "name": "workers",
+          "flags": ["--workers"],
+          "secondary_flags": [],
+          "type": "integer",
+          "choices": null,
+          "default": 1,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Parallel object workers for one destination."
+        }
+      ],
+      "example": "opentide share retract --uuid <uuid>",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "share targets",
+      "name": "targets",
+      "summary": "List sharing destinations, never their API keys",
+      "help": "List sharing destinations. The API key is never printed.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide share targets",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup",
+      "name": "setup",
+      "summary": "Set up a detection repository and its tooling",
+      "help": "Set up a detection repository and its tooling",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["repo", "platforms", "ci", "env", "hooks", "mcp", "vscode", "skills"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "name",
+          "flags": ["--name"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository name, used in the README"
+        },
+        {
+          "name": "org",
+          "flags": ["--org"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Organisation or team, used in the README"
+        },
+        {
+          "name": "description",
+          "flags": ["--description"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "One-line description, used in the README"
+        },
+        {
+          "name": "platform",
+          "flags": ["--platform"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "sentinel",
+            "splunk",
+            "crowdstrike",
+            "defender_for_endpoint",
+            "sentinel_one",
+            "carbon_black_cloud",
+            "harfanglab",
+            "elastic"
+          ],
+          "default": [],
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Enable a detection platform (repeatable): sentinel, splunk, crowdstrike, defender_for_endpoint, sentinel_one, carbon_black_cloud, harfanglab, elastic"
+        },
+        {
+          "name": "ci",
+          "flags": ["--ci"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": ["github", "gitlab", "azure", "none"],
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "CI/CD pipeline to write: github, gitlab, azure or none"
+        },
+        {
+          "name": "staging",
+          "flags": ["--staging"],
+          "secondary_flags": ["--no-staging"],
+          "type": "boolean",
+          "choices": null,
+          "default": true,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Deploy to staging tenants from pull requests"
+        },
+        {
+          "name": "inflight",
+          "flags": ["--inflight"],
+          "secondary_flags": ["--no-inflight"],
+          "type": "boolean",
+          "choices": null,
+          "default": true,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Update .opentide/inflight/ preview shards on pull requests"
+        },
+        {
+          "name": "sharing",
+          "flags": ["--sharing"],
+          "secondary_flags": ["--no-sharing"],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Share changed objects on the default branch (off unless selected)"
+        },
+        {
+          "name": "promotion",
+          "flags": ["--promotion"],
+          "secondary_flags": ["--no-promotion"],
+          "type": "boolean",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write [promotion] enabled in deployment.toml. Omit to keep the repository's setting."
+        },
+        {
+          "name": "promotion_target",
+          "flags": ["--promotion-target"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Status deploy promotes rules to. Omit to keep the repository's setting."
+        },
+        {
+          "name": "python_version",
+          "flags": ["--python-version"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": "3.12",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Python version the pipeline installs"
+        },
+        {
+          "name": "explorer_pages",
+          "flags": ["--explorer-pages"],
+          "secondary_flags": ["--no-explorer-pages"],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Include GitHub Pages explorer build and deploy jobs"
+        },
+        {
+          "name": "default_branch",
+          "flags": ["--default-branch"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Branch that deploys and receives inflight shards (default: origin/HEAD, then the checked-out branch, then init.defaultBranch, then main; GitLab uses $CI_DEFAULT_BRANCH)"
+        },
+        {
+          "name": "vscode_setup",
+          "flags": ["--vscode-setup"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Run deprecated VS Code settings + snippets"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Non-interactive mode"
+        }
+      ],
+      "example": "opentide setup",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup repo",
+      "name": "repo",
+      "summary": "Scaffold a detection repository",
+      "help": "Scaffold a detection repository.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path_flag",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "name",
+          "flags": ["--name"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository name, used in the README"
+        },
+        {
+          "name": "org",
+          "flags": ["--org"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Organisation or team, used in the README"
+        },
+        {
+          "name": "description",
+          "flags": ["--description"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "One-line description, used in the README"
+        },
+        {
+          "name": "platform",
+          "flags": ["--platform"],
+          "secondary_flags": [],
+          "type": "choice",
+          "choices": [
+            "sentinel",
+            "splunk",
+            "crowdstrike",
+            "defender_for_endpoint",
+            "sentinel_one",
+            "carbon_black_cloud",
+            "harfanglab",
+            "elastic"
+          ],
+          "default": [],
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Enable a detection platform (repeatable): sentinel, splunk, crowdstrike, defender_for_endpoint, sentinel_one, carbon_black_cloud, harfanglab, elastic"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write without asking for confirmation"
+        }
+      ],
+      "example": "opentide setup repo --yes --name \"Detections\" --platform sentinel",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup platforms",
+      "name": "platforms",
+      "summary": "Enable platform configuration files",
+      "help": "Create and enable platform configuration files in `.opentide/configurations/platforms/`.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path_flag",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "sentinel",
+          "flags": ["--sentinel"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable Microsoft Sentinel"
+        },
+        {
+          "name": "splunk",
+          "flags": ["--splunk"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable Splunk Enterprise Security"
+        },
+        {
+          "name": "crowdstrike",
+          "flags": ["--crowdstrike"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable CrowdStrike Falcon"
+        },
+        {
+          "name": "defender_for_endpoint",
+          "flags": ["--defender-for-endpoint"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable Microsoft Defender for Endpoint"
+        },
+        {
+          "name": "sentinel_one",
+          "flags": ["--sentinel-one"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable SentinelOne"
+        },
+        {
+          "name": "carbon_black_cloud",
+          "flags": ["--carbon-black-cloud"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable Carbon Black Cloud"
+        },
+        {
+          "name": "harfanglab",
+          "flags": ["--harfanglab"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable HarfangLab"
+        },
+        {
+          "name": "elastic",
+          "flags": ["--elastic"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Enable Elastic Security"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write without asking for confirmation"
+        }
+      ],
+      "example": "opentide setup platforms --sentinel --splunk --yes",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup ci",
+      "name": "ci",
+      "summary": "Write CI/CD pipeline files",
+      "help": "Generate CI/CD pipeline files (platforms discovered from repo config).",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [
+        {
+          "name": "ci_platform",
+          "type": "choice",
+          "choices": ["github", "gitlab", "azure"],
+          "default": null,
+          "required": true,
+          "multiple": false,
+          "envvars": [],
+          "help": "github, gitlab, or azure"
+        }
+      ],
+      "options": [
+        {
+          "name": "path",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "staging",
+          "flags": ["--staging"],
+          "secondary_flags": ["--no-staging"],
+          "type": "boolean",
+          "choices": null,
+          "default": true,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Deploy to staging tenants from pull requests"
+        },
+        {
+          "name": "inflight",
+          "flags": ["--inflight"],
+          "secondary_flags": ["--no-inflight"],
+          "type": "boolean",
+          "choices": null,
+          "default": true,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Update .opentide/inflight/ preview shards on pull requests"
+        },
+        {
+          "name": "sharing",
+          "flags": ["--sharing"],
+          "secondary_flags": ["--no-sharing"],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Share changed objects on the default branch (off unless selected)"
+        },
+        {
+          "name": "promotion",
+          "flags": ["--promotion"],
+          "secondary_flags": ["--no-promotion"],
+          "type": "boolean",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write [promotion] enabled in deployment.toml. Omit to keep the repository's setting."
+        },
+        {
+          "name": "promotion_target",
+          "flags": ["--promotion-target"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Status deploy promotes rules to. Omit to keep the repository's setting."
+        },
+        {
+          "name": "python_version",
+          "flags": ["--python-version"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": "3.12",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Python version the pipeline installs"
+        },
+        {
+          "name": "explorer_pages",
+          "flags": ["--explorer-pages"],
+          "secondary_flags": ["--no-explorer-pages"],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Include GitHub Pages explorer build and deploy jobs"
+        },
+        {
+          "name": "default_branch",
+          "flags": ["--default-branch"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Branch that deploys and receives inflight shards (default: origin/HEAD, then the checked-out branch, then init.defaultBranch, then main; GitLab uses $CI_DEFAULT_BRANCH)"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write without asking for confirmation"
+        }
+      ],
+      "example": "opentide setup ci github --yes",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup env",
+      "name": "env",
+      "summary": "Write .env.example and ignore .env",
+      "help": "Write `.env.example` with `OPENTIDE_REPO_ROOT` and ignore `.env`.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path_flag",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write without asking for confirmation"
+        }
+      ],
+      "example": "opentide setup env --yes",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup hooks",
+      "name": "hooks",
+      "summary": "Validate objects on every commit",
+      "help": "Configure validate-on-commit hooks (pre-commit config + Git hook).",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path_flag",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "install",
+          "flags": ["--install"],
+          "secondary_flags": ["--no-install"],
+          "type": "boolean",
+          "choices": null,
+          "default": true,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Install .git/hooks/pre-commit when this path is a Git repository"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write without asking for confirmation"
+        }
+      ],
+      "example": "opentide setup hooks --yes",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup mcp",
+      "name": "mcp",
+      "summary": "Write MCP configuration for editors and agents",
+      "help": "Write opentide MCP configuration for editors and agents.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path_flag",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "vscode",
+          "flags": ["--vscode"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Configure VS Code (.vscode/mcp.json)"
+        },
+        {
+          "name": "cursor",
+          "flags": ["--cursor"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Configure Cursor (.cursor/mcp.json)"
+        },
+        {
+          "name": "claude_code",
+          "flags": ["--claude-code"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Configure Claude Code (.mcp.json)"
+        },
+        {
+          "name": "generic",
+          "flags": ["--generic"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Configure any MCP host (opentide.mcp.json)"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write without asking for confirmation"
+        }
+      ],
+      "example": "opentide setup mcp --vscode --yes",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup vscode",
+      "name": "vscode",
+      "summary": "Write VS Code schemas and snippets (deprecated)",
+      "help": "Write VS Code yaml.schemas and snippets (deprecated). Default: both.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path_flag",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "settings",
+          "flags": ["--settings"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write .vscode/settings.json schema mappings and extensions.json"
+        },
+        {
+          "name": "snippets",
+          "flags": ["--snippets"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write object template snippets"
+        },
+        {
+          "name": "no_merge",
+          "flags": ["--no-merge"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Replace settings.json and extensions.json instead of merging"
+        },
+        {
+          "name": "no_generate",
+          "flags": ["--no-generate"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Do not run opentide generate first"
+        },
+        {
+          "name": "mcp",
+          "flags": ["--mcp"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Also write .vscode/mcp.json (same as setup mcp --vscode)"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Accepted for symmetry with other setup subcommands; this command never prompts"
+        }
+      ],
+      "example": "opentide setup vscode --settings",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup skills",
+      "name": "skills",
+      "summary": "Discover and install agent skills",
+      "help": "Agent skills discovery and installation",
+      "group": true,
+      "runs_alone": true,
+      "subcommands": ["discover", "show"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "cursor",
+          "flags": ["--cursor"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Copy the skills to .cursor/skills/"
+        },
+        {
+          "name": "claude_code",
+          "flags": ["--claude-code"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write CLAUDE.md and copy the skills to .claude/skills/"
+        },
+        {
+          "name": "generic",
+          "flags": ["--generic"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write AGENTS.md for any agent that reads .agents/skills/"
+        },
+        {
+          "name": "github_copilot",
+          "flags": ["--github-copilot"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Write .github/copilot-instructions.md, and AGENTS.md as --generic does"
+        },
+        {
+          "name": "install",
+          "flags": ["--install"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": [],
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Skill slug to install (repeatable); default: the rule and engineering skills"
+        },
+        {
+          "name": "all_skills",
+          "flags": ["--all"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Install every skill in the catalogue"
+        },
+        {
+          "name": "plugin",
+          "flags": ["--plugin"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Register the opentidehq/skills Agent Plugin (skills and MCP server) for Claude Code in .claude/settings.json"
+        },
+        {
+          "name": "name",
+          "flags": ["--name"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Heading of the agent files; default: the folder name"
+        },
+        {
+          "name": "org",
+          "flags": ["--org"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Organisation named in the agent files"
+        },
+        {
+          "name": "description",
+          "flags": ["--description"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "One paragraph under the heading of the agent files"
+        },
+        {
+          "name": "yes",
+          "flags": ["--yes", "-y"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Install without asking"
+        }
+      ],
+      "example": "opentide setup skills --claude-code --yes",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup skills discover",
+      "name": "discover",
+      "summary": "List the skills in the opentidehq/skills catalogue",
+      "help": "List skills from the opentidehq/skills catalogue.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "path_flag",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "query",
+          "flags": ["--query", "-q"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Keep skills whose name, slug or description holds this text"
+        },
+        {
+          "name": "installed",
+          "flags": ["--installed"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Keep only the skills installed in .agents/skills/"
+        },
+        {
+          "name": "refresh",
+          "flags": ["--refresh"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Fetch the catalogue again, not the in-process copy of the last 30s"
+        }
+      ],
+      "example": "opentide setup skills discover --query sigma",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "setup skills show",
+      "name": "show",
+      "summary": "Show one skill from the catalogue",
+      "help": "Show details for one skill from the catalogue.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [
+        {
+          "name": "name",
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": true,
+          "multiple": false,
+          "envvars": [],
+          "help": "Skill slug or name"
+        }
+      ],
+      "options": [
+        {
+          "name": "path",
+          "flags": ["--path", "-C"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": ".",
+          "required": false,
+          "multiple": false,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Repository path"
+        },
+        {
+          "name": "refresh",
+          "flags": ["--refresh"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Fetch the catalogue again, not the in-process copy of the last 30s"
+        }
+      ],
+      "example": "opentide setup skills show <slug>",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "doctor",
+      "name": "doctor",
+      "summary": "Check the installation, the workspace and its integrations",
+      "help": "Check the installation, the workspace and its integrations\n\nEach check prints a status, what it found and, when something needs doing,\nthe command that fixes it. Credentials are reported as set or unset, never\nprinted. Exits 1 when any check fails; warnings alone exit 0.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "offline",
+          "flags": ["--offline"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Skip the network checks (PyPI release, proxy reachability)"
+        }
+      ],
+      "example": "opentide doctor",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "migrate",
+      "name": "migrate",
+      "summary": "Migrate legacy repository layouts",
+      "help": "Migrate legacy repository layouts",
+      "group": true,
+      "runs_alone": false,
+      "subcommands": ["objects", "vocab-scope"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide migrate objects",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "migrate objects",
+      "name": "objects",
+      "summary": "Move a legacy layout into objects/ and .opentide/",
+      "help": "Move Configurations/, Objects/, and .opentide/framework into the greenfield layout.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "apply",
+          "flags": ["--apply"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Perform the planned moves (default: dry-run)"
+        },
+        {
+          "name": "copy",
+          "flags": ["--copy"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Copy files instead of moving them"
+        }
+      ],
+      "example": "opentide migrate objects",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "migrate vocab-scope",
+      "name": "vocab-scope",
+      "summary": "Re-prefix stage-scoped vocabulary values",
+      "help": "Re-prefix stage-scoped vocabulary values (`Process` -> `Host::Process`).\n\nApplies only mechanical outcomes: a key defined under exactly one stage,\nand a stage whose casing drifted. A key defined under several stages is\nreported, never guessed. Exits 2 when anything is left for a human.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "apply",
+          "flags": ["--apply"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Rewrite the objects (default: dry-run report)"
+        },
+        {
+          "name": "field",
+          "flags": ["--field"],
+          "secondary_flags": [],
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": true,
+          "is_flag": false,
+          "envvars": [],
+          "help": "Limit to one scoped field (repeatable). Default: every scoped field."
+        },
+        {
+          "name": "force",
+          "flags": ["--force"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Exit 0 even when values need a human decision"
+        }
+      ],
+      "example": "opentide migrate vocab-scope",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "tui",
+      "name": "tui",
+      "summary": "Browse the catalogue and its diagnostics in a terminal UI",
+      "help": "Browse the catalogue and its diagnostics in a terminal UI\n\nA tree of threats, objectives and rules, each object's YAML and the\ndiagnostics from the last validate run, and coverage by ATT&CK technique.\nRun validate, generate and deploy --dry-run from the command palette\n(ctrl+p) or their keys. Needs an interactive terminal: it exits 2 under\n--json, in a pipe, in CI or under a coding agent.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide tui",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "explain",
+      "name": "explain",
+      "summary": "Explain a diagnostic code and how to fix it",
+      "help": "Explain a diagnostic code and how to fix it\n\nPrints what the code means, an example, and how to fix it.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [
+        {
+          "name": "code",
+          "type": "string",
+          "choices": null,
+          "default": null,
+          "required": false,
+          "multiple": false,
+          "envvars": [],
+          "help": "A diagnostic code, such as vocab_unknown. Omit it to list every code."
+        }
+      ],
+      "options": [],
+      "example": "opentide explain vocab_unknown",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "commands",
+      "name": "commands",
+      "summary": "List every command and option, for agents",
+      "help": "List every command and option, for agents\n\nEach command comes with its arguments, options (types, choices, defaults,\nenvironment variables) and an example. Add --json for the whole tree in one\ndocument.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide commands",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "mcp",
+      "name": "mcp",
+      "summary": "Run the opentide MCP server for editors and agents",
+      "help": "Run the opentide MCP server for editors and agents\n\nThe server speaks on stdio. The editor owns the process: stop is the host closing stdin, and reload is the host spawning this command again. There is no reload or stop subcommand.",
+      "group": true,
+      "runs_alone": false,
+      "subcommands": ["start"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide mcp start",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "mcp start",
+      "name": "start",
+      "summary": "Serve MCP on stdio until the host closes stdin",
+      "help": "Block on stdio until the host closes stdin. stdout is JSON-RPC only.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide mcp start",
+      "output_schema": null
+    },
+    {
+      "path": "lsp",
+      "name": "lsp",
+      "summary": "Serve the language server for editors",
+      "help": "Serve the language server for editors\n\nThe server is the analysis engine that pip install opentide installs: KQL, SPL, ES|QL, EQL, Kibana KQL, Lucene and Tide YAML. The editor owns the process and speaks the protocol on stdio. On the command line, opentide validate and opentide lint report what it finds.",
+      "group": true,
+      "runs_alone": false,
+      "subcommands": ["start"],
+      "deprecated": false,
+      "arguments": [],
+      "options": [],
+      "example": "opentide lsp start",
+      "output_schema": {
+        "$comment": "stripped for the fixture"
+      }
+    },
+    {
+      "path": "lsp start",
+      "name": "start",
+      "summary": "Serve LSP on stdio until the editor closes stdin",
+      "help": "Serve the language server protocol on stdio until the editor closes stdin.",
+      "group": false,
+      "runs_alone": true,
+      "subcommands": [],
+      "deprecated": false,
+      "arguments": [],
+      "options": [
+        {
+          "name": "stdio",
+          "flags": ["--stdio"],
+          "secondary_flags": [],
+          "type": "boolean",
+          "choices": null,
+          "default": false,
+          "required": false,
+          "multiple": false,
+          "is_flag": true,
+          "envvars": [],
+          "help": "Speak on stdin and stdout: the only transport, accepted for editors that pass it"
+        }
+      ],
+      "example": "opentide lsp start",
+      "output_schema": null
+    }
+  ],
+  "ok": true,
+  "status": "completed",
+  "message": "58 commands",
+  "schema_version": 1,
+  "command": "commands",
+  "duration_ms": 412,
+  "exit_code": 0,
+  "summary": {
+    "commands": 58,
+    "groups": 15
+  },
+  "next_actions": [],
+  "failure": null
+}
