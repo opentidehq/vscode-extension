@@ -83,8 +83,17 @@ describe("deploy plan (#18)", () => {
     );
     assert.equal(
       ciStep({ strategies: ["PREVIEW"], scope: { kind: "changed" } }, ["SPLUNK_TOKEN"]),
-      `- name: Deploy detections (PREVIEW)\n  run: opentide deploy --strategy PREVIEW\n  env:\n    SPLUNK_TOKEN: \${{ secrets.SPLUNK_TOKEN }}\n`,
+      `- name: Deploy detections (PREVIEW)\n  run: |\n    opentide deploy --strategy PREVIEW\n  env:\n    SPLUNK_TOKEN: \${{ secrets.SPLUNK_TOKEN }}\n`,
     );
+    // ` #` starts a YAML comment and `: ` a mapping in a plain scalar: the block scalar keeps both.
+    const tricky = {
+      strategies: ["PREVIEW" as const],
+      scope: { kind: "selected" as const, uuids: [], files: ["objects/rules/lsass #2: v2.yaml"] },
+    };
+    const step = ciStep(tricky).split("\n");
+    assert.equal(step[1], "  run: |");
+    assert.equal(step[2], `    ${deployCommand(tricky)}`);
+    assert.ok(deployCommand(tricky).includes("'objects/rules/lsass #2: v2.yaml'"));
     assert.deepEqual(dryRunArgv({ strategies: [], scope: { kind: "changed" } }), [
       "deploy",
       "--dry-run",
