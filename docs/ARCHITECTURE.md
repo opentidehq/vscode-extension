@@ -172,6 +172,9 @@ run(folder: string, argv: string[], options?: {
 - `onDidRun` fires when a run starts (`status: "running"`) and ends (`ok`, `failed`, `cancelled`,
   `error`). After a writing command the core refreshes that folder's catalogue.
 - `invalidate(paths)` is done for you: the core forwards object and `.opentide/` file events.
+- `credentialEnv(folder)`: the variables a tenant-contacting run gets (SecretStorage over
+  `opentide.envFile`), for a process the extension starts itself, such as a task or a terminal running
+  `query`. Empty when commands cannot run. Never log or show the values.
 
 ### `ctx.capabilities`
 
