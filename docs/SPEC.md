@@ -590,7 +590,7 @@ OPENTIDE
   - **Focus** (default): follows the active editor, depth 1–3.
   - **Catalogue:** everything, clustered by threat.
   - **Threat chains:** threats and their chaining only.
-- **Layout:** layered left to right, threat → objective → rule (Cytoscape.js and dagre, both MIT). Positions stay stable across refreshes, so the graph does not jump while you work.
+- **Layout:** layered left to right, threat → objective → rule (Cytoscape.js and dagre, both MIT). Techniques, log sources and platforms go in one column per kind to the right, each beside the mean of what references it: laid out by dagre, their many edges made a 1,000-node Catalogue view take minutes. Above 600 laid-out nodes dagre ranks with `longest-path`. Positions stay stable across refreshes, so the graph does not jump while you work.
 - **Interaction:**
   - click opens the object at its `name:` line;
   - hover shows name, UUID, status, techniques and problems;
