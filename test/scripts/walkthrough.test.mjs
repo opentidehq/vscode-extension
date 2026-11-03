@@ -64,3 +64,16 @@ describe("what the bundled opentide cannot do", () => {
       assert.doesNotMatch(`${step.description}\n${media(step)}`, /every feature works/i);
   });
 });
+
+describe("the agent step", () => {
+  it("offers This Editor's MCP Settings only in a fork, where the command does something", () => {
+    const vscodeStep = steps.find((s) => s.id === "agent");
+    const fork = steps.find((s) => s.id === "agentFork");
+    assert.equal(vscodeStep.when, "!opentide.agents.forkMcp");
+    assert.equal(fork.when, "opentide.agents.forkMcp");
+    assert.doesNotMatch(vscodeStep.description, /editorMcp/);
+    assert.ok(!vscodeStep.completionEvents.includes("onCommand:opentide.agents.addToEditorMcp"));
+    assert.match(fork.description, /editorMcp/);
+    assert.doesNotMatch(fork.description, /Claude Code/, "the fork command handles Cursor and Windsurf only");
+  });
+});

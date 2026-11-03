@@ -495,10 +495,11 @@ describe("setup: manifest", () => {
 
   it("has the seven walkthrough steps of SPEC §8, with media that exists and real completion events", () => {
     const walkthrough = pkg.contributes.walkthroughs.find((w) => w.id === "opentide.gettingStarted");
-    // "fit" comes in two variants: with `info catalog`, and without (it leads to a newer opentide).
+    // "fit" comes in two variants: with `info catalog`, and without (it leads to a newer opentide);
+    // "agent" too: VS Code, which gets the MCP server from the extension, and a fork, which needs it added.
     assert.deepEqual(
       walkthrough?.steps.map((s) => s.id),
-      ["ready", "setup", "create", "validate", "fit", "fitNeedsCatalog", "deploy", "agent"],
+      ["ready", "setup", "create", "validate", "fit", "fitNeedsCatalog", "deploy", "agent", "agentFork"],
     );
     for (const step of walkthrough?.steps ?? []) {
       const media = step.media.markdown ?? step.media.svg ?? "";
