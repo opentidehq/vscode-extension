@@ -67,7 +67,7 @@ export interface WizardInit {
 
 export interface ReviewFile {
   readonly path: string;
-  readonly action: "create" | "merge" | "skip";
+  readonly action: "create" | "merge" | "skip" | "delete";
 }
 
 export interface ReviewStep {
@@ -85,7 +85,18 @@ export interface Review {
   /** Why there are no file lists, when there are none. */
   readonly note?: string;
   readonly error?: string;
-  readonly totals?: { readonly create: number; readonly merge: number; readonly skip: number };
+  readonly totals?: {
+    readonly create: number;
+    readonly merge: number;
+    readonly skip: number;
+    readonly delete: number;
+  };
+}
+
+/** "4 new files, 1 merged, 1 unchanged, 1 to remove. Nothing is written until you apply." */
+export function reviewTotals(totals: NonNullable<Review["totals"]>): string {
+  const removed = totals.delete > 0 ? `, ${totals.delete} to remove` : "";
+  return `${totals.create} new file${totals.create === 1 ? "" : "s"}, ${totals.merge} merged, ${totals.skip} unchanged${removed}. Nothing is written until you apply.`;
 }
 
 export type CommandStatus = "pending" | "running" | "ok" | "failed" | "cancelled";

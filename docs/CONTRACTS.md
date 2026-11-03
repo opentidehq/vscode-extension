@@ -89,7 +89,7 @@ A variable's value never appears.
 
 | Issue | Addition |
 |-------|----------|
-| opentidehq/opentide#751 | `setup --plan`: writes nothing; prints `steps[]{step, files[{path, action: "create"\|"merge"\|"skip"}], warnings}`. New flags on `setup`: `--mcp vscode\|cursor\|claude-code\|generic` (repeatable), `--skills claude-code\|cursor\|github-copilot\|generic` (repeatable), `--plugin`, `--hooks`, `--env` |
+| opentidehq/opentide#751 | `setup --plan`: writes nothing; prints `steps[]{step, files[{path, action: "create"\|"merge"\|"skip"\|"delete"}], warnings}` and `summary{create, merge, skip, delete}`; `delete` is a file the step removes (a stale skill file it replaces). The extension drops an action it does not know. New flags on `setup`: `--mcp vscode\|cursor\|claude-code\|generic` (repeatable), `--skills claude-code\|cursor\|github-copilot\|generic` (repeatable), `--plugin`, `--hooks`, `--env` |
 | opentidehq/opentide#753 | `deploy --uuid <uuid>` and `--file <path>` (both repeatable) select rules. They are a usage error with `--all` and replace the git-diff default |
 | opentidehq/opentide#755 | `end_line` (1-based) on every validate and lint finding; `lint --file <path>` (repeatable) |
 | opentidehq/opentide#756 | With `OPENTIDE_PROGRESS=json`, NDJSON events on stderr: `{"event": "progress", "step": "…", "done": 1, "total": 6}` and `{"event": "tenant", "platform": "…", "tenant": "…", "status": "ok"\|"failed", "rows": 120, "elapsed_ms": 1800}`. Under `serve`, the same events arrive as `progress` notifications |
@@ -102,7 +102,7 @@ A variable's value never appears.
 | opentidehq/language-server#195 | The ES\|QL grammar's `scopeName` is `source.opentide.esql` |
 | opentidehq/language-server#196 | Each release carries `SHA256SUMS` and build-provenance attestations |
 | opentidehq/language-server#197 | `DOCUMENT_SELECTOR` includes `opentide-config`; a scheme-less `WEB_DOCUMENT_SELECTOR` |
-| opentidehq/language-server#198 | `opentide/catalog {root?}` → `{roots: [{root, objects: [{uuid, object_type, schema, name, uri, range, refs: [{uuid, field_path, range}]}]}]}` and the notification `opentide/catalogChanged {root}` |
+| opentidehq/language-server#198 | `opentide/catalog {root?}` (params may be omitted or `null`) → `{roots: [{root, objects: [{uuid, object_type, schema, name, uri, range, refs: [{uuid, field_path, range}]}]}]}` and the notification `opentide/catalogChanged {root}`, also sent when a root appears or goes (`root: null` for the root-less set). `refs` are the reference fields only, not every UUID-valued string. A `root` keeps its own URI scheme (`vscode-vfs://…` in a virtual workspace); a trailing slash still matches |
 
 ## Versions the extension gates on
 

@@ -72,7 +72,7 @@ pre-releases odd ones.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
   - **Activity:** the last 50 commands, with Run Again and Copy Command Line.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
-  create or merge (with `setup --plan`) before anything is written. It applies step by step, and Copy
+  create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
   as Script reproduces it in a terminal. It also adds platforms, CI and agents to an existing
   repository. A CoreTIDE layout (`Objects/`, `Configurations/`, `global.toml`) is reported as not
   supported: opentide 0.21.0 has no migration.
