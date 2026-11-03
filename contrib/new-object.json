@@ -1,0 +1,120 @@
+{
+  "contributes": {
+    "commands": [
+      {
+        "command": "opentide.newObject",
+        "title": "New Detection Object…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      { "command": "opentide.newObject.threat", "title": "New Threat…", "category": "opentide" },
+      { "command": "opentide.newObject.objective", "title": "New Objective…", "category": "opentide" },
+      { "command": "opentide.newObject.rule", "title": "New Rule…", "category": "opentide" },
+      { "command": "opentide.newObject.newFile.threat", "title": "opentide Threat" },
+      { "command": "opentide.newObject.newFile.objective", "title": "opentide Objective" },
+      { "command": "opentide.newObject.newFile.rule", "title": "opentide Rule" },
+      {
+        "command": "opentide.newObject.ruleForObjective",
+        "title": "New Rule for This Objective…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.objectiveForThreat",
+        "title": "New Objective for This Threat…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.regenerateTemplates",
+        "title": "Regenerate Templates, Schemas and Snippets",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.addPlatformBlock",
+        "title": "Add a Platform Block",
+        "category": "opentide"
+      },
+      { "command": "opentide.placeholder.next", "title": "Next Placeholder", "category": "opentide" },
+      { "command": "opentide.placeholder.previous", "title": "Previous Placeholder", "category": "opentide" }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "opentide.newObject", "when": "isWorkspaceTrusted && opentide.hasCli" },
+        { "command": "opentide.newObject.threat", "when": "isWorkspaceTrusted && opentide.hasCli" },
+        { "command": "opentide.newObject.objective", "when": "isWorkspaceTrusted && opentide.hasCli" },
+        { "command": "opentide.newObject.rule", "when": "isWorkspaceTrusted && opentide.hasCli" },
+        { "command": "opentide.newObject.newFile.threat", "when": "false" },
+        { "command": "opentide.newObject.newFile.objective", "when": "false" },
+        { "command": "opentide.newObject.newFile.rule", "when": "false" },
+        { "command": "opentide.newObject.ruleForObjective", "when": "false" },
+        { "command": "opentide.newObject.objectiveForThreat", "when": "false" },
+        { "command": "opentide.newObject.addPlatformBlock", "when": "false" },
+        {
+          "command": "opentide.newObject.regenerateTemplates",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        { "command": "opentide.placeholder.next", "when": "editorIsOpen && opentide.hasPlaceholders" },
+        { "command": "opentide.placeholder.previous", "when": "editorIsOpen && opentide.hasPlaceholders" }
+      ],
+      "explorer/context": [
+        {
+          "command": "opentide.newObject",
+          "when": "explorerResourceIsFolder && isWorkspaceTrusted && opentide.hasCli && resourcePath in opentide.objectFolders",
+          "group": "navigation@9"
+        }
+      ],
+      "file/newFile": [
+        {
+          "command": "opentide.newObject.newFile.threat",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        },
+        {
+          "command": "opentide.newObject.newFile.objective",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        },
+        {
+          "command": "opentide.newObject.newFile.rule",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "opentide.placeholder.next",
+        "key": "ctrl+alt+.",
+        "mac": "ctrl+alt+.",
+        "when": "editorTextFocus && opentide.hasPlaceholders"
+      },
+      {
+        "command": "opentide.placeholder.previous",
+        "key": "ctrl+alt+,",
+        "mac": "ctrl+alt+,",
+        "when": "editorTextFocus && opentide.hasPlaceholders"
+      }
+    ],
+    "colors": [
+      {
+        "id": "opentide.placeholderBackground",
+        "description": "Background of a line whose value is an `opentide new` placeholder (`# opentide:placeholder`).",
+        "defaults": {
+          "dark": "#cca70019",
+          "light": "#cca70024",
+          "highContrast": null,
+          "highContrastLight": null
+        }
+      },
+      {
+        "id": "opentide.placeholderOverviewRuler",
+        "description": "Overview ruler mark of a placeholder line.",
+        "defaults": {
+          "dark": "editorOverviewRuler.warningForeground",
+          "light": "editorOverviewRuler.warningForeground",
+          "highContrast": "editorOverviewRuler.warningForeground",
+          "highContrastLight": "editorOverviewRuler.warningForeground"
+        }
+      }
+    ]
+  }
+}
