@@ -147,7 +147,11 @@ now leave out.)
 | linux-x64 | 80.1 MiB | 223.3 MiB | botocore 15.0, bin 11.9, numpy.libs 8.2, pandas 8.2, opentide 6.8 |
 | darwin-arm64 | 67.9 MiB | 183.5 MiB | botocore 15.0, numpy 10.0, pandas 7.5, bin 7.4, opentide 6.5 |
 | win32-x64 | 74.0 MiB | 200.2 MiB | botocore 15.0, opentide 6.8, pandas 6.8, numpy.libs 6.5, DLLs 4.4 |
-| universal | 0.2 MiB | 0.6 MiB | dist 0.1 |
+| universal | 0.4 MiB | 1.5 MiB | dist 0.2, dist/webview 0.2 |
+
+Every package carries the production build (`vscode:prepublish`: minified, no source maps). With every
+feature merged: `dist/extension.js` 746 KiB and `dist/webview/graph.js` 520 KiB (Cytoscape), against
+1.5 MiB and 1.1 MiB in `npm run build`; the other webviews are 14–24 KiB each.
 
 ## Why a target gets the universal package
 

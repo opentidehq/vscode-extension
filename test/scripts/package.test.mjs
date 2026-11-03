@@ -262,3 +262,14 @@ describe("smoke: checks", () => {
     assert.equal(checkInitialize({ id: 1, error: { message: "boom" } }, expected).length, 1);
   });
 });
+
+describe("the packaged bundles are minified", () => {
+  it("vsce's vscode:prepublish runs the production build, which minifies without source maps", () => {
+    const scripts = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts;
+    assert.equal(scripts["vscode:prepublish"], "npm run build:production");
+    assert.match(scripts["build:production"], /node scripts\/build\.mjs --production$/);
+    const build = readFileSync(join(root, "scripts", "build.mjs"), "utf8");
+    assert.match(build, /sourcemap: !production,\n\s+minify: production,/);
+    assert.match(readFileSync(join(root, ".vscodeignore"), "utf8"), /^dist\/\*\*\/\*\.map$/m);
+  });
+});
