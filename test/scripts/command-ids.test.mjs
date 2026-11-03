@@ -52,13 +52,15 @@ describe("command ids across features", () => {
     assert.deepEqual(unknown, []);
   });
 
-  it("every command a menu, keybinding, walkthrough or welcome link names is contributed", () => {
+  it("every command a menu, keybinding, walkthrough step or welcome link names is contributed", () => {
     const refs = [];
     for (const [menu, items] of Object.entries(contributes.menus ?? {}))
       for (const item of items) if (item.command) refs.push([item.command, `menus.${menu}`]);
     for (const binding of contributes.keybindings ?? []) refs.push([binding.command, "keybindings"]);
     for (const m of JSON.stringify(contributes).matchAll(/command:([A-Za-z0-9_.]+)/g))
       refs.push([m[1], "link"]);
+    for (const m of JSON.stringify(contributes).matchAll(/onCommand:([A-Za-z0-9_.]+)/g))
+      refs.push([m[1], "walkthrough completion"]);
     const unknown = refs.filter(([id]) => !/^(workbench|vscode|editor|git)\./.test(id) && !known(id));
     assert.deepEqual(unknown, []);
   });

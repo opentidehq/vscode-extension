@@ -1715,11 +1715,6 @@
     "viewsWelcome": [
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount == 0",
-        "contents": "[Create a Detection Repository…](command:opentide.setup.open)"
-      },
-      {
-        "view": "opentide.sidebar.catalogue",
         "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted",
         "contents": "This folder is not an opentide repository yet.\n[Create a Detection Repository Here](command:opentide.setup.open)\n[Open an Existing Repository](command:vscode.openFolder)"
       },
@@ -1736,7 +1731,7 @@
       {
         "view": "opentide.sidebar.catalogue",
         "when": "workspaceFolderCount == 0",
-        "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
+        "contents": "Open a folder with a detection repository, or create one.\n[Open Folder](command:vscode.openFolder)\n[Create a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.catalogue",
