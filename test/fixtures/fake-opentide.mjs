@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // A fake `opentide` for tests: `--version`, `--json <command>` and `serve` (CONTRACTS.md).
-// FAKE_VERSION sets the version; FAKE_NO_SERVE=1 leaves `serve` out of `commands`.
+// FAKE_VERSION sets the version; FAKE_NO_SERVE=1 leaves `serve` out of `commands`; FAKE_TENANTS=1 gives
+// `info` platforms their tenants.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -57,6 +58,8 @@ const ENV_KEYS = [
   "OPENTIDE_PROGRESS",
   "FAKE_SECRET",
   "PATH",
+  "COLUMNS",
+  "OPENTIDE_LINKS",
 ];
 const pick = (env) =>
   Object.fromEntries(ENV_KEYS.filter((k) => env[k] !== undefined).map((k) => [k, env[k]]));
@@ -86,7 +89,61 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
       }
       return [envelope("slow"), 0];
     }
+    case "explain":
+      // `explain` lists every code; `explain <code>` explains one (the real shapes, abridged).
+      if (rest[0] === undefined)
+        return [
+          envelope("explain", {
+            codes: [
+              { code: "vocab_unknown", meaning: "A value is not in the vocabulary its field uses." },
+              { code: "workspace_not_found", meaning: "No workspace here." },
+            ],
+            summary: { codes: 2 },
+          }),
+          0,
+        ];
+      if (rest[0] === "vocab_unknown")
+        return [
+          envelope("explain", {
+            code: "vocab_unknown",
+            meaning: "A value is not in the vocabulary its field uses.",
+            markdown: "# vocab_unknown\n\nA value is not in the vocabulary its field uses.\n",
+          }),
+          0,
+        ];
+      return [
+        envelope("explain", {}, 2, { code: "usage_invalid_value", message: `Unknown code: ${rest[0]}` }),
+        2,
+      ];
     case "info":
+      // `info` with no section: platforms; FAKE_TENANTS=1 adds their tenants (opentide#754).
+      if (rest[0] === undefined || rest[0].startsWith("--")) {
+        const tenants = (name) =>
+          process.env.FAKE_TENANTS === "1"
+            ? {
+                tenants:
+                  name === "sentinel"
+                    ? [
+                        {
+                          name: "prod",
+                          description: "Production workspace",
+                          strategies: ["RELEASE"],
+                          manual: false,
+                          variables: [
+                            { name: "AZURE_CLIENT_ID", set: Boolean(env.AZURE_CLIENT_ID) },
+                            { name: "FAKE_SECRET", set: Boolean(env.FAKE_SECRET) },
+                          ],
+                        },
+                      ]
+                    : [],
+              }
+            : {};
+        const platforms = [
+          { name: "sentinel", enabled: true, can_deploy: true, can_validate: true, can_query: true },
+          { name: "splunk", enabled: false, can_deploy: true, can_validate: true, can_query: true },
+        ].map((platform) => ({ ...platform, ...tenants(platform.name) }));
+        return [envelope("info", { version, platforms, summary: { rules: 0 } }), 0];
+      }
       if (rest[0] === "catalog" && process.env.FAKE_INFO_CATALOG === "1") {
         return [
           envelope("info", { objects: [], edges: [], signals: [], attack: { tactics: [], techniques: {} } }),

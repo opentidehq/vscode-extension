@@ -1,0 +1,45 @@
+error[vocab_unknown]: 'ambr' is not a TLP value
+  ╭─▶ objects/rules/suspicious-lsass-access-0.yaml:9:8
+  │
+8 │   modified: 2026-11-03
+9 │   tlp: ambr
+  │        ━━━━ not in tlp::1.0
+  │
+  ╰─ help: did you mean 'amber'?
+
+error[kql_parse_error]: KQL syntax error
+   ╭─▶ objects/rules/suspicious-lsass-access-0.yaml:60:7
+   │
+59 │     query: |
+60 │       ...
+   │       ━━━
+   │
+   ╰─ help: the KQL reference: https://learn.microsoft.com/kusto/query/
+
+note[metadata_recommended]: Recommended metadata missing: organisation
+  ╭─▶ objects/objectives/detect-lsass-access.yaml:3:1
+  │
+3 │ metadata:
+  │ ━━━━━━━━
+  │
+  ╰─ help: add the missing keys under metadata
+
+warning[placeholder]: priority holds a placeholder value written by opentide new
+   ╭─▶ objects/objectives/detect-lsass-access.yaml:17:13
+   │
+16 │ objective:
+17 │   priority: ...  # opentide:placeholder
+   │             ━━━
+   │
+   ╰─ help: replace the value, then delete the '# opentide:placeholder' comment
+
+warning[filename_mismatch]: file name does not match the object name
+  --> objects/rules/x.yaml:1
+  |
+  = help: rename it
+
+error[configuration_invalid]: a configuration file does not parse
+  ╰─▶ .opentide/configurations/platforms/sentinel.toml:4:1
+
+✗ 4 errors in 3 files · 2 objects checked · 6.6s
+→ opentide explain vocab_unknown · how to fix it

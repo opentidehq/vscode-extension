@@ -1,0 +1,155 @@
+{
+  "$comment": "Every CLI command has a home (SPEC §11, #7): the generic runner, palette commands, the opentide task type and $opentide, the terminal profile.",
+  "activationEvents": ["onTaskType:opentide", "onTerminalProfile:opentide.terminal"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "opentide.runner.run",
+        "title": "Run Command…",
+        "category": "opentide",
+        "icon": "$(play)"
+      },
+      {
+        "command": "opentide.runner.showLastResult",
+        "title": "Show Last Command Result",
+        "category": "opentide",
+        "icon": "$(json)"
+      },
+      {
+        "command": "opentide.runner.generate",
+        "title": "Generate…",
+        "category": "opentide",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "opentide.runner.openDocs",
+        "title": "Open Generated Docs",
+        "category": "opentide",
+        "icon": "$(book)"
+      },
+      {
+        "command": "opentide.runner.showVocabulary",
+        "title": "Show Vocabulary…",
+        "category": "opentide",
+        "icon": "$(symbol-enum)"
+      },
+      {
+        "command": "opentide.runner.showUnreviewed",
+        "title": "Show Unreviewed Rules",
+        "category": "opentide",
+        "icon": "$(history)"
+      },
+      {
+        "command": "opentide.runner.sharePreview",
+        "title": "Preview Sharing",
+        "category": "opentide",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "opentide.runner.shareStatus",
+        "title": "Show Sharing Status",
+        "category": "opentide",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "opentide.runner.shareTargets",
+        "title": "Show Sharing Targets",
+        "category": "opentide",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "opentide.runner.explain",
+        "title": "Explain a Code…",
+        "category": "opentide",
+        "icon": "$(question)"
+      },
+      {
+        "command": "opentide.runner.openTui",
+        "title": "Open TUI in Terminal",
+        "category": "opentide",
+        "icon": "$(table)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "opentide.runner.showLastResult", "when": "isWorkspaceTrusted" },
+        { "command": "opentide.runner.generate", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.openDocs", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.showVocabulary", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.showUnreviewed", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.sharePreview", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.shareStatus", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.shareTargets", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.openTui", "when": "opentide.hasWorkspace" }
+      ],
+      "explorer/context": [
+        {
+          "command": "opentide.runner.sharePreview",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml",
+          "group": "opentide@1"
+        }
+      ]
+    },
+    "taskDefinitions": [
+      {
+        "type": "opentide",
+        "required": ["command"],
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The opentide command path: validate, lint, generate, validate query, query, deploy (always as a dry run)…"
+          },
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Arguments after the command, such as [\"--strict\"] or [\"--platform\", \"sentinel\"]."
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "opentide",
+        "label": "opentide code frames",
+        "owner": "opentide",
+        "source": "opentide",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "pattern": [
+          {
+            "regexp": "^(error|warning|note)\\[([A-Za-z0-9_.:-]+)\\]: (.*)$",
+            "severity": 1,
+            "code": 2,
+            "message": 3
+          },
+          {
+            "regexp": "^\\s*(?:╭─▶|╰─▶|-->)\\s+(.+?):(\\d+)(?::(\\d+))?\\s*$",
+            "file": 1,
+            "line": 2,
+            "column": 3
+          }
+        ]
+      }
+    ],
+    "terminal": {
+      "profiles": [
+        {
+          "id": "opentide.terminal",
+          "title": "opentide",
+          "icon": "terminal"
+        }
+      ]
+    },
+    "configuration": {
+      "id": "opentide-terminal",
+      "title": "opentide: Terminal",
+      "properties": {
+        "opentide.terminal.addToPath": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "When the bundled runtime is active and no `opentide` is on `PATH`, put the bundled `opentide` on new integrated terminals' `PATH`. Ignored in Restricted Mode."
+        }
+      }
+    }
+  }
+}
