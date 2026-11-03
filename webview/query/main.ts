@@ -235,6 +235,21 @@ function renderTabs(): void {
     replace(panel, stateBox({ kind: "loading", title: `Waiting for ${tab.tenant}…` }));
     return;
   }
+  if (s.phase === "running") {
+    // A tenant event arrived: opentide sends the rows when every tenant has answered.
+    replace(
+      panel,
+      stateBox({
+        kind: "loading",
+        title:
+          tab.status === "ok"
+            ? `${tab.tenant} answered with ${tab.rowCount ?? 0} row${tab.rowCount === 1 ? "" : "s"}`
+            : `${tab.tenant} failed`,
+        body: "The rows appear when every tenant has answered.",
+      }),
+    );
+    return;
+  }
   if (tab.status === "failed") {
     replace(
       panel,

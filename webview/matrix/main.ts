@@ -548,7 +548,8 @@ function MATRIX_CSS(): string {
 .layout { display: flex; gap: 12px; align-items: flex-start; }
 .matrix { display: flex; gap: 4px; overflow-x: auto; flex: 1; padding-bottom: 8px; }
 .column { display: flex; flex-direction: column; gap: 3px; min-width: 150px; max-width: 180px; flex: 0 0 160px; }
-.column-title { font-size: 0.9em; margin: 0 0 4px; display: flex; justify-content: space-between; gap: 4px;
+.column-title { font-size: 0.9em; margin: 0 0 4px; display: flex; justify-content: space-between; gap: 6px;
+  border-bottom: 2px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
   position: sticky; top: 0; background: var(--vscode-editor-background); padding: 2px 0; }
 .cell { display: grid; grid-template-columns: 1fr auto; gap: 0 4px; padding: 3px 5px; border-radius: 2px; cursor: pointer;
   border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border)); font-size: 0.88em; line-height: 1.25; }

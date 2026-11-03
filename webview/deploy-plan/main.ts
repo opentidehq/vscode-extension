@@ -289,13 +289,14 @@ function summary(plan: PlanView): HTMLElement {
 
 function platformSection(p: PlatformPlan, s: DeployPanelState): HTMLElement {
   const changes = p.tenants.reduce((n, t) => n + t.changes.length, 0);
+  const tenants = p.tenants.filter((t) => t.tenant).length;
   const payloadByUuid = new Map(p.payloads.map((row) => [row.uuid, row]));
   return h("details", { class: "platform", attrs: { open: true } }, [
     h("summary", {}, [
       h("strong", { text: p.platform }),
       h("span", {
         class: "muted",
-        text: ` · ${p.tenants.filter((t) => t.tenant).length} tenant${p.tenants.length === 1 ? "" : "s"} · ${changes} change${changes === 1 ? "" : "s"}`,
+        text: ` · ${tenants} tenant${tenants === 1 ? "" : "s"} · ${changes} change${changes === 1 ? "" : "s"}`,
       }),
     ]),
     p.missingTenants
@@ -332,6 +333,7 @@ function platformSection(p: PlatformPlan, s: DeployPanelState): HTMLElement {
                   title: change.uuid,
                   on: { click: () => channel.post("open", change.uuid) },
                 }),
+                focused ? h("span", { class: "badge", text: "this rule" }) : null,
                 change.fails ? h("span", { class: "error", text: " · would fail to compile" }) : null,
               ]),
               h("td", { text: change.status }),
@@ -416,6 +418,8 @@ function PLAN_CSS(): string {
 .platform > summary { font-size: 1.05em; padding: 4px 0; }
 .tenant { margin-left: 16px; }
 table.changes { width: 100%; }
+table.changes tr.focus td:first-child { box-shadow: inset 3px 0 var(--vscode-focusBorder); }
+table.changes tr.focus .badge { margin-left: 6px; }
 table.changes tr.focus { background: var(--vscode-editor-findMatchHighlightBackground, var(--vscode-list-inactiveSelectionBackground)); }
 .action-create { color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green)); }
 .action-update, .action-upsert { color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-charts-blue)); }

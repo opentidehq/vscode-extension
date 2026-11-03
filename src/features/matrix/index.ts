@@ -215,7 +215,7 @@ class MatrixPanel implements vscode.Disposable {
           ...base,
           status: "unavailable",
           folder: named,
-          message: `The ATT&CK matrix needs a newer opentide: ${version ? `opentide ${version}` : "this one"} has no \`info catalog\`. Upgrade opentide, or switch to a runtime that has it.`,
+          message: `The ATT&CK matrix needs a newer opentide: ${version ? `opentide ${version}` : "this one"} has no info catalog command. Upgrade opentide, or switch to a runtime that has it.`,
           action: { id: "switchRuntime", label: "Switch runtime…" },
         };
       }
