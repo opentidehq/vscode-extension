@@ -28,7 +28,7 @@ export function bundledPackages(metafile, root) {
 
 /** THIRD-PARTY-NOTICES text: each bundled package's name, version, licence and licence file. */
 export function thirdPartyNotices(packages, readFile) {
-  const sections = ["Third-party software bundled in dist/extension.js", ""];
+  const sections = ["Third-party software bundled in dist/extension.js and dist/web/extension.js", ""];
   for (const [name, dir] of packages) {
     const pkg = JSON.parse(readFile(join(dir, "package.json")));
     const licenseFile = readdirSync(dir).find((file) => /^(licen[cs]e|copying)(\.md|\.txt)?$/i.test(file));
@@ -36,4 +36,24 @@ export function thirdPartyNotices(packages, readFile) {
     sections.push(licenseFile ? readFile(join(dir, licenseFile)).trim() : `Licence: ${pkg.license}`, "");
   }
   return `${sections.join("\n")}\n`;
+}
+
+/**
+ * The esbuild options of the web extension (`browser` in package.json): src/web/extension.ts ->
+ * dist/web/extension.js, CommonJS for the web worker extension host, with only `vscode` external. The
+ * browser platform makes a Node built-in fail to resolve instead of being bundled.
+ */
+export function webExtensionOptions(root, common = {}) {
+  return {
+    ...common,
+    bundle: true,
+    entryPoints: { extension: join(root, "src", "web", "extension.ts") },
+    outdir: join(root, "dist", "web"),
+    platform: "browser",
+    format: "cjs",
+    target: "es2022",
+    mainFields: ["browser", "module", "main"],
+    external: ["vscode"],
+    metafile: true,
+  };
 }

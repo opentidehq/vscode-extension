@@ -105,6 +105,19 @@ describe("manifest fragments", () => {
     assert.deepEqual(out.contributes, { a: 1 });
   });
 
+  it("leaves the hand-written top-level fields alone, the main and browser entries included", () => {
+    const out = applyToPackage(
+      { main: "./dist/extension.js", browser: "./dist/web/extension.js", contributes: {} },
+      { activationEvents: [], contributes: {} },
+    );
+    assert.equal(out.main, "./dist/extension.js");
+    assert.equal(out.browser, "./dist/web/extension.js");
+    assert.throws(
+      () => mergeFragments([{ name: "web.json", fragment: { browser: "./x.js" } }]),
+      /unknown top-level key "browser"/,
+    );
+  });
+
   it("package.json is generated from contrib/*.json", () => {
     const fragments = readdirSync(join(root, "contrib"))
       .filter((n) => n.endsWith(".json"))

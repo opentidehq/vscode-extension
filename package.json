@@ -40,6 +40,7 @@
     "workspace"
   ],
   "main": "./dist/extension.js",
+  "browser": "./dist/web/extension.js",
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
@@ -55,8 +56,8 @@
       ]
     },
     "virtualWorkspaces": {
-      "supported": false,
-      "description": "opentide reads the workspace from disk."
+      "supported": "limited",
+      "description": "In a virtual workspace (github.dev, vscode.dev, Remote Repositories) only highlighting, languages and language configuration work: opentide reads the workspace from disk."
     }
   },
   "activationEvents": [

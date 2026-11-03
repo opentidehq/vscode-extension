@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Bundles the extension host code and every webview entry.
 //   src/extension.ts        -> dist/extension.js     (node, CommonJS, `vscode` external)
+//   src/web/extension.ts    -> dist/web/extension.js (browser, CommonJS, `vscode` external; package.json `browser`)
 //   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE)
 //   webview/shared/base.css -> dist/webview/base.css
 //   the bundled npm packages' licences -> dist/THIRD-PARTY-NOTICES.txt
@@ -9,7 +10,7 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "no
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
-import { bundledPackages, thirdPartyNotices, webviewEntries } from "./build-lib.mjs";
+import { bundledPackages, thirdPartyNotices, webExtensionOptions, webviewEntries } from "./build-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const production = process.argv.includes("--production");
@@ -35,6 +36,8 @@ const extension = {
   metafile: true,
 };
 
+const web = webExtensionOptions(root, common);
+
 const webviews = webviewEntries(join(root, "webview"));
 const webview = {
   ...common,
@@ -49,13 +52,13 @@ if (!watch) rmSync(join(root, "dist"), { recursive: true, force: true });
 mkdirSync(join(root, "dist", "webview"), { recursive: true });
 copyFileSync(join(root, "webview", "shared", "base.css"), join(root, "dist", "webview", "base.css"));
 
-const configs = Object.keys(webviews).length > 0 ? [extension, webview] : [extension];
+const configs = Object.keys(webviews).length > 0 ? [extension, web, webview] : [extension, web];
 if (watch) {
   for (const config of configs) await (await esbuild.context(config)).watch();
 } else {
-  const [built] = await Promise.all(configs.map((config) => esbuild.build(config)));
-  const notices = thirdPartyNotices(bundledPackages(built.metafile, root), (file) =>
-    readFileSync(file, "utf8"),
-  );
+  const [built, builtWeb] = await Promise.all(configs.map((config) => esbuild.build(config)));
+  // Both extension bundles' npm packages; the web bundle has none today.
+  const inputs = { ...built.metafile.inputs, ...builtWeb.metafile.inputs };
+  const notices = thirdPartyNotices(bundledPackages({ inputs }, root), (file) => readFileSync(file, "utf8"));
   writeFileSync(join(root, "dist", "THIRD-PARTY-NOTICES.txt"), notices);
 }
