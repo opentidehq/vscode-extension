@@ -20,6 +20,7 @@ import {
   taskEnv,
   taskName,
   taskPlan,
+  whenTaskReady,
 } from "../../../src/features/runner/tasks";
 import { fakeRuntime, ROOT } from "../helpers";
 import { matchProblems } from "./matcher";
@@ -248,5 +249,46 @@ describe("runner terminal links", () => {
       { start: 63, length: 9, kind: "code", value: "x_y" },
     ]);
     assert.deepEqual(terminalMatches("nothing here: error[] or 1234-5678"), []);
+  });
+});
+
+describe("runner: resolving a tasks.json task at window open", () => {
+  it("waits for the runtime, then its command tree, before the task is built", async () => {
+    const order: string[] = [];
+    let current: ReturnType<typeof fakeRuntime> | undefined;
+    let resolveRuntime: () => void = () => undefined;
+    const runtime = {
+      get current() {
+        return current;
+      },
+      ready: () =>
+        new Promise<void>((resolve) => {
+          resolveRuntime = () => {
+            current = fakeRuntime();
+            order.push("runtime");
+            resolve();
+          };
+        }),
+    };
+    const capabilities = {
+      ready: async () => {
+        order.push("commands");
+      },
+    };
+    const waiting = whenTaskReady({ trusted: true, runtime, capabilities }).then(() => order.push("build"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(order, [], "nothing is built while the runtime resolves");
+    resolveRuntime();
+    await waiting;
+    assert.deepEqual(order, ["runtime", "commands", "build"]);
+  });
+
+  it("does not wait for commands without a runtime, nor for anything in Restricted Mode", async () => {
+    const seen: string[] = [];
+    const runtime = { current: undefined, ready: async () => void seen.push("runtime") };
+    const capabilities = { ready: async () => void seen.push("commands") };
+    await whenTaskReady({ trusted: true, runtime, capabilities });
+    await whenTaskReady({ trusted: false, runtime, capabilities });
+    assert.deepEqual(seen, ["runtime"]);
   });
 });
