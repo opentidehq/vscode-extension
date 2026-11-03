@@ -67,20 +67,34 @@ It does this without installing Python and without leaving the editor.
 
 Each per-platform VSIX therefore carries a CPython runtime and the opentide closure: the opentide wheel, which already contains the analysis engine as `opentide._native`, plus its dependencies.
 
-**Measured cost** (linux-x64, opentide 0.20.1, measured 2026-11-03):
+**What the size is of.** The size that matters is the **VSIX**: the zip a user downloads per platform, on install and again on every update. It holds:
+- the CPython runtime;
+- opentide and its dependencies (about 80 packages);
+- the extension's own code, webviews and grammars, which add a few MB.
 
-| Part | Installed | Zipped |
-|------|----------:|-------:|
-| opentide closure as published today | 230 MB | 68 MB |
-| …of which pandas + numpy (+ `numpy.libs`) | 102 MB | ~28 MB |
-| Closure without pandas, numpy, openpyxl and `__pycache__` | ~125 MB | 40 MB |
-| CPython 3.12 standalone build (python-build-standalone, via uv), without tests, Tk and headers | 104 MB | 56 MB |
+On disk it unpacks to two to three times that.
 
-The 56 MB runtime still carries both a static `python` binary and a shared `libpython` (about 30 MB each), so a properly stripped build is smaller. M0 measures it.
+**Measured** on linux-x64, 2026-11-03: python-build-standalone CPython 3.13.14 (`install_only_stripped`) and opentide 0.20.1 from PyPI. Each bundle was zipped as a VSIX is (per-file deflate, level 9), and the trimmed bundle ran `opentide validate` on a test workspace.
 
-Today's closure gives a VSIX of about 120 MB. Without pandas and numpy it is 80–95 MB. pandas and numpy are imported only by one deploy-planning helper and a deprecated export, so removing them from opentide's required dependencies is the main size lever ([§15](#15-what-this-needs-from-opentide-and-language-server)).
+| Bundle | VSIX (zipped) | Installed |
+|--------|--------------:|----------:|
+| Runtime + opentide closure, as published today | 136 MB | 333 MB |
+| Trimmed runtime (no duplicate shared `libpython`, Tk, headers, `pip`, `idlelib`, `ensurepip`) + closure without pandas, numpy and openpyxl | 83 MB | 181 MB |
+| …and without boto3 and botocore | 67 MB | 150 MB |
 
-**Size budget:** 100 MB per VSIX, enforced in CI; the target is 80 MB.
+What is behind those numbers:
+- **pandas and numpy** are 102 MB installed. opentide imports them in only one deploy-planning helper and a deprecated export.
+- **boto3 and botocore** are 31 MB installed. They are not imported by opentide at all: only the Carbon Black SDK requires them.
+- **What remains:**
+  - the interpreter, about 31 MB (one static binary);
+  - the analysis engine (`opentide._native`), 16 MB;
+  - cryptography, 15 MB;
+  - the platform SDKs, pydantic-core, dulwich and pygments, a few MB each.
+- **Other targets:** the compressed runtime alone is 33 MB on Linux, 24 MB on macOS arm64 and 21 MB on Windows x64 (`tar.gz` downloads). The other targets' full bundles are not measured yet.
+
+**Size budget:**
+- 100 MB per VSIX, enforced in CI; the target is 70 MB.
+- Today's closure (136 MB) does not fit. Removing pandas and numpy from opentide's required dependencies is a prerequisite of M0 ([§15](#15-what-this-needs-from-opentide-and-language-server), O1).
 
 **Store limits:**
 - The Marketplace documents no hard cap. Microsoft's publishing guidance says to optimise a package over 50 MB ([Microsoft Learn](https://learn.microsoft.com/azure/devops/extend/publish/overview)).
@@ -98,27 +112,54 @@ Both stores accept the budget, but [M0](#16-milestones-and-issues) proves it wit
 - **"It can't follow the repository's pin."** P2 handles this: a workspace opentide always wins. The bundled runtime is the out-of-box tier, and the status item says when its version differs from the repository's pin ([§4](#4-the-runtime-resolution-processes-status)).
 - **"We own CPython and dependency security updates."** Yes. Each release rebuilds the closure from a hashed lock, and Dependabot watches the lock. That is the price of P1, and it is paid in CI, not by users.
 
-### D2. The language server for editing; the CLI's JSON for everything else
+### D2. Almost every action runs opentide in Python, so one warm process serves them
+
+**What needs the runtime.** Nearly everything.
+
+| Works without the Python runtime | Needs it |
+|----------------------------------|----------|
+| TextMate highlighting, language ids and file associations, language configuration (comments, brackets), placeholder decorations, the workspace's snippet file, walkthrough text, the empty shells of the panels | Everything else, including: the language server itself (`opentide lsp start` is a Python host around the Rust engine), so diagnostics, hover, completion and semantic tokens; configuration checks; every command; all catalogue data (sidebar, graph, matrix, search); MCP |
+
+So without a runtime the extension is a grammar pack and says so. That is the universal package with no opentide installed, and the web.
+
+**What a Python process costs.** Measured on a 500-rule workspace, linux-x64, 4 CPUs, opentide 0.20.1:
+
+| Process | Time | Memory (RSS) |
+|---------|-----:|-------------:|
+| `opentide lsp start`, first diagnostics, first start (catalog generated, then cached) | 3.0 s | 188 MB |
+| `opentide lsp start`, first diagnostics, later starts | 0.7 s | 117 MB |
+| `opentide --json explain <code>` | 0.2 s | — |
+| `opentide --json new rule` | 0.6 s | — |
+| `opentide --json info` | 1.3 s | 95 MB peak |
+| `opentide --json validate --file <rule>` | 1.5–1.7 s | 186 MB peak |
+| `opentide --json validate` (all objects) | 5–10 s | 186 MB peak |
+
+**Why spawning per action is not enough:**
+- Each CLI call starts Python, imports the models and rebuilds the registry from every YAML file.
+- That is fine for occasional commands, but wrong for what runs on every save or click:
+  - each catalogue refresh or validate-on-save costs 1.3–1.7 s and 100–190 MB, once per workspace folder;
+  - the CLI reads only the disk, so it never sees an unsaved buffer;
+  - the language server's index, each CLI run and the MCP server's cache are three registries that can disagree.
+- On Windows, Python start-up is slower, and endpoint security scans the bundle's 7,500 files on first use.
+
+**Decision: three channels.**
 
 | Channel | Process | Serves |
 |---------|---------|--------|
-| Language server | One `opentide lsp start` per window. It holds per-folder state; never start one per folder. | Everything while typing: diagnostics, hover, completion, outline, links, lenses, inlay hints, quick fixes, semantic tokens. |
-| CLI | `opentide --json <command>` spawned per action | Commands: `new`, `setup`, `validate`, `lint`, `generate`, `deploy --dry-run`, `query`, `doctor`, `explain`, … It also serves the catalogue data behind the sidebar and panels (`info catalog`, [§15](#15-what-this-needs-from-opentide-and-language-server)). |
+| Language server | One `opentide lsp start` per window. It holds per-folder state; never start one per folder | Everything while typing: diagnostics, hover, completion, outline, links, lenses, inlay hints, quick fixes, semantic tokens |
+| **Backend** | One `opentide serve` per window (new in opentide, [§15](#15-what-this-needs-from-opentide-and-language-server) O12). It is JSON-RPC over stdio and runs CLI commands **in-process**: a CLI argv in, the same `--json` document out. Imports and the registry stay warm, and are invalidated by the file changes the extension forwards. `opentide tui` already works this way, calling the same service functions as the CLI | What runs on every save or click: catalogue data for the sidebar, graph, matrix and search (`info catalog`); validate and lint on save; `explain`; `new`; `info` |
+| CLI spawn | `opentide --json <command>` per action | Long or outward-facing commands, where a process of their own is the point: `setup`, `generate`, `query`, `deploy --dry-run`, `doctor`, `migrate`, the generic runner's terminal mode. Also **everything**, as the fallback when the active opentide has no `serve` (an older opentide in tier 1 or 2) |
 
-The CLI is fast enough to spawn. These timings are for a 500-rule workspace, opentide 0.20.1, in a cloud container:
+- **P3 holds for both.** A backend request is a CLI argv, and the UI shows it as the command line to copy.
+- **Why the backend is a process of its own,** not requests on the language server:
+  - A failing command never takes down editing.
+  - The language server stays the engine's protocol, shared with Helix, Neovim and Zed.
+- **The cost** is two Python processes per window, about 250–400 MB together, plus a third (MCP) while an agent uses it. If memory turns out to be the problem, the backend's requests can move into the language server's host later behind the same client API.
 
-| Command | Time |
-|---------|-----:|
-| `--version` | 0.03 s |
-| `new rule` | 0.6 s |
-| `info` | 1.2 s |
-| `validate --file` | 1.7 s |
-| `validate` (all objects) | 5.4 s |
-| `lint` | 5.6 s |
-
-Catalogue refreshes run in the background after a save. A long-lived backend (the language server answering `opentide/catalog` from its index) is a later optimisation, not a 1.0 dependency.
-
-**TypeScript types** for every CLI document are generated at build time from `opentide --json commands`, whose `output_schema`s are the JSON Schemas of each command's output. A contract test validates real output from the pinned opentide against them.
+**Capability gating.**
+- The extension reads `opentide --json commands` once per opentide version, cached by version.
+- It enables each feature only when the commands and options it needs exist. A feature the active opentide is too old for says which version it needs, instead of failing.
+- **TypeScript types** for every document are generated at build time from the `output_schema`s in that tree. A contract test validates real output from the pinned opentide against them.
 
 ### D3. The UI never writes workspace files itself
 
@@ -161,7 +202,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Building the runtime
 
-- **Interpreter:** python-build-standalone, stripped, without tests, Tk, headers or static libraries. The version is the newest CPython for which every closure package has a wheel on all eight targets (3.13 at the time of writing).
+- **Interpreter:** python-build-standalone `install_only_stripped`, less what opentide never loads: the duplicate shared `libpython` (the `python` binary is static), Tk and Tcl, headers, `pip`, `idlelib`, `ensurepip`, `turtledemo`. The version is the newest CPython for which every closure package has a wheel on all eight targets (3.13 at the time of writing).
 - **Closure:** resolved per target from a committed, hashed lock:
   - `uv pip compile --python-platform <target> --generate-hashes`;
   - installed with `--require-hashes --only-binary :all:`. An sdist is never built; a missing wheel fails the build.
@@ -223,9 +264,11 @@ The first tier that answers wins:
 | Process | Lifetime | Environment |
 |---------|----------|-------------|
 | `opentide lsp start` | One per window; restarted by "opentide: Restart Server" and by interpreter or settings changes | `OPENTIDE_OUTPUT=mcp` is implied. Never credentials |
-| `opentide --json <cmd>` | One per action | `OPENTIDE_REPO_ROOT=<folder>` (multi-root: the folder the action is about); `NO_COLOR=1`; VS Code's `http.proxy` passed as `OPENTIDE_PROXY`; credentials from SecretStorage, only for commands that contact a tenant |
+| `opentide serve` (D2) | One per window, started on the first request; restarted with the language server, and after a crash on the next request | As for a CLI command; credentials only on requests that contact a tenant |
+| `opentide --json <cmd>` | One per action, or every action when the runtime has no `serve` | `OPENTIDE_REPO_ROOT=<folder>` (multi-root: the folder the action is about); `NO_COLOR=1`; VS Code's `http.proxy` passed as `OPENTIDE_PROXY`; credentials from SecretStorage, only for commands that contact a tenant |
 
 - **Concurrency:** at most one command that writes the workspace runs at a time; others queue. Read-only commands run concurrently.
+- **File changes:** the extension forwards create, change, delete and rename events under the object folders and `.opentide/` to `opentide serve`, which drops what they invalidate. Saves are debounced by 300 ms.
 - **Cancellation:** a running command can be cancelled. On POSIX the extension sends SIGINT (exit 130), so CrowdStrike stops its search job. On Windows it ends the process tree, and the UI says a started vendor search may run on until it times out.
 - **Logging:** every run goes to the `opentide` output channel: command line (secrets redacted), folder, duration, exit code, and `failure.code` when there is one.
 
@@ -274,8 +317,8 @@ The first tier that answers wins:
 | Collection | Producer | Covers | When |
 |------------|----------|--------|------|
 | `opentide` | The language server, pulled | Open files: objects, embedded queries, query files, configuration TOML | As you type |
-| `opentide validate` | `opentide --json validate` (and `--file`) | Every object file, open or not, and checks the server does not run: platform enablement, configuration-wide checks, `cve`, `sharing-config` | On save of an object or configuration file (`opentide.validate.onSave: file` by default; `workspace` or `off`); on "Validate workspace"; on activation (`opentide.validate.onStartup`, default on) |
-| `opentide lint` | `opentide --json lint` | Filenames, recommended metadata, placeholders, query style | On demand, and with workspace validation when `opentide.lint.withValidate` is on |
+| `opentide validate` | `validate` (and `--file`), through `opentide serve` | Every object file, open or not, and checks the server does not run: platform enablement, configuration-wide checks, `cve`, `sharing-config` | On save of an object or configuration file (`opentide.validate.onSave: file` by default; `workspace` or `off`); on "Validate workspace"; on activation (`opentide.validate.onStartup`, default on) |
+| `opentide lint` | `lint` (and `--file`, O11), through `opentide serve` | Filenames, recommended metadata, placeholders, query style | On demand, and with workspace validation when `opentide.lint.withValidate` is on |
 
 ### Rules
 
@@ -496,7 +539,7 @@ OPENTIDE
 | **Activity** | The last 50 commands the extension ran, with status, duration and the command line. The TUI's Results tab | Re-run; copy command; open output |
 
 **Data:**
-- The Catalogue, Coverage and search all come from **one** `opentide --json info catalog` run per folder ([§15](#15-what-this-needs-from-opentide-and-language-server)), cached in memory.
+- The Catalogue, Coverage and search all come from **one** `info catalog` document per folder ([§15](#15-what-this-needs-from-opentide-and-language-server), O3), answered by `opentide serve` from its warm registry and cached in memory.
 - **Refresh triggers:** activation; create, delete or rename under an object folder; save of an object or configuration file; after any command that writes. Refreshes are debounced by 1 s and run one at a time.
 - **Until the first run returns,** the tree shows names from the server's `workspace/symbol`, so it is never empty for long.
 
@@ -724,7 +767,7 @@ Revises #8 and #10.
 - **Telemetry:** none.
 - **Web** (vscode.dev, github.dev):
   - The universal package's `browser` entry gives grammars, semantic tokens from the WASM highlighter, and later the wasip1 language server behind a setting, as in #10.
-  - No Python means no commands and no panels. The status item says so.
+  - No Python means no commands and no panels ([D2](#d2-almost-every-action-runs-opentide-in-python-so-one-warm-process-serves-them)). The status item says so.
   - A later `opentide/catalog` request in the language server would bring the Catalogue, search and the graph to the web.
 
 ---
@@ -738,12 +781,14 @@ These are measured in CI on a 500-object fixture.
 | Moment | Budget |
 |--------|-------:|
 | Activation, until commands and views are registered (no process start on the critical path) | < 300 ms |
-| First diagnostics after opening a rule, server cold | < 2 s |
+| First diagnostics after opening a rule: the first start ever (the catalog is generated) / later starts (measured 3.0 s / 0.7 s at 500 rules) | < 4 s / < 1 s |
 | Live diagnostics after a keystroke | < 150 ms |
-| Catalogue refresh after a save (background) | < 2 s |
+| Catalogue refresh after a save, from `opentide serve` (spawning: 1.3 s) | < 300 ms |
+| Validate on save of one file, from `opentide serve` (spawning: 1.5–1.7 s) | < 500 ms |
+| Memory: language server + backend, per window, 500 rules | < 400 MB |
 | Quick search results per keystroke (client-side index) | < 50 ms |
 | Graph Focus mode render, from cached data | < 300 ms |
-| First CLI command after install (bytecode compile) | < 5 s |
+| First command after install (bytecode compile, endpoint scanning), Windows included | < 5 s |
 
 ### Accessibility
 
@@ -776,7 +821,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
-| O1 | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export | −102 MB installed, −28 MB zipped per VSIX (§2, D1) | M0 *nice* (the budget holds without it, barely) |
+| O1 | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | The bundle is 136 MB with them and 83 MB without pandas and numpy (67 MB without boto3 too); the budget is 100 MB (D1) | **M0** |
 | O2 | Build `win_arm64` wheels | The win32-arm64 package | M0 *nice* (universal package until then) |
 | O3 | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
 | O4 | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
@@ -787,6 +832,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 | O9 | An `end_line` on validate and lint findings | Multi-line ranges | M1 *nice* |
 | O10 | Progress events for long commands (NDJSON on stderr under `--json`, or a documented `OPENTIDE_LOG_JSON` event set) for `generate`, `validate`, `query` and `deploy` | Progress bars instead of spinners | M2 *nice* |
 | O11 | `lint --file` | Lint on save for one file instead of 5.6 s for the workspace | M1 *nice* |
+| O12 | `opentide serve`: JSON-RPC over stdio that runs CLI commands in-process (argv in, the `--json` document out) with imports and the registry kept warm, invalidated by file-change notifications, and cancellable per request | Each spawned command re-imports and rebuilds the registry: 1.3–1.7 s and 100–190 MB per save or click at 500 rules (D2) | M1 (validate on save), M2 (sidebar and panels); spawning is the fallback |
 
 ### language-server
 
@@ -805,8 +851,8 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | Milestone | Delivers | Issues |
 |-----------|----------|--------|
-| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #9 (revised), new: *Bundled runtime build* |
-| **M1 Editor** | Languages and grammars; resolution with the bundled tier; the server's features; Restricted Mode; diagnostics from three sources with dedupe and Explain; new-object flow with placeholders; status items; output channel | #3 (revised), #4, #5, #8 (Restricted Mode part), #7 (diagnostics part), new: *New objects and placeholders*, *Diagnostics merge and Explain* |
+| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #9 (revised), new: *Bundled runtime build*; opentide O1 |
+| **M1 Editor** | Languages and grammars; resolution with the bundled tier; the server's features; Restricted Mode; the backend client (`opentide serve`, with spawning as the fallback) and capability gating; diagnostics from three sources with dedupe and Explain; new-object flow with placeholders; status items; output channel | #3 (revised), #4, #5, #8 (Restricted Mode part), #7 (diagnostics part), new: *Backend client and capability gating*, *New objects and placeholders*, *Diagnostics merge and Explain*; opentide O12 |
 | **M2 Workbench** | The sidebar views; setup wizard and walkthrough; generic runner with classification; tasks, problem matcher, terminal `PATH` and links; MCP provider; query lenses and results panel; deploy plan; credentials in SecretStorage | #6 (revised), #7 (rest), #8 (rest), new: *Sidebar views*, *Setup wizard*, *Generic runner*, *Query results*, *Deploy plan* |
 | **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | new: *Graph*, *ATT&CK matrix*, *Search* |
 | **M4 After 1.0** | Testing view (one test per object; validate as run, `--live` as a second profile); web mode; the live catalogue from the server (L4); hunting notebooks (query cells with result tables) if users ask; real deploys to development tenants if [§17](#17-open-questions) says yes | #10, new as needed |
@@ -831,7 +877,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 These need a decision before the milestone named.
 
-1. **Bundling (M0).** Confirm D1: about 80–100 MB per platform package, with the runtime updated on every release.
+1. **Bundling (M0).** Confirm D1: a 67–83 MB download per platform package once O1 lands (136 MB today), 150–181 MB on disk, downloaded again on every update.
 2. **Real deploys from the editor (M4).** Never, with CI only (the recommendation for 1.0), or later behind a setting, for tenants marked non-production, one rule at a time, with a modal confirmation? The latter needs O7 and a confirmation contract in `opentide deploy`.
 3. **Publisher identity (M0).** The Marketplace publisher id and Open VSX namespace (`opentide`?). Marketplace publisher verification for `opentide.org` becomes possible after six months.
 4. **The VS Code floor and forks (M0).** Check the VS Code version Cursor and Windsurf are based on today, and set `engines.vscode` so they install the extension. Everything newer is feature-detected.
