@@ -12,3 +12,4 @@
 !language-configuration/**
 !runtime/**
 dist/**/*.map
+!media/walkthrough/**
