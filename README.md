@@ -138,9 +138,10 @@ The graph needs an opentide with `info catalog`; with an older one it says so an
 | `tactic:`, `actor:`, `author:`, `tlp:`, `uuid:`, `path:` | as named |
 | `has:errors`, `has:placeholders` | from the Problems panel |
 | `created:`, `modified:`, `reviewed:` | `>2026-01-01`, `<30d`, `none` |
-| `unreviewed:>90d` | rules `opentide rules unreviewed --older-than 90d` lists |
+| `unreviewed:>90d` | rules `opentide rules unreviewed --older-than 90d` lists (`6m` is six months, as in `modified:`; `12h`, `30min`) |
 
-Repeating a filter means "or"; `-` excludes. Each result opens at its name line, to the side, or in
+Repeating a filter means "or"; `-` excludes. A `word:` that is not a filter, such as `lsadump::dcsync`,
+is searched as text. Each result opens at its name line, to the side, or in
 the graph, and **Show all in the graph** focuses the graph on every result. A plain name, or one `t:`,
 `uuid:` or `path:` filter, can also **Filter the Catalogue**. With opentide 0.21.0, search matches names,
 types and paths only.
