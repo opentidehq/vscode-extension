@@ -425,6 +425,10 @@ describe("setup: folders, walkthrough and messages", () => {
     assert.equal(folderKind([dir(".opentide")]), "opentide");
     assert.equal(folderKind([dir("objects"), file("x")]), "opentide");
     assert.equal(folderKind([dir("Configurations"), dir("Objects")]), "legacy");
+    // CoreTIDE is not supported (0.21.0): any of its markers is enough to say so.
+    assert.equal(folderKind([dir("Objects")]), "legacy");
+    assert.equal(folderKind([file("global.toml")]), "legacy");
+    assert.equal(folderKind([dir("objects"), dir("Objects")]), "opentide");
     assert.equal(folderKind([dir(".git"), file("README.md"), file(".DS_Store")]), "empty");
     assert.equal(folderKind([]), "empty");
     assert.equal(folderKind([dir("src")]), "other");
@@ -524,6 +528,21 @@ describe("setup: manifest", () => {
     for (const welcome of pkg.contributes.viewsWelcome)
       for (const command of links(welcome.contents))
         assert.ok(declared.has(command) || builtIn.has(command), `${welcome.view}: ${command}`);
+  });
+
+  it("offers no migration: opentide 0.21.0 removed migrate objects", () => {
+    assert.ok(!declared.has("opentide.setup.migrate"));
+    const manifest = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")) as {
+      activationEvents: string[];
+    };
+    assert.deepEqual(
+      manifest.activationEvents.filter((event) => event.includes("Objects/")),
+      [],
+    );
+    for (const welcome of pkg.contributes.viewsWelcome)
+      assert.doesNotMatch(welcome.contents, /migrat(e|ion)\]/i);
+    const legacy = pkg.contributes.viewsWelcome.find((w) => w.contents.includes("CoreTIDE"));
+    assert.ok(legacy?.contents.includes("does not support"));
   });
 
   it("ships the walkthrough media in the VSIX", () => {

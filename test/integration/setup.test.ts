@@ -3,15 +3,10 @@ import * as vscode from "vscode";
 import { activated } from "./helpers";
 
 describe("setup (#16)", () => {
-  it("registers the wizard, migrate and walkthrough commands", async () => {
+  it("registers the wizard and walkthrough commands", async () => {
     await activated();
     const commands = await vscode.commands.getCommands(true);
-    for (const command of [
-      "opentide.setup.open",
-      "opentide.setup.migrate",
-      "opentide.setup.agents",
-      "opentide.setup.step",
-    ]) {
+    for (const command of ["opentide.setup.open", "opentide.setup.agents", "opentide.setup.step"]) {
       assert.ok(commands.includes(command), command);
     }
   });

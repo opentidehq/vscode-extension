@@ -11,10 +11,22 @@ export interface Entry {
 const IGNORABLE =
   /^(\.git|\.vscode|\.idea|\.DS_Store|Thumbs\.db|\.gitignore|\.gitattributes|README(\.md)?|LICENSE(\.\w+)?)$/i;
 
+/** What the wizard and the Catalogue's welcome link to for a CoreTIDE layout. */
+export const LEGACY_LAYOUT_URL = "https://github.com/opentidehq/opentide/releases/tag/v0.21.0";
+
+export const LEGACY_LAYOUT_MESSAGE =
+  "has a CoreTIDE layout (Objects/, Configurations/ or global.toml), which opentide does not support: it does not read CoreTIDE content, and there is no migration.";
+
 export function folderKind(entries: readonly Entry[]): FolderKind {
   const dirs = new Set(entries.filter((e) => e.directory).map((e) => e.name));
   if (dirs.has(".opentide") || dirs.has("objects")) return "opentide";
-  if (dirs.has("Configurations") && dirs.has("Objects")) return "legacy";
+  // CoreTIDE (no longer supported, opentide 0.21.0): say so instead of offering a migration.
+  if (
+    dirs.has("Objects") ||
+    dirs.has("Configurations") ||
+    entries.some((e) => !e.directory && e.name === "global.toml")
+  )
+    return "legacy";
   if (entries.every((e) => IGNORABLE.test(e.name))) return "empty";
   return "other";
 }

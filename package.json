@@ -80,9 +80,7 @@
     "onLanguage:falco",
     "onMcpCollection:opentide",
     "onTaskType:opentide",
-    "onTerminalProfile:opentide.terminal",
-    "workspaceContains:Objects/Detection Rules/**",
-    "workspaceContains:Objects/Threat Vectors/**"
+    "onTerminalProfile:opentide.terminal"
   ],
   "contributes": {
     "languages": [
@@ -737,11 +735,6 @@
         "icon": "$(add)"
       },
       {
-        "command": "opentide.setup.migrate",
-        "title": "Migrate a Legacy Layout…",
-        "category": "opentide"
-      },
-      {
         "command": "opentide.setup.agents",
         "title": "Bring Your Agent…",
         "category": "opentide"
@@ -1123,10 +1116,6 @@
         {
           "command": "opentide.setup.open",
           "when": "isWorkspaceTrusted"
-        },
-        {
-          "command": "opentide.setup.migrate",
-          "when": "isWorkspaceTrusted && opentide.setup.legacyLayout"
         },
         {
           "command": "opentide.setup.agents",
@@ -1736,8 +1725,8 @@
       },
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && opentide.setup.legacyLayout",
-        "contents": "It has a legacy layout (Configurations/ and Objects/), which opentide can move into objects/ and .opentide/.\n[Migrate a Legacy Layout](command:opentide.setup.migrate)"
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && opentide.setup.legacyLayout",
+        "contents": "It has a CoreTIDE layout (Objects/, Configurations/ or global.toml), which opentide does not support: it does not read CoreTIDE content, and there is no migration.\n[What opentide 0.21.0 removed](https://github.com/opentidehq/opentide/releases/tag/v0.21.0)"
       },
       {
         "view": "opentide.sidebar.catalogue",

@@ -18,7 +18,15 @@ import {
   setupCommands,
   setupSupport,
 } from "./answers";
-import { type Entry, folderKind, isGitRepository, walkthroughCommand, walkthroughKeys } from "./detect";
+import {
+  type Entry,
+  folderKind,
+  isGitRepository,
+  LEGACY_LAYOUT_MESSAGE,
+  LEGACY_LAYOUT_URL,
+  walkthroughCommand,
+  walkthroughKeys,
+} from "./detect";
 import { apply, type Runner, review } from "./flow";
 import { fileToOpen } from "./plan";
 import {
@@ -56,9 +64,6 @@ export default defineFeature({
         wizard.open(typeof arg === "string" ? { folder: arg } : {}),
       ),
       vscode.commands.registerCommand("opentide.setup.agents", () => wizard.open({ step: 3 })),
-      vscode.commands.registerCommand("opentide.setup.migrate", (arg?: unknown) =>
-        migrate(ctx, wizard, typeof arg === "string" ? arg : undefined),
-      ),
       vscode.commands.registerCommand("opentide.setup.step", (step?: unknown) =>
         walkthroughStep(ctx, typeof step === "string" ? step : ""),
       ),
@@ -89,25 +94,14 @@ export default defineFeature({
   },
 });
 
-/** A notification once per workspace, for an empty folder or a legacy layout (SPEC §8 "Triggers"). */
+/** A notification once per workspace, for an empty folder (SPEC §8 "Triggers"). */
 async function promptOnce(ctx: FeatureContext): Promise<void> {
   const state = ctx.extension.workspaceState;
   if (!ctx.trust.isTrusted || state.get<boolean>(PROMPTED_KEY) || ctx.folders.all.length > 0) return;
   const folder = vscode.workspace.workspaceFolders?.find((f) => f.uri.scheme === "file");
   if (!folder || !ctx.backend.availability().available) return;
-  const kind = folderKind(await entries(folder.uri.fsPath));
-  if (kind !== "empty" && kind !== "legacy") return;
+  if (folderKind(await entries(folder.uri.fsPath)) !== "empty") return;
   await state.update(PROMPTED_KEY, true);
-  if (kind === "legacy") {
-    const choice = await vscode.window.showInformationMessage(
-      `${folder.name} has a legacy opentide layout (Configurations/ and Objects/).`,
-      "Migrate…",
-      "Not Now",
-    );
-    if (choice === "Migrate…")
-      await vscode.commands.executeCommand("opentide.setup.migrate", folder.uri.fsPath);
-    return;
-  }
   const choice = await vscode.window.showInformationMessage(
     `Create a detection repository in ${folder.name}?`,
     "Set Up…",
@@ -220,7 +214,17 @@ class WizardHost implements vscode.Disposable {
       : await pickFolder();
     if (!folder) return;
     const listing = await entries(folder.path);
-    const mode: SetupMode = folderKind(listing) === "opentide" ? "existing" : "new";
+    const kind = folderKind(listing);
+    if (kind === "legacy") {
+      const choice = await vscode.window.showWarningMessage(
+        `${folder.name} ${LEGACY_LAYOUT_MESSAGE} Setup writes a new opentide layout beside it.`,
+        "Continue",
+        "Learn More",
+      );
+      if (choice === "Learn More") await vscode.env.openExternal(vscode.Uri.parse(LEGACY_LAYOUT_URL));
+      if (choice !== "Continue") return;
+    }
+    const mode: SetupMode = kind === "opentide" ? "existing" : "new";
     const panel = this.ctx.webview.createPanel<WizardProtocol>({
       viewType: "opentide.setup",
       title: mode === "new" ? "Set Up a Detection Repository" : "Set Up opentide",
@@ -389,93 +393,6 @@ class WizardHost implements vscode.Disposable {
   dispose(): void {
     this.session?.panel.dispose();
   }
-}
-
-/** A legacy layout: the `migrate objects` dry run as a list of moves, then `--apply` (SPEC §8). */
-async function migrate(ctx: FeatureContext, wizard: WizardHost, folderArg?: string): Promise<void> {
-  if (!(await ready(ctx, "migrate objects"))) return;
-  const folder = folderArg ?? (await pickFolder())?.path;
-  if (!folder) return;
-  const run = (argv: string[], title: string) =>
-    vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title, cancellable: true },
-      (_p, token) => ctx.backend.run(folder, argv, { cancellation: token }),
-    );
-  let dry: RunResult;
-  try {
-    dry = await run(["migrate", "objects"], "Planning the migration…");
-  } catch (error) {
-    void vscode.window.showErrorMessage(errorMessage(error));
-    return;
-  }
-  if (dry.cancelled) return;
-  const operations = Array.isArray(dry.document.operations)
-    ? (dry.document.operations as { from?: unknown; to?: unknown; action?: unknown; reason?: unknown }[])
-    : [];
-  const moves = operations.filter((o) => o.action !== "skip");
-  if (dry.exitCode !== 0 || moves.length === 0) {
-    void vscode.window.showInformationMessage(
-      dry.exitCode !== 0
-        ? (dry.document.failure?.message ?? dry.document.message)
-        : "Nothing to migrate: no legacy folder is left.",
-    );
-    return;
-  }
-  const verb = dry.document.copy === true ? "Copy" : "Move";
-  const applyItem = {
-    label: `$(check) ${verb} ${moves.length} folder${moves.length === 1 ? "" : "s"}`,
-    apply: true,
-  };
-  const picked = await vscode.window.showQuickPick(
-    [
-      applyItem,
-      { label: "Planned", kind: vscode.QuickPickItemKind.Separator, apply: false },
-      ...moves.map((o) => ({
-        label: `${String(o.from)} → ${String(o.to)}`,
-        description: String(o.action),
-        apply: false,
-      })),
-      { label: "Skipped", kind: vscode.QuickPickItemKind.Separator, apply: false },
-      ...operations
-        .filter((o) => o.action === "skip")
-        .map((o) => ({
-          label: `${String(o.from)}`,
-          description: String(o.reason ?? "skipped"),
-          apply: false,
-        })),
-    ],
-    {
-      title: `Migrate ${path.basename(folder)}: opentide migrate objects`,
-      placeHolder: "Review the moves, then apply",
-    },
-  );
-  if (!picked?.apply) return;
-  const confirm = await vscode.window.showWarningMessage(
-    `${verb} ${moves.length} folder${moves.length === 1 ? "" : "s"} into objects/ and .opentide/?`,
-    {
-      modal: true,
-      detail: "opentide migrate objects --apply. Existing non-empty folders are never overwritten.",
-    },
-    verb,
-  );
-  if (confirm !== verb) return;
-  const applied = await Promise.resolve(run(["migrate", "objects", "--apply"], "Migrating…")).catch(
-    (error: unknown) => {
-      void vscode.window.showErrorMessage(errorMessage(error));
-      return undefined;
-    },
-  );
-  if (!applied || applied.cancelled) return;
-  if (applied.exitCode !== 0) {
-    void vscode.window.showErrorMessage(applied.document.failure?.message ?? applied.document.message);
-    return;
-  }
-  setContext("opentide.setup.legacyLayout", false);
-  const next = await vscode.window.showInformationMessage(
-    "Migrated. Add what the repository still lacks: platforms, CI, agents.",
-    "Open Setup…",
-  );
-  if (next) await wizard.open({ folder });
 }
 
 /** A walkthrough button: the owning feature's command (every feature ships in this extension). */

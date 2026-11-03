@@ -1,9 +1,5 @@
 {
   "$comment": "Setup wizard, welcome triggers and walkthrough (SPEC §8, #16).",
-  "activationEvents": [
-    "workspaceContains:Objects/Detection Rules/**",
-    "workspaceContains:Objects/Threat Vectors/**"
-  ],
   "contributes": {
     "commands": [
       {
@@ -11,11 +7,6 @@
         "title": "Set Up Repository…",
         "category": "opentide",
         "icon": "$(add)"
-      },
-      {
-        "command": "opentide.setup.migrate",
-        "title": "Migrate a Legacy Layout…",
-        "category": "opentide"
       },
       {
         "command": "opentide.setup.agents",
@@ -33,10 +24,6 @@
         {
           "command": "opentide.setup.open",
           "when": "isWorkspaceTrusted"
-        },
-        {
-          "command": "opentide.setup.migrate",
-          "when": "isWorkspaceTrusted && opentide.setup.legacyLayout"
         },
         {
           "command": "opentide.setup.agents",
@@ -61,8 +48,8 @@
       },
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && opentide.setup.legacyLayout",
-        "contents": "It has a legacy layout (Configurations/ and Objects/), which opentide can move into objects/ and .opentide/.\n[Migrate a Legacy Layout](command:opentide.setup.migrate)"
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && opentide.setup.legacyLayout",
+        "contents": "It has a CoreTIDE layout (Objects/, Configurations/ or global.toml), which opentide does not support: it does not read CoreTIDE content, and there is no migration.\n[What opentide 0.21.0 removed](https://github.com/opentidehq/opentide/releases/tag/v0.21.0)"
       },
       {
         "view": "opentide.sidebar.catalogue",
