@@ -21,8 +21,12 @@ npm run typecheck
 npm run lint             # Biome; `npm run format` fixes formatting
 npm test                 # unit + script tests, plain node, no VS Code
 npm run build
-npx @vscode/vsce package --no-dependencies   # universal VSIX
+npm run package -- --universal               # universal VSIX in dist-vsix/
 ```
+
+- Per-platform packages (bundled runtime, locks, size gate, SBOM, smoke test): [`docs/PACKAGING.md`](docs/PACKAGING.md).
+  `npm run runtime:lock -- --check`, `npm run runtime:build -- --target <t>`, `npm run package -- --target <t>`,
+  `npm run smoke -- <vsix>`. Bumping opentide or CPython is a `pins.json` change plus `npm run runtime:lock`.
 
 - Integration tests (`npm run test:integration`, `npm run test:restricted`) download VS Code; they
   run in CI.
