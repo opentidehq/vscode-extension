@@ -4,7 +4,7 @@
 
 **Scope:** what the extension does at 1.0, how it is built and shipped, and what comes after.
 
-**Relation to the issues:** the epic [#1](https://github.com/opentidehq/vscode-extension/issues/1) and its children [#2](https://github.com/opentidehq/vscode-extension/issues/2)–[#10](https://github.com/opentidehq/vscode-extension/issues/10) are the engineering breakdown of an earlier design. This document refines that design. It reverses one decision (D1, bundling) and adds the workbench: views, panels, the setup wizard and templates. [Milestones and issues](#16-milestones-and-issues) says which issues change and which are new.
+**Relation to the issues:** the epic [#1](https://github.com/opentidehq/vscode-extension/issues/1) tracks this spec. Its children #2–#21 are the engineering breakdown, updated to match on 2026-11-03. This document refines the earlier design: it reverses one decision (D1, bundling) and adds the workbench (views, panels, the setup wizard and templates). [Milestones and issues](#16-milestones-and-issues) maps each milestone to its issues.
 
 The extension is the opentide workbench inside VS Code and its forks. A detection engineer installs it, opens a folder, and has everything the CLI, the TUI and the language server offer:
 
@@ -821,27 +821,27 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
-| O1 | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | The bundle is 136 MB with them and 83 MB without pandas and numpy (67 MB without boto3 too); the budget is 100 MB (D1) | **M0** |
-| O2 | Build `win_arm64` wheels | The win32-arm64 package | M0 *nice* (universal package until then) |
-| O3 | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
-| O4 | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
-| O5 | Generated snippets use `scope: "yaml,opentide-yaml"` | Snippets vanish in `opentide-yaml` files | M1 *nice* (client workaround) |
-| O6 | `setup vscode` recommends the extension, and stops writing `yaml.schemas` and recommending `redhat.vscode-yaml` when the extension is in use | They contradict language-server's `EDITORS.md` (an existing epic follow-up) | M1 |
-| O7 | `deploy --dry-run` scoped to one rule (`--uuid` / `--file`) | "Preview deploy" on a single rule | M2 *nice* (changed or all until then) |
-| O8 | A way to list tenants and the variables they need (`info --platform` or `doctor`'s `credentials` subjects, in a stable shape) | The Platforms view without parsing TOML in the client | M2 |
-| O9 | An `end_line` on validate and lint findings | Multi-line ranges | M1 *nice* |
-| O10 | Progress events for long commands (NDJSON on stderr under `--json`, or a documented `OPENTIDE_LOG_JSON` event set) for `generate`, `validate`, `query` and `deploy` | Progress bars instead of spinners | M2 *nice* |
-| O11 | `lint --file` | Lint on save for one file instead of 5.6 s for the workspace | M1 *nice* |
-| O12 | `opentide serve`: JSON-RPC over stdio that runs CLI commands in-process (argv in, the `--json` document out) with imports and the registry kept warm, invalidated by file-change notifications, and cancellable per request | Each spawned command re-imports and rebuilds the registry: 1.3–1.7 s and 100–190 MB per save or click at 500 rules (D2) | M1 (validate on save), M2 (sidebar and panels); spawning is the fallback |
+| O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | The bundle is 136 MB with them and 83 MB without pandas and numpy (67 MB without boto3 too); the budget is 100 MB (D1) | **M0** |
+| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package | M0 *nice* (universal package until then) |
+| O3 [opentide#749](https://github.com/opentidehq/opentide/issues/749) | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
+| O4 [opentide#751](https://github.com/opentidehq/opentide/issues/751) | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
+| O5 [opentide#752](https://github.com/opentidehq/opentide/issues/752) | Generated snippets use `scope: "yaml,opentide-yaml"` | Snippets vanish in `opentide-yaml` files | M1 *nice* (client workaround) |
+| O6 [opentide#752](https://github.com/opentidehq/opentide/issues/752) | `setup vscode` recommends the extension, and stops writing `yaml.schemas` and recommending `redhat.vscode-yaml` when the extension is in use | They contradict language-server's `EDITORS.md` (an existing epic follow-up) | M1 |
+| O7 [opentide#753](https://github.com/opentidehq/opentide/issues/753) | `deploy --dry-run` scoped to one rule (`--uuid` / `--file`) | "Preview deploy" on a single rule | M2 *nice* (changed or all until then) |
+| O8 [opentide#754](https://github.com/opentidehq/opentide/issues/754) | A way to list tenants and the variables they need (`info --platform` or `doctor`'s `credentials` subjects, in a stable shape) | The Platforms view without parsing TOML in the client | M2 |
+| O9 [opentide#755](https://github.com/opentidehq/opentide/issues/755) | An `end_line` on validate and lint findings | Multi-line ranges | M1 *nice* |
+| O10 [opentide#756](https://github.com/opentidehq/opentide/issues/756) | Progress events for long commands (NDJSON on stderr under `--json`, or a documented `OPENTIDE_LOG_JSON` event set) for `generate`, `validate`, `query` and `deploy` | Progress bars instead of spinners | M2 *nice* |
+| O11 [opentide#755](https://github.com/opentidehq/opentide/issues/755) | `lint --file` | Lint on save for one file instead of 5.6 s for the workspace | M1 *nice* |
+| O12 [opentide#750](https://github.com/opentidehq/opentide/issues/750) | `opentide serve`: JSON-RPC over stdio that runs CLI commands in-process (argv in, the `--json` document out) with imports and the registry kept warm, invalidated by file-change notifications, and cancellable per request | Each spawned command re-imports and rebuilds the registry: 1.3–1.7 s and 100–190 MB per save or click at 500 rules (D2) | M1 (validate on save), M2 (sidebar and panels); spawning is the fallback |
 
 ### language-server
 
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
-| L1 | ES\|QL grammar scope `source.opentide.esql`, as `docs/EDITORS.md` says. The generated grammar uses `source.esql`, Elastic's scope | Collides with Elastic's ES\|QL extension | M1 *nice* (build-time rename) |
-| L2 | SHA-256 sums, and ideally attestations, for release assets | The grammar build verifies the zip; today the extension records its own hashes | M1 *nice* |
-| L3 | `DOCUMENT_SELECTOR` gains `opentide-config`, and non-`file` schemes for the web | Consistency with `EDITORS.md`; web mode | M4 |
-| L4 | An `opentide/catalog` (index) request: per object `{uuid, object_type, name, uri, range, refs[]}`, with a change notification | A live, keystroke-fresh graph, and the Catalogue and graph on the web. The body is already in memory | M4 |
+| L1 [language-server#195](https://github.com/opentidehq/language-server/issues/195) | ES\|QL grammar scope `source.opentide.esql`, as `docs/EDITORS.md` says. The generated grammar uses `source.esql`, Elastic's scope | Collides with Elastic's ES\|QL extension | M1 *nice* (build-time rename) |
+| L2 [language-server#196](https://github.com/opentidehq/language-server/issues/196) | SHA-256 sums, and ideally attestations, for release assets | The grammar build verifies the zip; today the extension records its own hashes | M1 *nice* |
+| L3 [language-server#197](https://github.com/opentidehq/language-server/issues/197) | `DOCUMENT_SELECTOR` gains `opentide-config`, and non-`file` schemes for the web | Consistency with `EDITORS.md`; web mode | M4 |
+| L4 [language-server#198](https://github.com/opentidehq/language-server/issues/198) | An `opentide/catalog` (index) request: per object `{uuid, object_type, name, uri, range, refs[]}`, with a change notification | A live, keystroke-fresh graph, and the Catalogue and graph on the web. The body is already in memory | M4 |
 
 ---
 
@@ -851,22 +851,22 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | Milestone | Delivers | Issues |
 |-----------|----------|--------|
-| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #9 (revised), new: *Bundled runtime build*; opentide O1 |
-| **M1 Editor** | Languages and grammars; resolution with the bundled tier; the server's features; Restricted Mode; the backend client (`opentide serve`, with spawning as the fallback) and capability gating; diagnostics from three sources with dedupe and Explain; new-object flow with placeholders; status items; output channel | #3 (revised), #4, #5, #8 (Restricted Mode part), #7 (diagnostics part), new: *Backend client and capability gating*, *New objects and placeholders*, *Diagnostics merge and Explain*; opentide O12 |
-| **M2 Workbench** | The sidebar views; setup wizard and walkthrough; generic runner with classification; tasks, problem matcher, terminal `PATH` and links; MCP provider; query lenses and results panel; deploy plan; credentials in SecretStorage | #6 (revised), #7 (rest), #8 (rest), new: *Sidebar views*, *Setup wizard*, *Generic runner*, *Query results*, *Deploy plan* |
-| **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | new: *Graph*, *ATT&CK matrix*, *Search* |
-| **M4 After 1.0** | Testing view (one test per object; validate as run, `--live` as a second profile); web mode; the live catalogue from the server (L4); hunting notebooks (query cells with result tables) if users ask; real deploys to development tenants if [§17](#17-open-questions) says yes | #10, new as needed |
+| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #11, #9; opentide#747 |
+| **M1 Editor** | Languages and grammars; resolution with the bundled tier; the server's features; Restricted Mode; the backend client (`opentide serve`, with spawning as the fallback) and capability gating; diagnostics from three sources with dedupe and Explain; new-object flow with placeholders; status items; output channel | #3, #12, #4, #5, #13, #14, #8 (Restricted Mode); opentide#750 |
+| **M2 Workbench** | The sidebar views; setup wizard and walkthrough; generic runner with classification; tasks, problem matcher, terminal `PATH` and links; MCP provider; query lenses and results panel; deploy plan; credentials in SecretStorage | #15, #16, #7, #6, #17, #18, #8 (the rest); opentide#749, #751, #754 |
+| **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | #19, #20, #21 |
+| **M4 After 1.0** | Testing view (one test per object; validate as run, `--live` as a second profile); web mode; the live catalogue from the server (L4); hunting notebooks (query cells with result tables) if users ask; real deploys to development tenants if [§17](#17-open-questions) says yes | #10; language-server#197, #198 |
 
 ### Changes to existing issues
 
 | Issue | Change |
 |-------|--------|
-| #1 Epic | Decision reversed: bundle the opentide runtime (D1). Children and order as above |
+| #1 Epic | Decision reversed: bundle the opentide runtime (D1). Children by milestone, and the cross-repository issues |
 | #3 Resolution | Tier 4 is the bundled opentide with every feature, not the bare `opentide-lsp`. Tier 3 (uv) becomes the pin-mismatch action |
 | #4 Languages | Add the ES\|QL scope rename (L1) and the snippets-in-`opentide-yaml` workaround (O5) |
 | #5 Server features | Unchanged |
 | #6 Agents | MCP works on install via the bundled runtime; add the fork fallback (user-level config with an absolute path) |
-| #7 Workflows | Split into Diagnostics (M1), the generic runner and tasks (M2), the walkthrough (M2) |
+| #7 Workflows | Now "Every CLI command has a home" (palette commands, generic runner, tasks, terminal). Its diagnostics moved to #13, new objects to #14, the walkthrough to #16, run query to #17, deploy dry run to #18 |
 | #8 Trust | Restricted Mode runs the bundled language server with a locked-down `PATH`; add `opentide.envFile` and `opentide.terminal.addToPath` to the restricted list |
 | #9 Packaging | Per-platform packages carry the runtime, not `opentide-lsp`; size budget; hashed lock; SBOM; attestations |
 | #10 Web | Unchanged; L4 later brings the catalogue panels |
