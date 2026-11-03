@@ -8,6 +8,7 @@ import type { RunResult } from "../../core/backend/backend";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { newObjectHandover, SHARE_PREVIEW, VALIDATE_FILE } from "./actions";
 import { activityNodes, runningCount } from "./activity";
 import {
   buildCatalogue,
@@ -376,6 +377,14 @@ class Sidebar implements vscode.Disposable {
       return undefined;
     });
     command("opentide.sidebar.newObject", (arg) => this.newObject(refOf(arg)));
+    command("opentide.sidebar.newRuleForObjective", (arg) => this.newObject(refOf(arg)));
+    command("opentide.sidebar.newObjectiveForThreat", (arg) => this.newObject(refOf(arg)));
+    command("opentide.sidebar.sharePreview", (arg) => {
+      const ref = refOf(arg);
+      if (ref?.kind === "object")
+        return vscode.commands.executeCommand(SHARE_PREVIEW, vscode.Uri.file(ref.file));
+      return undefined;
+    });
     command("opentide.sidebar.openMatrix", (arg) => {
       const ref = refOf(arg);
       return vscode.commands.executeCommand(
@@ -488,6 +497,11 @@ class Sidebar implements vscode.Disposable {
 
   private async validate(ref: NodeRef | undefined): Promise<void> {
     if (ref?.kind !== "object") return;
+    // The diagnostics feature puts the findings in Problems; hand over when it is there.
+    if ((await vscode.commands.getCommands(true)).includes(VALIDATE_FILE)) {
+      await vscode.commands.executeCommand(VALIDATE_FILE, vscode.Uri.file(ref.file));
+      return;
+    }
     const result = await this.run(ref.folder, ["validate", "--file", ref.file], `Validating ${ref.name}…`);
     if (!result || result.cancelled) return;
     const summary = result.document.summary as { errors?: unknown; warnings?: unknown };
@@ -511,19 +525,12 @@ class Sidebar implements vscode.Disposable {
   }
 
   private async newObject(ref: NodeRef | undefined): Promise<unknown> {
-    const args =
-      ref?.kind === "object"
-        ? [
-            {
-              folder: ref.folder,
-              type: ref.type === "threat" ? "objective" : "rule",
-              parent: ref.uuid,
-            },
-          ]
-        : ref?.kind === "technique"
-          ? [{ folder: ref.folder, type: "objective", technique: ref.id }]
-          : [];
-    return vscode.commands.executeCommand("opentide.newObject", ...args);
+    const handover = newObjectHandover(ref);
+    if ("uuid" in handover) return vscode.commands.executeCommand(handover.command, handover.uuid);
+    if ("folder" in handover)
+      return vscode.commands.executeCommand(handover.command, vscode.Uri.file(handover.folder));
+    const folder = this.ctx.folders.all.length === 1 ? this.ctx.folders.all[0] : undefined;
+    return vscode.commands.executeCommand(handover.command, ...(folder ? [folder.folder.uri] : []));
   }
 
   private async enablePlatform(ref: NodeRef | undefined): Promise<void> {

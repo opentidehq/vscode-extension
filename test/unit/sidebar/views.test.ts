@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import type { ActivityEntry } from "../../../src/core/activity";
+import { newObjectHandover } from "../../../src/features/sidebar/actions";
 import { activityNodes, ago, canRerun, duration, runningCount } from "../../../src/features/sidebar/activity";
 import { folderViewModel } from "../../../src/features/sidebar/folderView";
 import {
@@ -408,5 +409,25 @@ describe("sidebar: loader and folder views", () => {
     });
     assert.equal(stale.message, "The last refresh failed (x).");
     assert.equal(stale.nodes[0]?.label, "v");
+  });
+});
+
+describe("sidebar: handovers", () => {
+  it("creates a rule for an objective, an objective for a threat, else the generic flow", () => {
+    const object = (type: string) =>
+      ({ kind: "object", folder: "/r", uuid: "u1", type, name: "n", file: "/r/x.yaml" }) as const;
+    assert.deepEqual(newObjectHandover(object("objective")), {
+      command: "opentide.newObject.ruleForObjective",
+      uuid: "u1",
+    });
+    assert.deepEqual(newObjectHandover(object("threat")), {
+      command: "opentide.newObject.objectiveForThreat",
+      uuid: "u1",
+    });
+    assert.deepEqual(newObjectHandover(object("rule")), { command: "opentide.newObject", folder: "/r" });
+    assert.deepEqual(newObjectHandover({ kind: "technique", folder: "/r", id: "T1003" }), {
+      command: "opentide.newObject.objective",
+    });
+    assert.deepEqual(newObjectHandover(undefined), { command: "opentide.newObject" });
   });
 });

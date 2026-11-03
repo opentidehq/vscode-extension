@@ -449,6 +449,24 @@
         "icon": "$(add)"
       },
       {
+        "command": "opentide.sidebar.newRuleForObjective",
+        "title": "New Rule for This Objective…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.sidebar.newObjectiveForThreat",
+        "title": "New Objective for This Threat…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.sidebar.sharePreview",
+        "title": "Preview Sharing",
+        "category": "opentide",
+        "icon": "$(eye)"
+      },
+      {
         "command": "opentide.sidebar.openMatrix",
         "title": "Open ATT&CK Matrix",
         "category": "opentide",
@@ -541,6 +559,18 @@
         {
           "command": "opentide.createPinnedVenv",
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
+        },
+        {
+          "command": "opentide.sidebar.sharePreview",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.newObjectiveForThreat",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.newRuleForObjective",
+          "when": "false"
         },
         {
           "command": "opentide.sidebar.open",
@@ -722,8 +752,18 @@
           "group": "2_show@1"
         },
         {
-          "command": "opentide.sidebar.newObject",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\.(threat|objective)$/ && isWorkspaceTrusted && opentide.hasCli",
+          "command": "opentide.sidebar.sharePreview",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "2_show@2"
+        },
+        {
+          "command": "opentide.sidebar.newRuleForObjective",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.objective && isWorkspaceTrusted && opentide.hasCli",
+          "group": "3_new@1"
+        },
+        {
+          "command": "opentide.sidebar.newObjectiveForThreat",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.threat && isWorkspaceTrusted && opentide.hasCli",
           "group": "3_new@1"
         },
         {
