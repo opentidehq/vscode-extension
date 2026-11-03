@@ -81,6 +81,24 @@ export function objectAtPath(
   return object ? objectNodeId(object) : undefined;
 }
 
+/** Whether `file` is in the folder `root` (not merely a path that starts with it, like `/repo-2`). */
+export function inFolder(root: string, file: string, platform: NodeJS.Platform): boolean {
+  const base = pathKey(root, platform).replace(/\/+$/, "");
+  return pathKey(file, platform).startsWith(`${base}/`);
+}
+
+/**
+ * What the graph's problem map is for the folder shown: its map, or an empty one while its catalogue
+ * loads, so a switched-to folder never shows the previous folder's problems.
+ */
+export function problemsFor(
+  catalog: CatalogDocument | undefined,
+  files: readonly FileProblems[],
+  platform: NodeJS.Platform,
+): Record<string, NodeProblems> {
+  return catalog ? problemMap(catalog, files, platform) : {};
+}
+
 export interface FileProblems {
   readonly file: string;
   readonly errors: number;
