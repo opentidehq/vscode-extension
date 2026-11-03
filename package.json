@@ -366,6 +366,12 @@
         "command": "opentide.showReferences",
         "title": "Show References",
         "category": "opentide"
+      },
+      {
+        "command": "opentide.search.open",
+        "title": "Find Detection…",
+        "category": "opentide",
+        "icon": "$(search)"
       }
     ],
     "menus": {
@@ -389,6 +395,10 @@
         {
           "command": "opentide.createPinnedVenv",
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
+        },
+        {
+          "command": "opentide.search.open",
+          "when": "opentide.hasWorkspace"
         }
       ]
     },
@@ -443,6 +453,14 @@
         "language": "opentide-config",
         "scopeName": "source.opentide.toml",
         "path": "./syntaxes/opentide-config.tmLanguage.json"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "opentide.search.open",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "opentide.hasWorkspace"
       }
     ]
   },
