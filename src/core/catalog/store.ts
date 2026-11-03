@@ -4,6 +4,7 @@
 // vscode-free.
 import { BackendError } from "../backend/types";
 import { Emitter, type Event } from "../util/event";
+import { folderSpelling } from "../util/paths";
 import { type CatalogDocument, type CatalogSymbol, isCatalogDocument } from "./types";
 
 export type CatalogStatus = "empty" | "loading" | "ready" | "unavailable" | "error";
@@ -199,7 +200,13 @@ export class CatalogStore {
         const failure = (document as { failure?: { message?: string } } | undefined)?.failure;
         throw new Error(failure?.message ?? `info catalog printed no catalogue (exit ${exitCode})`);
       }
-      this.replace(slot, { folder, status: "ready", catalog: document, refreshing: false, updatedAt: now() });
+      this.replace(slot, {
+        folder,
+        status: "ready",
+        catalog: inFolderSpelling(document, folder),
+        refreshing: false,
+        updatedAt: now(),
+      });
     } catch (error) {
       const message = error instanceof BackendError || error instanceof Error ? error.message : String(error);
       this.deps.log("warn", `catalogue of ${folder}: ${message}`);
@@ -231,4 +238,20 @@ export class CatalogStore {
     for (const slot of this.slots.values()) if (slot.timer) clearTimeout(slot.timer);
     this.emitter.dispose();
   }
+}
+
+/** The document with each object's `file_path` in the folder's spelling (opentide reports real paths). */
+export function inFolderSpelling(
+  document: CatalogDocument,
+  folder: string,
+  spell: (file: string) => string = folderSpelling(folder),
+): CatalogDocument {
+  let changed = false;
+  const objects = document.objects.map((object) => {
+    const file_path = spell(object.file_path);
+    if (file_path === object.file_path) return object;
+    changed = true;
+    return { ...object, file_path };
+  });
+  return changed ? { ...document, objects } : document;
 }

@@ -2,6 +2,7 @@
 // items it shows and what each failure offers. vscode-free.
 import * as path from "node:path";
 import type { CatalogObject } from "../../core/catalog/types";
+import { folderSpelling } from "../../core/util/paths";
 
 export type ObjectKind = "threat" | "objective" | "rule";
 
@@ -237,7 +238,11 @@ export interface Created {
 }
 
 /** What a successful `new` printed: the file it wrote (absolute) and its placeholders. */
-export function createdOf(document: unknown, root: string): Created | undefined {
+export function createdOf(
+  document: unknown,
+  root: string,
+  spell: (file: string) => string = folderSpelling(root),
+): Created | undefined {
   const value = (document ?? {}) as {
     ok?: unknown;
     file_path?: unknown;
@@ -248,11 +253,12 @@ export function createdOf(document: unknown, root: string): Created | undefined 
     message?: unknown;
   };
   if (value.ok !== true) return undefined;
+  // opentide reports the real path: open the file under the folder's own spelling of it.
   const file =
     typeof value.file_path === "string"
-      ? value.file_path
+      ? spell(path.resolve(root, value.file_path))
       : typeof value.path === "string"
-        ? path.resolve(root, value.path)
+        ? spell(path.resolve(root, value.path))
         : undefined;
   if (!file) return undefined;
   const placeholders = Array.isArray(value.placeholders)

@@ -2,6 +2,7 @@
 // absolute file paths and CLI spans (1-based, code points). vscode-free.
 import * as path from "node:path";
 import type { CliSpan } from "../../core/positions";
+import { folderSpelling } from "../../core/util/paths";
 
 export type FindingSource = "validate" | "lint";
 
@@ -109,7 +110,10 @@ function spanOf(entry: Json): CliSpan {
   };
 }
 
-function relatedOf(entry: Json, root: string): RelatedFile[] {
+/** Resolves a path the CLI reported (relative to the document's root) to the folder's spelling of it. */
+type At = (file: string) => string;
+
+function relatedOf(entry: Json, at: At): RelatedFile[] {
   const context = isObject(entry.context) ? entry.context : undefined;
   const original = context && isObject(context.original) ? context.original : undefined;
   const file = original ? str(original.file_path) : undefined;
@@ -118,7 +122,7 @@ function relatedOf(entry: Json, root: string): RelatedFile[] {
   const value = str(context?.value);
   return [
     {
-      file: path.resolve(root, file),
+      file: at(file),
       message: name ? `already used by '${name}'` : "already used here",
       ...(value ? { value } : {}),
     },
@@ -129,21 +133,21 @@ function relatedOf(entry: Json, root: string): RelatedFile[] {
  * The file a finding is about: `file_path` (absolute), else `path` (workspace-relative), else, for a
  * configuration finding, `context.file` under `.opentide/configurations/`.
  */
-function fileOf(entry: Json, root: string): string | undefined {
+function fileOf(entry: Json, at: At): string | undefined {
   const absolute = str(entry.file_path);
-  if (absolute) return path.resolve(root, absolute);
+  if (absolute) return at(absolute);
   const relative = str(entry.path);
-  if (relative) return path.resolve(root, relative);
+  if (relative) return at(relative);
   const context = isObject(entry.context) ? entry.context : undefined;
   const config = context ? str(context.file) : undefined;
   if (config && !path.isAbsolute(config) && !config.split(/[\\/]/).includes(".."))
-    return path.join(root, ".opentide", "configurations", config);
+    return at(path.join(".opentide", "configurations", config));
   return undefined;
 }
 
-function toFinding(source: FindingSource, entry: unknown, root: string): Finding | undefined {
+function toFinding(source: FindingSource, entry: unknown, at: At): Finding | undefined {
   if (!isObject(entry)) return undefined;
-  const file = fileOf(entry, root);
+  const file = fileOf(entry, at);
   const code = str(entry.code) ?? (source === "lint" ? str(entry.check) : undefined) ?? "opentide";
   if (!file) return undefined;
   return {
@@ -155,7 +159,7 @@ function toFinding(source: FindingSource, entry: unknown, root: string): Finding
     help: str(entry.help) ?? null,
     span: spanOf(entry),
     fix: parseFix(entry.fix),
-    related: relatedOf(entry, root),
+    related: relatedOf(entry, at),
   };
 }
 
@@ -165,30 +169,43 @@ function rootOf(document: Json, folder: string, source: FindingSource): string {
   return own && path.isAbsolute(own) ? own : folder;
 }
 
+/** Paths of the document resolved against its root, in the folder's spelling (see core/util/paths). */
+function resolver(document: Json, folder: string, source: FindingSource, spell: At): At {
+  const root = rootOf(document, folder, source);
+  return (file) => spell(path.resolve(root, file));
+}
+
 /** Findings of a `validate` document (`report.issues` and `report.warnings`). */
-export function validateFindings(document: unknown, folder: string): ParsedFindings {
+export function validateFindings(
+  document: unknown,
+  folder: string,
+  spell: At = folderSpelling(folder),
+): ParsedFindings {
   if (!isObject(document) || !isObject(document.report))
     return { findings: [], unlocated: 0, complete: false };
-  const root = rootOf(document, folder, "validate");
   const entries = [
     ...(Array.isArray(document.report.issues) ? document.report.issues : []),
     ...(Array.isArray(document.report.warnings) ? document.report.warnings : []),
   ];
-  return collect("validate", entries, root);
+  return collect("validate", entries, resolver(document, folder, "validate", spell));
 }
 
 /** Findings of a `lint` document (`findings`). */
-export function lintFindings(document: unknown, folder: string): ParsedFindings {
+export function lintFindings(
+  document: unknown,
+  folder: string,
+  spell: At = folderSpelling(folder),
+): ParsedFindings {
   if (!isObject(document) || !Array.isArray(document.findings))
     return { findings: [], unlocated: 0, complete: false };
-  return collect("lint", document.findings, rootOf(document, folder, "lint"));
+  return collect("lint", document.findings, resolver(document, folder, "lint", spell));
 }
 
-function collect(source: FindingSource, entries: readonly unknown[], root: string): ParsedFindings {
+function collect(source: FindingSource, entries: readonly unknown[], at: At): ParsedFindings {
   const findings: Finding[] = [];
   let unlocated = 0;
   for (const entry of entries) {
-    const finding = toFinding(source, entry, root);
+    const finding = toFinding(source, entry, at);
     if (finding) findings.push(finding);
     else unlocated++;
   }
