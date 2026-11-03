@@ -9,14 +9,7 @@
 //   node scripts/runtime-lock.mjs --upgrade          re-resolve to the newest versions
 //   node scripts/runtime-lock.mjs --check            fail when requirements.in or a lock is stale
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
