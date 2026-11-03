@@ -12,6 +12,7 @@ import {
 import {
   applyProgress,
   formatMs,
+  keepable,
   pendingTabs,
   progressFromEvent,
   tabSummary,
@@ -151,5 +152,13 @@ describe("query results (#17)", () => {
     assert.equal(formatMs(250), "250 ms");
     assert.equal(formatMs(1800), "1.8 s");
     assert.equal(formatMs(125_000), "2 min 5 s");
+  });
+});
+
+describe("query: results kept from a closed panel (opentide.query.retainResults)", () => {
+  it("keeps a finished run, never one closed while running", () => {
+    assert.equal(keepable({ phase: "running" }), false);
+    assert.equal(keepable(undefined), false);
+    for (const phase of ["done", "failed", "cancelled"]) assert.equal(keepable({ phase }), true);
   });
 });

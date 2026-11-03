@@ -124,3 +124,12 @@ export function formatMs(ms: number): string {
   const minutes = Math.floor(ms / 60_000);
   return `${minutes} min ${Math.round((ms % 60_000) / 1000)} s`;
 }
+
+/**
+ * Whether a closed panel's state may be kept for `opentide.query.retainResults`: only a finished run. A
+ * state closed mid-run is `running` with pending tabs, and reopening it showed a Cancel that cancelled
+ * nothing and no Re-run, for the rest of the session.
+ */
+export function keepable<T extends { readonly phase: string }>(state: T | undefined): state is T {
+  return state !== undefined && state.phase !== "running";
+}
