@@ -781,8 +781,13 @@ async function serve() {
   };
   const handle = async (message) => {
     const { id, method, params } = message;
-    if (method === "initialize")
-      return send({ id, result: { protocol: 1, version, commands_digest: "fake-digest" } });
+    if (method === "initialize") {
+      // FAKE_SERVE_INIT_DELAY_MS answers late; FAKE_SERVE_PROTOCOL answers with another protocol.
+      const delay = Number(process.env.FAKE_SERVE_INIT_DELAY_MS ?? 0);
+      if (delay > 0) await new Promise((done) => setTimeout(done, delay));
+      const protocol = Number(process.env.FAKE_SERVE_PROTOCOL ?? 1);
+      return send({ id, result: { protocol, version, commands_digest: "fake-digest" } });
+    }
     if (method === "shutdown") return send({ id, result: null });
     if (method === "run") {
       if (!params || !Array.isArray(params.argv))

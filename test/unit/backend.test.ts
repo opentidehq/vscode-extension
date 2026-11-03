@@ -6,7 +6,7 @@ import { Backend, type BackendDeps, type RunRecord } from "../../src/core/backen
 import { BackendError } from "../../src/core/backend/types";
 import { type Classification, classify } from "../../src/core/capabilities/classification";
 import { CommandTree } from "../../src/core/capabilities/tree";
-import { COMMANDS_FIXTURE, fakeRuntime } from "./helpers";
+import { COMMANDS_FIXTURE, fakeRuntime, sleep } from "./helpers";
 
 const REPO = mkdtempSync(path.join(tmpdir(), "otide-repo-"));
 
@@ -170,6 +170,49 @@ describe("backend", () => {
     assert.equal(result.via, "spawn");
     assert.ok(logs.some((line) => line.includes("spawning instead")));
     assert.equal((await instance.run(process.cwd(), ["echo"])).via, "spawn");
+  });
+
+  it("starts one serve for concurrent first requests", async () => {
+    // No deps.spawn: production's spawn, where an await before the client was stored let each
+    // request start a process of its own.
+    const { instance, logs } = make({}, { FAKE_SERVE_INIT_DELAY_MS: "200" });
+    const results = await Promise.all([1, 2, 3].map(() => instance.run(REPO, ["echo"])));
+    assert.deepEqual(
+      results.map((r) => r.via),
+      ["serve", "serve", "serve"],
+    );
+    assert.equal(logs.filter((line) => /opentide serve .* started/.test(line)).length, 1);
+  });
+
+  it("sends every request that waited on a failed start to spawn", async () => {
+    const { instance } = make({}, { FAKE_SERVE_PROTOCOL: "2", FAKE_SERVE_INIT_DELAY_MS: "300" });
+    const first = instance.run(REPO, ["echo"]);
+    await sleep(100);
+    const second = instance.run(REPO, ["echo"]);
+    const results = await Promise.all([first, second]);
+    assert.deepEqual(
+      results.map((r) => r.via),
+      ["spawn", "spawn"],
+    );
+  });
+
+  it("replaces a serve started for the previous runtime once the runtime switches", async () => {
+    const before = fakeRuntime({ env: { FAKE_VERSION: "0.21.0" } });
+    const after = fakeRuntime({ env: { FAKE_VERSION: "0.22.0" } });
+    let current = before;
+    const versions: string[] = [];
+    const { instance } = make({ runtime: () => current });
+    instance.onDidChangeServe((event) => {
+      if (event.running && event.version) versions.push(event.version);
+    });
+    await instance.run(REPO, ["echo"]);
+    // A restart, then a run while the runtime is still resolving (it still sees the old one).
+    await instance.restart();
+    await instance.run(REPO, ["echo"]);
+    current = after;
+    const result = await instance.run(REPO, ["echo"]);
+    assert.equal(result.via, "serve");
+    assert.deepEqual(versions, ["0.21.0", "0.21.0", "0.22.0"]);
   });
 
   it("reports each run when it starts and when it ends", async () => {

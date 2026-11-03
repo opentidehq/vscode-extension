@@ -1,7 +1,7 @@
 // The backend: one `run(folder, argv)` for every opentide command (SPEC D2, #12). It answers through one
 // warm `opentide serve` per window when the runtime has it, and spawns `opentide --json <argv>` otherwise
 // or for commands that want a process of their own. vscode-free; core/services wires it to VS Code.
-import type * as cp from "node:child_process";
+import * as cp from "node:child_process";
 import type { Classification } from "../capabilities/classification";
 import type { CommandTree } from "../capabilities/tree";
 import { displayArgv, processEnv, redact } from "../runtime/env";
@@ -92,6 +92,12 @@ class Queue {
 
 export class Backend {
   private serve: ServeClient | undefined;
+  /** The runtime `serve` was started for: a run for another runtime replaces the process. */
+  private serveRuntime: Runtime | undefined;
+  /** Settles when `serve` answered `initialize`: every caller waits on the same start. */
+  private serveReady: Promise<ServeClient> | undefined;
+  /** Bumped by restart(), so a start it overtook does not mark the new runtime broken. */
+  private generation = 0;
   private serveBrokenFor: Runtime | undefined;
   private readonly writes = new Queue();
   private nextId = 1;
@@ -186,12 +192,12 @@ export class Backend {
         } catch (error) {
           if (!(error instanceof BackendError) || error.code !== "crashed") throw error;
           // The backend died under this request. One retry on a fresh process for a read-only command;
-          // a writer may have half-run, so it reports the crash instead.
+          // a writer may have half-run, so it reports the crash instead. viaServe already dropped the
+          // client that crashed (and only that one).
           this.deps.log(
             "warn",
             `opentide serve crashed: ${error.message}${error.detail ? `\n${error.detail}` : ""}`,
           );
-          this.serve = undefined;
           if (classification.writes) throw error;
           return finish(await this.viaServe(runtime, folder, argv, credentials, options));
         }
@@ -209,16 +215,38 @@ export class Backend {
 
   private async canServe(runtime: Runtime): Promise<boolean> {
     if (this.deps.serveMode() === "never" || this.serveBrokenFor === runtime) return false;
-    if (this.serve?.isRunning) return true;
+    if (this.serve?.isRunning && this.serveRuntime === runtime) return true;
     const tree = await this.deps.commands();
     return tree?.hasCommand("serve") ?? false;
   }
 
-  private async ensureServe(runtime: Runtime, folder: string): Promise<ServeClient> {
-    if (this.serve?.isRunning) return this.serve;
+  /** Forget `client` if it is still the current one (it exited, crashed or was replaced). */
+  private dropServe(client: ServeClient): void {
+    if (this.serve !== client) return;
+    this.serve = undefined;
+    this.serveRuntime = undefined;
+    this.serveReady = undefined;
+  }
+
+  /**
+   * The serve client for `runtime`, started once however many requests ask at the same time. A client
+   * started for another runtime (a run that began while the runtime was switching) is stopped first.
+   */
+  private ensureServe(runtime: Runtime, folder: string): Promise<ServeClient> {
+    const current = this.serve;
+    if (current && this.serveRuntime !== runtime) {
+      this.dropServe(current);
+      this.deps.log("info", "the opentide runtime changed: stopping the serve started for the previous one");
+      void current.stop();
+    }
+    if (this.serveBrokenFor === runtime) {
+      return Promise.reject(new BackendError("protocol", "opentide serve is unavailable for this runtime"));
+    }
+    if (this.serve?.isRunning && this.serveReady) return this.serveReady;
+
     const env = processEnv(this.deps.baseEnv(), runtime, this.deps.platform, this.fixedEnv());
     const { command, args } = cliCommand(runtime, ["serve"]);
-    const spawn = this.deps.spawn ?? (await import("node:child_process")).spawn;
+    const spawn = this.deps.spawn ?? cp.spawn;
     const client = new ServeClient({
       start: (): cp.ChildProcess =>
         spawn(command, args, {
@@ -230,29 +258,38 @@ export class Backend {
         }),
       log: (level, message) => this.deps.log(level, message),
     });
+    const generation = this.generation;
     this.serve = client;
+    this.serveRuntime = runtime;
     client.onDidExit(({ code, signal, expected }) => {
-      if (this.serve === client) this.serve = undefined;
+      const wasCurrent = this.serve === client || this.serve === undefined;
+      this.dropServe(client);
       if (!expected)
         this.deps.log(
           "warn",
           `opentide serve exited (${signal ?? `code ${code}`}); the next request restarts it`,
         );
-      this.serveEmitter.fire({ running: false });
+      if (wasCurrent) this.serveEmitter.fire({ running: false });
     });
-    try {
-      const init = await client.start();
-      this.deps.log("info", `opentide serve ${init.version} started (pid ${client.pid})`);
-      this.serveEmitter.fire({ running: true, version: init.version, digest: init.commands_digest });
-    } catch (error) {
-      if (this.serve === client) this.serve = undefined;
-      // A serve that cannot start falls back to spawning for this runtime, until the next restart.
-      this.serveBrokenFor = runtime;
-      const message = error instanceof Error ? error.message : String(error);
-      this.deps.log("warn", `opentide serve unavailable, spawning instead: ${message}`);
-      throw error;
-    }
-    return client;
+    // start() spawns synchronously, so `client.isRunning` holds before this returns: a concurrent
+    // request finds this promise instead of starting a process of its own.
+    const ready = client.start().then(
+      (init) => {
+        this.deps.log("info", `opentide serve ${init.version} started (pid ${client.pid})`);
+        this.serveEmitter.fire({ running: true, version: init.version, digest: init.commands_digest });
+        return client;
+      },
+      (error: unknown) => {
+        this.dropServe(client);
+        // A serve that cannot start falls back to spawning for this runtime, until the next restart.
+        if (generation === this.generation) this.serveBrokenFor = runtime;
+        const message = error instanceof Error ? error.message : String(error);
+        this.deps.log("warn", `opentide serve unavailable, spawning instead: ${message}`);
+        throw error;
+      },
+    );
+    this.serveReady = ready;
+    return ready;
   }
 
   private fixedEnv(): Record<string, string> {
@@ -271,6 +308,8 @@ export class Backend {
   ): Promise<Omit<RunResult, "argvDisplay" | "folder" | "durationMs">> {
     let client: ServeClient;
     try {
+      // Every caller, also one that arrived while another request was starting serve, waits on the
+      // same start here, so a start that fails sends each of them to spawn.
       client = await this.ensureServe(runtime, folder);
     } catch (error) {
       if (this.serveBrokenFor === runtime) return this.viaSpawn(runtime, folder, argv, credentials, options);
@@ -281,13 +320,19 @@ export class Backend {
       ...credentials,
       ...(options.env ?? {}),
     };
-    const result = await client.run(
-      { argv, cwd: folder, env },
-      {
-        ...(options.cancellation ? { token: options.cancellation } : {}),
-        ...(options.onProgress ? { onProgress: options.onProgress } : {}),
-      },
-    );
+    let result: Awaited<ReturnType<ServeClient["run"]>>;
+    try {
+      result = await client.run(
+        { argv, cwd: folder, env },
+        {
+          ...(options.cancellation ? { token: options.cancellation } : {}),
+          ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+        },
+      );
+    } catch (error) {
+      if (error instanceof BackendError && error.code === "crashed") this.dropServe(client);
+      throw error;
+    }
     return {
       document: result.document,
       exitCode: result.exit_code,
@@ -351,7 +396,10 @@ export class Backend {
   /** Stop the serve process; the next request starts a new one. */
   async restart(): Promise<void> {
     const serve = this.serve;
+    this.generation++;
     this.serve = undefined;
+    this.serveRuntime = undefined;
+    this.serveReady = undefined;
     this.serveBrokenFor = undefined;
     await serve?.stop();
   }
