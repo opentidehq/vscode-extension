@@ -7,7 +7,7 @@ import { Backend } from "./backend/backend";
 import { spawnRun } from "./backend/spawn";
 import { Capabilities, type CommandsCache } from "./capabilities/capabilities";
 import { CatalogStore, INFO_CATALOG } from "./catalog/store";
-import type { CatalogSymbol } from "./catalog/types";
+import { folderSymbols, type WorkspaceSymbol } from "./catalog/symbols";
 import type { FeatureContext, TrustService } from "./context";
 import { CredentialStore } from "./credentials";
 import { parseEnvFile } from "./envfile";
@@ -129,25 +129,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
     symbols: async (folder) => {
       const lc = client.current;
       if (!lc) return undefined;
-      const symbols = (await lc.sendRequest("workspace/symbol", { query: "" })) as
-        | {
-            name: string;
-            containerName?: string;
-            location: { uri: string; range?: { start: { line: number; character: number } } };
-          }[]
-        | null;
-      const root = vscode.Uri.file(folder).toString();
-      return (symbols ?? [])
-        .filter((symbol) => symbol.location.uri.startsWith(`${root}/`))
-        .map(
-          (symbol): CatalogSymbol => ({
-            name: symbol.name,
-            family: symbol.containerName ?? "",
-            uri: symbol.location.uri,
-            line: symbol.location.range?.start.line ?? 0,
-            character: symbol.location.range?.start.character ?? 0,
-          }),
-        );
+      const symbols = (await lc.sendRequest("workspace/symbol", { query: "" })) as WorkspaceSymbol[] | null;
+      return folderSymbols(symbols, folder, process.platform, (file) => vscode.Uri.file(file).toString());
     },
     log: (level, message) => log[level](message),
   });
