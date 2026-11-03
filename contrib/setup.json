@@ -80,7 +80,7 @@
           {
             "id": "create",
             "title": "Create your first detection",
-            "description": "Start a rule from a template, then fill its placeholders with Tab.\n[New Rule…](command:opentide.setup.step?%5B%22create%22%5D)",
+            "description": "Start a rule from a template, then step through its placeholders with Next Placeholder (Ctrl+Alt+.; Ctrl+Alt+, goes back).\n[New Rule…](command:opentide.setup.step?%5B%22create%22%5D)",
             "media": {
               "markdown": "media/walkthrough/create.md"
             },
