@@ -119,7 +119,11 @@ backend already logs every run (command line with secrets redacted, folder, dura
 Tiers (SPEC §4): 1 `opentide.path`; 2 the workspace environment (`opentide.interpreter`, else Python
 Environments, else the Python extension, else `.venv`, else `PATH`); 3 `uv tool run --from
 opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier 2); 4 the bundled
-`<extension>/runtime` (`python -I -X pycache_prefix=<globalStorage>/pycache -m opentide`). A tier older
+`<extension>/runtime` (`python -I -X pycache_prefix=<globalStorage>/pycache -m opentide`; built as
+[PACKAGING.md](PACKAGING.md) says). The first time tier 4 runs, after the language server starts, the
+core compiles the runtime's bytecode into that prefix in the background (`src/core/runtime/precompile.ts`:
+`compileall -q`, low priority, cancelled on deactivation, once per `runtime/BUILD-INFO.json` `buildId`;
+the bytecode of builds whose runtime folder is gone is deleted). A tier older
 than `MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command. In
 Restricted Mode only tier 4 resolves, `restricted: true`, and its processes get `PATH` = the runtime's
 `bin` only.
