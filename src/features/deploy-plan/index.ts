@@ -362,7 +362,10 @@ class DeployPanel implements vscode.Disposable {
       const result = await this.planner.plan(folder, options, {
         cancellation: cts.token,
         onProgress: (step) => {
-          if (this.runId === id) void this.view.channel.post("progress", step);
+          if (this.runId !== id || !this.state) return;
+          // Kept in the state too, so a panel shown again says where the plan is.
+          this.state = { ...this.state, progress: step };
+          void this.view.channel.post("progress", step);
         },
       });
       if (this.runId !== id) return;

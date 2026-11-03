@@ -147,7 +147,7 @@ function controls(s: DeployPanelState): HTMLElement {
       ? h("span", { class: "muted" }, [
           h("span", { class: "spin", text: "◌", attrs: { "aria-hidden": "true" } }),
           " ",
-          h("span", { id: "progress", text: "Planning…" }),
+          h("span", { id: "progress", text: s.progress ? `Planning ${s.progress}…` : "Planning…" }),
           " ",
           h("span", { id: "elapsed" }),
         ])
