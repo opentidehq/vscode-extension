@@ -158,6 +158,7 @@ class MatrixPanel implements vscode.Disposable {
   }
 
   private async detectFeatures(): Promise<void> {
+    await this.ctx.capabilities.ready();
     const commands = new Set(await vscode.commands.getCommands(true));
     this.features = {
       search: commands.has(SEARCH_COMMAND),

@@ -323,6 +323,8 @@ class DeployPanel implements vscode.Disposable {
     scope: ScopeKind;
     platform: string | null;
   }): Promise<void> {
+    // Whether `deploy --uuid` exists is known once the command tree loaded.
+    await this.ctx.capabilities.ready();
     this.cts?.cancel();
     const cts = new vscode.CancellationTokenSource();
     this.cts = cts;
