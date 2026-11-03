@@ -252,8 +252,9 @@ are in `src/core/positions.ts`.
 ### Context keys
 
 `opentide.trusted`, `opentide.hasWorkspace`, `opentide.runtimeReady`, `opentide.hasCli` (a trusted
-opentide runtime), `opentide.runtimeTier`, `opentide.pinMismatch`, `opentide.serveRunning`,
-`opentide.hasInfoCatalog`.
+opentide runtime), `opentide.runtimeTier`, `opentide.pinMismatch`, `opentide.serveRunning` (the warm backend runs), and
+`opentide.hasInfoCatalog` (the active opentide's command tree has `info catalog`, updated whenever the tree
+changes).
 
 ## Webviews
 

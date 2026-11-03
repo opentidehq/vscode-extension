@@ -238,6 +238,18 @@ export function createCore(context: vscode.ExtensionContext): Core {
       grant.fire();
     }),
     client.onDidChange(() => status.setServer(client.serverInfo, client.current !== undefined)),
+    // The capability context keys ARCHITECTURE.md documents, for `when` clauses.
+    capabilities.onDidChange(
+      (tree) =>
+        void vscode.commands.executeCommand(
+          "setContext",
+          "opentide.hasInfoCatalog",
+          tree?.hasCommand(INFO_CATALOG) ?? false,
+        ),
+    ),
+    backend.onDidChangeServe(
+      ({ running }) => void vscode.commands.executeCommand("setContext", "opentide.serveRunning", running),
+    ),
     runtime.onDidChange(
       () => void vscode.commands.executeCommand("setContext", "opentide.trusted", trust.isTrusted),
     ),
