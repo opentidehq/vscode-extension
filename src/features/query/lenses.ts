@@ -90,10 +90,12 @@ export function lensesFor(target: LensTarget, context: LensContext): LensSpec[] 
     }
   }
   if (context.canRun && caps?.canValidate && target.kind === "rule" && caps.tenants?.length !== 0) {
+    // It sends the query to the platform's tenants (P5): a globe, and the tenants it reaches.
+    const tenants = caps.tenants?.map((t) => t.name);
     out.push({
       range: target.range,
-      title: "$(pass) Validate live",
-      tooltip: `opentide validate query --live: checks this rule's ${where} query on its tenants`,
+      title: `$(globe) Validate live${tenants ? ` on ${tenantPhrase(tenants)}` : ""}`,
+      tooltip: `opentide validate query --live: sends this rule's ${where} query to ${tenants ? tenantPhrase(tenants) : `the ${where} tenants`} for validation`,
       command: "opentide.query.validateLive",
       target,
     });

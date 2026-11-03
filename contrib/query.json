@@ -12,7 +12,7 @@
         "command": "opentide.query.validateLive",
         "title": "Validate Query on Tenants",
         "category": "opentide",
-        "icon": "$(pass)"
+        "icon": "$(globe)"
       },
       {
         "command": "opentide.query.showCompiled",
