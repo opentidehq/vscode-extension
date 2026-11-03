@@ -8,7 +8,15 @@ import type { RunResult } from "../../core/backend/backend";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
-import { newObjectHandover, SHARE_PREVIEW, VALIDATE_FILE } from "./actions";
+import {
+  type Handover,
+  newObjectHandover,
+  PREVIEW_DEPLOY,
+  RUN_QUERY,
+  ruleHandover,
+  SHARE_PREVIEW,
+  VALIDATE_FILE,
+} from "./actions";
 import { activityNodes, runningCount } from "./activity";
 import {
   buildCatalogue,
@@ -53,6 +61,23 @@ function refOf(arg: unknown): NodeRef | undefined {
   if ("ref" in arg) return (arg as TreeNode).ref;
   if ("kind" in arg) return arg as NodeRef;
   return undefined;
+}
+
+/** `opentide.sidebar.filter`'s argument: `{query}` or a string; undefined asks. */
+function filterArg(arg: unknown): string | undefined {
+  if (typeof arg === "string") return arg;
+  if (typeof arg === "object" && arg !== null && !("ref" in arg)) {
+    const query = (arg as { query?: unknown }).query;
+    if (typeof query === "string") return query;
+  }
+  return undefined;
+}
+
+/** Run another feature's command with the handover's arguments. */
+function handOver(handover: Handover | undefined): Thenable<unknown> | undefined {
+  if (!handover) return undefined;
+  if ("args" in handover) return vscode.commands.executeCommand(handover.command, handover.args);
+  return vscode.commands.executeCommand(handover.command);
 }
 
 interface PlatformsValue {
@@ -356,7 +381,13 @@ class Sidebar implements vscode.Disposable {
       }
     });
     command("opentide.sidebar.groupBy", () => this.pickGroupBy());
-    command("opentide.sidebar.filter", () => this.pickFilter());
+    // From the view title: ask. From Find Detection: `{query}` (or a string) filters and shows the view.
+    command("opentide.sidebar.filter", async (arg) => {
+      const query = filterArg(arg);
+      if (query === undefined) return this.pickFilter();
+      this.setFilter(query.trim() || undefined);
+      await vscode.commands.executeCommand(`${VIEWS.catalogue}.focus`);
+    });
     command("opentide.sidebar.clearFilter", () => this.setFilter(undefined));
 
     command("opentide.sidebar.validate", (arg) => this.validate(refOf(arg)));
@@ -377,6 +408,8 @@ class Sidebar implements vscode.Disposable {
       return undefined;
     });
     command("opentide.sidebar.newObject", (arg) => this.newObject(refOf(arg)));
+    command("opentide.sidebar.runQuery", (arg) => handOver(ruleHandover(refOf(arg), RUN_QUERY)));
+    command("opentide.sidebar.previewDeploy", (arg) => handOver(ruleHandover(refOf(arg), PREVIEW_DEPLOY)));
     command("opentide.sidebar.newRuleForObjective", (arg) => this.newObject(refOf(arg)));
     command("opentide.sidebar.newObjectiveForThreat", (arg) => this.newObject(refOf(arg)));
     command("opentide.sidebar.sharePreview", (arg) => {
@@ -526,6 +559,7 @@ class Sidebar implements vscode.Disposable {
 
   private async newObject(ref: NodeRef | undefined): Promise<unknown> {
     const handover = newObjectHandover(ref);
+    if ("args" in handover) return handOver(handover);
     if ("uuid" in handover) return vscode.commands.executeCommand(handover.command, handover.uuid);
     if ("folder" in handover)
       return vscode.commands.executeCommand(handover.command, vscode.Uri.file(handover.folder));

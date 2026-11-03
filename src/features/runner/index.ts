@@ -10,6 +10,9 @@ import { TASK_TYPE } from "./tasks";
 import { TerminalIntegration } from "./terminal";
 import { runCommand } from "./wizard";
 
+/** The diagnostics feature's Explain, which takes the code. */
+const EXPLAIN_COMMAND = "opentide.diagnostics.explain";
+
 export default defineFeature({
   id: "runner",
   activate(ctx) {
@@ -45,7 +48,13 @@ export default defineFeature({
       command("opentide.runner.sharePreview", (uri) => palette.share("preview", uri)),
       command("opentide.runner.shareStatus", (uri) => palette.share("status", uri)),
       command("opentide.runner.shareTargets", () => palette.shareTargets()),
-      command("opentide.runner.explain", (code) => palette.explain(code)),
+      // One Explain: the diagnostics feature's (cached Markdown preview, online fallback) when it runs;
+      // the palette entry is its. This id stays for the runner's failure messages and terminal links.
+      command("opentide.runner.explain", async (code) =>
+        (await vscode.commands.getCommands(true)).includes(EXPLAIN_COMMAND)
+          ? vscode.commands.executeCommand(EXPLAIN_COMMAND, code)
+          : palette.explain(code),
+      ),
       command("opentide.runner.openTui", () => palette.openTui()),
       vscode.tasks.registerTaskProvider(TASK_TYPE, new OpentideTaskProvider(ctx)),
       new TerminalIntegration(ctx),

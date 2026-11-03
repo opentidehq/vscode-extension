@@ -15,7 +15,13 @@ import {
   setupSupport,
   validateAnswers,
 } from "../../../src/features/setup/answers";
-import { folderKind, isGitRepository, walkthroughKeys } from "../../../src/features/setup/detect";
+import {
+  folderKind,
+  isGitRepository,
+  WALKTHROUGH_COMMANDS,
+  walkthroughCommand,
+  walkthroughKeys,
+} from "../../../src/features/setup/detect";
 import { apply, commandLine, NO_PLAN_NOTE, type RunOutcome, review } from "../../../src/features/setup/flow";
 import {
   appliedSteps,
@@ -499,6 +505,19 @@ describe("setup: manifest", () => {
       for (const command of links(step.description))
         assert.ok(declared.has(command), `${step.id}: ${command}`);
     }
+  });
+
+  it("runs each walkthrough button's real command (no guessed ids)", () => {
+    for (const command of Object.values(WALKTHROUGH_COMMANDS)) assert.ok(declared.has(command), command);
+    assert.equal(walkthroughCommand("deploy"), "opentide.deployPlan.open");
+    assert.equal(walkthroughCommand("graph"), "opentide.graph.open");
+    assert.equal(walkthroughCommand("toString"), undefined);
+    const walkthrough = pkg.contributes.walkthroughs.find((w) => w.id === "opentide.gettingStarted");
+    for (const step of walkthrough?.steps ?? [])
+      for (const m of step.description.matchAll(/command:opentide\.setup\.step\?([^)]+)\)/g)) {
+        const [id] = JSON.parse(decodeURIComponent(m[1] ?? "")) as string[];
+        assert.ok(walkthroughCommand(id ?? ""), `${step.id}: ${id}`);
+      }
   });
 
   it("links welcome views only to commands that exist", () => {

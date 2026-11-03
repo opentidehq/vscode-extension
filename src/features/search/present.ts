@@ -214,12 +214,34 @@ export function unreviewedPaths(document: unknown): Set<string> | undefined {
   return paths;
 }
 
-/** `opentide.search.open` takes `{query}` (the matrix) or a bare string. */
-export function parseSearchArgs(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (typeof value !== "object" || value === null) return undefined;
-  const query = (value as { query?: unknown }).query;
-  return typeof query === "string" ? query : undefined;
+export interface SearchArgs {
+  readonly query?: string;
+  /** A workspace folder's path: search only that folder's catalogue. */
+  readonly folder?: string;
+}
+
+/** `opentide.search.open` takes `{query?, folder?}` (the matrix, the graph) or a bare query string. */
+export function parseSearchArgs(value: unknown): SearchArgs {
+  if (typeof value === "string") return { query: value };
+  if (typeof value !== "object" || value === null) return {};
+  const { query, folder } = value as { query?: unknown; folder?: unknown };
+  return {
+    ...(typeof query === "string" ? { query } : {}),
+    ...(typeof folder === "string" && folder ? { folder } : {}),
+  };
+}
+
+/**
+ * The Catalogue view's filter for a query, when it can say the same thing: the sidebar filters on one
+ * substring of a name, UUID, path or technique, so only plain words, or a single `t:`, `uuid:` or
+ * `path:` filter, carry over. Undefined otherwise (the action is not offered).
+ */
+export function catalogueFilterOf(query: ParsedQuery): string | undefined {
+  if (query.excluded.length > 0 || query.problems.length > 0) return undefined;
+  if (query.filters.length === 0) return query.words.length > 0 ? query.words.join(" ") : undefined;
+  const [only, ...rest] = query.filters;
+  if (rest.length > 0 || query.words.length > 0 || !only || only.negated) return undefined;
+  return only.key === "technique" || only.key === "uuid" || only.key === "path" ? only.value : undefined;
 }
 
 export interface DiagnosticLike {

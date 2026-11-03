@@ -1,6 +1,7 @@
 // The graph webview (SPEC §10.1): Cytoscape draws, dagre lays out (src/features/graph/layout.ts), and
 // "View as list" shows the same nodes and edges as a keyboard tree. Every action goes to the host.
 import cytoscape from "cytoscape";
+import { NODE_ACTION_LABELS, type NodeAction, nodeActions } from "../../src/features/graph/actions";
 import { canvasColor } from "../../src/features/graph/colors";
 import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg } from "../../src/features/graph/export";
 import { layout, type Point, stabilize } from "../../src/features/graph/layout";
@@ -618,6 +619,9 @@ function showContextMenu(id: string, at: { x: number; y: number }): void {
   const items = [
     node.filePath ? item("Open", () => channel.post("open", id)) : undefined,
     item("Focus on this", () => focusOn([id])),
+    ...nodeActions(node, availableActions).map((action) =>
+      item(NODE_ACTION_LABELS[action], () => channel.post("nodeAction", { action, id })),
+    ),
     node.uuid ? item("Copy UUID", () => channel.post("copy", node.uuid ?? "")) : undefined,
     item("Copy name", () => channel.post("copy", node.label)),
   ].filter((entry): entry is HTMLButtonElement => entry !== undefined);
@@ -1099,6 +1103,12 @@ channel.on("data", (next) => {
   model = next.model;
   if (first && !mode) mode = initialMode(model, focus.length > 0);
   render({ fit: first });
+});
+
+/** Other features' node actions this window has (validate, run query, preview deploy, new …). */
+let availableActions: readonly NodeAction[] = [];
+channel.on("actions", (next) => {
+  availableActions = next;
 });
 
 channel.on("problems", (next) => {

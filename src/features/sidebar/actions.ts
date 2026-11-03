@@ -5,6 +5,7 @@ import type { NodeRef } from "./node";
 export type Handover =
   | { readonly command: string; readonly uuid: string }
   | { readonly command: string; readonly folder: string }
+  | { readonly command: string; readonly args: { readonly uuid?: string; readonly folder: string } }
   | { readonly command: string };
 
 /**
@@ -16,7 +17,10 @@ export function newObjectHandover(ref: NodeRef | undefined): Handover {
     return { command: "opentide.newObject.ruleForObjective", uuid: ref.uuid };
   if (ref?.kind === "object" && ref.type === "threat")
     return { command: "opentide.newObject.objectiveForThreat", uuid: ref.uuid };
-  if (ref?.kind === "technique") return { command: "opentide.newObject.objective" };
+  // `{folder}`, not a folder URI: a URI is where to write (`--path`), and the repository root is no
+  // objective folder. `opentide new objective` takes no technique.
+  if (ref?.kind === "technique")
+    return { command: "opentide.newObject.objective", args: { folder: ref.folder } };
   if (ref && "folder" in ref) return { command: "opentide.newObject", folder: ref.folder };
   return { command: "opentide.newObject" };
 }
@@ -25,3 +29,14 @@ export function newObjectHandover(ref: NodeRef | undefined): Handover {
 export const VALIDATE_FILE = "opentide.diagnostics.validateFile";
 /** The runner's sharing preview, for one object file. */
 export const SHARE_PREVIEW = "opentide.runner.sharePreview";
+
+/** The query feature's runner, for a rule (`{uuid, folder}`). */
+export const RUN_QUERY = "opentide.query.run";
+/** The deploy plan, for a rule (`{uuid, folder}`). */
+export const PREVIEW_DEPLOY = "opentide.deployPlan.open";
+
+/** Run query / Preview Deploy on a rule node: the rule's UUID and folder; nothing for other nodes. */
+export function ruleHandover(ref: NodeRef | undefined, command: string): Handover | undefined {
+  if (ref?.kind !== "object" || ref.type !== "rule") return undefined;
+  return { command, args: { uuid: ref.uuid, folder: ref.folder } };
+}

@@ -46,3 +46,17 @@ export function walkthroughKeys(run: {
   }
   return keys;
 }
+
+/** The command each walkthrough button (`opentide.setup.step` with a step id) runs. */
+export const WALKTHROUGH_COMMANDS: Readonly<Record<string, string>> = {
+  create: "opentide.newObject.rule",
+  validate: "opentide.diagnostics.validateWorkspace",
+  graph: "opentide.graph.open",
+  matrix: "opentide.matrix.open",
+  deploy: "opentide.deployPlan.open",
+  editorMcp: "opentide.agents.addToEditorMcp",
+};
+
+export function walkthroughCommand(step: string): string | undefined {
+  return Object.hasOwn(WALKTHROUGH_COMMANDS, step) ? WALKTHROUGH_COMMANDS[step] : undefined;
+}

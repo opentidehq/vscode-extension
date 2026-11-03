@@ -18,7 +18,7 @@ import {
   setupCommands,
   setupSupport,
 } from "./answers";
-import { type Entry, folderKind, isGitRepository, walkthroughKeys } from "./detect";
+import { type Entry, folderKind, isGitRepository, walkthroughCommand, walkthroughKeys } from "./detect";
 import { apply, type Runner, review } from "./flow";
 import { fileToOpen } from "./plan";
 import {
@@ -478,61 +478,19 @@ async function migrate(ctx: FeatureContext, wizard: WizardHost, folderArg?: stri
   if (next) await wizard.open({ folder });
 }
 
-const CANDIDATES: Readonly<Record<string, readonly string[]>> = {
-  create: ["opentide.newObject.rule", "opentide.newObject"],
-  validate: ["opentide.diagnostics.validateWorkspace"],
-  editorMcp: ["opentide.agents.addToEditorMcp"],
-  graph: ["opentide.graph.reveal", "opentide.graph.open"],
-  matrix: ["opentide.matrix.open"],
-  deploy: ["opentide.deployPlan.open", "opentide.deploy.preview", "opentide.deploy.dryRun"],
-};
-
-/** A walkthrough button: the feature's own command when it is there, else the opentide command itself. */
+/** A walkthrough button: the owning feature's command (every feature ships in this extension). */
 async function walkthroughStep(ctx: FeatureContext, step: string): Promise<void> {
+  const command = walkthroughCommand(step);
+  if (!command) return;
   const commands = await vscode.commands.getCommands(true);
-  const owned = (CANDIDATES[step] ?? []).find((id) => commands.includes(id));
-  if (owned) {
-    await vscode.commands.executeCommand(owned);
+  if (commands.includes(command)) {
+    await vscode.commands.executeCommand(command);
     return;
   }
-  const folder = await ctx.folders.pick();
-  if (!folder) {
-    const choice = await vscode.window.showInformationMessage(
-      "Set up a detection repository first.",
-      "Set Up…",
-    );
-    if (choice) await vscode.commands.executeCommand("opentide.setup.open");
-    return;
-  }
-  if (step === "validate" || step === "deploy") {
-    if (!(await ready(ctx, step))) return;
-    const argv = step === "validate" ? ["validate"] : ["deploy", "--dry-run"];
-    const result = await Promise.resolve(
-      vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: `opentide ${argv.join(" ")}…`,
-          cancellable: true,
-        },
-        (_p, token) => ctx.backend.run(folder.path, argv, { cancellation: token }),
-      ),
-    ).catch((error: unknown) => {
-      void vscode.window.showErrorMessage(errorMessage(error));
-      return undefined;
-    });
-    if (!result || result.cancelled) return;
-    const choice = await (result.exitCode === 0
-      ? vscode.window.showInformationMessage
-      : vscode.window.showWarningMessage)(
-      `${result.document.message || `exit ${result.exitCode}`}: ${result.argvDisplay}`,
-      ...(step === "validate" ? ["Show Problems"] : []),
-      "Show Output",
-    );
-    if (choice === "Show Problems") await vscode.commands.executeCommand("workbench.actions.view.problems");
-    if (choice === "Show Output") ctx.log.show();
-    return;
-  }
-  const what =
-    { create: "New objects", graph: "The graph", matrix: "The ATT&CK matrix" }[step] ?? "This step";
-  void vscode.window.showInformationMessage(`${what} is not available in this build of the extension.`);
+  // The feature failed to activate (logged), so its command is not registered.
+  const choice = await vscode.window.showWarningMessage(
+    "This step's feature did not start. The opentide output says why.",
+    "Show Output",
+  );
+  if (choice) ctx.log.show();
 }

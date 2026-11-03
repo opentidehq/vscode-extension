@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 import type { ActivityEntry } from "../../../src/core/activity";
-import { newObjectHandover } from "../../../src/features/sidebar/actions";
+import { newObjectHandover, ruleHandover } from "../../../src/features/sidebar/actions";
 import { activityNodes, ago, canRerun, duration, runningCount } from "../../../src/features/sidebar/activity";
 import { folderViewModel } from "../../../src/features/sidebar/folderView";
 import {
@@ -425,9 +425,40 @@ describe("sidebar: handovers", () => {
       uuid: "u1",
     });
     assert.deepEqual(newObjectHandover(object("rule")), { command: "opentide.newObject", folder: "/r" });
+    // A coverage gap: the objective flow in the node's folder (an object, not a URI, which means --path).
     assert.deepEqual(newObjectHandover({ kind: "technique", folder: "/r", id: "T1003" }), {
       command: "opentide.newObject.objective",
+      args: { folder: "/r" },
     });
     assert.deepEqual(newObjectHandover(undefined), { command: "opentide.newObject" });
+  });
+});
+
+describe("sidebar: rule handovers", () => {
+  const rule = {
+    kind: "object",
+    folder: "/r",
+    uuid: "u1",
+    type: "rule",
+    name: "n",
+    file: "/r/x.yaml",
+  } as const;
+  it("hands a rule to Run query and Preview Deploy as {uuid, folder}", () => {
+    assert.deepEqual(ruleHandover(rule, "opentide.query.run"), {
+      command: "opentide.query.run",
+      args: { uuid: "u1", folder: "/r" },
+    });
+    assert.deepEqual(ruleHandover(rule, "opentide.deployPlan.open"), {
+      command: "opentide.deployPlan.open",
+      args: { uuid: "u1", folder: "/r" },
+    });
+  });
+  it("hands nothing over for other nodes", () => {
+    assert.equal(ruleHandover({ ...rule, type: "objective" }, "opentide.query.run"), undefined);
+    assert.equal(
+      ruleHandover({ kind: "technique", folder: "/r", id: "T1003" }, "opentide.query.run"),
+      undefined,
+    );
+    assert.equal(ruleHandover(undefined, "opentide.query.run"), undefined);
   });
 });

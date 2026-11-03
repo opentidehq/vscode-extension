@@ -532,7 +532,7 @@
       },
       {
         "command": "opentide.diagnostics.explain",
-        "title": "Explain a Diagnostic Code…",
+        "title": "Explain a Code…",
         "category": "opentide",
         "icon": "$(question)"
       },
@@ -851,6 +851,18 @@
         "icon": "$(eye)"
       },
       {
+        "command": "opentide.sidebar.runQuery",
+        "title": "Run Query on Tenants…",
+        "category": "opentide",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "opentide.sidebar.previewDeploy",
+        "title": "Preview Deploy",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      },
+      {
         "command": "opentide.sidebar.openMatrix",
         "title": "Open ATT&CK Matrix",
         "category": "opentide",
@@ -1101,6 +1113,10 @@
           "when": "opentide.hasWorkspace"
         },
         {
+          "command": "opentide.runner.explain",
+          "when": "false"
+        },
+        {
           "command": "opentide.search.open",
           "when": "opentide.hasWorkspace"
         },
@@ -1122,6 +1138,14 @@
         },
         {
           "command": "opentide.sidebar.sharePreview",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.runQuery",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.previewDeploy",
           "when": "false"
         },
         {
@@ -1378,6 +1402,16 @@
           "command": "opentide.sidebar.sharePreview",
           "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
           "group": "2_show@2"
+        },
+        {
+          "command": "opentide.sidebar.runQuery",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "group": "4_rule@1"
+        },
+        {
+          "command": "opentide.sidebar.previewDeploy",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "group": "4_rule@2"
         },
         {
           "command": "opentide.sidebar.newRuleForObjective",

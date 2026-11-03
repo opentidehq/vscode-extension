@@ -47,8 +47,8 @@ export interface NewObjectArgs {
   readonly threats?: readonly string[];
 }
 
-/** Commands that may open the setup wizard, in order of preference (another feature owns it). */
-const SETUP_COMMANDS = ["opentide.setup.open", "opentide.setup.wizard", "opentide.setup"];
+/** The setup feature's wizard; it takes the folder to set up as a path. */
+const SETUP_COMMAND = "opentide.setup.open";
 
 const NEW_THREAT_BUTTON: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon("add"),
@@ -148,7 +148,11 @@ class NewObject implements vscode.Disposable, vscode.CodeActionProvider {
         "No opentide workspace is open here.",
         "Set up this folder",
       );
-      if (choice) await this.openSetup();
+      if (choice) {
+        const open = vscode.workspace.workspaceFolders ?? [];
+        const only = open.length === 1 && open[0]?.uri.scheme === "file" ? open[0].uri.fsPath : undefined;
+        await this.openSetup(only);
+      }
     }
     return folder;
   }
@@ -471,7 +475,7 @@ class NewObject implements vscode.Disposable, vscode.CodeActionProvider {
     switch (action.kind) {
       case "setup": {
         const choice = await vscode.window.showWarningMessage(message, "Set up this folder");
-        if (choice) await this.openSetup();
+        if (choice) await this.openSetup(folder.path);
         return;
       }
       case "pick-again": {
@@ -511,12 +515,8 @@ class NewObject implements vscode.Disposable, vscode.CodeActionProvider {
     }
   }
 
-  private async openSetup(): Promise<void> {
-    const commands = await vscode.commands.getCommands(true);
-    const setup = SETUP_COMMANDS.find((id) => commands.includes(id));
-    if (setup) await vscode.commands.executeCommand(setup);
-    else
-      void vscode.window.showInformationMessage("Run `opentide setup` in a terminal to set up this folder.");
+  private async openSetup(folder: string | undefined): Promise<void> {
+    await vscode.commands.executeCommand(SETUP_COMMAND, ...(folder ? [folder] : []));
   }
 
   /** "Regenerate templates, schemas and snippets": `opentide generate templates schemas snippets`. */
