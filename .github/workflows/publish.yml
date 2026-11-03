@@ -1,0 +1,362 @@
+# Releases the extension and publishes it to the Visual Studio Marketplace and Open VSX (#9, SPEC §3).
+#
+# A release is "Run workflow" on main, with no inputs, as opentide's publish-pypi.yml releases from
+# development and language-server's release.yml from main. docs/RELEASING.md has the steps and the
+# one-time setup; .agents/skills/release/SKILL.md the agent's version.
+#
+#   prepare      the version is CHANGELOG.md's newest dated section (scripts/release.mjs); the notes PR
+#                merged ([Unreleased] is empty, package.json has the version) and its tag does not exist
+#   build        one job per pins.json runtimeTargets entry, on that target's native runner: the
+#                runtime lock, the package and its smoke test (Alpine's in an Alpine container)
+#   universal    the package without a runtime, for every other target and the web
+#   attest       every VSIX is this version and channel, one per target; SHA256SUMS; build provenance
+#   release      the v<version> tag and the GitHub Release with the notes and the assets, only now that
+#                every package built and passed its smoke test
+#   publish-*    the Marketplace (vsce --oidc) and Open VSX (ovsx, trusted publishing or OVSX_PAT), in
+#                the `production` environment, independent of each other
+#
+# Trusted publishing: the Marketplace policy and the Open VSX trusted publisher name this file,
+# .github/workflows/publish.yml, and the environment `production`. Renaming either breaks publishing.
+#
+# Retry: "Re-run failed jobs" on the run. The publish jobs download the assets from the GitHub Release
+# and pass --skip-duplicate, so a store that already has a package skips it. Dispatching again after the
+# tag exists is refused: release the next version instead.
+#
+# Pre-releases: an odd minor version is packaged and published with --pre-release and marked as a
+# pre-release on GitHub; an even minor is stable (SPEC §3).
+name: Publish
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+# One release at a time; never cancel one that may have published already.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # vsce 4.1.0 is the first with --oidc; ovsx 1.3.0 has --trusted-publishing.
+  VSCE_VERSION: "4.1.0"
+  OVSX_VERSION: "1.3.0"
+
+jobs:
+  prepare:
+    name: Release guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      matrix: ${{ steps.version.outputs.matrix }}
+      has-targets: ${{ steps.version.outputs.has-targets }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: main is ready to release the version CHANGELOG.md names
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Run the release from main, not ${GITHUB_REF_NAME}." >&2
+            exit 1
+          fi
+          version="$(node scripts/release.mjs version)"
+          tag="v${version}"
+          node scripts/release.mjs check "${tag}"
+          tagged="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" \
+            --jq "map(select(.ref == \"refs/tags/${tag}\")) | length")"
+          if [[ "${tagged}" != "0" ]] || gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::${tag} is already tagged. To retry its publish, re-run the failed jobs of its run; otherwise merge the next version's notes PR." >&2
+            exit 1
+          fi
+          matrix="$(node scripts/release.mjs matrix)"
+          {
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "prerelease=$(node scripts/release.mjs prerelease "${version}")"
+            echo "matrix=${matrix}"
+            echo "has-targets=$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).include.length > 0))' "${matrix}")"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing ${tag} (pre-release: $(node scripts/release.mjs prerelease "${version}")); runtime targets: ${matrix}"
+
+  build:
+    name: Package ${{ matrix.target }}
+    needs: prepare
+    if: needs.prepare.outputs.has-targets == 'true'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      # Every target reports, so one run shows every failure.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET: ${{ matrix.target }}
+      SMOKE_IMAGE: ${{ matrix.container }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Runtime lock matches pins.json
+        run: npm run runtime:lock -- --check
+      - name: Package
+        run: |
+          set -euo pipefail
+          flags=(--target "${TARGET}")
+          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
+          npm run package -- "${flags[@]}"
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          vsix="dist-vsix/opentide-${TARGET}-${VERSION}.vsix"
+          test -f "${vsix}"
+          if [[ -n "${SMOKE_IMAGE}" ]]; then
+            # A clean Alpine of the runner's architecture, as a user's container would be.
+            docker run --rm -v "${PWD}:/work" -w /work "${SMOKE_IMAGE}" npm run smoke -- "${vsix}"
+          else
+            npm run smoke -- "${vsix}"
+          fi
+      - name: Size
+        if: ${{ !cancelled() }}
+        run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vsix-${{ matrix.target }}
+          path: dist-vsix/*.vsix
+          if-no-files-found: error
+
+  universal:
+    name: Package universal
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # The same checks CI runs: nothing is released that CI would refuse.
+      - run: npm run manifest:check
+      - run: npm run grammars:check
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      # Serves every target pins.json gives no runtime, and vscode.dev / github.dev.
+      - name: Package
+        run: |
+          set -euo pipefail
+          flags=(--universal)
+          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
+          npm run package -- "${flags[@]}"
+      - name: Size
+        if: ${{ !cancelled() }}
+        run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vsix-universal
+          path: dist-vsix/*.vsix
+          if-no-files-found: error
+
+  attest:
+    name: Check, sum and attest the packages
+    needs: [prepare, build, universal]
+    # `build` is skipped when no target bundles a runtime; a status function lets this job run then.
+    if: >-
+      !cancelled()
+      && needs.universal.result == 'success'
+      && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    # id-token and attestations: write sign each asset's build provenance.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: vsix-*
+          path: release
+          merge-multiple: true
+      - name: One package per target, all of this version and channel
+        run: node scripts/release.mjs assets release "${VERSION}"
+      # Last, once release/ holds every asset: a user runs `sha256sum -c SHA256SUMS` on a download.
+      - name: SHA256SUMS
+        run: node scripts/release.mjs sums release
+      # Sigstore-signed SLSA provenance for every VSIX and SHA256SUMS, so
+      # `gh attestation verify <file> --repo opentidehq/vscode-extension` works on a download.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: release/*
+          if-no-files-found: error
+
+  # The tag and the GitHub Release, on the commit every package was built from, before anything reaches
+  # a store, which is permanent. GITHUB_TOKEN events start no other workflow.
+  release:
+    name: GitHub Release
+    needs: [prepare, attest]
+    if: ${{ !cancelled() && needs.attest.result == 'success' }}
+    runs-on: ubuntu-latest
+    # attestations: read for `gh attestation verify`.
+    permissions:
+      contents: write
+      attestations: read
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: release
+      - name: Create the tag and the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node scripts/release.mjs notes "${VERSION}" > "${RUNNER_TEMP}/notes.md"
+          flags=()
+          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--prerelease); fi
+          gh release create "${TAG}" release/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "opentide ${VERSION}" \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
+            "${flags[@]}"
+      # What a user downloads checks out: the sums, and each package's attestation.
+      - name: Verify the published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/published"
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${RUNNER_TEMP}/published"
+          cd "${RUNNER_TEMP}/published"
+          sha256sum --check --strict SHA256SUMS
+          for vsix in *.vsix; do
+            gh attestation verify "${vsix}" --repo "${GITHUB_REPOSITORY}"
+          done
+
+  # The two stores are independent: each needs only the GitHub Release, so one failing never blocks the
+  # other, and "Re-run failed jobs" retries only the one that failed. Both take the packages from the
+  # Release, check them against SHA256SUMS, and skip what the store already has.
+  publish-marketplace:
+    name: Publish to the Visual Studio Marketplace
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide
+    # id-token: write for the Marketplace's OIDC trusted publishing (no PAT).
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Download the Release's packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
+          (cd release && sha256sum --check --strict SHA256SUMS)
+      # One call for every package: one OIDC exchange gives one Marketplace token.
+      - name: vsce publish --oidc
+        run: |
+          set -euo pipefail
+          flags=(--oidc --skip-duplicate)
+          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
+          npx --yes "@vscode/vsce@${VSCE_VERSION}" publish "${flags[@]}" --packagePath release/*.vsix
+
+  publish-openvsx:
+    name: Publish to Open VSX
+    needs: [prepare, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://open-vsx.org/extension/opentidehq/opentide
+    # id-token: write for Open VSX trusted publishing, bound to this file name and environment.
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      # Only for the first publish of the extension, which trusted publishing cannot do; remove the
+      # secret once the trusted publisher is registered (docs/RELEASING.md).
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Download the Release's packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
+          (cd release && sha256sum --check --strict SHA256SUMS)
+      # The pre-release flag is in each package (`vsce package --pre-release`); ovsx reads it from there.
+      - name: ovsx publish
+        run: |
+          set -euo pipefail
+          if [[ -n "${OVSX_PAT}" ]]; then
+            echo "::warning::Publishing to Open VSX with the OVSX_PAT secret. Once the trusted publisher is registered, delete the secret (docs/RELEASING.md)."
+            # ovsx reads OVSX_PAT from the environment: the token never appears on a command line.
+            npx --yes "ovsx@${OVSX_VERSION}" publish --skip-duplicate --packagePath release/*.vsix
+          else
+            npx --yes "ovsx@${OVSX_VERSION}" publish --trusted-publishing --skip-duplicate --packagePath release/*.vsix
+          fi
