@@ -18,6 +18,7 @@ import {
   summaryText,
 } from "../../../src/features/sidebar/health";
 import { debounce, Loader } from "../../../src/features/sidebar/loader";
+import { uniqueIds, walk } from "../../../src/features/sidebar/node";
 import { platformFlag, platformName, platformToml } from "../../../src/features/sidebar/platformNames";
 import {
   parsePlatforms,
@@ -129,6 +130,40 @@ describe("sidebar: platforms & tenants", () => {
     const after = platformNodes(parsePlatforms(INFO), new Set(["AZURE_CLIENT_SECRET"]), "/repo");
     assert.equal(after[0]?.children?.[0]?.description, "2 of 2 credentials set · PREVIEW, RELEASE");
     assert.equal(after[0]?.children?.[0]?.iconColor, "testing.iconPassed");
+  });
+
+  it("gives two tenants of one name distinct ids (a copied [[tenants]] block)", () => {
+    const splunk = {
+      name: "splunk",
+      enabled: true,
+      can_deploy: true,
+      can_validate: true,
+      can_query: true,
+      tenants: [1, 2].map(() => ({
+        name: "Prod Splunk",
+        description: null,
+        strategies: ["RELEASE"],
+        manual: false,
+        variables: [{ name: "SPLUNK_TOKEN", set: false }],
+      })),
+    };
+    const ids: string[] = [];
+    walk(platformNodes(parsePlatforms({ platforms: [splunk] }), new Set(), "/r"), (node) =>
+      ids.push(node.id),
+    );
+    assert.equal(new Set(ids).size, ids.length, ids.join("\n"));
+  });
+
+  it("makes every id of a view unique, whatever a view model gives", () => {
+    const leaf = (id: string) => ({ id, label: id });
+    const nodes = uniqueIds([
+      { ...leaf("a"), children: [leaf("a/x")] },
+      { ...leaf("a"), children: [leaf("a/x")] },
+      leaf("b"),
+    ]);
+    const ids: string[] = [];
+    walk(nodes, (node) => ids.push(node.id));
+    assert.deepEqual(ids, ["a", "a/x", "a#2", "a/x#2", "b"]);
   });
 
   it("says tenants need a newer opentide when info has none", () => {

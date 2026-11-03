@@ -126,3 +126,20 @@ export function walk(
     if (node.children) walk(node.children, visit, node);
   }
 }
+
+/**
+ * The nodes with every id unique: a repeat gets `#2`, `#3`, … VS Code refuses a tree with two elements of
+ * one id ("already registered") and stops drawing it, so a configuration mistake must never reach it.
+ */
+export function uniqueIds(nodes: readonly TreeNode[]): TreeNode[] {
+  const seen = new Map<string, number>();
+  const visit = (node: TreeNode): TreeNode => {
+    const count = (seen.get(node.id) ?? 0) + 1;
+    seen.set(node.id, count);
+    const id = count === 1 ? node.id : `${node.id}#${count}`;
+    const children = node.children?.map(visit);
+    if (id === node.id && children === undefined) return node;
+    return { ...node, id, ...(children ? { children } : {}) };
+  };
+  return nodes.map(visit);
+}

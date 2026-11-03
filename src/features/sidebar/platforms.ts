@@ -123,7 +123,9 @@ export function platformNodes(
           }),
         );
       } else {
-        for (const tenant of p.tenants) children.push(tenantNode(tenant, p.name, stored, folder, id));
+        p.tenants.forEach((tenant, index) => {
+          children.push(tenantNode(tenant, p.name, stored, folder, id, index));
+        });
       }
     }
     const tenants = p.tenants?.length ?? 0;
@@ -160,8 +162,10 @@ function tenantNode(
   stored: ReadonlySet<string>,
   folder: string,
   parentId: string,
+  index: number,
 ): TreeNode {
-  const id = `${parentId}/tenant:${tenant.name}`;
+  // The index too: a copied `[[tenants]]` block not renamed yet gives two tenants of one name.
+  const id = `${parentId}/tenant:${index}:${tenant.name}`;
   const sources = tenant.variables.map((v) => variableSource(v, stored));
   const set = sources.filter((s) => s !== "unset").length;
   const all = set === tenant.variables.length;
