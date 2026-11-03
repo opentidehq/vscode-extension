@@ -68,6 +68,16 @@ describe("credential store", () => {
     assert.ok(![...storage.map.keys()].some((key) => key.includes("/a")), "folder paths are hashed in keys");
     await assert.rejects(store.set("/a", "not a name", "x"));
   });
+
+  it("keeps a variable named `index` apart from the index of names", async () => {
+    const store = new CredentialStore(secrets());
+    await store.set("/ws", "A", "alpha");
+    await store.set("/ws", "index", "hunter2-secret");
+    assert.deepEqual(await store.env("/ws"), { A: "alpha", index: "hunter2-secret" });
+    await store.delete("/ws", "index");
+    assert.deepEqual(await store.names("/ws"), ["A"]);
+    assert.deepEqual(await store.env("/ws"), { A: "alpha" });
+  });
 });
 
 describe("opentide folders", () => {
