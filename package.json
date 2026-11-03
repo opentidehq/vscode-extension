@@ -6,6 +6,10 @@
   "publisher": "opentidehq",
   "license": "MIT",
   "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0b213f",
+    "theme": "dark"
+  },
   "homepage": "https://github.com/opentidehq/vscode-extension#readme",
   "repository": {
     "type": "git",
@@ -14,6 +18,8 @@
   "bugs": {
     "url": "https://github.com/opentidehq/vscode-extension/issues"
   },
+  "qna": false,
+  "pricing": "Free",
   "engines": {
     "vscode": "^1.91.0"
   },
