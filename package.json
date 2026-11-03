@@ -71,6 +71,7 @@
     "onLanguage:kuery",
     "onLanguage:lucene",
     "onLanguage:falco",
+    "onMcpCollection:opentide",
     "onTaskType:opentide",
     "onTerminalProfile:opentide.terminal"
   ],
@@ -332,6 +333,28 @@
         }
       },
       {
+        "id": "opentide-agents",
+        "title": "opentide: Agents",
+        "properties": {
+          "opentide.mcp.provide": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "default": "auto",
+            "scope": "window",
+            "enumDescriptions": [
+              "Provide the opentide MCP server to VS Code's agents, unless the workspace's `.vscode/mcp.json` already defines `opentide`.",
+              "Always provide it; VS Code shows one `opentide` server when a workspace file defines one too.",
+              "Never provide it."
+            ],
+            "markdownDescription": "Whether the extension gives VS Code's agents the opentide MCP server (`opentide mcp start` with the resolved runtime, the bundled one included). Off in Restricted Mode, where this setting is not read."
+          }
+        }
+      },
+      {
         "id": "opentide-terminal",
         "title": "opentide: Terminal",
         "properties": {
@@ -380,6 +403,12 @@
         "command": "opentide.showReferences",
         "title": "Show References",
         "category": "opentide"
+      },
+      {
+        "command": "opentide.agents.addToEditorMcp",
+        "title": "Add opentide to This Editor's MCP Settings",
+        "category": "opentide",
+        "icon": "$(plug)"
       },
       {
         "command": "opentide.runner.run",
@@ -471,6 +500,10 @@
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
         },
         {
+          "command": "opentide.agents.addToEditorMcp",
+          "when": "isWorkspaceTrusted && opentide.agents.forkMcp"
+        },
+        {
           "command": "opentide.runner.showLastResult",
           "when": "isWorkspaceTrusted"
         },
@@ -515,6 +548,53 @@
         }
       ]
     },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "opentide",
+        "label": "opentide"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "opentide_open_file_diagnostics",
+        "displayName": "opentide: File Diagnostics",
+        "toolReferenceName": "opentideDiagnostics",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(warning)",
+        "userDescription": "The problems VS Code shows for a file: the language server's, opentide validate's and lint's.",
+        "modelDescription": "Returns every diagnostic VS Code currently shows for one file, merged across the opentide language server, `opentide validate` and `opentide lint` (and other extensions), with severity, source, code, message and 1-based line/column ranges. Use it for the live state of a file the user is editing, including unsaved changes the language server has checked. Defaults to the active editor's file. For workspace-wide validation, use the opentide MCP server's tools instead.",
+        "tags": [
+          "opentide",
+          "diagnostics"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "An absolute path, or a path relative to the first workspace folder. Omit for the active editor's file."
+            }
+          }
+        }
+      },
+      {
+        "name": "opentide_active_object",
+        "displayName": "opentide: Active Object",
+        "toolReferenceName": "opentideActiveObject",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(symbol-class)",
+        "userDescription": "The Tide object in the active editor, its UUID and what it connects to.",
+        "modelDescription": "Returns the opentide object (threat, objective or rule) open in the active editor: its UUID, type, schema, name, TLP, platforms, techniques and tactics, and its graph neighbourhood one hop away (the objects, signals, ATT&CK techniques and log sources it points to or that point to it, with the edge kind and field path). Use it to learn what the user is looking at. For the whole catalogue, search or validation, use the opentide MCP server's tools instead.",
+        "tags": [
+          "opentide",
+          "catalog"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
     "grammars": [
       {
         "language": "eql",
