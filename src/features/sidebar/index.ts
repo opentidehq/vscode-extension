@@ -29,9 +29,9 @@ import { buildCoverageView } from "./coverage";
 import { type FolderResult, folderViewModel } from "./folderView";
 import {
   type DoctorCheck,
-  fixArgv,
   healthNodes,
   parseChecks,
+  planFix,
   report,
   summarize,
   summaryText,
@@ -691,17 +691,33 @@ class Sidebar implements vscode.Disposable {
 
   private async runFix(ref: NodeRef | undefined): Promise<void> {
     if (ref?.kind !== "check") return;
-    const argv = fixArgv(ref.check.fix);
-    if (!argv) return;
-    const classification = this.ctx.capabilities.classify(argv);
-    const known = (this.ctx.capabilities.current?.commandPathOf(argv).path ?? "") !== "";
-    if (!known || classification.contactsTenant) {
+    const tree = this.ctx.capabilities.current;
+    const plan = planFix(ref.check.fix, {
+      pathOf: (argv) => tree?.commandPathOf(argv).path ?? "",
+      classify: (argv) => this.ctx.capabilities.classify(argv),
+      hasOption: (path, flag) => tree?.hasOption(path, flag) ?? false,
+    });
+    if (!plan) return;
+    if (plan.kind === "replaced") {
+      void vscode.window.showInformationMessage(plan.message);
+      return;
+    }
+    if (plan.kind === "copy") {
       // Only commands this opentide has, and nothing that reaches a tenant from a click on a fix.
       await vscode.env.clipboard.writeText(ref.check.fix ?? "");
       void vscode.window.showInformationMessage(`Copied the fix to run it in a terminal: ${ref.check.fix}`);
       return;
     }
-    const result = await this.run(ref.folder, argv, `Running ${ref.check.fix}…`);
+    const shown = `opentide ${plan.argv.join(" ")}`;
+    if (plan.confirm) {
+      const choice = await vscode.window.showWarningMessage(
+        `Run \`${shown}\`? It writes files in ${path.basename(ref.folder)}.`,
+        { modal: true },
+        "Run",
+      );
+      if (choice !== "Run") return;
+    }
+    const result = await this.run(ref.folder, [...plan.argv], `Running ${shown}…`);
     if (!result || result.cancelled) return;
     if (result.exitCode !== 0) void this.showFailure(result);
     else

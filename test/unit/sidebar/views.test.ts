@@ -1,5 +1,8 @@
 import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import type { ActivityEntry } from "../../../src/core/activity";
+import { classify } from "../../../src/core/capabilities/classification";
+import { CommandTree } from "../../../src/core/capabilities/tree";
 import { newObjectHandover, ruleHandover } from "../../../src/features/sidebar/actions";
 import { activityNodes, ago, canRerun, duration, runningCount } from "../../../src/features/sidebar/activity";
 import { folderViewModel } from "../../../src/features/sidebar/folderView";
@@ -8,6 +11,7 @@ import {
   fixArgv,
   healthNodes,
   parseChecks,
+  planFix,
   redact,
   report,
   summarize,
@@ -21,7 +25,7 @@ import {
   tenantCheck,
   variableSource,
 } from "../../../src/features/sidebar/platforms";
-import { sleep, until } from "../helpers";
+import { COMMANDS_FIXTURE, sleep, until } from "../helpers";
 
 // `opentide --json info` with tenants (opentide#754), as the branch prints it.
 const INFO = {
@@ -177,6 +181,50 @@ describe("sidebar: health", () => {
     assert.equal(fixArgv("opentide validate; rm -rf /"), undefined);
     assert.equal(fixArgv("opentide"), undefined);
     assert.equal(fixArgv(null), undefined);
+  });
+
+  it("plans doctor's real fixes: confirm and --yes for writers, nothing for setup vscode", () => {
+    const tree = CommandTree.parse(JSON.parse(readFileSync(COMMANDS_FIXTURE, "utf8")));
+    const context = {
+      pathOf: (argv: readonly string[]) => tree.commandPathOf(argv).path,
+      classify,
+      hasOption: (path: string, flag: string) => tree.hasOption(path, flag),
+    };
+    assert.deepEqual(
+      planFix("opentide setup mcp --vscode (or --cursor, --claude-code, --generic)", context),
+      {
+        kind: "run",
+        argv: ["setup", "mcp", "--vscode", "--yes"],
+        confirm: true,
+      },
+    );
+    assert.deepEqual(planFix("opentide setup platforms --sentinel (or another platform)", context), {
+      kind: "run",
+      argv: ["setup", "platforms", "--sentinel", "--yes"],
+      confirm: true,
+    });
+    assert.equal(planFix("opentide setup vscode", context)?.kind, "replaced");
+    assert.deepEqual(planFix("opentide doctor --offline", context), {
+      kind: "run",
+      argv: ["doctor", "--offline"],
+      confirm: false,
+    });
+    assert.deepEqual(planFix("opentide doctor", context), { kind: "copy" }, "contacts tenants");
+    assert.deepEqual(planFix("opentide frobnicate", context), { kind: "copy" }, "not in this opentide");
+    assert.equal(planFix("git init ./", context), undefined);
+    const [vscodeFix] = healthNodes(
+      [
+        {
+          code: "vscode_settings",
+          status: "skip",
+          message: "no settings",
+          fix: "opentide setup vscode",
+          subject: null,
+        },
+      ],
+      "/repo",
+    );
+    assert.equal(vscodeFix?.contextValue, "check.fix", "no play button for what the extension replaces");
   });
 
   it("orders failures first and offers runnable fixes", () => {
