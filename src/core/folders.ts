@@ -1,4 +1,5 @@
 // Which workspace folders are opentide repositories, and their object folders. vscode-free.
+import * as fs from "node:fs";
 import * as path from "node:path";
 
 export const DEFAULT_OBJECT_FOLDERS: Readonly<Record<string, string>> = {
@@ -7,9 +8,41 @@ export const DEFAULT_OBJECT_FOLDERS: Readonly<Record<string, string>> = {
   rule: "objects/rules/",
 };
 
-/** A folder is an opentide workspace when it has `.opentide/` or `objects/`. */
-export function isOpentideFolder(folder: string, isDirectory: (dir: string) => boolean): boolean {
-  return isDirectory(path.join(folder, ".opentide")) || isDirectory(path.join(folder, "objects"));
+export interface DirEntry {
+  readonly name: string;
+  readonly directory: boolean;
+}
+
+/** A folder's entries with their exact names (symlinks followed), or none when it cannot be read. */
+export function listDir(folder: string): DirEntry[] {
+  try {
+    return fs.readdirSync(folder, { withFileTypes: true }).map((entry) => {
+      let directory = entry.isDirectory();
+      if (entry.isSymbolicLink()) {
+        try {
+          directory = fs.statSync(path.join(folder, entry.name)).isDirectory();
+        } catch {
+          directory = false;
+        }
+      }
+      return { name: entry.name, directory };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * A folder is an opentide workspace when it has `.opentide/` or `objects/`, by exact name: on a
+ * case-insensitive filesystem (APFS, NTFS) a stat of `objects` also finds a CoreTIDE `Objects/`.
+ */
+export function isOpentideFolder(
+  folder: string,
+  list: (dir: string) => readonly DirEntry[] = listDir,
+): boolean {
+  return list(folder).some(
+    (entry) => entry.directory && (entry.name === ".opentide" || entry.name === "objects"),
+  );
 }
 
 export function pathsTomlFile(folder: string): string {

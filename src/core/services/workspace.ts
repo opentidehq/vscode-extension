@@ -5,7 +5,6 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { FileChangeEvent, FolderService, OpentideFolder } from "../context";
 import { isObjectFile, isOpentideFolder, objectFolders, pathsTomlFile } from "../folders";
-import { isDirectory } from "../runtime/process";
 import { Emitter } from "../util/event";
 
 function readPathsToml(folder: string): string | undefined {
@@ -50,7 +49,7 @@ export class FolderManager implements FolderService, vscode.Disposable {
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
       if (folder.uri.scheme !== "file") continue;
       const fsPath = folder.uri.fsPath;
-      if (!isOpentideFolder(fsPath, isDirectory)) continue;
+      if (!isOpentideFolder(fsPath)) continue;
       next.push({ folder, path: fsPath, objectFolders: objectFolders(readPathsToml(fsPath)) });
     }
     const changed =
