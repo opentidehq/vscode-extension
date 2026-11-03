@@ -465,7 +465,8 @@
     "vscode:prepublish": "npm run build:production",
     "runtime:lock": "node scripts/runtime-lock.mjs",
     "runtime:build": "node scripts/runtime-build.mjs",
-    "package": "vsce package"
+    "package": "node scripts/package.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
