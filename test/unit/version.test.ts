@@ -1,7 +1,9 @@
 import * as assert from "node:assert/strict";
 import {
   atLeast,
+  checkMinimum,
   compareVersions,
+  isUntaggedDevBuild,
   MIN_OPENTIDE_VERSION,
   parseEngineVersionOutput,
   parseOpentideVersionOutput,
@@ -35,6 +37,21 @@ describe("version", () => {
     assert.ok(atLeast("0.20.1", MIN_OPENTIDE_VERSION));
     assert.ok(!atLeast("0.20.0", MIN_OPENTIDE_VERSION));
     assert.ok(!atLeast("not a version", MIN_OPENTIDE_VERSION));
+  });
+
+  it("lets an untagged dev build past the minimum, and nothing else older", () => {
+    // hatch-vcs / setuptools-scm with no release tag in the history.
+    for (const version of ["0.1.dev216+g0a65c49", "0.1.dev1", "0.1.0.dev3+g1.d20261103", "0.0.dev0"]) {
+      assert.ok(isUntaggedDevBuild(version), version);
+      assert.equal(checkMinimum(version, MIN_OPENTIDE_VERSION), "untagged", version);
+    }
+    // Real releases and dev builds from a tagged history order normally.
+    for (const version of ["0.1.0", "0.19.2", "0.20.0", "0.20.1.dev4+gabc", "0.2.dev1", "not a version"]) {
+      assert.ok(!isUntaggedDevBuild(version), version);
+      assert.equal(checkMinimum(version, MIN_OPENTIDE_VERSION), "too-old", version);
+    }
+    assert.equal(checkMinimum("0.21.1.dev3+g1234567", MIN_OPENTIDE_VERSION), "ok");
+    assert.equal(parseOpentideVersionOutput("opentide 0.1.dev216+g0a65c49\n"), "0.1.dev216+g0a65c49");
   });
 
   it("reads `opentide --version` and `opentide-lsp --version --json`", () => {

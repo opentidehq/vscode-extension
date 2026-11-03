@@ -160,6 +160,26 @@ describe("runtime resolution", () => {
     assert.match(old?.upgrade ?? "", /opentide>=0\.20\.1/);
   });
 
+  it("accepts an untagged dev build (0.1.devN, hatch-vcs without a tag) with a note, still refusing old releases", async () => {
+    const { value } = input(
+      {},
+      {},
+      {
+        onPath: { opentide: "/usr/bin/opentide" },
+        versions: { "/usr/bin/opentide": "opentide 0.1.dev216+g0a65c49", [BUNDLED]: "opentide 0.21.0" },
+      },
+    );
+    const { runtime, attempts } = await resolveRuntime(value);
+    assert.equal(runtime?.tier, 2);
+    assert.equal(runtime?.version, "0.1.dev216+g0a65c49");
+    const used = attempts.find((a) => a.outcome === "ok");
+    assert.match(used?.note ?? "", /no release tag.*0\.20\.1/);
+    assert.equal(
+      attempts.find((a) => a.outcome === "too-old"),
+      undefined,
+    );
+  });
+
   it("tier 3: uv with the repository's pin when opted in, before the workspace's environment", async () => {
     const { value, state } = input(
       { pin: { version: "0.20.1", source: "uv.lock" }, proxy: "http://proxy:3128" },
