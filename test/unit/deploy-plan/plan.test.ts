@@ -1,0 +1,230 @@
+import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import * as path from "node:path";
+import {
+  assertDryRun,
+  ciStep,
+  DeployPlanner,
+  type DeployPlanOptions,
+  deployCommand,
+  dryRunArgv,
+  dryRunCommand,
+  neededVariables,
+} from "../../../src/features/deploy-plan/argv";
+import { parseTargetArgs } from "../../../src/features/deploy-plan/index";
+import { deployedRequest, payloadDocuments, planView } from "../../../src/features/deploy-plan/plan";
+import { hostValidators } from "../../../src/features/deploy-plan/protocol";
+import { ROOT } from "../helpers";
+
+/** `opentide --json deploy --dry-run --strategy PREVIEW --all` from opentide 0.21.0 (captured). */
+const REAL = JSON.parse(
+  readFileSync(path.join(ROOT, "test", "fixtures", "panels", "deploy-dry-run.json"), "utf8"),
+);
+
+const every: DeployPlanOptions[] = [];
+for (const strategies of [["PREVIEW"], ["RELEASE"], ["PREVIEW", "RELEASE"], []] as const)
+  for (const scope of [
+    { kind: "changed" },
+    { kind: "all" },
+    { kind: "selected", uuids: ["u-1"], files: ["objects/rules/a.yaml"] },
+  ] as const)
+    for (const platform of [undefined, "sentinel"])
+      every.push({ strategies, scope, ...(platform ? { platform } : {}) });
+
+describe("deploy plan (#18)", () => {
+  it("only ever runs deploy --dry-run, for every choice the panel offers (D6)", async () => {
+    const sent: (readonly string[])[] = [];
+    const planner = new DeployPlanner(async (_folder: string, argv: readonly string[], _extra: undefined) => {
+      sent.push(argv);
+      return argv;
+    });
+    for (const options of every) await planner.plan("/w", options, undefined);
+    assert.equal(sent.length, every.length);
+    for (const argv of sent) {
+      assert.equal(argv[0], "deploy");
+      assert.equal(argv[1], "--dry-run");
+      assert.ok(!argv.includes("migrate-state"));
+    }
+  });
+
+  it("refuses an argv without --dry-run", () => {
+    assert.throws(() => assertDryRun(["deploy", "--strategy", "PREVIEW"]), /only previews/);
+    assert.throws(() => assertDryRun(["deploy", "migrate-state", "--dry-run"]));
+    assert.throws(() => assertDryRun(["query", "--dry-run"]));
+    assert.doesNotThrow(() => assertDryRun(["deploy", "--dry-run"]));
+  });
+
+  it("builds the dry run, the deploy command to copy, and the CI step", () => {
+    const options: DeployPlanOptions = {
+      strategies: ["RELEASE"],
+      scope: { kind: "selected", uuids: ["u-1"], files: ["objects/rules/my rule.yaml"] },
+      platform: "splunk",
+    };
+    assert.deepEqual(dryRunArgv(options), [
+      "deploy",
+      "--dry-run",
+      "--strategy",
+      "RELEASE",
+      "--uuid",
+      "u-1",
+      "--file",
+      "objects/rules/my rule.yaml",
+      "--platform",
+      "splunk",
+    ]);
+    assert.equal(
+      deployCommand(options),
+      "opentide deploy --strategy RELEASE --uuid u-1 --file 'objects/rules/my rule.yaml' --platform splunk",
+    );
+    assert.ok(!deployCommand(options).includes("--dry-run"));
+    assert.equal(
+      dryRunCommand({ strategies: ["PREVIEW"], scope: { kind: "all" } }),
+      "opentide deploy --dry-run --strategy PREVIEW --all",
+    );
+    assert.equal(
+      ciStep({ strategies: ["PREVIEW"], scope: { kind: "changed" } }, ["SPLUNK_TOKEN"]),
+      `- name: Deploy detections (PREVIEW)\n  run: opentide deploy --strategy PREVIEW\n  env:\n    SPLUNK_TOKEN: \${{ secrets.SPLUNK_TOKEN }}\n`,
+    );
+    assert.deepEqual(dryRunArgv({ strategies: [], scope: { kind: "changed" } }), [
+      "deploy",
+      "--dry-run",
+      "--strategy",
+      "PREVIEW",
+    ]);
+  });
+
+  it("reads the variables a real deploy needs from the plan's warnings", () => {
+    assert.deepEqual(neededVariables(REAL.warnings), ["SPLUNK_TOKEN"]);
+    assert.deepEqual(neededVariables(["sentinel has no tenants configured"]), []);
+  });
+
+  it("matches opentide's changes: platform → tenant → rule → action, with counts", () => {
+    const plan = planView(REAL);
+    assert.equal(plan.message, REAL.message);
+    assert.deepEqual(
+      plan.platforms.map((p) => p.platform),
+      ["splunk", "sentinel"],
+    );
+    const splunk = plan.platforms[0];
+    assert.deepEqual(
+      splunk?.tenants.map((t) => [t.tenant, t.changes.map((c) => [c.name, c.action, c.status])]),
+      [
+        ["prod", [["Suspicious LSASS Access 0", "upsert", "STAGING"]]],
+        ["dev", [["Suspicious LSASS Access 0", "upsert", "STAGING"]]],
+      ],
+    );
+    const sentinel = plan.platforms[1];
+    assert.equal(sentinel?.tenants[0]?.tenant, null, "no tenant configured yet");
+    assert.equal(sentinel?.missingTenants, ".opentide/configurations/platforms/sentinel.toml");
+    assert.equal(plan.counts.upsert, REAL.summary.upsert);
+    assert.equal(
+      plan.platforms.flatMap((p) => p.tenants.flatMap((t) => t.changes)).length,
+      REAL.changes.length,
+      "every change of the document is shown",
+    );
+    assert.deepEqual(
+      plan.skipped.map((s) => [s.rule, s.status, s.strategy]),
+      [["Suspicious LSASS Access 1", "DESIGN", "INERT"]],
+    );
+  });
+
+  it("opens every payload as a document", () => {
+    const plan = planView(REAL);
+    const documents = payloadDocuments(REAL);
+    const rows = plan.platforms.flatMap((p) => p.payloads);
+    assert.equal(rows.length, 2);
+    for (const row of rows) {
+      assert.ok(row.hasRequest);
+      assert.ok(documents.get(row.key)?.request, row.key);
+      assert.equal(row.hasDeployed, false, "0.21.0 plans carry no deployed state");
+    }
+  });
+
+  it("shows compile failures, diagnostics and unmatched selections", () => {
+    const plan = planView({
+      ok: false,
+      exit_code: 1,
+      message: "1 rule would fail",
+      changes: [
+        {
+          platform: "sentinel",
+          tenant: "prod",
+          uuid: "u",
+          name: "R",
+          status: "STAGING",
+          action: "create",
+          fails: true,
+        },
+      ],
+      payloads: {
+        sentinel: [
+          {
+            uuid: "u",
+            name: "R",
+            api_request: null,
+            status: "failed",
+            code: "compile_missing_field",
+            error: "no grouping",
+            help: "add grouping",
+          },
+        ],
+      },
+      diagnostics: [
+        {
+          code: "compile_missing_field",
+          severity: "error",
+          message: "no grouping",
+          help: "add grouping",
+          path: "objects/rules/r.yaml",
+          file_path: "/w/objects/rules/r.yaml",
+          platform: "sentinel",
+          uuid: "u",
+          name: "R",
+        },
+      ],
+      unmatched: ["nope.yaml"],
+      failure: { code: "command_failed", message: "1 rule would fail" },
+    });
+    assert.equal(plan.counts.create, 0, "a failing rule is not counted");
+    assert.equal(plan.platforms[0]?.payloads[0]?.failed, true);
+    assert.equal(plan.platforms[0]?.payloads[0]?.hasRequest, false);
+    assert.equal(plan.diagnostics[0]?.filePath, "/w/objects/rules/r.yaml");
+    assert.deepEqual(plan.unmatched, ["nope.yaml"]);
+    assert.equal(plan.failure?.code, "command_failed");
+  });
+
+  it("diffs against what is deployed when a payload carries it", () => {
+    assert.deepEqual(deployedRequest({ deployed_request: { a: 1 } }), { a: 1 });
+    assert.equal(deployedRequest({ api_request: {} }), undefined);
+    const documents = payloadDocuments({
+      payloads: { splunk: [{ uuid: "u", name: "R", api_request: { b: 2 }, deployed: { b: 1 } }] },
+    });
+    assert.deepEqual(documents.get("splunk/u")?.deployed, { b: 1 });
+  });
+
+  it("parses the command's arguments", () => {
+    const uri = (p: string) => ({ fsPath: p, scheme: "file" });
+    assert.deepEqual(parseTargetArgs(uri("/w/a.yaml"), [uri("/w/a.yaml"), uri("/w/b.yaml")]).uris, [
+      "/w/a.yaml",
+      "/w/b.yaml",
+    ]);
+    assert.deepEqual(parseTargetArgs(uri("/w/a.yaml"), undefined).uris, ["/w/a.yaml"]);
+    assert.deepEqual(parseTargetArgs({ uuid: "u", folder: "/w" }, undefined), {
+      uris: [],
+      uuids: ["u"],
+      files: [],
+      folder: "/w",
+    });
+    assert.deepEqual(parseTargetArgs(undefined, undefined), { uris: [], uuids: [], files: [] });
+  });
+
+  it("validates the webview's run requests", () => {
+    assert.ok(hostValidators.run({ strategies: ["PREVIEW"], scope: "all", platform: null }));
+    assert.ok(!hostValidators.run({ strategies: ["PRODUCTION"], scope: "all", platform: null }));
+    assert.ok(!hostValidators.run({ strategies: [], scope: "all", platform: null }));
+    assert.ok(!hostValidators.run({ strategies: ["PREVIEW"], scope: "everything", platform: null }));
+    assert.ok(!hostValidators.run({ strategies: ["PREVIEW"], scope: "all", platform: "x; rm" }));
+    assert.ok(hostValidators.copy("ci"));
+    assert.ok(!hostValidators.copy("deployNow"));
+  });
+});

@@ -1,0 +1,148 @@
+{
+  "deployed": ["splunk"],
+  "dry_run": true,
+  "plan": {
+    "splunk": ["ff8bf67e-64dc-460d-b5df-48db643f3560"],
+    "sentinel": ["ff8bf67e-64dc-460d-b5df-48db643f3560"]
+  },
+  "changes": [
+    {
+      "platform": "splunk",
+      "tenant": "prod",
+      "uuid": "ff8bf67e-64dc-460d-b5df-48db643f3560",
+      "name": "Suspicious LSASS Access 0",
+      "status": "STAGING",
+      "action": "upsert"
+    },
+    {
+      "platform": "splunk",
+      "tenant": "dev",
+      "uuid": "ff8bf67e-64dc-460d-b5df-48db643f3560",
+      "name": "Suspicious LSASS Access 0",
+      "status": "STAGING",
+      "action": "upsert"
+    },
+    {
+      "platform": "sentinel",
+      "tenant": null,
+      "uuid": "ff8bf67e-64dc-460d-b5df-48db643f3560",
+      "name": "Suspicious LSASS Access 0",
+      "status": "STAGING",
+      "action": "upsert"
+    }
+  ],
+  "strategies": ["PREVIEW"],
+  "payloads": {
+    "splunk": [
+      {
+        "uuid": "ff8bf67e-64dc-460d-b5df-48db643f3560",
+        "name": "Suspicious LSASS Access 0",
+        "api_request": {
+          "enabled": true,
+          "name": "",
+          "schema": null,
+          "status": "STAGING",
+          "flags": null,
+          "tenants": null,
+          "contributors": null,
+          "query": "index=main sourcetype=sysmon EventCode=10\n| head 10\n",
+          "scheduling": {
+            "type": "cron",
+            "expires": null,
+            "schedule": {
+              "frequency": null,
+              "cron": "0 * * * *",
+              "custom_time": null
+            },
+            "timerange": {
+              "lookback": null,
+              "earliest": "-1h",
+              "latest": "now"
+            }
+          },
+          "trigger": null,
+          "actions": null,
+          "correlation_search": null
+        }
+      }
+    ],
+    "sentinel": [
+      {
+        "uuid": "ff8bf67e-64dc-460d-b5df-48db643f3560",
+        "name": "Suspicious LSASS Access 0",
+        "api_request": {
+          "kind": "Scheduled",
+          "properties": {
+            "enabled": true,
+            "query": "DeviceProcessEvents\n| where FileName =~ \"rundll32.exe\"\n| take 10\n",
+            "suppressionEnabled": false,
+            "suppressionDuration": "PT01H00M00S",
+            "queryFrequency": "PT01H00M00S",
+            "queryPeriod": "PT01H00M00S",
+            "alertDetailsOverride": {},
+            "eventGroupingSettings": {
+              "aggregationKind": "SingleAlert"
+            },
+            "incidentConfiguration": {
+              "createIncident": true,
+              "groupingConfiguration": {
+                "enabled": false,
+                "lookbackDuration": "PT01H00M00S",
+                "reopenClosedIncident": false,
+                "matchingMethod": "AllEntities"
+              }
+            },
+            "severity": "Informational",
+            "displayName": "Suspicious LSASS Access 0",
+            "description": "...\n",
+            "tactics": ["PrivilegeEscalation"],
+            "techniques": ["T1548"]
+          }
+        }
+      }
+    ]
+  },
+  "tenants": {
+    "splunk": {
+      "prod": ["ff8bf67e-64dc-460d-b5df-48db643f3560"],
+      "dev": ["ff8bf67e-64dc-460d-b5df-48db643f3560"]
+    }
+  },
+  "missing_tenants": {
+    "sentinel": ".opentide/configurations/platforms/sentinel.toml"
+  },
+  "advice": "add (or uncomment) a [[tenants]] entry in .opentide/configurations/platforms/sentinel.toml",
+  "skipped": [
+    {
+      "rule": "Suspicious LSASS Access 1",
+      "uuid": "cfc41ee3-9c6d-4e46-ae7a-f2689794de02",
+      "platform": "sentinel",
+      "status": "DESIGN",
+      "strategy": "INERT"
+    }
+  ],
+  "detail": "not in the plan: 1 rule in DESIGN; set a platform block's status to DEVELOPMENT, IMPROVING, STAGING or ACCEPTANCE for PREVIEW to deploy it",
+  "ok": true,
+  "status": "completed",
+  "message": "Plan: 0 to create, 0 to update, 3 to create or update, 0 to disable, 0 to delete",
+  "warnings": [
+    "a real deploy would need $SPLUNK_TOKEN, which is unset",
+    "sentinel has no tenants configured in .opentide/configurations/platforms/sentinel.toml, so a real deploy would stop"
+  ],
+  "schema_version": 1,
+  "command": "deploy",
+  "duration_ms": 1,
+  "exit_code": 0,
+  "summary": {
+    "create": 0,
+    "update": 0,
+    "upsert": 3,
+    "disable": 0,
+    "delete": 0,
+    "platforms": 2,
+    "tenants": 2,
+    "skipped": 1
+  },
+  "next_actions": [],
+  "failure": null
+}

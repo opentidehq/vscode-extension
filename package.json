@@ -396,6 +396,18 @@
         "category": "opentide"
       },
       {
+        "command": "opentide.deployPlan.open",
+        "title": "Preview Deploy",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "opentide.deployPlan.openChanged",
+        "title": "Preview Deploy of Changed Rules",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      },
+      {
         "command": "opentide.matrix.open",
         "title": "Open ATT&CK Matrix",
         "category": "opentide",
@@ -448,6 +460,14 @@
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
         },
         {
+          "command": "opentide.deployPlan.open",
+          "when": "opentide.trusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.deployPlan.openChanged",
+          "when": "opentide.trusted && opentide.hasCli"
+        },
+        {
           "command": "opentide.matrix.open",
           "when": "opentide.hasWorkspace"
         },
@@ -466,6 +486,20 @@
         {
           "command": "opentide.query.configureTenant",
           "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "opentide.deployPlan.open",
+          "group": "navigation@60",
+          "when": "resourceLangId == opentide-yaml && resourcePath =~ /[\\\\/]rules[\\\\/]/ && opentide.trusted && opentide.hasCli"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "opentide.deployPlan.open",
+          "group": "opentide@20",
+          "when": "resourceLangId == opentide-yaml && opentide.trusted && opentide.hasCli"
         }
       ],
       "editor/context": [
