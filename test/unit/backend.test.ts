@@ -106,6 +106,13 @@ describe("backend", () => {
     assert.equal(result.via, "spawn");
   });
 
+  it("gives the credential environment for processes of its own, only when commands can run", async () => {
+    const { instance } = make();
+    assert.deepEqual(await instance.credentialEnv(process.cwd()), { FAKE_SECRET: "s3cr3t-value" });
+    const restricted = make({ runtime: () => fakeRuntime({ restricted: true }) }).instance;
+    assert.deepEqual(await restricted.credentialEnv(process.cwd()), {});
+  });
+
   it("injects credentials only into runs that contact a tenant, and redacts them", async () => {
     const { instance, logs } = make({ serveMode: () => "never" });
     const plain = await instance.run(process.cwd(), ["echo"]);
