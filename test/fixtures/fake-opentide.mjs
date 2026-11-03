@@ -10,6 +10,8 @@
 // FAKE_QUERY_DELAY_MS waits, cancellably); `deploy --dry-run` prints panels/deploy-dry-run.json, and
 // `deploy` without --dry-run fails with `fake_real_deploy`; `generate exports navigator` reports its layer
 // file. FAKE_INFO_PLAIN=1 makes `info` with no section a usage error.
+// Graph and search: FAKE_CATALOG_FILE names a JSON file whose keys (objects, edges, signals, attack,
+// summary) `info catalog` prints; FAKE_UNREVIEWED lists the paths (comma-separated) `rules unreviewed` reports.
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -648,10 +650,10 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
         return [JSON.parse(readFileSync(join(here, "panels", "catalog.json"), "utf8")), 0];
       }
       if (rest[0] === "catalog" && process.env.FAKE_INFO_CATALOG === "1") {
-        return [
-          envelope("info", { objects: [], edges: [], signals: [], attack: { tactics: [], techniques: {} } }),
-          0,
-        ];
+        const catalog = process.env.FAKE_CATALOG_FILE
+          ? JSON.parse(readFileSync(process.env.FAKE_CATALOG_FILE, "utf8"))
+          : { objects: [], edges: [], signals: [], attack: { tactics: [], techniques: {} } };
+        return [envelope("info", catalog), 0];
       }
       return [
         envelope("info", {}, 2, {
@@ -660,6 +662,18 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
         }),
         2,
       ];
+    case "rules":
+      if (rest[0] === "unreviewed") {
+        const at = rest.indexOf("--older-than");
+        const window = at >= 0 ? rest[at + 1] : "90d";
+        const paths = (process.env.FAKE_UNREVIEWED ?? "").split(",").filter(Boolean);
+        const rules = paths.map((path) => ({ path, schema: "rule::1.1", reason: "absent", reviewed: null }));
+        return [
+          envelope("rules", { evaluated_at: "2026-11-03T00:00:00Z", window, count: rules.length, rules }),
+          0,
+        ];
+      }
+      return [envelope("rules", {}, 2, { code: "usage_missing_command", message: "Missing command." }), 2];
     default:
       return [
         envelope(name ?? "", {}, 2, { code: "usage_unknown_command", message: `No such command '${name}'.` }),
