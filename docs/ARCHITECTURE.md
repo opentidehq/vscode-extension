@@ -8,7 +8,8 @@ cross-repository interfaces are [`CONTRACTS.md`](CONTRACTS.md).
 ```text
 package.json            manifest; `contributes` and `activationEvents` are GENERATED (npm run manifest)
 contrib/                manifest fragments: core.json, grammars.json (generated), <feature>.json
-pins.json               bundled opentide, CPython, highlights zip (+SHA-256), VSIX size budget
+pins.json               bundled opentide, CPython, highlights zip (+SHA-256), runtime targets and archives, VSIX size budget
+runtime/                requirements.in and locks/<target>.txt (committed); the built runtime (not committed), see PACKAGING.md
 src/extension.ts        activate(): the core, then every feature
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts
 src/features/<id>/      one folder per feature; index.ts default-exports defineFeature(...)
@@ -17,7 +18,8 @@ webview/<name>/main.ts  a webview entry, bundled to dist/webview/<name>.js
 webview/shared/         base.css (theme variables) and channel.ts (the webview end of the message channel)
 syntaxes/               TextMate grammars, copied by scripts/grammars.mjs (never hand-written)
 language-configuration/ comment tokens, brackets and pairs per language (hand-written)
-scripts/                manifest.mjs, features-index.mjs, grammars.mjs, build.mjs (+ *-lib.mjs, tested)
+scripts/                manifest.mjs, features-index.mjs, grammars.mjs, build.mjs, runtime-lock.mjs, runtime-build.mjs,
+                        package.mjs, smoke.mjs (+ *-lib.mjs, tested)
 test/unit/              mocha in plain node (npm test); test/stubs/vscode.ts stands in for `vscode`
 test/scripts/           tests of scripts/*.mjs
 test/integration/       @vscode/test-cli, label `integration` (needs a VS Code download)
@@ -308,7 +310,11 @@ through the host.
 | `npm run manifest` / `manifest:check` | package.json from contrib/*.json |
 | `npm run grammars` / `grammars:check` | syntaxes/ and contrib/grammars.json from the pinned zip (SHA-256 checked) |
 | `npm run test:integration`, `test:restricted` | @vscode/test-cli labels (download VS Code) |
-| `npx @vscode/vsce package` | the universal VSIX |
+| `npm run runtime:lock` / `-- --check` | runtime/locks/<target>.txt from runtime/requirements.in (pins.json) |
+| `npm run runtime:build -- --target <t>` | runtime/ for one target: interpreter, closure, BUILD-INFO, SBOM, notices |
+| `npm run package -- --target <t>` / `-- --universal` | dist-vsix/opentide-<t>-<version>.vsix (+ `.size.json`), size gate |
+| `npm run smoke -- <vsix>` | runs the package's bundled opentide (`--version`, `doctor --offline`, LSP `initialize`) |
+| `npx @vscode/vsce package` | a VSIX of the working tree (use `npm run package -- --universal` for the universal one) |
 
 Unit tests import vscode-free modules directly. A module that touches a little of the VS Code API
 loads against `test/stubs/vscode.ts` (registered by `.mocharc.json`); extend the stub when needed, and
