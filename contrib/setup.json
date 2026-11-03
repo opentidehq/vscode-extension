@@ -1,0 +1,164 @@
+{
+  "$comment": "Setup wizard, welcome triggers and walkthrough (SPEC §8, #16).",
+  "activationEvents": [
+    "workspaceContains:Objects/Detection Rules/**",
+    "workspaceContains:Objects/Threat Vectors/**"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "opentide.setup.open",
+        "title": "Set Up Repository…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.setup.migrate",
+        "title": "Migrate a Legacy Layout…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.setup.agents",
+        "title": "Bring Your Agent…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.setup.step",
+        "title": "Walkthrough Step",
+        "category": "opentide"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "opentide.setup.open",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "opentide.setup.migrate",
+          "when": "isWorkspaceTrusted && opentide.setup.legacyLayout"
+        },
+        {
+          "command": "opentide.setup.agents",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "opentide.setup.step",
+          "when": "false"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount == 0",
+        "contents": "[Create a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted",
+        "contents": "This folder is not an opentide repository yet.\n[Create a Detection Repository Here](command:opentide.setup.open)\n[Open an Existing Repository](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && opentide.setup.legacyLayout",
+        "contents": "It has a legacy layout (Configurations/ and Objects/), which opentide can move into objects/ and .opentide/.\n[Migrate a Legacy Layout](command:opentide.setup.migrate)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)\n[Open an Existing Repository](command:vscode.openFolder)"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "opentide.gettingStarted",
+        "title": "Get started with opentide",
+        "description": "From an empty folder to a validated detection, its ATT&CK coverage and a deploy preview.",
+        "steps": [
+          {
+            "id": "ready",
+            "title": "opentide is ready",
+            "description": "The extension bundles opentide, so every feature works without installing Python. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
+            "media": {
+              "markdown": "media/walkthrough/ready.md"
+            },
+            "completionEvents": ["onContext:opentide.runtimeReady", "onCommand:opentide.switchRuntime"]
+          },
+          {
+            "id": "setup",
+            "title": "Set up a detection repository",
+            "description": "A wizard over `opentide setup`: platforms, CI, agents and hooks. Review lists every file before anything is written.\n[Set Up Repository…](command:opentide.setup.open)",
+            "media": {
+              "svg": "media/walkthrough/setup.svg",
+              "altText": "The setup wizard's Review step, listing the files opentide setup will create or merge."
+            },
+            "completionEvents": ["onContext:opentide.hasWorkspace", "onContext:opentide.setup.done"]
+          },
+          {
+            "id": "create",
+            "title": "Create your first detection",
+            "description": "Start a rule from a template, then fill its placeholders with Tab.\n[New Rule…](command:opentide.setup.step?%5B%22create%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/create.md"
+            },
+            "completionEvents": [
+              "onCommand:opentide.newObject.rule",
+              "onCommand:opentide.newObject",
+              "onContext:opentide.setup.created",
+              "onContext:opentide.setup.hasRule"
+            ]
+          },
+          {
+            "id": "validate",
+            "title": "Validate it",
+            "description": "Problems fill as you type; Validate checks the whole repository as CI does.\n[Validate Workspace](command:opentide.setup.step?%5B%22validate%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/validate.md"
+            },
+            "completionEvents": [
+              "onContext:opentide.setup.validated",
+              "onCommand:opentide.diagnostics.validateWorkspace"
+            ]
+          },
+          {
+            "id": "fit",
+            "title": "See how it fits",
+            "description": "The graph shows what the rule implements; the ATT&CK matrix shows what the repository covers.\n[Show the Graph](command:opentide.setup.step?%5B%22graph%22%5D)\n[Open the ATT&CK Matrix](command:opentide.setup.step?%5B%22matrix%22%5D)",
+            "media": {
+              "svg": "media/walkthrough/fit.svg",
+              "altText": "A threat, its objective and two rules, and the ATT&CK technique they cover."
+            },
+            "completionEvents": [
+              "onCommand:opentide.graph.reveal",
+              "onCommand:opentide.graph.open",
+              "onCommand:opentide.matrix.open",
+              "onCommand:opentide.sidebar.openMatrix"
+            ]
+          },
+          {
+            "id": "deploy",
+            "title": "Preview a deploy",
+            "description": "A dry run: what each rule would send to each tenant, sending nothing.\n[Preview a Deploy](command:opentide.setup.step?%5B%22deploy%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/deploy.md"
+            },
+            "completionEvents": ["onContext:opentide.setup.deployPreviewed"]
+          },
+          {
+            "id": "agent",
+            "title": "Bring your agent",
+            "description": "MCP is on for VS Code agents. Add opentide to Cursor or Claude Code, and install the opentidehq/skills Agent Plugin (recommended).\n[Bring Your Agent…](command:opentide.setup.agents)\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/agent.md"
+            },
+            "completionEvents": [
+              "onContext:opentide.setup.agentReady",
+              "onCommand:opentide.agents.addToEditorMcp"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

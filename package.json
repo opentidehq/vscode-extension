@@ -80,7 +80,9 @@
     "onLanguage:falco",
     "onMcpCollection:opentide",
     "onTaskType:opentide",
-    "onTerminalProfile:opentide.terminal"
+    "onTerminalProfile:opentide.terminal",
+    "workspaceContains:Objects/Detection Rules/**",
+    "workspaceContains:Objects/Threat Vectors/**"
   ],
   "contributes": {
     "languages": [
@@ -634,6 +636,197 @@
         "title": "Open TUI in Terminal",
         "category": "opentide",
         "icon": "$(table)"
+      },
+      {
+        "command": "opentide.setup.open",
+        "title": "Set Up Repository…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.setup.migrate",
+        "title": "Migrate a Legacy Layout…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.setup.agents",
+        "title": "Bring Your Agent…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.setup.step",
+        "title": "Walkthrough Step",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.sidebar.open",
+        "title": "Open",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.sidebar.refresh",
+        "title": "Refresh",
+        "category": "opentide",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "opentide.sidebar.refreshCatalogue",
+        "title": "Refresh Catalogue",
+        "category": "opentide",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "opentide.sidebar.refreshPlatforms",
+        "title": "Refresh Platforms",
+        "category": "opentide",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "opentide.sidebar.refreshHealth",
+        "title": "Run Doctor",
+        "category": "opentide",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "opentide.sidebar.checkOnline",
+        "title": "Run Doctor with Network Checks",
+        "category": "opentide",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "opentide.sidebar.groupBy",
+        "title": "Group Catalogue By…",
+        "category": "opentide",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "opentide.sidebar.filter",
+        "title": "Filter Catalogue…",
+        "category": "opentide",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "opentide.sidebar.clearFilter",
+        "title": "Clear Catalogue Filter",
+        "category": "opentide",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "opentide.sidebar.validate",
+        "title": "Validate",
+        "category": "opentide",
+        "icon": "$(check)"
+      },
+      {
+        "command": "opentide.sidebar.copyUuid",
+        "title": "Copy UUID",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.sidebar.revealInExplorer",
+        "title": "Reveal in Explorer View",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.sidebar.showInGraph",
+        "title": "Show in Graph",
+        "category": "opentide",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "opentide.sidebar.newObject",
+        "title": "New Object…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.sidebar.newRuleForObjective",
+        "title": "New Rule for This Objective…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.sidebar.newObjectiveForThreat",
+        "title": "New Objective for This Threat…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.sidebar.sharePreview",
+        "title": "Preview Sharing",
+        "category": "opentide",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "opentide.sidebar.openMatrix",
+        "title": "Open ATT&CK Matrix",
+        "category": "opentide",
+        "icon": "$(table)"
+      },
+      {
+        "command": "opentide.sidebar.enablePlatform",
+        "title": "Enable Platform",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.sidebar.openPlatformToml",
+        "title": "Open Platform Configuration",
+        "category": "opentide",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "opentide.sidebar.setCredential",
+        "title": "Set Credential…",
+        "category": "opentide",
+        "icon": "$(key)"
+      },
+      {
+        "command": "opentide.sidebar.clearCredential",
+        "title": "Remove Stored Credential",
+        "category": "opentide",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "opentide.sidebar.checkCredentials",
+        "title": "Check Credentials (doctor)",
+        "category": "opentide",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "opentide.sidebar.runFix",
+        "title": "Run Fix",
+        "category": "opentide",
+        "icon": "$(play)"
+      },
+      {
+        "command": "opentide.sidebar.copyFix",
+        "title": "Copy Fix",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.sidebar.copyReport",
+        "title": "Copy Doctor Report (Redacted)",
+        "category": "opentide",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "opentide.sidebar.rerun",
+        "title": "Run Again",
+        "category": "opentide",
+        "icon": "$(debug-rerun)"
+      },
+      {
+        "command": "opentide.sidebar.copyCommand",
+        "title": "Copy Command Line",
+        "category": "opentide",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "opentide.sidebar.clearActivity",
+        "title": "Clear Activity",
+        "category": "opentide",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -773,6 +966,134 @@
         {
           "command": "opentide.runner.openTui",
           "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.setup.open",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "opentide.setup.migrate",
+          "when": "isWorkspaceTrusted && opentide.setup.legacyLayout"
+        },
+        {
+          "command": "opentide.setup.agents",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "opentide.setup.step",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.sharePreview",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.newObjectiveForThreat",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.newRuleForObjective",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.open",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.refresh",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.validate",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.copyUuid",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.revealInExplorer",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.showInGraph",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.openMatrix",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.enablePlatform",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.openPlatformToml",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.setCredential",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.clearCredential",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.checkCredentials",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.runFix",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.copyFix",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.rerun",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.copyCommand",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.newObject",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.refreshCatalogue",
+          "when": "isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.sidebar.refreshPlatforms",
+          "when": "isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.sidebar.refreshHealth",
+          "when": "isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.sidebar.checkOnline",
+          "when": "isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.sidebar.copyReport",
+          "when": "isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.sidebar.groupBy",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.sidebar.filter",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.sidebar.clearFilter",
+          "when": "opentide.sidebar.filtered"
         }
       ],
       "editor/title": [
@@ -809,6 +1130,200 @@
           "command": "opentide.newObject.newFile.rule",
           "when": "isWorkspaceTrusted && opentide.hasCli",
           "group": "file"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "opentide.sidebar.newObject",
+          "when": "view == opentide.sidebar.catalogue && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opentide.sidebar.refreshCatalogue",
+          "when": "view == opentide.sidebar.catalogue && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
+          "group": "navigation@2"
+        },
+        {
+          "command": "opentide.sidebar.filter",
+          "when": "view == opentide.sidebar.catalogue && opentide.hasWorkspace && !opentide.sidebar.filtered",
+          "group": "navigation@3"
+        },
+        {
+          "command": "opentide.sidebar.clearFilter",
+          "when": "view == opentide.sidebar.catalogue && opentide.sidebar.filtered",
+          "group": "navigation@3"
+        },
+        {
+          "command": "opentide.sidebar.groupBy",
+          "when": "view == opentide.sidebar.catalogue && opentide.hasWorkspace",
+          "group": "navigation@4"
+        },
+        {
+          "command": "opentide.sidebar.openMatrix",
+          "when": "view == opentide.sidebar.coverage && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opentide.sidebar.refreshCatalogue",
+          "when": "view == opentide.sidebar.coverage && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
+          "group": "navigation@2"
+        },
+        {
+          "command": "opentide.sidebar.refreshPlatforms",
+          "when": "view == opentide.sidebar.platforms && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opentide.sidebar.refreshHealth",
+          "when": "view == opentide.sidebar.health && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opentide.sidebar.copyReport",
+          "when": "view == opentide.sidebar.health && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
+          "group": "navigation@2"
+        },
+        {
+          "command": "opentide.sidebar.checkOnline",
+          "when": "view == opentide.sidebar.health && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
+          "group": "more@1"
+        },
+        {
+          "command": "opentide.sidebar.clearActivity",
+          "when": "view == opentide.sidebar.activity",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "opentide.sidebar.validate",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "inline@1"
+        },
+        {
+          "command": "opentide.sidebar.validate",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "1_check@1"
+        },
+        {
+          "command": "opentide.sidebar.showInGraph",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
+          "group": "2_show@1"
+        },
+        {
+          "command": "opentide.sidebar.sharePreview",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "2_show@2"
+        },
+        {
+          "command": "opentide.sidebar.newRuleForObjective",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.objective && isWorkspaceTrusted && opentide.hasCli",
+          "group": "3_new@1"
+        },
+        {
+          "command": "opentide.sidebar.newObjectiveForThreat",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.threat && isWorkspaceTrusted && opentide.hasCli",
+          "group": "3_new@1"
+        },
+        {
+          "command": "opentide.sidebar.newObject",
+          "when": "view == opentide.sidebar.coverage && viewItem =~ /^technique/ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "3_new@1"
+        },
+        {
+          "command": "opentide.sidebar.openMatrix",
+          "when": "view == opentide.sidebar.coverage && viewItem =~ /^technique/ && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
+          "group": "2_show@1"
+        },
+        {
+          "command": "opentide.sidebar.copyUuid",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./",
+          "group": "9_copy@1"
+        },
+        {
+          "command": "opentide.sidebar.revealInExplorer",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./",
+          "group": "9_copy@2"
+        },
+        {
+          "command": "opentide.sidebar.enablePlatform",
+          "when": "view == opentide.sidebar.platforms && viewItem == platform.disabled && isWorkspaceTrusted && opentide.hasCli",
+          "group": "inline@1"
+        },
+        {
+          "command": "opentide.sidebar.enablePlatform",
+          "when": "view == opentide.sidebar.platforms && viewItem == platform.disabled && isWorkspaceTrusted && opentide.hasCli",
+          "group": "1_setup@1"
+        },
+        {
+          "command": "opentide.sidebar.openPlatformToml",
+          "when": "view == opentide.sidebar.platforms && viewItem == platform.enabled",
+          "group": "inline@1"
+        },
+        {
+          "command": "opentide.sidebar.openPlatformToml",
+          "when": "view == opentide.sidebar.platforms && viewItem == platform.enabled",
+          "group": "1_setup@2"
+        },
+        {
+          "command": "opentide.sidebar.setCredential",
+          "when": "view == opentide.sidebar.platforms && (viewItem == tenant.credentials || viewItem =~ /^variable\\./) && isWorkspaceTrusted && opentide.hasCli",
+          "group": "inline@1"
+        },
+        {
+          "command": "opentide.sidebar.setCredential",
+          "when": "view == opentide.sidebar.platforms && (viewItem == tenant.credentials || viewItem =~ /^variable\\./) && isWorkspaceTrusted && opentide.hasCli",
+          "group": "1_credentials@1"
+        },
+        {
+          "command": "opentide.sidebar.checkCredentials",
+          "when": "view == opentide.sidebar.platforms && viewItem =~ /^tenant/ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "inline@2"
+        },
+        {
+          "command": "opentide.sidebar.checkCredentials",
+          "when": "view == opentide.sidebar.platforms && viewItem =~ /^tenant/ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "1_credentials@2"
+        },
+        {
+          "command": "opentide.sidebar.clearCredential",
+          "when": "view == opentide.sidebar.platforms && viewItem == variable.stored",
+          "group": "1_credentials@3"
+        },
+        {
+          "command": "opentide.sidebar.runFix",
+          "when": "view == opentide.sidebar.health && viewItem =~ /^check(\\.fixLine)?\\.runnable$/ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "inline@1"
+        },
+        {
+          "command": "opentide.sidebar.runFix",
+          "when": "view == opentide.sidebar.health && viewItem =~ /^check(\\.fixLine)?\\.runnable$/ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "1_fix@1"
+        },
+        {
+          "command": "opentide.sidebar.copyFix",
+          "when": "view == opentide.sidebar.health && viewItem =~ /^check\\.(runnable|fix|fixLine)/",
+          "group": "1_fix@2"
+        },
+        {
+          "command": "opentide.sidebar.rerun",
+          "when": "view == opentide.sidebar.activity && viewItem == run.rerunnable && isWorkspaceTrusted && opentide.hasCli",
+          "group": "inline@1"
+        },
+        {
+          "command": "opentide.sidebar.rerun",
+          "when": "view == opentide.sidebar.activity && viewItem == run.rerunnable && isWorkspaceTrusted && opentide.hasCli",
+          "group": "1_run@1"
+        },
+        {
+          "command": "opentide.sidebar.copyCommand",
+          "when": "view == opentide.sidebar.activity && viewItem =~ /^run/",
+          "group": "inline@2"
+        },
+        {
+          "command": "opentide.sidebar.copyCommand",
+          "when": "view == opentide.sidebar.activity && viewItem =~ /^run/",
+          "group": "1_run@2"
         }
       ]
     },
@@ -1001,6 +1516,257 @@
           "id": "opentide.terminal",
           "title": "opentide",
           "icon": "terminal"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount == 0",
+        "contents": "[Create a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted",
+        "contents": "This folder is not an opentide repository yet.\n[Create a Detection Repository Here](command:opentide.setup.open)\n[Open an Existing Repository](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && opentide.setup.legacyLayout",
+        "contents": "It has a legacy layout (Configurations/ and Objects/), which opentide can move into objects/ and .opentide/.\n[Migrate a Legacy Layout](command:opentide.setup.migrate)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)\n[Open an Existing Repository](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount == 0",
+        "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && !isWorkspaceTrusted",
+        "contents": "Trust this folder to load the catalogue. In Restricted Mode only the language server runs.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
+        "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount == 0",
+        "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && !isWorkspaceTrusted",
+        "contents": "Trust this folder to see its ATT&CK coverage.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
+        "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount == 0",
+        "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && !isWorkspaceTrusted",
+        "contents": "Trust this folder to see its platforms and tenants.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
+        "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount == 0",
+        "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && !isWorkspaceTrusted",
+        "contents": "Trust this folder to run opentide doctor.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
+        "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace",
+        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace",
+        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace",
+        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.needsCatalog",
+        "contents": "Coverage needs a newer opentide: one whose `opentide info` has the `catalog` section.\n[Switch Runtime…](command:opentide.switchRuntime)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.coverageEmpty",
+        "contents": "No object names an ATT&CK technique yet. Add techniques to an objective or a rule to see what they cover.\n[New Object…](command:opentide.sidebar.newObject)"
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.catalogueEmpty",
+        "contents": "No detections yet. Create a threat, an objective or a rule from a template.\n[New Object…](command:opentide.sidebar.newObject)"
+      },
+      {
+        "view": "opentide.sidebar.activity",
+        "contents": "No commands yet. Every opentide command the extension runs shows here, with its status and its command line, ready to copy into a terminal or CI."
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "opentide.gettingStarted",
+        "title": "Get started with opentide",
+        "description": "From an empty folder to a validated detection, its ATT&CK coverage and a deploy preview.",
+        "steps": [
+          {
+            "id": "ready",
+            "title": "opentide is ready",
+            "description": "The extension bundles opentide, so every feature works without installing Python. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
+            "media": {
+              "markdown": "media/walkthrough/ready.md"
+            },
+            "completionEvents": [
+              "onContext:opentide.runtimeReady",
+              "onCommand:opentide.switchRuntime"
+            ]
+          },
+          {
+            "id": "setup",
+            "title": "Set up a detection repository",
+            "description": "A wizard over `opentide setup`: platforms, CI, agents and hooks. Review lists every file before anything is written.\n[Set Up Repository…](command:opentide.setup.open)",
+            "media": {
+              "svg": "media/walkthrough/setup.svg",
+              "altText": "The setup wizard's Review step, listing the files opentide setup will create or merge."
+            },
+            "completionEvents": [
+              "onContext:opentide.hasWorkspace",
+              "onContext:opentide.setup.done"
+            ]
+          },
+          {
+            "id": "create",
+            "title": "Create your first detection",
+            "description": "Start a rule from a template, then fill its placeholders with Tab.\n[New Rule…](command:opentide.setup.step?%5B%22create%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/create.md"
+            },
+            "completionEvents": [
+              "onCommand:opentide.newObject.rule",
+              "onCommand:opentide.newObject",
+              "onContext:opentide.setup.created",
+              "onContext:opentide.setup.hasRule"
+            ]
+          },
+          {
+            "id": "validate",
+            "title": "Validate it",
+            "description": "Problems fill as you type; Validate checks the whole repository as CI does.\n[Validate Workspace](command:opentide.setup.step?%5B%22validate%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/validate.md"
+            },
+            "completionEvents": [
+              "onContext:opentide.setup.validated",
+              "onCommand:opentide.diagnostics.validateWorkspace"
+            ]
+          },
+          {
+            "id": "fit",
+            "title": "See how it fits",
+            "description": "The graph shows what the rule implements; the ATT&CK matrix shows what the repository covers.\n[Show the Graph](command:opentide.setup.step?%5B%22graph%22%5D)\n[Open the ATT&CK Matrix](command:opentide.setup.step?%5B%22matrix%22%5D)",
+            "media": {
+              "svg": "media/walkthrough/fit.svg",
+              "altText": "A threat, its objective and two rules, and the ATT&CK technique they cover."
+            },
+            "completionEvents": [
+              "onCommand:opentide.graph.reveal",
+              "onCommand:opentide.graph.open",
+              "onCommand:opentide.matrix.open",
+              "onCommand:opentide.sidebar.openMatrix"
+            ]
+          },
+          {
+            "id": "deploy",
+            "title": "Preview a deploy",
+            "description": "A dry run: what each rule would send to each tenant, sending nothing.\n[Preview a Deploy](command:opentide.setup.step?%5B%22deploy%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/deploy.md"
+            },
+            "completionEvents": [
+              "onContext:opentide.setup.deployPreviewed"
+            ]
+          },
+          {
+            "id": "agent",
+            "title": "Bring your agent",
+            "description": "MCP is on for VS Code agents. Add opentide to Cursor or Claude Code, and install the opentidehq/skills Agent Plugin (recommended).\n[Bring Your Agent…](command:opentide.setup.agents)\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/agent.md"
+            },
+            "completionEvents": [
+              "onContext:opentide.setup.agentReady",
+              "onCommand:opentide.agents.addToEditorMcp"
+            ]
+          }
+        ]
+      }
+    ],
+    "views": {
+      "opentide": [
+        {
+          "id": "opentide.sidebar.catalogue",
+          "name": "Catalogue",
+          "contextualTitle": "opentide",
+          "icon": "$(library)"
+        },
+        {
+          "id": "opentide.sidebar.coverage",
+          "name": "Coverage",
+          "contextualTitle": "opentide",
+          "icon": "$(layers)"
+        },
+        {
+          "id": "opentide.sidebar.platforms",
+          "name": "Platforms & Tenants",
+          "contextualTitle": "opentide",
+          "icon": "$(server)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "opentide.sidebar.health",
+          "name": "Health",
+          "contextualTitle": "opentide",
+          "icon": "$(heart)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "opentide.sidebar.activity",
+          "name": "Activity",
+          "contextualTitle": "opentide",
+          "icon": "$(history)",
+          "visibility": "collapsed"
         }
       ]
     }

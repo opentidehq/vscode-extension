@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 300" role="img" aria-labelledby="t d">
+  <title id="t">The setup wizard</title>
+  <desc id="d">Six steps: Repository, Platforms, CI, Agents, Extras and Review. Review lists the files each opentide setup command writes before anything is written.</desc>
+  <style>
+    .frame { fill: var(--vscode-editor-background, #1e1e1e); stroke: var(--vscode-panel-border, #444); }
+    .text { fill: var(--vscode-foreground, #ccc); font: 13px var(--vscode-font-family, sans-serif); }
+    .muted { fill: var(--vscode-descriptionForeground, #999); font: 12px var(--vscode-font-family, sans-serif); }
+    .tab { fill: var(--vscode-foreground, #ccc); font: 12px var(--vscode-font-family, sans-serif); }
+    .on { fill: var(--vscode-focusBorder, #0078d4); }
+    .badge { fill: var(--vscode-badge-background, #4d4d4d); }
+    .badgeText { fill: var(--vscode-badge-foreground, #fff); font: 11px var(--vscode-font-family, sans-serif); }
+    .code { fill: var(--vscode-textCodeBlock-background, #2a2a2a); }
+    .mono { fill: var(--vscode-foreground, #ccc); font: 12px var(--vscode-editor-font-family, monospace); }
+  </style>
+  <rect class="frame" x="1" y="1" width="558" height="298" rx="6"/>
+  <text class="text" x="20" y="32">Set up a detection repository</text>
+  <g>
+    <text class="tab" x="20" y="64">① Repository</text>
+    <text class="tab" x="112" y="64">② Platforms</text>
+    <text class="tab" x="196" y="64">③ CI</text>
+    <text class="tab" x="240" y="64">④ Agents</text>
+    <text class="tab" x="310" y="64">⑤ Extras</text>
+    <text class="tab" x="378" y="64">⑥ Review</text>
+    <rect class="on" x="378" y="70" width="62" height="2"/>
+  </g>
+  <rect class="code" x="20" y="90" width="520" height="28" rx="3"/>
+  <text class="mono" x="30" y="109">opentide setup --name Detections --platform sentinel --ci github --yes</text>
+  <g>
+    <rect class="badge" x="20" y="134" width="64" height="18" rx="9"/><text class="badgeText" x="40" y="147">new</text>
+    <text class="mono" x="96" y="147">README.md</text>
+    <rect class="badge" x="20" y="160" width="64" height="18" rx="9"/><text class="badgeText" x="40" y="173">new</text>
+    <text class="mono" x="96" y="173">.opentide/configurations/platforms/sentinel.toml</text>
+    <rect class="badge" x="20" y="186" width="64" height="18" rx="9"/><text class="badgeText" x="40" y="199">new</text>
+    <text class="mono" x="96" y="199">.github/workflows/opentide.yml</text>
+    <rect class="badge" x="20" y="212" width="64" height="18" rx="9"/><text class="badgeText" x="34" y="225">merge</text>
+    <text class="mono" x="96" y="225">.gitignore</text>
+  </g>
+  <text class="muted" x="20" y="262">Nothing is written until you apply. Copy as Script reproduces it in a terminal.</text>
+</svg>

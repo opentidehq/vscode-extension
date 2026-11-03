@@ -13,3 +13,4 @@
 !runtime/**
 dist/**/*.map
 !images/placeholder.svg
+!media/walkthrough/**

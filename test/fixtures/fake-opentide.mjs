@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // A fake `opentide` for tests: `--version`, `--json <command>` and `serve` (CONTRACTS.md).
 // FAKE_VERSION sets the version; FAKE_NO_SERVE=1 leaves `serve` out of `commands`; FAKE_LINT_FILE=1 adds
-// `lint --file` (opentide#755); FAKE_TENANTS=1 gives `info` platforms their tenants (opentide#754).
-// `validate`, `lint`, `explain` and `new` follow the real 0.21.0 shapes.
+// `lint --file` (opentide#755); FAKE_INFO_CATALOG=1 adds `info catalog`; FAKE_TENANTS=1 adds tenants to
+// `info` (opentide#754); FAKE_SETUP_PLAN=1 adds `setup --plan` and its flags (opentide#751).
+// `validate`, `lint`, `explain`, `new`, `info`, `doctor` and `setup …` follow the real shapes.
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -65,6 +66,45 @@ function commandsDocument() {
     const info = fixture.commands.find((c) => c.path === "info");
     info.arguments[0].choices.push("catalog");
   }
+  if (process.env.FAKE_SETUP_PLAN === "1") {
+    const flag = (name, extra = {}) => ({
+      name,
+      flags: [`--${name}`],
+      secondary_flags: [],
+      type: "boolean",
+      is_flag: true,
+      ...extra,
+    });
+    for (const command of fixture.commands.filter((c) => c.path.startsWith("setup"))) {
+      command.options.push(flag("plan"));
+      if (command.path !== "setup") continue;
+      const hosts = (name, choices) =>
+        flag(name, { type: "choice", is_flag: false, multiple: true, choices });
+      command.options.push(
+        hosts("mcp", ["vscode", "cursor", "claude-code", "generic"]),
+        hosts("skills", ["claude-code", "cursor", "github-copilot", "generic"]),
+        flag("plugin"),
+        flag("hooks"),
+        flag("env"),
+      );
+    }
+  }
+  if (!fixture.commands.some((c) => c.path === "migrate objects")) {
+    fixture.commands.push({
+      path: "migrate objects",
+      name: "objects",
+      summary: "Move a legacy layout into objects/ and .opentide/",
+      group: false,
+      subcommands: [],
+      deprecated: false,
+      arguments: [],
+      options: [
+        { name: "apply", flags: ["--apply"], secondary_flags: [], type: "boolean", is_flag: true },
+        { name: "copy", flags: ["--copy"], secondary_flags: [], type: "boolean", is_flag: true },
+      ],
+      output_schema: null,
+    });
+  }
   return envelope("commands", fixture);
 }
 
@@ -78,6 +118,151 @@ const ENV_KEYS = [
   "COLUMNS",
   "OPENTIDE_LINKS",
 ];
+const PLATFORMS = [
+  ["carbon_black_cloud", true, true],
+  ["crowdstrike", false, true],
+  ["defender_for_endpoint", true, true],
+  ["elastic", true, true],
+  ["harfanglab", false, true],
+  ["sentinel", true, true],
+  ["sentinel_one", true, true],
+  ["splunk", true, true],
+  ["sysdig", false, false],
+];
+const TENANT_VARIABLES = ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"];
+const isSet = (env, name) => typeof env[name] === "string" && env[name] !== "";
+
+/** `info`: platforms (sentinel and splunk enabled), and with FAKE_TENANTS=1 sentinel's `prod` tenant. */
+function infoDocument(env) {
+  const platforms = PLATFORMS.map(([name, canValidate, canQuery]) => ({
+    name,
+    enabled: name === "sentinel" || name === "splunk",
+    can_deploy: true,
+    can_validate: canValidate,
+    can_query: canQuery,
+    ...(process.env.FAKE_TENANTS === "1"
+      ? {
+          tenants:
+            name === "sentinel"
+              ? [
+                  {
+                    name: "prod",
+                    description: "Production",
+                    strategies: ["PREVIEW", "RELEASE"],
+                    manual: false,
+                    variables: TENANT_VARIABLES.map((v) => ({ name: v, set: isSet(env, v) })),
+                  },
+                ]
+              : [],
+        }
+      : {}),
+  }));
+  return envelope("info", { version, platforms, counts: { rules: 1, threats: 1, objectives: 1 } });
+}
+
+/** `doctor`: a few checks, and sentinel/prod's `credentials` from the environment, as doctor reads it. */
+function doctorDocument(env, offline) {
+  const unset = TENANT_VARIABLES.filter((v) => !isSet(env, v));
+  const checks = [
+    { code: "opentide_version", status: "pass", message: `opentide ${version}`, fix: null, subject: null },
+    {
+      code: "opentide_latest",
+      status: offline ? "skip" : "pass",
+      message: offline ? "Not checked: --offline" : "Up to date",
+      fix: null,
+      subject: null,
+    },
+    {
+      code: "templates_fresh",
+      status: "warn",
+      message: "1 template(s) differ from what this version generates",
+      fix: "opentide generate templates",
+      subject: null,
+    },
+    {
+      code: "credentials",
+      status: unset.length ? "warn" : "pass",
+      message: unset.length
+        ? `sentinel/prod: ${unset.length} of 2 variables unset: ${unset.join(", ")}`
+        : "sentinel/prod: 2 variables set",
+      fix: unset.length ? `set ${unset.join(", ")} in the environment (or a .env file you load)` : null,
+      subject: "sentinel/prod",
+    },
+  ];
+  const warnings = checks.filter((c) => c.status === "warn").length;
+  return envelope("doctor", {
+    checks,
+    summary: {
+      checks: checks.length,
+      passed: checks.filter((c) => c.status === "pass").length,
+      warnings,
+      failed: 0,
+    },
+  });
+}
+
+/** `setup [sub] … --plan | --yes`, as #751 and 0.21.0 print them. */
+function setupDocument(args) {
+  const [sub] = args;
+  const plan = args.includes("--plan");
+  if (plan && process.env.FAKE_SETUP_PLAN !== "1")
+    return [envelope("setup", {}, 2, { code: "usage_error", message: "No such option: --plan" }), 2];
+  if (!plan && !args.includes("--yes"))
+    return [
+      envelope("setup", {}, 2, { code: "usage_needs_input", message: "setup needs --yes under --json" }),
+      2,
+    ];
+  const files = {
+    repo: ["README.md", ".gitignore", ".opentide/configurations/platforms/sentinel.toml"],
+    ci: [".github/workflows/opentide.yml"],
+    env: [".env.example", ".gitignore"],
+    hooks: [".pre-commit-config.yaml", ".opentide/hooks/pre-commit"],
+    mcp: [".cursor/mcp.json"],
+    skills: [".agents/skills/opentide-detection-rule/SKILL.md", "AGENTS.md"],
+  };
+  const steps = sub && !sub.startsWith("-") ? [sub === "repo" ? "repo" : sub] : ["repo", "platforms"];
+  if (!sub || sub.startsWith("-")) {
+    if (args.includes("--ci")) steps.push("ci");
+    for (const [flag, step] of [
+      ["--env", "env"],
+      ["--hooks", "hooks"],
+      ["--mcp", "mcp"],
+      ["--skills", "skills"],
+    ])
+      if (args.includes(flag)) steps.push(step);
+  }
+  if (plan) {
+    const seen = new Set();
+    const planned = steps.map((step) => ({
+      step,
+      files: (files[step] ?? []).map((path) => {
+        const action = seen.has(path) ? "merge" : "create";
+        seen.add(path);
+        return { path, action };
+      }),
+      warnings: [],
+    }));
+    const count = (a) => planned.reduce((n, s) => n + s.files.filter((f) => f.action === a).length, 0);
+    return [
+      envelope("setup", {
+        plan: true,
+        path: process.cwd(),
+        steps: planned,
+        warnings: [],
+        summary: { create: count("create"), merge: count("merge"), skip: 0, steps: planned.length },
+      }),
+      0,
+    ];
+  }
+  if (steps.length === 1) return [envelope(`setup ${sub}`, { files: files[sub] ?? [] }), 0];
+  return [
+    envelope("setup", {
+      steps: steps.map((step) => ({ step, message: `${step} done`, files: files[step] ?? [] })),
+    }),
+    0,
+  ];
+}
+
 const pick = (env) =>
   Object.fromEntries(ENV_KEYS.filter((k) => env[k] !== undefined).map((k) => [k, env[k]]));
 
@@ -364,35 +549,41 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
         }),
         2,
       ];
+    case "doctor":
+      return [doctorDocument(env, rest.includes("--offline")), 0];
+    case "setup":
+      return setupDocument(rest);
+    case "migrate":
+      if (rest[0] !== "objects")
+        return [
+          envelope("migrate", {}, 2, {
+            code: "usage_unknown_command",
+            message: `No such command '${rest[0]}'.`,
+          }),
+          2,
+        ];
+      return [
+        envelope("migrate objects", {
+          dry_run: !rest.includes("--apply"),
+          copy: rest.includes("--copy"),
+          operations: [
+            { from: "Configurations", to: ".opentide/configurations", action: "move" },
+            { from: "Objects/Detection Rules", to: "objects/rules", action: "move" },
+            {
+              from: "Objects/Detection Objectives",
+              to: "objects/objectives",
+              action: "skip",
+              reason: "source missing",
+            },
+          ],
+          planned: 2,
+          skipped: 1,
+          applied: rest.includes("--apply"),
+        }),
+        0,
+      ];
     case "info":
-      // `info` with no section: platforms; FAKE_TENANTS=1 adds their tenants (opentide#754).
-      if (rest[0] === undefined || rest[0].startsWith("--")) {
-        const tenants = (name) =>
-          process.env.FAKE_TENANTS === "1"
-            ? {
-                tenants:
-                  name === "sentinel"
-                    ? [
-                        {
-                          name: "prod",
-                          description: "Production workspace",
-                          strategies: ["RELEASE"],
-                          manual: false,
-                          variables: [
-                            { name: "AZURE_CLIENT_ID", set: Boolean(env.AZURE_CLIENT_ID) },
-                            { name: "FAKE_SECRET", set: Boolean(env.FAKE_SECRET) },
-                          ],
-                        },
-                      ]
-                    : [],
-              }
-            : {};
-        const platforms = [
-          { name: "sentinel", enabled: true, can_deploy: true, can_validate: true, can_query: true },
-          { name: "splunk", enabled: false, can_deploy: true, can_validate: true, can_query: true },
-        ].map((platform) => ({ ...platform, ...tenants(platform.name) }));
-        return [envelope("info", { version, platforms, summary: { rules: 0 } }), 0];
-      }
+      if (rest.length === 0 || rest[0].startsWith("--")) return [infoDocument(env), 0];
       if (rest[0] === "catalog" && process.env.FAKE_INFO_CATALOG === "1") {
         return [
           envelope("info", { objects: [], edges: [], signals: [], attack: { tactics: [], techniques: {} } }),
