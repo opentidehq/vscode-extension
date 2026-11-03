@@ -44,6 +44,12 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     log: true,
   });
   private readonly disposables: vscode.Disposable[] = [];
+  /**
+   * One watcher for every client this manager starts: vscode-languageclient disposes only the listeners
+   * it hooks on `synchronize.fileEvents`, never the watcher, so one per start leaked a recursive watcher
+   * on each restart.
+   */
+  private fileEvents: vscode.FileSystemWatcher | undefined;
 
   readonly onDidChange = this.emitter.event;
 
@@ -53,6 +59,14 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
         this.showReferences(args),
       ),
     );
+  }
+
+  private watcher(): vscode.FileSystemWatcher {
+    if (!this.fileEvents) {
+      this.fileEvents = vscode.workspace.createFileSystemWatcher("**/{objects,.opentide}/**");
+      this.disposables.push(this.fileEvents);
+    }
+    return this.fileEvents;
   }
 
   get current(): LanguageClient | undefined {
@@ -88,9 +102,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       outputChannel: this.outputChannel,
       traceOutputChannel: this.traceChannel,
       revealOutputChannelOn: RevealOutputChannelOn.Never,
-      synchronize: {
-        fileEvents: vscode.workspace.createFileSystemWatcher("**/{objects,.opentide}/**"),
-      },
+      synchronize: { fileEvents: this.watcher() },
     };
     const executable = serverExecutable(runtime, cwd);
     const client = new LanguageClient("opentide", "opentide Language Server", executable, clientOptions);
