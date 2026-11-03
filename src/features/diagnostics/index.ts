@@ -29,6 +29,7 @@ import {
   codeText,
   countSeverities,
   dedupeKey,
+  itemSignature,
   lintArgv,
   nonOverlapping,
   type OnSave,
@@ -632,7 +633,7 @@ class Diagnostics implements vscode.Disposable {
     let changed = false;
     for (const source of SOURCES) {
       const items = withoutDuplicates(entry[source], (item) => item.key, server);
-      const signature = items.map((item) => `${item.key}\u0001${item.diagnostic.message}`).join("\u0002");
+      const signature = items.map(itemSignature).join("\u0002");
       if (previous?.[source].signature === signature && previous[source].items.length === items.length)
         continue;
       this.collections[source].set(

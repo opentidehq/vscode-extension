@@ -129,3 +129,49 @@ export function nonOverlapping<T extends { readonly range: { readonly start: Pos
   }
   return kept;
 }
+
+interface PositionLike {
+  readonly line: number;
+  readonly character: number;
+}
+interface RangeLike {
+  readonly start: PositionLike;
+  readonly end: PositionLike;
+}
+
+/** What a rendered diagnostic shows, in the shape `vscode.Diagnostic` has. */
+export interface ShownItem {
+  readonly key: string;
+  readonly diagnostic: {
+    readonly message: string;
+    readonly severity: number;
+    readonly range: RangeLike;
+    readonly relatedInformation?: readonly {
+      readonly message: string;
+      readonly location: { readonly uri: { toString(): string }; readonly range: RangeLike };
+    }[];
+  };
+  readonly finding: { readonly fix: unknown };
+}
+
+const rangeText = (range: RangeLike) =>
+  `${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}`;
+
+/**
+ * Everything a collection entry shows (message, severity, range, related locations) and the quick fix
+ * it offers. Two renders with the same signature need no collection update; any other difference does
+ * (a `lint.toml` severity change keeps code, line and message alike).
+ */
+export function itemSignature(item: ShownItem): string {
+  const related = (item.diagnostic.relatedInformation ?? [])
+    .map((info) => `${info.location.uri.toString()}@${rangeText(info.location.range)}:${info.message}`)
+    .join("\u0003");
+  return [
+    item.key,
+    item.diagnostic.message,
+    String(item.diagnostic.severity),
+    rangeText(item.diagnostic.range),
+    related,
+    JSON.stringify(item.finding.fix ?? null),
+  ].join("\u0001");
+}
