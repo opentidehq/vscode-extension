@@ -987,7 +987,7 @@
         },
         {
           "command": "opentide.graph.open",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog"
         },
         {
           "command": "opentide.graph.reveal",
@@ -995,11 +995,11 @@
         },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml"
         },
         {
           "command": "opentide.matrix.open",
-          "when": "opentide.hasWorkspace"
+          "when": "opentide.hasWorkspace && opentide.hasInfoCatalog"
         },
         {
           "command": "opentide.newObject",
@@ -1266,7 +1266,7 @@
         },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         },
         {
@@ -1283,7 +1283,7 @@
       "editor/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         },
         {
@@ -1852,7 +1852,7 @@
           {
             "id": "ready",
             "title": "opentide is ready",
-            "description": "The extension bundles opentide, so every feature works without installing Python. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
+            "description": "The extension bundles opentide, so it works without installing Python. The graph and the ATT&CK matrix need a newer opentide than the bundled one. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
             "media": {
               "markdown": "media/walkthrough/ready.md"
             },
@@ -1913,6 +1913,21 @@
               "onCommand:opentide.graph.open",
               "onCommand:opentide.matrix.open",
               "onCommand:opentide.sidebar.openMatrix"
+            ],
+            "when": "opentide.hasInfoCatalog"
+          },
+          {
+            "id": "fitNeedsCatalog",
+            "title": "See how it fits",
+            "description": "The graph and the ATT&CK matrix show what each rule implements and what the repository covers. They need an opentide with `info catalog`, newer than the one running now: use a newer opentide in the repository's environment, or set opentide.path.\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
+            "when": "!opentide.hasInfoCatalog",
+            "media": {
+              "svg": "media/walkthrough/fit.svg",
+              "altText": "A threat, its objective and two rules, and the ATT&CK technique they cover."
+            },
+            "completionEvents": [
+              "onContext:opentide.hasInfoCatalog",
+              "onCommand:opentide.switchRuntime"
             ]
           },
           {

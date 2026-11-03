@@ -10,7 +10,8 @@ and others through Open VSX).
 - An MCP server for agents.
 
 It works on install: the platform packages bundle an opentide runtime, so a machine without Python
-gets every feature, offline. When the repository has its own opentide (a `.venv`, the Python
+gets live checks, templates, the catalogue, queries and deploy previews, offline. The graph and the
+ATT&CK matrix need a newer opentide than the bundled 0.21.0 (one with `info catalog`). When the repository has its own opentide (a `.venv`, the Python
 extension's interpreter, `opentide` on `PATH`, or `opentide.path`), the extension uses it, so the
 editor checks what CI checks.
 
@@ -18,8 +19,9 @@ editor checks what CI checks.
 
 ### Works on install
 
-The extension for your platform ships with its own opentide (0.21.0 on CPython 3.13), so every
-feature works offline on a machine with no Python. The first time the bundled opentide runs, it
+The extension for your platform ships with its own opentide (0.21.0 on CPython 3.13), so it works
+offline on a machine with no Python; the features that need a newer opentide say so and offer
+Switch Runtime. The first time the bundled opentide runs, it
 prepares itself in the background. Each package includes an SBOM (`runtime/sbom.cdx.json`) and the
 licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). On Windows on Arm, and on
 platforms without a dedicated package, the extension needs an opentide of your own ([Runtime](#runtime)).

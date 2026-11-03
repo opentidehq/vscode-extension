@@ -22,24 +22,27 @@
     ],
     "menus": {
       "commandPalette": [
-        { "command": "opentide.graph.open", "when": "isWorkspaceTrusted && opentide.hasWorkspace" },
+        {
+          "command": "opentide.graph.open",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog"
+        },
         { "command": "opentide.graph.reveal", "when": "false" },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml"
         }
       ],
       "editor/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         }
       ],
       "explorer/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         }
       ]

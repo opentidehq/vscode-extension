@@ -41,3 +41,26 @@ describe("welcome views in virtual and web workspaces", () => {
     }
   });
 });
+
+describe("what the bundled opentide cannot do", () => {
+  it("gates the graph's and the matrix's entry points on opentide.hasInfoCatalog, as the sidebar does", () => {
+    const menus = pkg.contributes.menus;
+    const entries = Object.values(menus).flat();
+    for (const command of ["opentide.graph.open", "opentide.graph.showInGraph", "opentide.matrix.open"]) {
+      const shown = entries.filter((m) => m.command === command && m.when !== "false");
+      assert.ok(shown.length > 0, command);
+      for (const entry of shown)
+        assert.match(entry.when, /opentide\.hasInfoCatalog/, `${command}: ${entry.when}`);
+    }
+  });
+
+  it("walks a user without info catalog to a newer opentide, not to panels that only refuse", () => {
+    const fit = steps.find((s) => s.id === "fit");
+    const needs = steps.find((s) => s.id === "fitNeedsCatalog");
+    assert.equal(fit.when, "opentide.hasInfoCatalog");
+    assert.equal(needs.when, "!opentide.hasInfoCatalog");
+    assert.doesNotMatch(needs.description, /opentide\.(graph|matrix)\./);
+    for (const step of steps)
+      assert.doesNotMatch(`${step.description}\n${media(step)}`, /every feature works/i);
+  });
+});

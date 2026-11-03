@@ -11,15 +11,18 @@ describe("setup (#16)", () => {
     }
   });
 
-  it("contributes the walkthrough with seven steps, each with a completion event", () => {
+  it("contributes the walkthrough with seven steps (some in variants), each with a completion event", () => {
     const extension = vscode.extensions.getExtension("opentidehq.opentide");
     assert.ok(extension);
     const manifest = extension.packageJSON as {
-      contributes?: { walkthroughs?: { id: string; steps: { completionEvents?: string[] }[] }[] };
+      contributes?: {
+        walkthroughs?: { id: string; steps: { title: string; completionEvents?: string[] }[] }[];
+      };
     };
     const walkthroughs = manifest.contributes?.walkthroughs;
     const walkthrough = walkthroughs?.find((w) => w.id === "opentide.gettingStarted");
-    assert.equal(walkthrough?.steps.length, 7);
+    // A step that depends on the runtime comes in variants with one title and opposite `when`s.
+    assert.equal(new Set(walkthrough?.steps.map((step) => step.title)).size, 7);
     for (const step of walkthrough?.steps ?? []) assert.ok((step.completionEvents ?? []).length > 0);
   });
 

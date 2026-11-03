@@ -495,9 +495,10 @@ describe("setup: manifest", () => {
 
   it("has the seven walkthrough steps of SPEC §8, with media that exists and real completion events", () => {
     const walkthrough = pkg.contributes.walkthroughs.find((w) => w.id === "opentide.gettingStarted");
+    // "fit" comes in two variants: with `info catalog`, and without (it leads to a newer opentide).
     assert.deepEqual(
       walkthrough?.steps.map((s) => s.id),
-      ["ready", "setup", "create", "validate", "fit", "deploy", "agent"],
+      ["ready", "setup", "create", "validate", "fit", "fitNeedsCatalog", "deploy", "agent"],
     );
     for (const step of walkthrough?.steps ?? []) {
       const media = step.media.markdown ?? step.media.svg ?? "";
