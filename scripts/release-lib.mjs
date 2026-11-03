@@ -154,7 +154,11 @@ export function absoluteLinks(markdown, tag) {
  * The GitHub Release body for `version`: its CHANGELOG.md section (the opening paragraph and its lists),
  * unwrapped, then how to install and verify it.
  */
-export function releaseNotes(changelog, version) {
+/**
+ * @param {{ attested?: boolean }} [options] `attested: false` (a private repository without
+ *   attestations) leaves `gh attestation verify` out of Verify.
+ */
+export function releaseNotes(changelog, version, { attested = true } = {}) {
   const section = sections(changelog).find((candidate) => candidate.version === version);
   if (!section) throw new ReleaseError(`CHANGELOG.md has no section for ${version}`);
   const tag = `v${version}`;
@@ -178,7 +182,9 @@ export function releaseNotes(changelog, version) {
     "",
     "```bash",
     `sha256sum --check --ignore-missing ${SUMS}`,
-    `gh attestation verify opentide-<platform>-${version}.vsix --repo opentidehq/vscode-extension`,
+    ...(attested
+      ? [`gh attestation verify opentide-<platform>-${version}.vsix --repo opentidehq/vscode-extension`]
+      : []),
     "```",
     "",
   );

@@ -5,7 +5,8 @@
 //   node scripts/release.mjs version               the version CHANGELOG.md releases (newest dated section)
 //   node scripts/release.mjs check [vX.Y.Z]        the notes PR merged: package.json agrees, [Unreleased] is empty
 //   node scripts/release.mjs prerelease [X.Y.Z]    "true" for an odd minor, "false" for an even one
-//   node scripts/release.mjs notes [X.Y.Z]         the GitHub Release body, from the version's CHANGELOG.md section
+//   node scripts/release.mjs notes [X.Y.Z] [--no-attestation]
+//                                                  the GitHub Release body, from the version's CHANGELOG.md section
 //   node scripts/release.mjs matrix                the build matrix from pins.json runtimeTargets (JSON)
 //   node scripts/release.mjs assets DIR [X.Y.Z]    DIR's VSIX files are this version: universal + each runtime target
 //   node scripts/release.mjs sums DIR              write DIR/SHA256SUMS for every file in DIR
@@ -72,9 +73,12 @@ try {
     case "prerelease":
       console.log(String(isPreRelease(versionArg(args[0]))));
       break;
-    case "notes":
-      process.stdout.write(releaseNotes(changelog(), versionArg(args[0])));
+    case "notes": {
+      const attested = !args.includes("--no-attestation");
+      const version = args.find((arg) => !arg.startsWith("--"));
+      process.stdout.write(releaseNotes(changelog(), versionArg(version), { attested }));
       break;
+    }
     case "matrix":
       console.log(JSON.stringify(buildMatrix(pins())));
       break;

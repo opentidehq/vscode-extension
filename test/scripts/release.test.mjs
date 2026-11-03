@@ -203,6 +203,12 @@ describe("release: notes", () => {
     );
   });
 
+  it("leaves attestation verify out of the notes of a release without attestations", () => {
+    const notes = releaseNotes(CHANGELOG, "0.3.0", { attested: false });
+    assert.match(notes, /sha256sum --check --ignore-missing SHA256SUMS/);
+    assert.doesNotMatch(notes, /gh attestation verify/);
+  });
+
   it("points relative links at the tag and leaves absolute ones and anchors alone", () => {
     assert.equal(
       absoluteLinks("[a](docs/SPEC.md#x) [b](https://x.y/z) [c](#top) [d](./README.md)", "v0.3.0"),
@@ -480,5 +486,28 @@ describe("release.mjs (the command line)", () => {
     const result = run("publish");
     assert.equal(result.status, 1);
     assert.match(result.stderr, /version, check, prerelease, notes, matrix, assets, sums or sizes/);
+  });
+});
+
+describe("publish.yml: attestations", () => {
+  const workflow = readFileSync(new URL("../../.github/workflows/publish.yml", import.meta.url), "utf8");
+  it("attests only a public repository, or a private one with ATTEST=true, and warns otherwise", () => {
+    assert.match(
+      workflow,
+      /ATTEST: \$\{\{ github\.event\.repository\.visibility == 'public' \|\| vars\.ATTEST == 'true' \}\}/,
+    );
+    assert.match(
+      workflow,
+      /- name: Attest build provenance\n\s+id: attest\n\s+if: \$\{\{ env\.ATTEST == 'true' \}\}/,
+    );
+    assert.match(
+      workflow,
+      /if: \$\{\{ env\.ATTEST != 'true' \}\}[\s\S]*?::warning title=No build provenance::/,
+    );
+  });
+  it("always publishes SHA256SUMS, and verifies attestations only when there are some", () => {
+    assert.match(workflow, /- name: SHA256SUMS\n\s+run: node scripts\/release\.mjs sums release/);
+    assert.match(workflow, /attested: \$\{\{ steps\.attest\.outcome == 'success' \}\}/);
+    assert.match(workflow, /if \[\[ "\$\{ATTESTED\}" != "true" \]\]; then notes\+=\(--no-attestation\); fi/);
   });
 });

@@ -30,10 +30,16 @@ run in it, and both stores' trusted-publishing registrations name it.
 
 ### 2. The repository
 
-- **Artifact attestations** (`actions/attest-build-provenance`) need a public repository, or GitHub
-  Enterprise Cloud for a private one. The `attest` job fails otherwise, and nothing is released.
-- **Arm runners** (`ubuntu-24.04-arm`, `windows-11-arm`) are free for public repositories; a private
-  repository needs a plan that includes them.
+- **Make the repository public** (**Settings → General → Danger Zone → Change visibility**) before the
+  first release. Two things depend on it:
+  - **Artifact attestations** (`actions/attest-build-provenance`) need a public repository, or GitHub
+    Enterprise Cloud for a private one. On a private repository the `attest` job skips them with a
+    warning, and the release goes out with `SHA256SUMS` only (its notes then leave out
+    `gh attestation verify`). On GitHub Enterprise Cloud, set the repository variable `ATTEST` to
+    `true` (**Settings → Secrets and variables → Actions → Variables**) to attest a private repository.
+  - **Arm runners** (`ubuntu-24.04-arm`, `windows-11-arm`) are free for public repositories; a private
+    repository needs a plan that includes them, or the linux-arm64 and alpine-arm64 builds
+    wait for a runner that never comes.
 - **Settings → Actions → General → Workflow permissions** can stay *Read repository contents*: the
   workflow asks for `contents: write` itself, in its `release` job only.
 
@@ -74,7 +80,8 @@ the registrations first.
 ### 5. First-publish checklist
 
 - [ ] Environment `production` exists, limited to `main` (optionally with reviewers).
-- [ ] The repository is public, or on GitHub Enterprise Cloud (attestations).
+- [ ] The repository is public (attestations, free arm runners), or on GitHub Enterprise Cloud with
+      the variable `ATTEST=true`.
 - [ ] Open VSX: publisher agreement signed, namespace `opentidehq` created (and claimed), `OVSX_PAT`
       saved in `production`.
 - [ ] The notes PR for the first version has merged (below); its minor is odd, so it is a pre-release.
@@ -140,7 +147,8 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
 
 - The [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) has one VSIX per
   runtime target, the universal VSIX and `SHA256SUMS`;
-  `gh attestation verify <file>.vsix --repo opentidehq/vscode-extension` passes.
+  `gh attestation verify <file>.vsix --repo opentidehq/vscode-extension` passes (unless the run warned
+  "No build provenance": a private repository).
 - [Marketplace](https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide) and
   [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) list the version with every
   platform.
@@ -187,8 +195,8 @@ pre-release first when it changes much.
 | `prepare` | ubuntu | Refuses unless run on `main`, `CHANGELOG.md`'s newest version matches `package.json`, `[Unreleased]` is empty and `v<version>` is not tagged; computes the channel and the build matrix from `pins.json` `runtimeTargets` |
 | `build` | each target's native runner | `runtime:lock -- --check`, `package -- --target <t>`, `smoke` (Alpine: in a digest-pinned `node:22-alpine` container on the Linux runner of its architecture) |
 | `universal` | ubuntu | CI's checks, then `package -- --universal`: the package every target without a runtime, and the web, installs |
-| `attest` | ubuntu | Every VSIX is `opentidehq.opentide` at the version and channel, one universal and one per runtime target; `SHA256SUMS`; build provenance for each file |
-| `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and their attestations |
+| `attest` | ubuntu | Every VSIX is `opentidehq.opentide` at the version and channel, one universal and one per runtime target; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
+| `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and, when attested, their attestations |
 | `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <every VSIX>`: one OIDC exchange, one token, one call |
 | `publish-openvsx` | ubuntu, `production` | `ovsx publish --trusted-publishing --skip-duplicate --packagePath <every VSIX>`, or with `OVSX_PAT` when the secret is set |
 
