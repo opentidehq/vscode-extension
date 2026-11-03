@@ -114,3 +114,8 @@ export function listGroups(view: GraphView, problems: ProblemMap): ListGroup[] {
   }
   return groups;
 }
+
+/** Whether a key press opens a list item's or a node's menu: the ContextMenu key or Shift+F10. */
+export function opensMenu(event: { readonly key: string; readonly shiftKey: boolean }): boolean {
+  return event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey);
+}

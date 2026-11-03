@@ -122,7 +122,8 @@ platforms.
 - Double-click a node to open it at its `name:` line. Right-click to focus on it, validate its file, run a
   rule's query, preview its deploy, create a rule for an objective or an objective for a threat, or copy
   its UUID. Search, zoom, fit, and **Export** as SVG, PNG or Mermaid.
-- **View as list** shows the same nodes and links as a keyboard-navigable tree.
+- **View as list** shows the same nodes and links as a keyboard-navigable tree; <kbd>Shift</kbd>+<kbd>F10</kbd>
+  (or the menu key) opens a node's actions, as a right-click does.
 - **Show in Graph** is in the editor and explorer context menus of Tide YAML files.
 
 The graph needs an opentide with `info catalog`; with an older one it says so and offers Switch Runtime.

@@ -600,7 +600,7 @@ OPENTIDE
 - **Problems on the graph:** nodes with errors carry the error colour, and dangling references (`invalid_ref`) draw as dashed edges to a "missing" node.
 - **Export:** SVG, PNG and Mermaid (the same syntax opentide's generated docs use).
 - **Scale:** Catalogue mode handles 5,000 nodes. Above 1,000 nodes it opens in Focus mode and offers Catalogue.
-- **Accessibility:** a "View as list" toggle shows the same nodes and edges as a navigable tree for keyboard and screen-reader users.
+- **Accessibility:** a "View as list" toggle shows the same nodes and edges as a navigable tree for keyboard and screen-reader users. Shift+F10 or the menu key opens a node's menu (every action a right-click offers) from the list, and on the canvas for the selected node; Escape returns the focus to where the menu opened.
 
 ### 10.2 ATT&CK matrix
 
