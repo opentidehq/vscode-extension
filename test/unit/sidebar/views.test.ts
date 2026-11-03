@@ -21,8 +21,10 @@ import { debounce, Loader } from "../../../src/features/sidebar/loader";
 import { uniqueIds, walk } from "../../../src/features/sidebar/node";
 import { platformFlag, platformName, platformToml } from "../../../src/features/sidebar/platformNames";
 import {
+  PRESENCE_PLACEHOLDER,
   parsePlatforms,
   platformNodes,
+  presenceEnv,
   tenantCheck,
   variableSource,
 } from "../../../src/features/sidebar/platforms";
@@ -130,6 +132,12 @@ describe("sidebar: platforms & tenants", () => {
     const after = platformNodes(parsePlatforms(INFO), new Set(["AZURE_CLIENT_SECRET"]), "/repo");
     assert.equal(after[0]?.children?.[0]?.description, "2 of 2 credentials set · PREVIEW, RELEASE");
     assert.equal(after[0]?.children?.[0]?.iconColor, "testing.iconPassed");
+  });
+
+  it("counts credentials for info and doctor --offline by name, never with their values", () => {
+    const env = presenceEnv({ AZURE_CLIENT_SECRET: "s3cr3t", SPLUNK_TOKEN: "tok" });
+    assert.deepEqual(env, { AZURE_CLIENT_SECRET: PRESENCE_PLACEHOLDER, SPLUNK_TOKEN: PRESENCE_PLACEHOLDER });
+    assert.ok(!JSON.stringify(env).includes("s3cr3t"));
   });
 
   it("gives two tenants of one name distinct ids (a copied [[tenants]] block)", () => {

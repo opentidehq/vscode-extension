@@ -39,7 +39,7 @@ import {
 import { debounce, Loader } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
 import { platformFlag, platformName, platformToml } from "./platformNames";
-import { type PlatformInfo, parsePlatforms, platformNodes, tenantCheck } from "./platforms";
+import { type PlatformInfo, parsePlatforms, platformNodes, presenceEnv, tenantCheck } from "./platforms";
 import { NodeTree, openTargetUri } from "./tree";
 
 export const VIEWS = {
@@ -152,8 +152,8 @@ class Sidebar implements vscode.Disposable {
   }
 
   private async loadPlatforms(folder: string): Promise<PlatformsValue> {
-    // With credentials, `info`'s `set` counts what VS Code stores too; values never come back.
-    const result = await this.ctx.backend.run(folder, ["info"], { credentials: true });
+    // `info`'s `set` counts what VS Code stores and the env file sets, by name: it gets placeholders.
+    const result = await this.ctx.backend.run(folder, ["info"], await this.presence(folder));
     const platforms = parsePlatforms(result.document);
     if (platforms.length === 0 && result.exitCode !== 0) throw new Error(failureText(result));
     return { platforms, stored: await this.ctx.credentials.names(folder) };
@@ -161,7 +161,12 @@ class Sidebar implements vscode.Disposable {
 
   private async loadHealth(folder: string): Promise<readonly DoctorCheck[]> {
     const argv = this.healthOnline ? ["doctor"] : ["doctor", "--offline"];
-    const result = await this.ctx.backend.run(folder, argv, { credentials: true });
+    // Online, doctor contacts the tenants and gets the values; offline it only counts them by name.
+    const result = await this.ctx.backend.run(
+      folder,
+      argv,
+      this.healthOnline ? { credentials: true } : await this.presence(folder),
+    );
     const checks = parseChecks(result.document);
     if (checks.length === 0) throw new Error(failureText(result));
     return checks;
@@ -511,11 +516,16 @@ class Sidebar implements vscode.Disposable {
     this.renderCatalogue();
   }
 
+  /** Run options for a status command: every credential by name, with a placeholder, no value. */
+  private async presence(folder: string): Promise<{ credentials: false; env: Record<string, string> }> {
+    return { credentials: false, env: presenceEnv(await this.ctx.backend.credentialEnv(folder)) };
+  }
+
   private async run(
     folder: string,
     argv: string[],
     title: string,
-    options: { credentials?: boolean } = {},
+    options: { credentials?: boolean; env?: Readonly<Record<string, string>> } = {},
   ): Promise<RunResult | undefined> {
     try {
       return await vscode.window.withProgress(
@@ -667,9 +677,7 @@ class Sidebar implements vscode.Disposable {
       ref.folder,
       ["doctor", "--offline"],
       `Checking the credentials of ${where}…`,
-      {
-        credentials: true,
-      },
+      await this.presence(ref.folder),
     );
     if (!result || result.cancelled) return;
     const check = tenantCheck(parseChecks(result.document), ref.platform, ref.tenant);
