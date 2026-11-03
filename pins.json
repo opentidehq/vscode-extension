@@ -1,0 +1,35 @@
+{
+  "$comment": "What this extension builds from and bundles. A bump is a PR. The highlights zip version follows the engine inside the bundled opentide; runtimeArchives are filled by the packaging stage.",
+  "opentide": {
+    "version": "0.20.1"
+  },
+  "python": {
+    "pythonBuildStandalone": "20260718",
+    "cpython": "3.13.14",
+    "flavor": "install_only_stripped"
+  },
+  "highlights": {
+    "version": "0.9.0",
+    "url": "https://github.com/opentidehq/language-server/releases/download/v0.9.0/highlights-v0.9.0.zip",
+    "sha256": "1f730c6537e192daf9542a3ac6a285099b058556076580bb9d917af2602a25ef"
+  },
+  "tomlGrammar": {
+    "source": "tamasfe/taplo, editors/vscode/toml.tmLanguage.json (Even Better TOML), MIT",
+    "url": "https://raw.githubusercontent.com/tamasfe/taplo/release-even-better-toml-0.21.2/editors/vscode/toml.tmLanguage.json",
+    "sha256": "535d51829eee1b852589f501344d88348aa0b8a630285406f004cc51de656a33"
+  },
+  "vsix": {
+    "budgetBytes": 104857600,
+    "targetBytes": 73400320
+  },
+  "runtimeArchives": {
+    "win32-x64": { "sha256": null },
+    "win32-arm64": { "sha256": null },
+    "linux-x64": { "sha256": null },
+    "linux-arm64": { "sha256": null },
+    "alpine-x64": { "sha256": null },
+    "alpine-arm64": { "sha256": null },
+    "darwin-x64": { "sha256": null },
+    "darwin-arm64": { "sha256": null }
+  }
+}

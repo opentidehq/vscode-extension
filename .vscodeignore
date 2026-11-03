@@ -1,0 +1,14 @@
+**
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
+!NOTICE
+!THIRD-PARTY-LICENSES
+!images/icon.png
+!images/activity.svg
+!dist/**
+!syntaxes/**
+!language-configuration/**
+!runtime/**
+dist/**/*.map
