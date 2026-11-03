@@ -38,17 +38,17 @@
     "viewsWelcome": [
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Create a Detection Repository Here](command:opentide.setup.open)\n[Open an Existing Repository](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && opentide.setup.legacyLayout",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && opentide.setup.legacyLayout && !virtualWorkspace",
         "contents": "It has a CoreTIDE layout (Objects/, Configurations/ or global.toml), which opentide does not support: it does not read CoreTIDE content, and there is no migration.\n[What opentide 0.21.0 removed](https://github.com/opentidehq/opentide/releases/tag/v0.21.0)"
       },
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)\n[Open an Existing Repository](command:vscode.openFolder)"
       }
     ],

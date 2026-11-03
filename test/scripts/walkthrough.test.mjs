@@ -21,3 +21,23 @@ describe("walkthrough copy", () => {
     assert.match(create.description, /Next Placeholder \(Ctrl\+Alt\+\./);
   });
 });
+
+describe("welcome views in virtual and web workspaces", () => {
+  const welcomes = pkg.contributes.viewsWelcome;
+  it("never call a repository there 'not an opentide repository yet'", () => {
+    for (const welcome of welcomes.filter((w) => /!opentide\.hasWorkspace/.test(w.when ?? ""))) {
+      if (/workspaceFolderCount == 0/.test(welcome.when)) continue;
+      assert.match(welcome.when, /!virtualWorkspace/, `${welcome.view}: ${welcome.when}`);
+    }
+  });
+
+  it("say instead that the views need a local folder in VS Code Desktop", () => {
+    for (const view of ["catalogue", "coverage", "platforms", "health"]) {
+      const welcome = welcomes.find(
+        (w) => w.view === `opentide.sidebar.${view}` && w.when === "virtualWorkspace",
+      );
+      assert.ok(welcome, view);
+      assert.match(welcome.contents, /local folder in VS Code Desktop/);
+    }
+  });
+});
