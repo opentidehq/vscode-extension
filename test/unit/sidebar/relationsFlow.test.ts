@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import {
+  explicitTarget,
   FollowGuard,
   RenderTurns,
   ServerCatalogCache,
@@ -104,6 +105,36 @@ describe("Relations view bookkeeping", () => {
       assert.equal(refresh.navigating, false);
       // The next object the editor shows goes onto the history.
       assert.equal(turns.begin().navigating, false);
+    });
+  });
+
+  describe("Show Relations on a file", () => {
+    it("shows an object file's object", () => {
+      assert.deepEqual(
+        explicitTarget({ path: "/ws/objects/rules/r.yaml", scheme: "file", folder: "/ws", isObject: true }),
+        { kind: "file", folder: "/ws", file: "/ws/objects/rules/r.yaml" },
+      );
+    });
+
+    it("leaves the view on its object for a file that holds none, and says why", () => {
+      for (const file of [
+        { path: "/ws/README.md", scheme: "file", folder: "/ws", isObject: false },
+        { path: "/elsewhere/r.yaml", scheme: "file", folder: undefined, isObject: true },
+        { path: "/ws/objects/rules/r.yaml", scheme: "git", folder: "/ws", isObject: true },
+      ]) {
+        const target = explicitTarget(file);
+        assert.equal(target.kind, "not-object", file.path);
+      }
+      const readme = explicitTarget({
+        path: "/ws/README.md",
+        scheme: "file",
+        folder: "/ws",
+        isObject: false,
+      });
+      assert.match(
+        readme.kind === "not-object" ? readme.message : "",
+        /^README\.md is not an opentide object/,
+      );
     });
   });
 });

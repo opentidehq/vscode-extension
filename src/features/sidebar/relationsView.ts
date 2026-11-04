@@ -12,7 +12,13 @@ import {
 import type { FeatureContext } from "../../core/context";
 import { debounce } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
-import { FollowGuard, RenderTurns, ServerCatalogCache, type ServerFetch } from "./relationsFlow";
+import {
+  explicitTarget,
+  FollowGuard,
+  RenderTurns,
+  ServerCatalogCache,
+  type ServerFetch,
+} from "./relationsFlow";
 import {
   graphFromCatalog,
   graphFromServer,
@@ -336,11 +342,15 @@ export class RelationsView implements vscode.Disposable {
       const editor = vscode.window.visibleTextEditors.find(
         (e) => e.document.uri.toString() === uri?.toString(),
       );
-      if (!uri || !editor || !this.retargetFromEditor(editor)) {
-        if (uri) {
-          const folder = this.ctx.folders.folderOf(uri);
-          if (folder) this.target = { folder: folder.path, file: uri.fsPath };
-        }
+      if (uri && !(editor && this.retargetFromEditor(editor))) {
+        const target = explicitTarget({
+          path: uri.fsPath,
+          scheme: uri.scheme,
+          folder: this.ctx.folders.folderOf(uri)?.path,
+          isObject: editor?.document.languageId === "opentide-yaml" || this.ctx.folders.isObjectFile(uri),
+        });
+        if (target.kind === "file") this.target = { folder: target.folder, file: target.file };
+        else void vscode.window.setStatusBarMessage(`$(info) ${target.message}`, 5000);
       }
     }
     await this.reveal();

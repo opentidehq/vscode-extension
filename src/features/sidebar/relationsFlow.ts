@@ -96,3 +96,29 @@ export class RenderTurns {
     return turn === this.turn;
   }
 }
+
+/** What Show Relations on a file does: show that file's object, or say it holds none. */
+export type ExplicitTarget =
+  | { readonly kind: "file"; readonly folder: string; readonly file: string }
+  | { readonly kind: "not-object"; readonly message: string };
+
+/**
+ * Show Relations on `file` (the editor's, or one from a menu). Only an object file of an opentide folder
+ * becomes the view's target; any other file (a README) leaves the view on its object.
+ */
+export function explicitTarget(file: {
+  readonly path: string;
+  readonly scheme: string;
+  /** The opentide folder holding it, if any. */
+  readonly folder: string | undefined;
+  /** Tide YAML, or a YAML file in an object folder. */
+  readonly isObject: boolean;
+}): ExplicitTarget {
+  const name = file.path.split(/[\\/]/).pop() || file.path;
+  if (file.scheme === "file" && file.folder !== undefined && file.isObject)
+    return { kind: "file", folder: file.folder, file: file.path };
+  return {
+    kind: "not-object",
+    message: `${name} is not an opentide object: Relations shows threats, objectives and rules.`,
+  };
+}

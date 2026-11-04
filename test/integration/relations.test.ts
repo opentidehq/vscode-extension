@@ -87,6 +87,16 @@ describe("relations", () => {
     assert.equal((await state()).target?.file, rule().fsPath);
   });
 
+  it("Show Relations on a file that holds no object keeps the view on its object", async () => {
+    await activated();
+    await vscode.window.showTextDocument(rule());
+    await vscode.commands.executeCommand("opentide.relations.show");
+    await targets(rule());
+    await vscode.window.showTextDocument(fixture("Cargo.toml"));
+    await vscode.commands.executeCommand("opentide.relations.show");
+    assert.equal((await state()).target?.file, rule().fsPath);
+  });
+
   it("puts the relations lens on the name: line when the catalogue has the object", async () => {
     const api = await activated();
     const folder = api.ctx.folders.all[0];
