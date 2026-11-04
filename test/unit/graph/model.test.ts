@@ -48,9 +48,25 @@ describe("graph model", () => {
     assert.equal(edgesOf("implements").length, 3);
     const chain = edgesOf("chains")[0];
     assert.equal(chain?.relation, "sequence::preceeds");
-    assert.equal(edgeLabel(chain ?? { kind: "chains", relation: null }), "preceeds");
+    assert.equal(edgeLabel(chain ?? { kind: "chains", relation: null }), "Chains to · preceeds");
     assert.equal(edgesOf("parent")[0]?.target, UUID.signal);
     assert.equal(edgesOf("logsource")[0]?.target, "logsource:DeviceProcessEvents");
+  });
+
+  it("labels edges with the words every surface uses, read from the source", () => {
+    assert.equal(edgeLabel({ kind: "implements", relation: null }), "Implements");
+    assert.equal(edgeLabel({ kind: "covers", relation: null }), "Covers");
+    assert.equal(edgeLabel({ kind: "signal", relation: null }), "Has signal");
+    assert.equal(edgeLabel({ kind: "logsource", relation: null }), "Uses log source");
+    assert.equal(edgeLabel({ kind: "technique", relation: null }), "Technique");
+    assert.equal(edgeLabel({ kind: "chains", relation: null }), "Chains to");
+    assert.equal(edgeLabel({ kind: "actor", relation: null }), "Attributed to");
+    assert.equal(edgeLabel({ kind: "platform", relation: null }), "On platform");
+    assert.equal(
+      edgeLabel({ kind: "future", relation: null }),
+      "future",
+      "a newer opentide's kind as itself",
+    );
   });
 
   it("adds what the catalogue implies: objective → signal, threat → actor, rule → platform", () => {

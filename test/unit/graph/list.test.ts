@@ -1,10 +1,13 @@
 import * as assert from "node:assert/strict";
+import { DetailsIndex } from "../../../src/features/graph/details";
 import {
   describe as describeNode,
-  incomingLabel,
+  KEY_SEPARATOR,
   keptFocus,
   listGroups,
+  listKey,
   opensMenu,
+  parentKey,
 } from "../../../src/features/graph/list";
 import { buildModel, type NodeKind, OBJECT_KINDS } from "../../../src/features/graph/model";
 import { computeView } from "../../../src/features/graph/view";
@@ -25,7 +28,7 @@ describe("graph as a list", () => {
       problemsOnly: false,
     },
   );
-  const groups = listGroups(view, { [UUID.rule]: { errors: 2, warnings: 0 } });
+  const groups = listGroups(view, { [UUID.rule]: { errors: 2, warnings: 0 } }, new DetailsIndex(model));
 
   it("groups the same nodes as the canvas by kind, sorted by name", () => {
     assert.deepEqual(
@@ -42,15 +45,19 @@ describe("graph as a list", () => {
     );
   });
 
-  it("lists each node's links both ways, as sentences", () => {
+  it("lists each node's relations as the details pane does: out groups, then in, with counts", () => {
     const objective = groups[1]?.nodes.find((n) => n.node.id === UUID.objective);
-    const texts = objective?.links.map((l) => l.text) ?? [];
-    assert.ok(texts.includes("covers Credential Dumping"));
-    assert.ok(texts.includes("implemented by Suspicious LSASS Access"));
-    assert.ok(texts.includes("has signal LSASS handle opened"));
+    assert.deepEqual(
+      objective?.relations.map((r) => r.header),
+      ["Covers 1 →", "Has signal 2 →", "Technique 1 →", "← Implemented by 1"],
+    );
+    const implementers = objective?.relations.find((r) => r.kind === "implements" && r.direction === "in");
+    assert.deepEqual(
+      implementers?.items.map((i) => i.label),
+      ["Suspicious LSASS Access"],
+    );
     const broken = groups[3]?.nodes.find((n) => n.node.id === UUID.broken);
-    assert.equal(broken?.links[0]?.missing, true);
-    assert.equal(incomingLabel({ kind: "chains", relation: "sequence::preceeds" }), "preceeds (from)");
+    assert.equal(broken?.relations[0]?.items[0]?.missing, true);
   });
 
   it("describes problems, platforms and techniques", () => {
@@ -71,13 +78,30 @@ describe("graph list: the node menu by keyboard", () => {
 });
 
 describe("graph list: the focus across a redraw", () => {
-  const kinds: Record<string, string> = { r1: "rule", o1: "objective" };
+  const kinds: Record<string, string> = { r1: "rule", o1: "objective", "technique:T1": "technique" };
   const kindOf = (id: string) => kinds[id];
+  const out = { direction: "out", kind: "implements" } as const;
 
   it("keeps the focused item, else the closest one still listed", () => {
-    const keys = ["group:objective", "node:o1", "link:o1:0", "group:rule", "node:r1"];
-    assert.equal(keptFocus("link:o1:0", keys, kindOf), "link:o1:0");
-    assert.equal(keptFocus("link:o1:3", keys, kindOf), "node:o1", "a link that went: its node");
+    const keys = [
+      "group:objective",
+      "node:o1",
+      listKey.relation("o1", out),
+      listKey.link("o1", out, 0),
+      "group:rule",
+      "node:r1",
+    ];
+    assert.equal(keptFocus(listKey.link("o1", out, 0), keys, kindOf), listKey.link("o1", out, 0));
+    assert.equal(
+      keptFocus(listKey.link("o1", out, 3), keys, kindOf),
+      listKey.relation("o1", out),
+      "a link that went: its relation group",
+    );
+    assert.equal(
+      keptFocus(listKey.relation("o1", { direction: "in", kind: "covers" }), keys, kindOf),
+      "node:o1",
+      "a group that went: its node",
+    );
     assert.equal(
       keptFocus("node:r2", keys, (id) => (id === "r2" ? "rule" : undefined)),
       "group:rule",
@@ -89,5 +113,15 @@ describe("graph list: the focus across a redraw", () => {
     );
     assert.equal(keptFocus("", keys, kindOf), "group:objective");
     assert.equal(keptFocus("node:r1", [], kindOf), undefined);
+  });
+
+  it("keeps ids with colons and slashes whole in the keys", () => {
+    const id = "technique:T1";
+    const key = listKey.link(id, out, 2);
+    assert.ok(key.includes(KEY_SEPARATOR));
+    assert.equal(parentKey(key, kindOf), listKey.relation(id, out));
+    assert.equal(parentKey(listKey.relation(id, out), kindOf), `node:${id}`);
+    assert.equal(parentKey(`node:${id}`, kindOf), "group:technique");
+    assert.equal(parentKey("group:technique", kindOf), undefined);
   });
 });

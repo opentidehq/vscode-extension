@@ -3,6 +3,7 @@
 // its actors, rule → its platforms). vscode-free and DOM-free: the webview imports it too.
 import { isLoaded, type LoadedObject, rowKey } from "../../core/catalog/rows";
 import type { CatalogDocument, CatalogObject } from "../../core/catalog/types";
+import { wordsOf } from "./words";
 
 export type NodeKind =
   | "threat"
@@ -293,15 +294,13 @@ export function buildModel(catalog: CatalogDocument): GraphModel {
   return { nodes: [...nodes.values()], edges };
 }
 
-/** What an edge says, read from its source: "covers", "implemented by" is the reverse of "implements". */
+/**
+ * What an edge says, read from its source, in the words every surface uses (RELATION_WORDS): "Implements",
+ * "Covers", "Has signal"; a chaining edge adds its relation ("Chains to · preceeds").
+ */
 export function edgeLabel(edge: Pick<GraphEdge, "kind" | "relation">): string {
-  if (edge.kind === "chains") return edge.relation ? shortId(edge.relation) : "chains";
-  if (edge.kind === "logsource") return "uses log source";
-  if (edge.kind === "signal") return "has signal";
-  if (edge.kind === "parent") return "parent";
-  if (edge.kind === "actor") return "attributed to";
-  if (edge.kind === "platform") return "on";
-  return edge.kind;
+  const words = wordsOf(edge.kind).out;
+  return edge.kind === "chains" && edge.relation ? `${words} · ${shortId(edge.relation)}` : words;
 }
 
 /** The platforms and statuses that occur in the model (for the filter menus), sorted. */
