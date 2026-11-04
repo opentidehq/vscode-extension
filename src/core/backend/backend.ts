@@ -342,6 +342,14 @@ export class Backend {
         },
       );
     } catch (error) {
+      if (error instanceof BackendError && error.code === "shut-down") {
+        // The runtime restarted while this request was on its way: the old serve refused it without
+        // running it, so it runs again on the backend there is now, whatever its class. A serve that
+        // shut down without our stop() waits for `exit`: stop it, or its process outlives the client.
+        this.dropServe(client);
+        void client.stop();
+        return this.rerun(folder, argv, credentials, options, error);
+      }
       if (error instanceof BackendError && error.code === "crashed") this.dropServe(client);
       throw error;
     }

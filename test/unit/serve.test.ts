@@ -1,6 +1,9 @@
 import * as assert from "node:assert/strict";
 import * as cp from "node:child_process";
-import { ServeClient } from "../../src/core/backend/serve";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import * as path from "node:path";
+import { isShutDown, ServeClient } from "../../src/core/backend/serve";
 import { BackendError, type ProgressEvent } from "../../src/core/backend/types";
 import { CancellationTokenSource } from "../../src/core/util/cancellation";
 import { FAKE_OPENTIDE, sleep } from "./helpers";
@@ -87,6 +90,22 @@ describe("opentide serve client (against a fake server implementing CONTRACTS.md
     const order: string[] = [];
     await Promise.all([slow.then(() => order.push("slow")), quick.then(() => order.push("quick"))]);
     assert.deepEqual(order, ["slow", "quick"]);
+  });
+
+  it("rejects a request a shutting-down server refused with `shut-down`, not `protocol`", async () => {
+    const marker = path.join(mkdtempSync(path.join(tmpdir(), "otide-")), "shut-down");
+    serve = client({ FAKE_SHUTDOWN_FILE: marker });
+    await serve.start();
+    await assert.rejects(
+      serve.run({ argv: ["shut-down-once"], cwd: process.cwd(), env: {} }),
+      (e: unknown) => e instanceof BackendError && e.code === "shut-down",
+    );
+  });
+
+  it("recognises only opentide serve's shut-down answer as a refusal", () => {
+    assert.equal(isShutDown({ code: -32600, message: "The server is shut down; send exit" }), true);
+    assert.equal(isShutDown({ code: -32600, message: "Invalid Request" }), false);
+    assert.equal(isShutDown({ code: -32602, message: "The server is shut down" }), false);
   });
 
   it("rejects pending requests with `crashed` when the process dies", async () => {

@@ -27,7 +27,8 @@ The first pre-release of opentide for VS Code and its forks: live checks for Tid
 - The language server: one client per window with pulled diagnostics, the reference lens's
   `opentide.showReferences`, and fix-all on save off by default.
 - The backend: `opentide serve` when the runtime has it, spawning `opentide --json` otherwise, with
-  cancellation, capability gating from `opentide --json commands`, and an activity log.
+  cancellation, capability gating from `opentide --json commands`, and an activity log. A command that
+  reaches a serve shutting down for a runtime restart, which refuses it unrun, runs again on the new one.
 - opentide runs in UTF-8 mode (`-X utf8` for the bundled runtime, `PYTHONUTF8` and `PYTHONIOENCODING`
   for the others), so rule names and paths with accents read correctly on Windows.
 - Languages for Tide YAML (`opentide-yaml`, on `objects/**` and the object folders `paths.toml`
