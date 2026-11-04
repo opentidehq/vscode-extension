@@ -70,7 +70,8 @@ pre-releases odd ones.
   - **Platforms & Tenants:** capabilities, tenants and where each credential comes from. Set a
     credential (in VS Code's secret storage, never a file), check it with doctor, or enable a platform.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
-  - **Activity:** the last 50 commands, with Run Again and Copy Command Line.
+  - **Activity:** the last 50 commands, with Run Again (which asks first for a command that writes
+    files or contacts a tenant) and Copy Command Line.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
   create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
   as Script reproduces it in a terminal. It also adds platforms, CI and agents to an existing

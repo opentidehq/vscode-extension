@@ -540,7 +540,7 @@ OPENTIDE
 | **Coverage** | ATT&CK techniques named by any object: rule count, gaps (`0`) first, sub-techniques under their parent (a parent counts its sub-techniques' rules, as `info coverage` does) | Open the matrix; show the rules; "New objective for this technique" |
 | **Platforms & tenants** | The nine platforms: enabled, `can_deploy`, `can_validate`, `can_query`; tenants per platform and their credential state from `doctor`'s `credentials` check | Enable a platform (`setup platforms`); open its TOML; **Set credential…**: SecretStorage, injected as the `$VAR` the TOML names (D3: never written to a file); Test connection (`doctor`) |
 | **Health** | `opentide doctor` checks, pass/warn/fail/skip, each with its `fix` | Run the fix; re-run; "Copy report" (redacted) for bug reports |
-| **Activity** | The last 50 commands the extension ran, with status, duration and the command line. The TUI's Results tab | Re-run; copy command; open output |
+| **Activity** | The last 50 commands the extension ran, with status, duration and the command line. The TUI's Results tab | Re-run (never a deploy or share; one that writes files or contacts a tenant asks first, in a modal); copy command; open output |
 
 **Data:**
 - The Catalogue, Coverage and search all come from **one** `info catalog` document per folder ([§15](#15-what-this-needs-from-opentide-and-language-server), O3), answered by `opentide serve` from its warm registry and cached in memory.

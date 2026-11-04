@@ -17,7 +17,7 @@ import {
   SHARE_PREVIEW,
   VALIDATE_FILE,
 } from "./actions";
-import { activityNodes, runningCount } from "./activity";
+import { activityNodes, rerunPlan, runningCount } from "./activity";
 import {
   buildCatalogue,
   GROUP_BY_LABELS,
@@ -783,14 +783,11 @@ class Sidebar implements vscode.Disposable {
   private async rerun(ref: NodeRef | undefined): Promise<void> {
     if (ref?.kind !== "run") return;
     const { entry } = ref;
-    const classification = this.ctx.capabilities.classify(entry.argv);
-    if (classification.class === "deploys" || classification.class === "shares") return;
-    if (classification.contactsTenant) {
-      const choice = await vscode.window.showWarningMessage(
-        `This contacts a tenant: ${entry.argvDisplay}`,
-        "Run",
-      );
-      if (choice !== "Run") return;
+    const plan = rerunPlan(this.ctx.capabilities.classify(entry.argv), entry.argvDisplay);
+    if (plan.kind === "refuse") return;
+    if (plan.kind === "confirm") {
+      const choice = await vscode.window.showWarningMessage(plan.message, { modal: true }, plan.action);
+      if (choice !== plan.action) return;
     }
     const result = await this.run(entry.folder, [...entry.argv], `Running ${entry.argv.join(" ")}…`);
     if (!result || result.cancelled) return;

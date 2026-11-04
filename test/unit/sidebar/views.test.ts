@@ -4,7 +4,14 @@ import type { ActivityEntry } from "../../../src/core/activity";
 import { classify } from "../../../src/core/capabilities/classification";
 import { CommandTree } from "../../../src/core/capabilities/tree";
 import { newObjectHandover, ruleHandover } from "../../../src/features/sidebar/actions";
-import { activityNodes, ago, canRerun, duration, runningCount } from "../../../src/features/sidebar/activity";
+import {
+  activityNodes,
+  ago,
+  canRerun,
+  duration,
+  rerunPlan,
+  runningCount,
+} from "../../../src/features/sidebar/activity";
 import { folderViewModel } from "../../../src/features/sidebar/folderView";
 import {
   type DoctorCheck,
@@ -405,6 +412,18 @@ describe("sidebar: activity", () => {
     assert.equal(failed?.description, "failed · exit 1 · 1.2 s · just now");
     assert.ok(failed?.tooltip?.includes("failure: issues_found"));
     assert.equal(runningCount([entry({ status: "running" }), entry({})]), 1);
+  });
+
+  it("asks before running again a command that writes files or contacts a tenant", () => {
+    const argv = ["setup", "ci", "github", "--staging", "--yes"];
+    const setup = rerunPlan(classify(argv), `opentide --json ${argv.join(" ")}`);
+    assert.equal(setup.kind, "confirm");
+    assert.ok(setup.kind === "confirm" && setup.message.includes("writes files in the workspace"));
+    assert.ok(setup.kind === "confirm" && setup.message.endsWith("setup ci github --staging --yes"));
+    const live = rerunPlan(classify(["validate", "query", "--live", "--platform", "sentinel", "x"]), "q");
+    assert.ok(live.kind === "confirm" && live.message.includes("contacts a tenant"));
+    assert.deepEqual(rerunPlan(classify(["validate"]), "v"), { kind: "run" });
+    assert.deepEqual(rerunPlan(classify(["deploy"]), "d"), { kind: "refuse" });
   });
 
   it("formats durations and ages", () => {
