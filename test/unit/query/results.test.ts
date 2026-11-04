@@ -17,6 +17,7 @@ import {
   applyProgress,
   canStartRun,
   choosingState,
+  errorVariables,
   exportable,
   formatMs,
   keepable,
@@ -25,6 +26,7 @@ import {
   queryViewState,
   tabSummary,
   tabsFromDocument,
+  tenantErrorKind,
 } from "../../../src/features/query/results";
 
 // A Sentinel rule on two tenants, one answering 403 (the shape of `opentide --json query`).
@@ -253,6 +255,10 @@ describe("query: while the tenant picker is open (#47)", () => {
   it("stops showing a run in progress once opentide asks which tenants", () => {
     const running: QueryPanelState = {
       title: "Suspicious LSASS Access · Microsoft Sentinel",
+      name: "Suspicious LSASS Access",
+      platformId: "sentinel",
+      locked: false,
+      tenants: [],
       platform: "Microsoft Sentinel",
       windowLabel: "last 24 hours",
       limit: 100,
@@ -278,5 +284,40 @@ describe("query: while the tenant picker is open (#47)", () => {
     assert.equal(canStartRun(choosing.phase), false, "no Re-run or Tenants while the picker is open");
     assert.equal(canStartRun("running"), false);
     for (const phase of ["done", "failed", "cancelled"]) assert.equal(canStartRun(phase), true, phase);
+  });
+});
+
+describe("query: what a failed tenant offers next", () => {
+  it("tells unset credentials, refused credentials and an unreachable tenant apart", () => {
+    const unset =
+      "Sentinel credentials are unset ($AZURE_CLIENT_ID, $AZURE_CLIENT_SECRET). Set those environment variables before a live check.";
+    assert.equal(tenantErrorKind(unset, null), "credentials");
+    assert.deepEqual(errorVariables(unset), ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"]);
+    assert.equal(tenantErrorKind("HTTP 403 Forbidden", "AuthorizationFailed"), "auth");
+    assert.equal(tenantErrorKind("cannot authenticate to sentinel tenant 'prod': bad secret", null), "auth");
+    assert.equal(
+      tenantErrorKind(
+        "sentinel tenant 'prod' did not answer the query within 60s: timed out",
+        "narrow the window",
+      ),
+      "network",
+    );
+    assert.equal(tenantErrorKind("Cannot reach api.example.com", null), "network");
+    assert.equal(tenantErrorKind("KeyError: 'rows'", null), "other");
+    assert.equal(tenantErrorKind(null, null), "other");
+    assert.deepEqual(errorVariables("no variables here"), []);
+  });
+
+  it("classifies each failed tab of a document, and no ok tab", () => {
+    const [ok, failed] = tabsFromDocument({
+      results: [
+        { tenant: "prod", status: "ok", columns: [{ name: "a" }], rows: [{ a: 1 }] },
+        { tenant: "dev", status: "failed", error: "credentials are unset ($DEV_TOKEN)" },
+      ],
+    });
+    assert.equal(ok?.errorKind, null);
+    assert.deepEqual(ok?.variables, []);
+    assert.equal(failed?.errorKind, "credentials");
+    assert.deepEqual(failed?.variables, ["DEV_TOKEN"]);
   });
 });

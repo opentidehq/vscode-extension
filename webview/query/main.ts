@@ -1,4 +1,19 @@
-// The query results panel (SPEC §10.4): progress per tenant, one tab per tenant, a virtual table.
+// The query results panel (SPEC §10.4): what runs where in the toolbar, progress per tenant, one tab per
+// tenant, a virtual table. The page's regions are built once; a state update patches them (the table
+// keeps its rows, scroll and focus unless the rows changed).
+import {
+  button,
+  callout,
+  chip,
+  collapsible,
+  emptyState,
+  errorState,
+  icon,
+  keyHint,
+  progressBar,
+  skeletonRows,
+  toolbar,
+} from "../../src/core/webview/kit/components";
 import { formatRows } from "../../src/features/query/format";
 import {
   type QueryPanelState,
@@ -14,11 +29,11 @@ import {
   queryViewState,
   tabSummary,
 } from "../../src/features/query/results";
-import { addStyles, announce, globeIcon, h, KIT_CSS, replace, stateBox } from "../panels-kit/dom";
+import { addStyles, announce, h, patchKeyed, replace, setText } from "../panels-kit/dom";
+import { menuButton } from "../panels-kit/menu";
 import { VirtualTable } from "../panels-kit/table";
 import { createChannel, vscodeApi } from "../shared/channel";
 
-addStyles(KIT_CSS + CSS());
 const channel = createChannel<QueryProtocol>(webviewValidators);
 const root = document.getElementById("root") ?? document.body;
 
@@ -29,15 +44,38 @@ const table = new VirtualTable({
   onCopy: (format, text) => channel.post("copy", { format, text }),
   onViewChange: () => saveView(),
 });
-// The panel reloads when hidden (rows are never kept in webview state): the selected tab, filter and
-// sort are UI preferences, so they are kept and put back.
+// The panel reloads when hidden (rows are never kept in webview state): the selected tab, filter, sort
+// and the open sections are UI preferences, so they are kept and put back.
 const saved = queryViewState(vscodeApi().getState());
+const savedRaw = (vscodeApi().getState() ?? {}) as { details?: unknown; command?: unknown };
 let selected: string | undefined = saved.selected;
+let detailsOpen = savedRaw.details === true;
+let commandOpen = savedRaw.command === true;
 if (saved.table) table.restoreView(saved.table);
 
 function saveView(): void {
-  vscodeApi().setState({ selected, table: table.viewState() });
+  vscodeApi().setState({ selected, table: table.viewState(), details: detailsOpen, command: commandOpen });
 }
+
+// The regions, built once.
+const header = h("div", { class: "region-header" });
+const progress = h("div", { class: "region-progress" });
+const notes = h("div", { class: "region-notes" });
+const tabs = h("div", {
+  class: "ot-tabs",
+  attrs: { role: "tablist", "aria-label": "Tenants" },
+});
+const panel = h("div", { id: "tabpanel", class: "region-panel", attrs: { role: "tabpanel" } });
+const tableNotes = h("div", { class: "region-table-notes" });
+const tableHost = h("div", { class: "region-table" });
+const tableFooter = h("div", { class: "vt-footer" });
+const placeholder = h("div", { class: "region-placeholder" });
+const details = h("div", { class: "region-details" });
+const footer = h("div", { class: "region-footer" });
+tableHost.append(table.element);
+panel.append(tableNotes, placeholder, tableHost, tableFooter);
+replace(root, header, progress, notes, tabs, panel, details, footer);
+renderLoading();
 
 channel.on("state", (next) => {
   const previous = state;
@@ -49,119 +87,128 @@ channel.on("state", (next) => {
   if (previous?.phase === "running" && next.phase !== "running") announce(next.message);
 });
 
-channel.on("progress", (progress) => {
+channel.on("progress", (event) => {
   if (!state) return;
-  state = { ...state, tabs: applyProgress(state.tabs, progress) };
+  state = { ...state, tabs: applyProgress(state.tabs, event) };
   renderTabs();
-  announce(`${progress.tenant}: ${progress.status === "ok" ? `${progress.rows ?? 0} rows` : "failed"}`);
+  renderPanel();
+  announce(`${event.tenant}: ${event.status === "ok" ? `${event.rows ?? 0} rows` : "failed"}`);
 });
 
 channel.post("ready", undefined);
-replace(root, stateBox({ kind: "loading", title: "Loading results…" }));
 
-function render(): void {
-  if (!state) return;
-  const s = state;
-  if (timer) clearInterval(timer);
-  timer = s.phase === "running" ? setInterval(renderElapsed, 500) : undefined;
-  const contacts = h("span", { class: "muted" }, [globeIcon(), ` Contacts ${s.contacts}`]);
-  replace(
-    root,
-    h("header", {}, [
-      h("h1", { text: s.title }),
-      h("div", { class: "muted subline" }, [
-        `${s.platform} · ${s.windowLabel} · up to ${s.limit} rows per tenant · `,
-        contacts,
-      ]),
-    ]),
-    s.writesPreviewAlerts
-      ? h("div", {
-          class: "banner",
-          attrs: { role: "note" },
-          text: "Elastic Kuery runs as a rule preview: the tenant writes the preview's alerts to its preview index. No rule is saved.",
-        })
-      : null,
-    toolbar(s),
-    h("div", { id: "tabs" }),
-    h("div", { id: "tabpanel" }),
-    h("footer", { class: "footer" }, [
-      h("div", { class: "muted", text: "Command" }),
-      h("code", { class: "cmdline", text: s.argvDisplay }),
-      h("div", { class: "toolbar" }, [
-        h("button", {
-          class: "secondary",
-          text: "Copy command",
-          on: { click: () => channel.post("copy", { format: "cell", text: s.argvDisplay }) },
-        }),
-        h("span", {
-          class: "muted",
-          text: "Results stay in memory and are dropped when this panel closes; only Export writes them to disk.",
-        }),
-      ]),
-    ]),
-  );
-  renderTabs();
+/** Before the first state: the toolbar's shape and skeleton rows, so nothing jumps when it arrives. */
+function renderLoading(): void {
+  replace(header, toolbar({ title: "Query results", context: [chip({ text: "Loading…", tone: "muted" })] }));
+  replace(progress, progressBar({ active: true, label: "Loading" }));
+  tableHost.hidden = true;
+  replace(placeholder, skeletonRows({ rows: 12, columns: 5 }));
 }
 
-function toolbar(s: QueryPanelState): HTMLElement {
-  const running = s.phase === "running";
-  return h("div", { class: "toolbar", attrs: { role: "toolbar", "aria-label": "Query" } }, [
-    running
-      ? h("button", { text: "◼ Cancel", on: { click: () => channel.post("cancel", undefined) } })
-      : h(
-          "button",
-          {
-            title: `Run again: contacts ${s.contacts}`,
-            attrs: { disabled: !canStartRun(s.phase) },
-            on: { click: () => channel.post("rerun", undefined) },
-          },
-          [globeIcon(), " Re-run"],
-        ),
-    h("button", {
-      class: "secondary",
-      text: "Tenants and window…",
-      attrs: { disabled: !canStartRun(s.phase) },
-      on: { click: () => channel.post("edit", undefined) },
-    }),
-    h("span", { id: "elapsed", class: "muted", attrs: { "aria-live": "off" } }, [elapsedText(s)]),
-    running && s.cancelMayLeaveSearch
-      ? h("span", {
-          class: "muted",
-          text: "On Windows a search the platform started may keep running after Cancel.",
+function render(): void {
+  const s = state;
+  if (!s) return;
+  if (timer) clearInterval(timer);
+  timer = s.phase === "running" ? setInterval(renderElapsed, 250) : undefined;
+  renderHeader(s);
+  replace(progress, progressBar({ active: s.phase === "running", label: `Querying ${s.contacts}` }));
+  replace(
+    notes,
+    s.writesPreviewAlerts
+      ? callout({
+          tone: "warning",
+          title: "Writes preview alerts.",
+          body: "Elastic Kuery runs as a rule preview: the tenant writes the preview's alerts to its preview index. No rule is saved.",
         })
       : null,
-    h("span", { class: "spacer" }),
-    ...(["csv", "json", "markdown"] as const).map((format) =>
-      h("button", {
-        class: "secondary",
-        text: `Copy ${format === "markdown" ? "Markdown" : format.toUpperCase()}`,
-        title: "Copy the rows shown (filtered and sorted)",
-        attrs: { disabled: running, "data-needs-rows": "" },
-        on: { click: () => copyTable(format) },
-      }),
-    ),
-    ...(["csv", "jsonl"] as const).map((format) =>
-      h("button", {
-        class: "secondary",
-        text: `Export ${format.toUpperCase()}…`,
-        attrs: { disabled: running, "data-needs-rows": "" },
-        on: { click: () => exportTable(format) },
-      }),
-    ),
-  ]);
+  );
+  renderTabs();
+  renderPanel();
+  renderDetails();
+  renderFooter(s);
+}
+
+function renderHeader(s: QueryPanelState): void {
+  const running = s.phase === "running";
+  const rowsShown = exportable(currentTab(), s.phase);
+  const context = [
+    chip({ text: s.platform, icon: "server-environment", title: "Platform" }),
+    chip({ text: s.windowLabel, icon: "history", title: "Time window" }),
+    chip({ text: `≤ ${s.limit.toLocaleString()} rows per tenant`, icon: "list-flat", title: "--limit" }),
+    chip({
+      text: s.tenants.length > 0 ? s.tenants.join(", ") : s.contacts,
+      icon: "globe",
+      tone: "info",
+      title: `Contacts ${s.contacts}: the query runs on the tenant (read-only)`,
+    }),
+  ];
+  const actions = [
+    h("span", { id: "elapsed", class: "ot-hint", attrs: { "aria-live": "off" } }, [elapsedText(s)]),
+    running
+      ? button({
+          label: "Cancel",
+          icon: "debug-stop",
+          focusKey: "cancel",
+          onClick: () => channel.post("cancel", undefined),
+        })
+      : button({
+          label: "Re-run",
+          icon: "globe",
+          focusKey: "rerun",
+          title: `Run again: contacts ${s.contacts}`,
+          disabled: !canStartRun(s.phase),
+          onClick: () => channel.post("rerun", undefined),
+        }),
+    button({
+      label: "Tenants and window…",
+      variant: "secondary",
+      icon: "settings",
+      focusKey: "edit",
+      disabled: !canStartRun(s.phase),
+      onClick: () => channel.post("edit", undefined),
+    }),
+    menuButton({
+      label: "Export",
+      icon: "export",
+      focusKey: "export",
+      title: "Copy or export the rows shown (filtered and sorted)",
+      disabled: !rowsShown,
+      items: () => [
+        { label: "Copy as CSV", icon: "copy", run: () => copyTable("csv") },
+        { label: "Copy as JSON", icon: "json", run: () => copyTable("json") },
+        { label: "Copy as Markdown", icon: "markdown", run: () => copyTable("markdown") },
+        "separator",
+        { label: "Export CSV…", icon: "save", run: () => exportTable("csv") },
+        { label: "Export JSONL…", icon: "save", run: () => exportTable("jsonl") },
+      ],
+    }),
+    button({
+      label: s.locked ? "Unlock: the next query reuses this panel" : "Lock: keep these results here",
+      variant: "icon",
+      icon: s.locked ? "lock" : "unlock",
+      pressed: s.locked,
+      focusKey: "lock",
+      onClick: () => channel.post("lock", !s.locked),
+    }),
+  ];
+  replace(header, toolbar({ title: s.name || s.title, context, actions, label: "Query" }));
 }
 
 function elapsedText(s: QueryPanelState): string {
-  if (s.phase === "running") return `running ${formatMs(Date.now() - s.startedAt)}`;
-  if (s.phase === "choosing") return "";
+  if (s.phase === "running") {
+    const waiting = s.tabs.filter((t) => t.status === "pending").map((t) => t.tenant);
+    const time = formatMs(Date.now() - s.startedAt);
+    return waiting.length > 0 ? `Running ${time} · waiting for ${waiting.join(", ")}` : `Running ${time}`;
+  }
+  if (s.phase === "choosing") return "Waiting for the tenant picker";
   if (s.durationMs !== null)
-    return `${s.phase === "cancelled" ? "cancelled after" : "took"} ${formatMs(s.durationMs)}`;
+    return `${s.phase === "cancelled" ? "Cancelled after" : "Took"} ${formatMs(s.durationMs)}`;
   return "";
 }
 
 function renderElapsed(): void {
   const element = document.getElementById("elapsed");
-  if (element && state) element.textContent = elapsedText(state);
+  if (element && state) setText(element, elapsedText(state));
 }
 
 function currentTab(): TenantTab | undefined {
@@ -182,217 +229,336 @@ function exportTable(format: "csv" | "jsonl"): void {
   channel.post("export", { format, text: formatRows(format, columns, rows), name });
 }
 
+const STATUS_ICONS = { ok: "pass", failed: "error", pending: "loading" } as const;
+
+/** The tenant tabs, patched by key: a progress event changes one tab's icon and count. */
 function renderTabs(): void {
   const s = state;
-  const tabsElement = document.getElementById("tabs");
-  const panel = document.getElementById("tabpanel");
-  if (!s || !tabsElement || !panel) return;
-  // Copy and Export act on the selected tab's rows only.
-  const rowsShown = exportable(currentTab(), s.phase);
-  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-needs-rows]"))
-    button.disabled = !rowsShown;
-  if (!rowsShown) table.setData([], []);
-  if (s.tabs.length === 0) {
-    replace(tabsElement);
+  if (!s) return;
+  tabs.hidden = s.tabs.length === 0;
+  const list = s.tabs;
+  patchKeyed(
+    tabs,
+    list,
+    (tab) => tab.key,
+    (tab) => {
+      const element = h("button", {
+        class: "ot-tab",
+        attrs: { type: "button", role: "tab", "aria-controls": "tabpanel" },
+        on: {
+          click: () => select(tab.key),
+          keydown: (event) => {
+            const keys = state?.tabs.map((t) => t.key) ?? [];
+            const at = keys.indexOf(element.dataset.key ?? "");
+            const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+            const next =
+              event.key === "Home"
+                ? keys[0]
+                : event.key === "End"
+                  ? keys.at(-1)
+                  : keys[(at + delta + keys.length) % keys.length];
+            if (!delta && event.key !== "Home" && event.key !== "End") return;
+            event.preventDefault();
+            if (next) select(next, true);
+          },
+        },
+      });
+      element.append(
+        h("span", { class: "tab-icon" }),
+        h("strong", { class: "tab-name" }),
+        h("span", { class: "ot-badge tab-count" }),
+      );
+      updateTab(element, tab);
+      return element;
+    },
+    updateTab,
+  );
+}
+
+function updateTab(element: HTMLElement, tab: TenantTab): void {
+  const active = tab.key === selected;
+  element.setAttribute("aria-selected", String(active));
+  element.tabIndex = active ? 0 : -1;
+  element.id = `tab-${cssId(tab.key)}`;
+  element.title = tab.status === "failed" ? (tab.error ?? "failed") : tabSummary(tab);
+  const iconElement = element.querySelector(".tab-icon");
+  if (iconElement) {
+    const spin = tab.status === "pending" ? " codicon-modifier-spin" : "";
+    const className = `tab-icon codicon codicon-${STATUS_ICONS[tab.status]} ${tab.status}${spin}`;
+    if (iconElement.className !== className) iconElement.className = className;
+  }
+  const name = element.querySelector(".tab-name");
+  if (name) setText(name, tab.label ? `${tab.tenant} · ${tab.label}` : tab.tenant);
+  const count = element.querySelector(".tab-count");
+  if (count) {
+    const n = tab.rowCount ?? tab.rows.length;
+    setText(
+      count,
+      tab.status === "failed"
+        ? "failed"
+        : tab.status === "pending"
+          ? "…"
+          : `${n.toLocaleString()}${tab.truncated ? "+" : ""}`,
+    );
+    count.setAttribute("aria-label", tabSummary(tab));
+  }
+}
+
+const cssId = (key: string) => key.replace(/[^A-Za-z0-9_-]/g, "_");
+
+/** Show the table, or something in its place (the same height: no layout shift). */
+function showTable(visible: boolean): void {
+  tableHost.hidden = !visible;
+  placeholder.hidden = visible;
+  if (!visible) table.setData([], []);
+}
+
+function renderPanel(): void {
+  const s = state;
+  if (!s) return;
+  const tab = currentTab();
+  if (tab) panel.setAttribute("aria-labelledby", `tab-${cssId(tab.key)}`);
+  else panel.removeAttribute("aria-labelledby");
+  // Export acts on the selected tab's rows only.
+  const rowsShown = exportable(tab, s.phase);
+  const exportButton = header.querySelector<HTMLButtonElement>('[data-focus="export"]');
+  if (exportButton) exportButton.disabled = !rowsShown;
+  replace(tableFooter);
+  replace(tableNotes);
+  if (
+    s.phase === "running" &&
+    (!tab || tab.status === "pending" || s.tabs.every((t) => t.status !== "pending"))
+  ) {
+    // opentide sends the rows once every tenant has answered: skeleton rows until then.
+    showTable(false);
+    const answered = tab && tab.status !== "pending";
+    replace(
+      placeholder,
+      answered
+        ? callout({
+            tone: "info",
+            body:
+              tab.status === "ok"
+                ? `${tab.tenant} answered with ${(tab.rowCount ?? 0).toLocaleString()} row${tab.rowCount === 1 ? "" : "s"}. The rows appear when every tenant has answered.`
+                : `${tab.tenant} failed. The other tenants are still running.`,
+          })
+        : null,
+      skeletonRows({ rows: 14, columns: 5, label: `Waiting for ${tab?.tenant ?? s.contacts}` }),
+    );
+    return;
+  }
+  if (s.tabs.length === 0 || !tab) {
+    showTable(false);
     if (s.phase === "running") {
-      replace(panel, stateBox({ kind: "loading", title: "Running…", body: `Waiting for ${s.contacts}.` }));
+      replace(placeholder, skeletonRows({ rows: 14, columns: 5, label: `Waiting for ${s.contacts}` }));
     } else if (s.phase === "choosing") {
       replace(
-        panel,
-        stateBox({
-          kind: "info",
+        placeholder,
+        emptyState({
+          icon: "organization",
           title: s.message,
           body: "The platform has several tenants: tick the ones to query in the picker.",
         }),
       );
     } else if (s.failure) {
-      const actions = [
-        ...(s.failure.action
-          ? [{ label: s.failure.action, run: () => channel.post("action", s.failure?.code ?? "") }]
-          : []),
-        { label: "Tenants and window…", run: () => channel.post("edit", undefined), secondary: true },
-        { label: "Show output", run: () => channel.post("action", "output"), secondary: true },
-      ];
-      replace(panel, stateBox({ kind: "error", title: s.failure.message, body: s.failure.code, actions }));
+      const failure = s.failure;
+      replace(
+        placeholder,
+        errorState({
+          title: failure.message || "The query did not run",
+          code: failure.code,
+          ...(failure.action
+            ? { action: { label: failure.action, run: () => channel.post("action", failure.code) } }
+            : {}),
+          secondary: [{ label: "Tenants and window…", run: () => channel.post("edit", undefined) }],
+          onShowOutput: () => channel.post("action", "output"),
+        }),
+      );
     } else {
-      replace(panel, stateBox({ kind: "empty", title: s.message || "No results" }));
+      replace(placeholder, emptyState({ icon: "search", title: s.message || "No results" }));
     }
     return;
   }
-  const buttons = s.tabs.map((tab, index) => {
-    const active = tab.key === selected;
-    const glyphs = { ok: "✓", failed: "✕", pending: "◌" };
-    return h(
-      "button",
-      {
-        class: `tab chip ${tab.status}${active ? " active" : ""}`,
-        attrs: {
-          role: "tab",
-          "aria-selected": active ? "true" : "false",
-          "aria-controls": "tabpanel",
-          tabindex: active ? 0 : -1,
-          id: `tab-${index}`,
-        },
-        on: {
-          click: () => select(tab.key),
-          keydown: (event) => {
-            const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-            if (!delta) return;
-            event.preventDefault();
-            const next = s.tabs[(index + delta + s.tabs.length) % s.tabs.length];
-            if (next) select(next.key, true);
-          },
-        },
-      },
-      [
-        h("span", {
-          class: tab.status === "pending" ? "spin" : "",
-          text: glyphs[tab.status],
-          attrs: { "aria-hidden": "true" },
-        }),
-        h("strong", { text: tab.label ? `${tab.tenant} · ${tab.label}` : tab.tenant }),
-        h("span", { text: tabSummary(tab) }),
-      ],
-    );
-  });
-  replace(
-    tabsElement,
-    h("div", { class: "tablist", attrs: { role: "tablist", "aria-label": "Tenants" } }, buttons),
-  );
-  const tab = currentTab();
-  if (!tab) return;
-  panel.setAttribute("role", "tabpanel");
-  panel.setAttribute("aria-labelledby", `tab-${s.tabs.indexOf(tab)}`);
-  if (tab.status === "pending") {
-    replace(panel, stateBox({ kind: "loading", title: `Waiting for ${tab.tenant}…` }));
-    return;
-  }
-  if (s.phase === "running") {
-    // A tenant event arrived: opentide sends the rows when every tenant has answered.
-    replace(
-      panel,
-      stateBox({
-        kind: "loading",
-        title:
-          tab.status === "ok"
-            ? `${tab.tenant} answered with ${tab.rowCount ?? 0} row${tab.rowCount === 1 ? "" : "s"}`
-            : `${tab.tenant} failed`,
-        body: "The rows appear when every tenant has answered.",
-      }),
-    );
-    return;
-  }
   if (tab.status === "failed") {
-    replace(
-      panel,
-      h("section", { class: "banner error", attrs: { role: "alert" } }, [
-        h("h2", { text: `${tab.tenant} failed` }),
-        h("p", { text: tab.error ?? "No rows: the tenant reported no reason." }),
-        tab.detail ? h("pre", { class: "cmdline", text: tab.detail }) : null,
-        ...tab.warnings.map((w) => h("p", { class: "warning", text: `warning: ${w}` })),
-      ]),
-      details(tab),
-    );
+    showTable(false);
+    replace(placeholder, tenantError(tab), ...tab.warnings.map((w) => callout({ tone: "warning", body: w })));
     return;
   }
-  const notes: (HTMLElement | null)[] = [
+  replace(
+    tableNotes,
     tab.truncated
-      ? h("div", { class: "banner info" }, [
-          `Showing ${tab.rows.length} rows: more matched than --limit ${s.limit}. `,
-          s.limit < s.maxLimit
-            ? h("button", {
-                class: "link",
-                text: `Show up to ${Math.min(s.maxLimit, s.limit < 1000 ? 1000 : s.maxLimit)}`,
-                on: {
-                  click: () =>
-                    channel.post("rerun", {
-                      limit: Math.min(s.maxLimit, s.limit < 1000 ? 1000 : s.maxLimit),
-                    }),
-                },
-              })
-            : null,
-        ])
+      ? callout({
+          tone: "info",
+          body: `Showing ${tab.rows.length.toLocaleString()} rows: more matched than --limit ${s.limit}.`,
+          actions:
+            s.limit < s.maxLimit
+              ? [
+                  {
+                    label: `Show up to ${nextLimit(s).toLocaleString()}`,
+                    run: () => channel.post("rerun", { limit: nextLimit(s) }),
+                  },
+                ]
+              : [],
+        })
       : null,
-    tab.partial ? h("div", { class: "banner", text: "Partial results: the platform stopped early." }) : null,
-    ...tab.warnings.map((w) => h("div", { class: "banner", text: w })),
-  ];
-  const copyFocused = h("div", { class: "toolbar" }, [
-    h("button", {
-      class: "secondary",
-      text: "Copy cell",
-      title: "Ctrl+C in the table",
-      on: {
-        click: () => {
-          const text = table.focusedCell();
-          if (text !== undefined) channel.post("copy", { format: "cell", text });
-        },
-      },
-    }),
-    h("button", {
-      class: "secondary",
-      text: "Copy row",
-      title: "Ctrl+Shift+C in the table",
-      on: {
-        click: () => {
-          const row = table.focusedRow();
-          if (row) channel.post("copy", { format: "row", text: JSON.stringify(row) });
-        },
-      },
-    }),
-    h("span", { class: "muted", text: "Arrow keys move between cells · click a header to sort" }),
-  ]);
+    tab.partial ? callout({ tone: "warning", body: "Partial results: the platform stopped early." }) : null,
+    ...tab.warnings.map((w) => callout({ tone: "warning", body: w })),
+  );
   if (tab.rows.length === 0) {
+    showTable(false);
     replace(
-      panel,
-      ...notes,
-      stateBox({ kind: "empty", title: "No rows", body: `Nothing matched in ${s.windowLabel}.` }),
-      details(tab),
+      placeholder,
+      emptyState({ icon: "search", title: "No rows", body: `Nothing matched in ${s.windowLabel}.` }),
     );
     return;
   }
-  replace(panel, ...notes, table.element, copyFocused, details(tab));
+  showTable(true);
   table.setData(tab.columns, tab.rows);
+  replace(
+    tableFooter,
+    button({
+      label: "Copy cell",
+      variant: "secondary",
+      icon: "copy",
+      title: "Ctrl+C in the table",
+      onClick: () => {
+        const text = table.focusedCell();
+        if (text !== undefined) channel.post("copy", { format: "cell", text });
+      },
+    }),
+    button({
+      label: "Copy row",
+      variant: "secondary",
+      icon: "json",
+      title: "Ctrl+Shift+C in the table",
+      onClick: () => {
+        const row = table.focusedRow();
+        if (row) channel.post("copy", { format: "row", text: JSON.stringify(row) });
+      },
+    }),
+    keyHint(
+      "Arrow keys move · Shift+F10 cell menu · click a header to sort, drag its edge to resize · / filters",
+    ),
+  );
 }
 
-function details(tab: TenantTab): HTMLElement {
+const nextLimit = (s: QueryPanelState) => Math.min(s.maxLimit, s.limit < 1000 ? 1000 : s.maxLimit);
+
+/** A failed tenant: what it said, and the one thing to do about it. */
+function tenantError(tab: TenantTab) {
+  const credentials = tab.errorKind === "credentials" || tab.errorKind === "auth";
+  const title =
+    tab.errorKind === "credentials"
+      ? `${tab.tenant} needs credentials`
+      : tab.errorKind === "auth"
+        ? `${tab.tenant} refused the credentials`
+        : tab.errorKind === "network"
+          ? `${tab.tenant} could not be reached`
+          : `${tab.tenant} failed`;
+  return errorState({
+    title,
+    body: tab.error ?? "No rows: the tenant reported no reason.",
+    ...(tab.detail ? { code: tab.detail } : {}),
+    action: credentials
+      ? {
+          label: "Set Credential…",
+          icon: "key",
+          run: () => channel.post("action", `credentials:${tab.tenant}`),
+        }
+      : { label: "Re-run", icon: "globe", run: () => channel.post("rerun", undefined) },
+    onShowOutput: () => channel.post("action", "output"),
+  });
+}
+
+function renderDetails(): void {
+  const tab = currentTab();
+  const s = state;
+  if (!s || !tab || tab.status === "pending") {
+    replace(details);
+    return;
+  }
   const rows: [string, string | null][] = [
+    ["Tenant", tab.tenant],
     ["Language", tab.language],
     ["Elapsed", tab.elapsedMs === null ? null : formatMs(tab.elapsedMs)],
     ["Vendor query id", tab.vendorQueryId],
   ];
-  return h("details", { class: "drawer" }, [
-    h("summary", { text: "Details" }),
-    h(
-      "dl",
-      {},
-      rows.flatMap(([name, value]) => (value ? [h("dt", { text: name }), h("dd", { text: value })] : [])),
-    ),
-    tab.sent || state?.query
-      ? h("div", {}, [
-          h("div", { class: "muted", text: tab.sent ? "Query as sent" : "Query" }),
-          h("pre", { class: "cmdline", text: tab.sent ?? state?.query ?? "" }),
-        ])
-      : null,
-  ]);
+  const query = tab.sent ?? s.query;
+  replace(
+    details,
+    collapsible({
+      id: "details",
+      title: "Details",
+      open: detailsOpen,
+      onToggle: (open) => {
+        detailsOpen = open;
+        saveView();
+      },
+      meta: [tab.vendorQueryId ? `query id ${tab.vendorQueryId}` : null],
+      children: [
+        h(
+          "dl",
+          { class: "ot-dl" },
+          rows.flatMap(([name, value]) => (value ? [h("dt", { text: name }), h("dd", { text: value })] : [])),
+        ),
+        query
+          ? h("div", {}, [
+              h("div", { class: "ot-command-label", text: tab.sent ? "Query as sent" : "Query" }),
+              h("pre", { class: "ot-code", text: query }),
+            ])
+          : null,
+      ],
+    }),
+  );
+}
+
+function renderFooter(s: QueryPanelState): void {
+  replace(
+    footer,
+    collapsible({
+      id: "command",
+      title: "Command",
+      open: commandOpen,
+      onToggle: (open) => {
+        commandOpen = open;
+        saveView();
+      },
+      meta: [icon("shield"), "Results stay in memory; only Export writes them to disk"],
+      children: [
+        h("div", { class: "ot-command" }, [
+          h("code", { class: "ot-code", text: s.argvDisplay }),
+          button({
+            label: "Copy command",
+            variant: "icon",
+            icon: "copy",
+            onClick: () => channel.post("copy", { format: "cell", text: s.argvDisplay }),
+          }),
+        ]),
+        s.phase === "running" && s.cancelMayLeaveSearch
+          ? h("p", {
+              class: "ot-hint",
+              text: "On Windows a search the platform started may keep running after Cancel.",
+            })
+          : null,
+      ],
+    }),
+  );
 }
 
 function select(key: string, focus = false): void {
   selected = key;
   saveView();
   renderTabs();
-  if (focus) document.querySelector<HTMLElement>('.tablist [aria-selected="true"]')?.focus();
+  renderPanel();
+  renderDetails();
+  if (focus) tabs.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
 }
 
-function CSS(): string {
-  return `
-.subline { display: flex; flex-wrap: wrap; gap: 4px; }
-.tablist { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.tab { cursor: pointer; font: inherit; }
-.tab.active { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
-#tabpanel { display: flex; flex-direction: column; }
-.drawer { margin-top: 8px; }
-.drawer dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; }
-.drawer dt { color: var(--vscode-descriptionForeground); }
-.drawer dd { margin: 0; font-family: var(--vscode-editor-font-family); }
-`;
-}
+addStyles(`
+.region-panel { display: flex; flex-direction: column; margin-top: var(--ot-space-2); }
+.region-placeholder { min-height: calc(var(--ot-table-height) + 40px); }
+.region-placeholder > .ot-skeleton { margin-top: 40px; border: 1px solid var(--ot-border); border-radius: var(--ot-radius-1); }
+.region-progress { margin: 0 calc(-1 * var(--ot-space-4)); }
+.region-details, .region-footer { margin-top: var(--ot-space-2); }
+.tab-count { min-width: 24px; }
+`);

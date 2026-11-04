@@ -69,36 +69,55 @@ const ROWS = result(
   0,
 );
 
+interface FakePanel {
+  readonly options: Record<string, unknown>;
+  readonly handlers: Map<string, (payload: unknown) => unknown>;
+  readonly panel: { title: string; reveals: boolean[] };
+  dispose(): void;
+}
+
 function harness(runs: Promise<RunResult>[]) {
-  const handlers = new Map<string, (payload: unknown) => unknown>();
+  const panels: FakePanel[] = [];
   const posted: QueryPanelState[] = [];
-  let disposePanel: () => void = () => undefined;
   const argvs: string[][] = [];
   const picker = deferred<readonly string[] | undefined>();
   const ctx = {
     webview: {
-      createPanel: () => ({
-        channel: {
-          on(type: string, handler: (payload: unknown) => unknown) {
-            handlers.set(type, handler);
+      createPanel: (options: Record<string, unknown>) => {
+        const handlers = new Map<string, (payload: unknown) => unknown>();
+        let disposePanel: () => void = () => undefined;
+        const panel = {
+          title: String(options.title),
+          reveals: [] as boolean[],
+          reveal(_column: unknown, preserveFocus: boolean) {
+            panel.reveals.push(preserveFocus);
+          },
+          onDidChangeViewState() {
             return { dispose() {} };
           },
-          post(type: string, payload: unknown) {
-            if (type === "state") posted.push(payload as QueryPanelState);
-            return Promise.resolve(true);
-          },
-          dispose() {},
-        },
-        panel: {
-          title: "",
-          reveal() {},
           onDidDispose(listener: () => void) {
             disposePanel = listener;
             return { dispose() {} };
           },
-        },
-        dispose: () => disposePanel(),
-      }),
+        };
+        const fake: FakePanel = { options, handlers, panel, dispose: () => disposePanel() };
+        panels.push(fake);
+        return {
+          channel: {
+            on(type: string, handler: (payload: unknown) => unknown) {
+              handlers.set(type, handler);
+              return { dispose() {} };
+            },
+            post(type: string, payload: unknown) {
+              if (type === "state") posted.push(payload as QueryPanelState);
+              return Promise.resolve(true);
+            },
+            dispose() {},
+          },
+          panel,
+          dispose: () => fake.dispose(),
+        };
+      },
     },
     backend: {
       run(_folder: string, argv: string[]) {
@@ -119,17 +138,24 @@ function harness(runs: Promise<RunResult>[]) {
     edit: async () => undefined,
     action: async () => undefined,
   };
-  const panels = new QueryPanels(ctx, hooks);
+  const pool = new QueryPanels(ctx, hooks);
   return {
-    panels,
+    panels: pool,
+    created: panels,
     picker,
     argvs,
     posted,
     picks: () => picks,
-    send: (type: string, payload?: unknown) => handlers.get(type)?.(payload),
+    send: (type: string, payload?: unknown, index = 0) => panels[index]?.handlers.get(type)?.(payload),
     last: () => posted.at(-1),
   };
 }
+
+const spec = (name: string, platform = "sentinel"): RunSpec => ({
+  ...SPEC,
+  options: { ...SPEC.options, platform, source: { kind: "text", text: name, name } },
+  title: name,
+});
 
 describe("query panel", () => {
   it("lets a Re-run started while the tenant picker is open keep its results", async () => {
@@ -156,5 +182,58 @@ describe("query panel", () => {
     h.picker.resolve(["prod"]);
     await flush();
     assert.equal(h.argvs.length, 1, "a closed panel contacts no tenant");
+  });
+
+  it("opens beside the editor, keeping the focus there, with the object in its title", async () => {
+    const h = harness([Promise.resolve(ROWS)]);
+    h.panels.run(spec("LSASS handle opened by unsigned process"));
+    await flush();
+    assert.equal(h.created.length, 1);
+    assert.equal(h.created[0]?.options.beside, true, "beside the rule, not over it");
+    assert.equal(h.created[0]?.options.kit, true);
+    assert.equal(h.created[0]?.panel.title, "Query · LSASS handle opened by… · Sentinel");
+    h.panels.dispose();
+  });
+
+  it("reuses its panel for the next query (retarget, not a new tab), and keeps the editor's focus", async () => {
+    const h = harness([Promise.resolve(ROWS), Promise.resolve(ROWS), Promise.resolve(ROWS)]);
+    h.panels.run(spec("First rule"));
+    await flush();
+    h.panels.run(spec("Second rule", "splunk"));
+    await flush();
+    assert.equal(h.created.length, 1, "one panel per kind");
+    assert.equal(h.panels.size, 1);
+    assert.equal(h.created[0]?.panel.title, "Query · Second rule · Splunk");
+    assert.deepEqual(h.created[0]?.panel.reveals, [true], "revealed without taking the focus");
+    // The same query again runs in the panel that shows it.
+    h.panels.run(spec("Second rule", "splunk"));
+    await flush();
+    assert.equal(h.created.length, 1);
+    assert.equal(h.argvs.length, 3);
+    h.panels.dispose();
+  });
+
+  it("keeps a locked panel on its query: the next query opens a panel of its own", async () => {
+    const h = harness([Promise.resolve(ROWS), Promise.resolve(ROWS), Promise.resolve(ROWS)]);
+    h.panels.run(spec("Pinned rule"));
+    await flush();
+    await h.send("lock", true);
+    assert.equal(h.last()?.locked, true, "the webview shows the lock");
+    h.panels.run(spec("Other rule"));
+    await flush();
+    assert.equal(h.created.length, 2);
+    assert.deepEqual(
+      h.panels.describe().map((p) => [p.title, p.locked]),
+      [
+        ["Query · Pinned rule · Sentinel", true],
+        ["Query · Other rule · Sentinel", false],
+      ],
+    );
+    // Running the pinned query again reveals its panel instead of retargeting the free one.
+    h.panels.run(spec("Pinned rule"));
+    await flush();
+    assert.equal(h.created.length, 2);
+    assert.equal(h.created[1]?.panel.title, "Query · Other rule · Sentinel");
+    h.panels.dispose();
   });
 });

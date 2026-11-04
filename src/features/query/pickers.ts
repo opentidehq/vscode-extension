@@ -141,3 +141,59 @@ export async function ensureCredentials(
   }
   return true;
 }
+
+/**
+ * "Set Credential…" from a failed tenant tab: pick which of the tenant's variables to set (the unset ones
+ * picked), then each value, into SecretStorage. Resolves true when one was stored.
+ */
+export async function setCredentials(
+  ctx: FeatureContext,
+  folder: string,
+  tenants: readonly TenantInfo[],
+  tenantName: string,
+): Promise<boolean> {
+  const stored = new Set(await ctx.credentials.names(folder));
+  const variables = tenants.flatMap((tenant) => tenant.variables);
+  if (variables.length === 0) {
+    void vscode.window.showInformationMessage(
+      `opentide names no credential variable for ${tenantName}. Check its [tenants.setup] in the platform file.`,
+    );
+    return false;
+  }
+  const missing = new Set(tenants.flatMap((tenant) => missingVariables(tenant, stored)));
+  const picked = await vscode.window.showQuickPick(
+    variables.map((variable) => ({
+      label: `$${variable.name}`,
+      name: variable.name,
+      description: missing.has(variable.name)
+        ? "not set"
+        : stored.has(variable.name)
+          ? "set in the editor"
+          : "set in the environment",
+      picked: missing.has(variable.name) || missing.size === 0,
+    })),
+    {
+      title: `Credentials for ${tenantName}`,
+      placeHolder: "Which variables to set (stored in VS Code's secret storage for this folder)",
+      canPickMany: true,
+      ignoreFocusOut: true,
+    },
+  );
+  if (!picked || picked.length === 0) return false;
+  let changed = false;
+  for (const item of picked) {
+    const value = await vscode.window.showInputBox({
+      title: `Set $${item.name}`,
+      prompt:
+        "Stored in VS Code's secret storage for this folder and passed only to commands that contact a tenant",
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (value === undefined) return changed;
+    if (value) {
+      await ctx.credentials.set(folder, item.name, value);
+      changed = true;
+    }
+  }
+  return changed;
+}
