@@ -708,6 +708,7 @@ class Emphasis {
       if (!part || generation !== this.generation) return;
       run(part);
       if (parts.length > 0) requestAnimationFrame(step);
+      else redrawAfterTexture();
     };
     step();
   }
@@ -933,7 +934,7 @@ function bringIntoView(ids: readonly string[]): void {
   };
   autoFit = false;
   if (reducedMotion()) cy.viewport(next);
-  else cy.animate(next, { duration: 220, easing: "ease-out" });
+  else cy.animate(next, { duration: 220, easing: "ease-out", complete: redrawAfterTexture });
 }
 
 /** The view was fitted and the user has not panned or zoomed since: a resize fits it again. */
@@ -1021,6 +1022,14 @@ function inViewport(id: string): boolean {
   return box.x1 >= 0 && box.y1 >= 0 && box.x2 <= canvas.clientWidth && box.y2 <= canvas.clientHeight;
 }
 
+/**
+ * A large view pans as a texture (textureOnViewport): a restyle made while it animates can stay out of
+ * the picture until the next interaction, so draw once more when the animation ends.
+ */
+function redrawAfterTexture(): void {
+  if (cy && cyLarge) cy.forceRender();
+}
+
 /** Centre `id` (when off screen, or `always`); a jump (search) also zooms in until it is readable. */
 function centreOn(id: string, always: boolean, readable = false): void {
   if (!cy || settings.list) return;
@@ -1034,7 +1043,7 @@ function centreOn(id: string, always: boolean, readable = false): void {
   };
   if (zoom !== cy.zoom()) autoFit = false;
   if (reducedMotion()) cy.viewport(next);
-  else cy.animate(next, { duration: 160 });
+  else cy.animate(next, { duration: 160, complete: redrawAfterTexture });
 }
 
 /**
