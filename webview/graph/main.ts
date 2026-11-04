@@ -1217,6 +1217,7 @@ function renderDetails(): void {
       problems: selected ? problems[selected] : undefined,
       canOpen: Boolean(found?.node.filePath),
       canFocus: Boolean(found && !(mode === "focus" && focus.length === 1 && focus[0] === found.node.id)),
+      canShowRelations: Boolean(found && nodeActions(found.node, availableActions).includes("showRelations")),
       ...(hiddenBy ? { hiddenBy } : {}),
     }),
   );
@@ -1246,6 +1247,7 @@ details.addEventListener("click", (event) => {
   if (action === "open") channel.post("open", node.id);
   else if (action === "copyUuid" && node.uuid) channel.post("copy", node.uuid);
   else if (action === "focus") focusOn([node.id]);
+  else if (action === "relations") channel.post("nodeAction", { action: "showRelations", id: node.id });
 });
 details.addEventListener("dblclick", (event) => {
   const link = (event.target as HTMLElement).closest<HTMLElement>("a[data-id]");
@@ -2179,6 +2181,9 @@ channel.on("data", (next) => {
 let availableActions: readonly NodeAction[] = [];
 channel.on("actions", (next) => {
   availableActions = next;
+  // Show Relations in the details pane depends on them.
+  paneKey = "";
+  renderDetails();
 });
 
 channel.on("follow", (state) => {

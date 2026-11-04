@@ -12,6 +12,8 @@ export interface PaneContext {
   /** Commands the pane may offer. */
   readonly canOpen: boolean;
   readonly canFocus: boolean;
+  /** The sidebar's Relations view is there (opentide.relations.show) and the node is an object. */
+  readonly canShowRelations: boolean;
   /** Why the node is not drawn (a filtered-out kind), when it is not. */
   readonly hiddenBy?: string;
 }
@@ -138,6 +140,7 @@ export function paneContent(details: NodeDetails | undefined, context: PaneConte
     { class: "actions", role: "group", "aria-label": "Actions" },
     context.canOpen ? button("go-to-file", "Open file", "open", true) : undefined,
     context.canFocus ? button("location", "Focus here", "focus") : undefined,
+    context.canShowRelations ? button("references", "Show Relations", "relations") : undefined,
     node.uuid ? button("copy", "Copy UUID", "copyUuid") : undefined,
   );
   return [

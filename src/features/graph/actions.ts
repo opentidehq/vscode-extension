@@ -3,7 +3,14 @@
 import type { GraphNode } from "./model";
 
 /** Node actions the webview may ask for; each is another feature's command. */
-export const NODE_ACTIONS = ["validate", "runQuery", "previewDeploy", "newRule", "newObjective"] as const;
+export const NODE_ACTIONS = [
+  "validate",
+  "runQuery",
+  "previewDeploy",
+  "newRule",
+  "newObjective",
+  "showRelations",
+] as const;
 export type NodeAction = (typeof NODE_ACTIONS)[number];
 
 /** The command each action runs. */
@@ -13,6 +20,7 @@ export const NODE_ACTION_COMMANDS: Readonly<Record<NodeAction, string>> = {
   previewDeploy: "opentide.deployPlan.open",
   newRule: "opentide.newObject.ruleForObjective",
   newObjective: "opentide.newObject.objectiveForThreat",
+  showRelations: "opentide.relations.show",
 };
 
 export const NODE_ACTION_LABELS: Readonly<Record<NodeAction, string>> = {
@@ -21,6 +29,7 @@ export const NODE_ACTION_LABELS: Readonly<Record<NodeAction, string>> = {
   previewDeploy: "Preview deploy",
   newRule: "New rule for this objective…",
   newObjective: "New objective for this threat…",
+  showRelations: "Show Relations",
 };
 
 export function isNodeAction(value: unknown): value is NodeAction {
@@ -39,6 +48,7 @@ export function nodeActions(
     if (node.kind === "rule") wanted.push("runQuery", "previewDeploy");
     if (node.kind === "objective") wanted.push("newRule");
     if (node.kind === "threat") wanted.push("newObjective");
+    if (object) wanted.push("showRelations");
   }
   return wanted.filter((action) => available.includes(action));
 }
@@ -57,6 +67,7 @@ export function nodeCommand(
     case "runQuery":
     case "previewDeploy":
       return { command, args: [{ uuid: node.uuid, folder }] };
+    case "showRelations":
     case "newRule":
     case "newObjective":
       // The folder too: in a multi-root window the new object goes next to its parent.

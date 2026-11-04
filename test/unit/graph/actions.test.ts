@@ -16,9 +16,14 @@ const threat = { kind: "threat", uuid: "t1", filePath: "/ws/objects/threats/t.ya
 
 describe("graph: node actions", () => {
   it("offers each object kind its owning features' actions", () => {
-    assert.deepEqual(nodeActions(rule, NODE_ACTIONS), ["validate", "runQuery", "previewDeploy"]);
-    assert.deepEqual(nodeActions(objective, NODE_ACTIONS), ["validate", "newRule"]);
-    assert.deepEqual(nodeActions(threat, NODE_ACTIONS), ["validate", "newObjective"]);
+    assert.deepEqual(nodeActions(rule, NODE_ACTIONS), [
+      "validate",
+      "runQuery",
+      "previewDeploy",
+      "showRelations",
+    ]);
+    assert.deepEqual(nodeActions(objective, NODE_ACTIONS), ["validate", "newRule", "showRelations"]);
+    assert.deepEqual(nodeActions(threat, NODE_ACTIONS), ["validate", "newObjective", "showRelations"]);
     assert.deepEqual(nodeActions({ kind: "technique" }, NODE_ACTIONS), []);
     assert.deepEqual(nodeActions({ kind: "signal", uuid: "s1", filePath: "/ws/o.yaml" }, NODE_ACTIONS), []);
   });
@@ -26,6 +31,14 @@ describe("graph: node actions", () => {
   it("leaves out what the window lacks, and a rule that failed to load gets validate only", () => {
     assert.deepEqual(nodeActions(rule, ["validate", "previewDeploy"]), ["validate", "previewDeploy"]);
     assert.deepEqual(nodeActions({ ...rule, loadError: "bad yaml" }, NODE_ACTIONS), ["validate"]);
+  });
+
+  it("hands Show Relations the relations view's {uuid, folder}", () => {
+    assert.deepEqual(nodeCommand("showRelations", objective, "/ws"), {
+      command: "opentide.relations.show",
+      args: [{ uuid: "o1", folder: "/ws" }],
+    });
+    assert.equal(nodeCommand("showRelations", { kind: "technique" }, "/ws"), undefined);
   });
 
   it("passes each command the argument shape it accepts", () => {

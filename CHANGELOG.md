@@ -134,7 +134,8 @@ pre-releases odd ones.
   the legend explains the colours and node kinds, with each kind's sidebar icon.
 - A details pane (resizable, collapsible) for the selected node: path, UUID, platforms, problems, then
   Outgoing and Incoming groups ("Implements 1 →", "← Implemented by 3", "Precedes 1 →") whose items
-  select the node (click) or open its file beside (double-click, Enter); Open file, Focus here, Copy UUID.
+  select the node (click) or open its file beside (double-click, Enter); Open file, Focus here, Show Relations, Copy UUID.
+  A node's menu has Show Relations too.
 - Back and Forward through the selection (toolbar, Alt+←/→); + and − expand and collapse a node's
   neighbours in place, without laying the graph out again; arrow keys move between neighbours, Enter
   opens, Escape clears, and Enter in the search box jumps to the next match.

@@ -176,8 +176,8 @@ platforms.
 - **Details pane** (right; drag its edge to resize, the toolbar button hides it): the node's kind, path,
   UUID, platforms and problems, then **Outgoing** and **Incoming** groups, worded as everywhere else
   ("Implements 1 →", "← Implemented by 3", "Precedes 1 →"). Click an item to select it in the graph;
-  double-click it (or <kbd>Enter</kbd>) to open its file beside, at its line. **Open file**, **Focus here**
-  and **Copy UUID** act on the node.
+  double-click it (or <kbd>Enter</kbd>) to open its file beside, at its line. **Open file**, **Focus here**,
+  **Show Relations** (the sidebar's Relations view) and **Copy UUID** act on the node.
 - **Click around.** Double-click a node to open it; <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> (or the
   toolbar's arrows) go back and forward through what you selected. **+** and **−** beside the selected
   node (or the keys) show its hidden neighbours in place, or hide the ones that link to nothing else. On
