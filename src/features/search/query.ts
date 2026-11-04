@@ -178,10 +178,11 @@ export function parseQuery(text: string): ParsedQuery {
     const body = negated ? token.slice(1) : token;
     const colon = body.indexOf(":");
     // `T1003.001`, a UUID, `lsadump::dcsync`, `http://…`: only `word:` with letters, then a value, is a
-    // filter key.
+    // filter key. A known key may take a value starting with `/` (`path:/sentinel/`); `x://` is a URL.
     const key = colon > 0 ? body.slice(0, colon).toLowerCase() : "";
     const after = body.charAt(colon + 1);
-    if (!key || !/^[a-z]+$/.test(key) || after === ":" || after === "/") {
+    const url = after === "/" && (body.charAt(colon + 2) === "/" || !KEYS.has(key));
+    if (!key || !/^[a-z]+$/.test(key) || after === ":" || url) {
       // A leading `-` excludes text with colons too: `-sekurlsa::logonpasswords`, `-http://x`.
       if (token.startsWith("-") && token.length > 1) excluded.push(token.slice(1).toLowerCase());
       else words.push(token.toLowerCase());
