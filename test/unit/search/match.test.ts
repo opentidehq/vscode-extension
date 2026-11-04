@@ -156,14 +156,28 @@ describe("search matching", () => {
       "lsass t:T1003 p:sentinel s:production",
       "author:jane -tlp:green",
     ];
-    search(big, parseQuery("warm up"), { now: NOW });
-    const timings = queries.map((text) => {
-      const started = performance.now();
-      search(big, parseQuery(text), { now: NOW });
-      return performance.now() - started;
-    });
-    const worst = Math.max(...timings);
-    assert.ok(worst < 50, `slowest keystroke took ${worst.toFixed(1)} ms`);
+    // The budget holds for each keystroke's median over repeated runs, after a warm-up: a single run's
+    // time includes garbage collection and the runner's scheduling (a shared Windows runner took 73 ms
+    // once for a keystroke whose median is 2 ms), which say nothing about the search.
+    const RUNS = 11;
+    const median = (text: string): number => {
+      const parsed = () => parseQuery(text);
+      for (let i = 0; i < 3; i++) search(big, parsed(), { now: NOW });
+      const timings: number[] = [];
+      for (let i = 0; i < RUNS; i++) {
+        const started = performance.now();
+        search(big, parsed(), { now: NOW });
+        timings.push(performance.now() - started);
+      }
+      timings.sort((a, b) => a - b);
+      return timings[Math.floor(RUNS / 2)] ?? Number.POSITIVE_INFINITY;
+    };
+    const medians = queries.map((text) => ({ text, ms: median(text) }));
+    const worst = medians.reduce((a, b) => (b.ms > a.ms ? b : a));
+    assert.ok(
+      worst.ms < 50,
+      `slowest keystroke ("${worst.text}") took ${worst.ms.toFixed(1)} ms (median of ${RUNS})`,
+    );
     assert.ok(search(big, parseQuery("lsass t:T1003"), { now: NOW }).results.length > 0);
   });
 });
