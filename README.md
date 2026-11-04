@@ -141,7 +141,7 @@ The graph needs an opentide with `info catalog`; with an older one it says so an
 | `t:` (or `technique:`) | an ATT&CK technique; `T1003` also finds its sub-techniques |
 | `p:`, `s:` | platform and status, on the same platform block when both are given |
 | `tactic:`, `actor:`, `author:`, `tlp:`, `uuid:`, `path:` | as named |
-| `has:errors`, `has:placeholders` | from the Problems panel |
+| `has:errors`, `has:placeholders` | from the Problems panel; placeholders also from the files' `# opentide:placeholder` lines |
 | `created:`, `modified:`, `reviewed:` | `>2026-01-01`, `<30d`, `none` |
 | `unreviewed:>90d` | rules `opentide rules unreviewed --older-than 90d` lists (`6m` is six months, as in `modified:`; `12h`, `30min`) |
 

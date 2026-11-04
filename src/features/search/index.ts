@@ -1,9 +1,11 @@
 // "opentide: Find Detection…" (SPEC §10.3): a quick pick over the cached catalogue with filter tokens.
 // Glue only; parsing is query.ts, matching match.ts, the rows present.ts, the index searchIndex.ts.
+import * as fs from "node:fs";
 import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { type ItemProblems, search } from "./match";
+import { asksPlaceholders, PlaceholderCounts } from "./placeholders";
 import {
   catalogueFilterOf,
   countProblems,
@@ -38,6 +40,29 @@ const REFRESH_BUTTON: vscode.QuickInputButton = {
 };
 
 /** Problems panel counts per file path, read once per quick pick (and again when diagnostics change). */
+/** One per window: a file is read again only when it changes. */
+const placeholderCounts = new PlaceholderCounts({
+  openText: (file) =>
+    vscode.workspace.textDocuments
+      .find((document) => document.uri.scheme === "file" && document.uri.fsPath === file)
+      ?.getText(),
+  stamp: (file) => {
+    try {
+      const stat = fs.statSync(file);
+      return `${stat.size}:${stat.mtimeMs}`;
+    } catch {
+      return undefined;
+    }
+  },
+  read: (file) => {
+    try {
+      return fs.readFileSync(file, "utf8");
+    } catch {
+      return undefined;
+    }
+  },
+});
+
 function problemCounts(): Map<string, ItemProblems> {
   const counts = new Map<string, ItemProblems>();
   for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
@@ -94,8 +119,16 @@ function openSearch(
   if (args.folder && scoped().length === 1 && ctx.folders.all.length > 1)
     pick.title = `Find Detection in ${scoped()[0]?.folder.name ?? args.folder}`;
   let problems = problemCounts();
-  const problemsOf = (item: SearchItem): ItemProblems | undefined =>
-    item.filePath ? problems.get(vscode.Uri.file(item.filePath).fsPath) : undefined;
+  // `has:placeholders` counts the files' own `# opentide:placeholder` lines, not only lint's findings.
+  let countPlaceholders = false;
+  const problemsOf = (item: SearchItem): ItemProblems | undefined => {
+    if (!item.filePath) return undefined;
+    const file = vscode.Uri.file(item.filePath).fsPath;
+    const counted = problems.get(file);
+    if (!countPlaceholders) return counted;
+    const placeholders = Math.max(counted?.placeholders ?? 0, placeholderCounts.count(file));
+    return { errors: counted?.errors ?? 0, warnings: counted?.warnings ?? 0, placeholders };
+  };
 
   // On 0.21.0 the store falls back to workspace symbols; ask again once the language server runs.
   for (const folder of folders()) {
@@ -111,6 +144,7 @@ function openSearch(
     const states = folders().map((folder) => ctx.catalog.get(folder));
     const index = indexCache.build(states);
     const query = parseQuery(pick.value);
+    countPlaceholders = asksPlaceholders(query.filters);
     const unreviewedPaths =
       query.unreviewed && settledWindow.ready(query.unreviewed)
         ? unreviewed.get(query.unreviewed, folders(), update)
