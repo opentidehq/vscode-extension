@@ -6,8 +6,9 @@
 import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("../..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 
 function sources(dir) {
@@ -102,7 +103,10 @@ function unregisteredCommands(files, contributes) {
 }
 
 const read = (dir) =>
-  sources(join(ROOT, dir)).map((file) => ({ name: relative(ROOT, file), text: readFileSync(file, "utf8") }));
+  sources(join(ROOT, dir)).map((file) => ({
+    name: relative(ROOT, file).replaceAll("\\", "/"),
+    text: readFileSync(file, "utf8"),
+  }));
 const files = [...read("src"), ...read("webview")];
 // The web entry registers every contributed command generically, to say it needs opentide.
 const desktop = files.filter((f) => !f.name.startsWith("src/web/"));
