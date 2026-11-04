@@ -44,7 +44,9 @@ pre-releases odd ones.
 - Problems from `opentide validate` and `opentide lint` next to the language server's, one squiggle
   per finding.
   - Saving an object file validates it (`validate --file`) and lints it (`lint --file`, when your
-    opentide has it); saving a configuration file validates the workspace.
+    opentide has it); saving a configuration file validates the workspace. Only files directly in an
+    object folder are checked this way (opentide accepts no other), and a run that fails keeps the
+    problems it would have replaced.
   - The workspace is also validated on startup and with "opentide: Validate Workspace".
 - Quick fixes from each finding's suggested fix, "Fix all safe opentide problems in this file", and
   "Fix All Safe Problems in the Workspace…", which shows the `validate --fix --dry-run` diff before

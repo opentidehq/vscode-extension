@@ -138,6 +138,37 @@ describe("diagnostics: findings", () => {
     assert.equal(lintFindings(failure, ROOT).complete, false);
   });
 
+  it("says a failed run is incomplete even with an empty findings list, so it clears nothing", () => {
+    // `lint --file objects/rules/sub/x.yaml` (opentide 0.21.0): exit 1, findings [], command_failed.
+    const lint = {
+      path: ROOT,
+      findings: [],
+      count: 0,
+      unmatched: ["objects/rules/sub/x.yaml"],
+      ok: false,
+      status: "failed",
+      exit_code: 1,
+      failure: { code: "command_failed", message: "No object file directly in objects/rules matched" },
+    };
+    assert.equal(lintFindings(lint, ROOT).complete, false);
+    // `validate --file objects/rules/sub/x.yaml`: issues_found, with only an unlocated scope_no_match.
+    const validate = {
+      workspace: ROOT,
+      exit_code: 1,
+      ok: false,
+      failure: { code: "issues_found", message: "Validation failed" },
+      report: { ok: false, issues: [{ code: "scope_no_match", severity: "error", file_path: null }] },
+    };
+    assert.equal(validateFindings(validate, ROOT).complete, false);
+    // Issues found is a complete run.
+    const found = { ...VALIDATE, ok: false, failure: { code: "issues_found", message: "Validation failed" } };
+    assert.equal(validateFindings(found, ROOT).complete, true);
+    assert.equal(
+      lintFindings({ ...lint, ok: true, failure: null, status: "completed" }, ROOT).complete,
+      true,
+    );
+  });
+
   it("falls back to yaml_line + 1 and to the first line", () => {
     const parsed = validateFindings(
       {

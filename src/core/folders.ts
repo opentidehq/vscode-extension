@@ -138,6 +138,24 @@ export function isObjectFile(
 }
 
 /**
+ * Is `file` (absolute) a YAML file directly in one of the folder's family folders (`objects/rules/`, or
+ * what paths.toml names)? Those are the only files `validate --file` and `lint --file` accept: a file in a
+ * subfolder fails `lint --file` and matches nothing in `validate --file`.
+ */
+export function isFamilyFile(
+  folder: string,
+  file: string,
+  folders: Readonly<Record<string, string>>,
+): boolean {
+  if (!/\.ya?ml$/i.test(file)) return false;
+  const relative = path.relative(folder, file).split(path.sep).join("/");
+  if (relative.startsWith("../") || path.isAbsolute(relative)) return false;
+  return Object.values(folders).some(
+    (dir) => relative.startsWith(dir) && !relative.slice(dir.length).includes("/"),
+  );
+}
+
+/**
  * Whether `file` gets `opentide-yaml` from the static objects-folder glob in contrib/core.json only because VS Code
  * matches glob patterns without case: a folder of its path is `Objects` (CoreTIDE's layout) or another
  * spelling, and none is `objects`.

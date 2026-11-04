@@ -8,6 +8,7 @@ import type { RunResult } from "../../core/backend/backend";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { isFamilyFile } from "../../core/folders";
 import { DOCUMENT_SELECTOR } from "../../core/lsp";
 import { cliRange, type LineSource, linesOf } from "../../core/positions";
 import { dryRunFixes, explainCodes, explainMarkdown, isCode } from "./explain";
@@ -238,7 +239,9 @@ class Diagnostics implements vscode.Disposable {
     if (!folder) return;
     const relative = path.relative(folder.path, document.uri.fsPath).split(path.sep).join("/");
     const isConfiguration = relative.startsWith(".opentide/configurations/");
-    const isObject = this.ctx.folders.isObjectFile(document.uri);
+    // Only a file directly in a family folder: `validate --file` and `lint --file` accept no other, and
+    // a failed lint of one file in a batch would otherwise clear the others' problems.
+    const isObject = isFamilyFile(folder.path, document.uri.fsPath, folder.objectFolders);
     if (!isObject && !isConfiguration) return;
     // Saving several files at once (Save All) gives one run per folder; serve forgets the saved file first.
     this.saves.add(folder.path, folder, document.uri.fsPath, isObject ? "object" : "configuration");
