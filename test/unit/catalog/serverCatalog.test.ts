@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import { RelationIndex } from "../../../src/core/catalog/relations";
 import {
+  fieldOf,
   isMethodNotFound,
   parseServerCatalog,
   rootOf,
@@ -51,6 +52,42 @@ describe("the language server's opentide/catalog", () => {
     );
     assert.deepEqual(index.of("gone").incoming, []);
     assert.equal(index.of("r3").outgoing[0]?.missing, true);
+  });
+
+  it("lists a reference the language server repeats once, as info catalog does", () => {
+    const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } };
+    const objects = serverObjects().map((o) =>
+      o.uuid === "o1"
+        ? {
+            ...o,
+            refs: [
+              ...o.refs,
+              { uuid: "t1", field_path: "objective.threats.1", range },
+              { uuid: "t2", field_path: "objective.threats.2", range },
+            ],
+          }
+        : o.uuid === "t1"
+          ? { ...o, refs: [...o.refs, { uuid: "t2", field_path: "threat.chaining.1.vector", range }] }
+          : o,
+    );
+    const index = new RelationIndex(serverRelations(objects));
+    assert.deepEqual(
+      index
+        .of("o1")
+        .outgoing.filter((r) => r.kind === "covers")
+        .map((r) => [r.other, r.fieldPath]),
+      [
+        ["t1", "objective.threats"],
+        ["t2", "objective.threats"],
+      ],
+    );
+    assert.deepEqual(
+      index.of("t1").incoming.map((r) => [r.kind, r.other]),
+      [["covers", "o1"]],
+    );
+    assert.equal(index.of("t1").outgoing.filter((r) => r.kind === "chains").length, 1);
+    assert.equal(fieldOf("objective.signals.1.parent"), "objective.signals.1.parent");
+    assert.equal(fieldOf("detection_model"), "detection_model");
   });
 
   it("keeps only what has the documented shape", () => {

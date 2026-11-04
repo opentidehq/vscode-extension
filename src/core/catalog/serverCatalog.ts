@@ -154,7 +154,7 @@ export function serverRelations(objects: readonly ServerObject[]): ServerRelatio
       from,
       to: ref.uuid,
       kind,
-      field_path: ref.field_path,
+      field_path: fieldOf(ref.field_path),
       relation: null,
       missing: !known.has(lower(ref.uuid)),
     });
@@ -176,6 +176,16 @@ export function serverRelations(objects: readonly ServerObject[]): ServerRelatio
     edges,
     signals: signals.map((signal) => ({ ...signal, parent: parents.get(signal.uuid) ?? null })),
   };
+}
+
+/**
+ * The field a list entry's ref is in, as `info catalog` names it: `objective.threats.1` and
+ * `threat.chaining.0.vector` are `objective.threats` and `threat.chaining`, so the same reference listed
+ * twice is one relation (RelationIndex keys on the field).
+ */
+export function fieldOf(fieldPath: string): string {
+  if (CHAINING.test(fieldPath)) return "threat.chaining";
+  return fieldPath.replace(/\.\d+$/, "");
 }
 
 function lower(value: string): string {
