@@ -2026,6 +2026,7 @@
     "vscode:prepublish": "npm run build:production",
     "runtime:lock": "node scripts/runtime-lock.mjs",
     "runtime:build": "node scripts/runtime-build.mjs",
+    "runtime:licenses": "node scripts/runtime-licenses.mjs",
     "package": "node scripts/package.mjs",
     "smoke": "node scripts/smoke.mjs"
   },

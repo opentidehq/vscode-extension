@@ -4,7 +4,9 @@
 //      release's SHA256SUMS and then recorded in pins.json runtimeArchives, which later builds check;
 //   2. unpacked into runtime/ and trimmed of what opentide never loads (scripts/runtime-lib.mjs);
 //   3. the target's lock installed with uv for that platform: --require-hashes --only-binary :all:;
-//   4. runtime/BUILD-INFO.json, runtime/sbom.cdx.json (CycloneDX) and runtime/THIRD-PARTY-NOTICES.txt.
+//   4. runtime/BUILD-INFO.json, runtime/sbom.cdx.json (CycloneDX) and runtime/THIRD-PARTY-NOTICES.txt,
+//      with the native libraries linked into CPython from runtime-licenses/<target>.json
+//      (npm run runtime:licenses).
 //   node scripts/runtime-build.mjs --target <vscode-target> [--archive <file>]
 // Downloads are cached in .cache/pbs/. runtime/requirements.in and runtime/locks/ are kept.
 import { spawnSync } from "node:child_process";
@@ -28,6 +30,7 @@ import {
   archiveName,
   archiveUrl,
   buildInfo,
+  checkNativeLicenses,
   cyclonedx,
   expectedArchiveSha,
   hostTarget,
@@ -39,6 +42,8 @@ import {
   licenseOf,
   licenseText,
   lockPath,
+  nativeLicensesPath,
+  nativeSections,
   normalizeName,
   noWheelsError,
   parseLock,
@@ -216,6 +221,13 @@ async function main() {
   if (!existsSync(lockFile)) throw new RuntimeError(`${lockPath(name)} is missing: run npm run runtime:lock`);
   const lockText = readFileSync(lockFile, "utf8");
   const lock = parseLock(lockText);
+  // Checked first: a python-build-standalone or CPython bump without new native licences fails at once.
+  const licensesFile = join(root, nativeLicensesPath(name));
+  const nativeLicenses = checkNativeLicenses(
+    pins,
+    name,
+    existsSync(licensesFile) ? JSON.parse(readFileSync(licensesFile, "utf8")) : undefined,
+  );
 
   // 1. The interpreter archive, checked.
   const archive = archiveName(pins, name);
@@ -329,6 +341,7 @@ async function main() {
       license: "PSF-2.0",
       texts: cpythonLicense ? [{ file: "LICENSE.txt", text: readFileSync(cpythonLicense, "utf8") }] : [],
     },
+    ...nativeSections(nativeLicenses),
     ...dists.map((dist, index) => ({
       title: `${dist.meta.get("name")?.[0] ?? dist.name} ${dist.version}`,
       license: licenseText(sbomDists[index]?.license ?? { name: "unknown" }),
@@ -341,7 +354,7 @@ async function main() {
   writeFileSync(join(runtimeDir, "BUILD-INFO.json"), `${JSON.stringify(info, null, 2)}\n`);
   writeFileSync(
     join(runtimeDir, "sbom.cdx.json"),
-    `${JSON.stringify(cyclonedx({ info, dists: sbomDists, extensionVersion }), null, 2)}\n`,
+    `${JSON.stringify(cyclonedx({ info, dists: sbomDists, extensionVersion, native: nativeLicenses.components }), null, 2)}\n`,
   );
   writeFileSync(join(runtimeDir, "THIRD-PARTY-NOTICES.txt"), runtimeNotices(info, sections));
   const unlicensed = sections.filter((section) => section.texts.length === 0).map((section) => section.title);

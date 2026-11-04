@@ -116,6 +116,113 @@ export function expectedArchiveSha(pins, name, sums) {
   return { sha256, record: true, archive };
 }
 
+// --- the native libraries inside the interpreter --------------------------------------------------
+
+/**
+ * The `full` archive of the same python-build-standalone release and target: the one that carries
+ * `python/PYTHON.json` and `python/licenses/`, which `install_only_stripped` leaves out. The optimised
+ * non-debug, non-free-threaded build, as `install_only` is made from.
+ */
+export function fullArchive(pins, name, sums) {
+  const { cpython, pythonBuildStandalone } = pins.python;
+  const prefix = `cpython-${cpython}+${pythonBuildStandalone}-${target(name).pbs}-`;
+  for (const build of ["pgo+lto", "pgo", "lto", "noopt"]) {
+    const archive = `${prefix}${build}-full.tar.zst`;
+    const hash = sums.get(archive);
+    if (hash)
+      return {
+        archive,
+        sha256: hash,
+        url: `${PBS_RELEASES}/${pythonBuildStandalone}/${encodeURIComponent(archive)}`,
+      };
+  }
+  throw new RuntimeError(
+    `SHA256SUMS of ${pythonBuildStandalone} has no full archive for ${name} (${prefix}*-full.tar.zst)`,
+  );
+}
+
+/** Extension modules the build removes from the interpreter (`shouldRemove`): their libraries do not ship. */
+export function moduleShips(module) {
+  return !TEST_MODULE.test(module) && !TK_MODULE.test(module);
+}
+
+/**
+ * The native libraries linked into the interpreter, from the full archive's PYTHON.json: one component
+ * per licence file under `python/licenses/` (`LICENSE.openssl-3.txt` -> `openssl-3`), with the extension
+ * modules that link it and the SPDX licences those modules share. CPython's own licence is not one of them. Components
+ * whose every module the build removes (Tk) are left out.
+ */
+export function nativeComponents(pythonJson) {
+  const byFile = new Map();
+  const extensions = pythonJson?.build_info?.extensions ?? {};
+  for (const [module, variants] of Object.entries(extensions)) {
+    if (!moduleShips(module)) continue;
+    const variant =
+      (Array.isArray(variants) ? variants : []).find((v) => v.variant === "default") ?? variants?.[0];
+    for (const licensePath of variant?.license_paths ?? []) {
+      const file = licensePath.split("/").pop() ?? licensePath;
+      if (file === "LICENSE.cpython.txt") continue;
+      const name = /^LICENSE\.(.+)\.txt$/.exec(file)?.[1] ?? file;
+      const licenses = variant.licenses?.length
+        ? variant.licenses
+        : variant.license_public_domain
+          ? ["LicenseRef-Public-Domain"]
+          : [];
+      const component = byFile.get(file);
+      // PYTHON.json gives a module's licences, not each file's: a library's are those every module
+      // linking it shares (ncurses: _curses says X11, readline X11 and libedit's BSD-3-Clause).
+      if (component) {
+        component.modules.push(module);
+        const shared = component.licenses.filter((license) => licenses.includes(license));
+        if (shared.length > 0) component.licenses = shared;
+      } else byFile.set(file, { name, file, modules: [module], licenses: [...licenses] });
+    }
+  }
+  return [...byFile.values()]
+    .map((c) => ({ ...c, modules: [...c.modules].sort() }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/** Where `npm run runtime:licenses` writes a target's native components and licence texts. */
+export function nativeLicensesPath(name) {
+  return `runtime-licenses/${name}.json`;
+}
+
+/**
+ * The committed native licences of a target, checked against the pins: a python-build-standalone or
+ * CPython bump needs `npm run runtime:licenses` again.
+ */
+export function checkNativeLicenses(pins, name, record) {
+  const want = { pythonBuildStandalone: pins.python.pythonBuildStandalone, cpython: pins.python.cpython };
+  if (!record)
+    throw new RuntimeError(
+      `${nativeLicensesPath(name)} is missing: run npm run runtime:licenses -- --target ${name}`,
+    );
+  if (record.pythonBuildStandalone !== want.pythonBuildStandalone || record.cpython !== want.cpython)
+    throw new RuntimeError(
+      `${nativeLicensesPath(name)} is for CPython ${record.cpython} (python-build-standalone ${record.pythonBuildStandalone}), ` +
+        `pins.json has ${want.cpython} (${want.pythonBuildStandalone}): run npm run runtime:licenses -- --target ${name}`,
+    );
+  for (const component of record.components ?? []) {
+    const text = record.texts?.[component.file];
+    if (typeof text !== "string" && text !== null)
+      throw new RuntimeError(`${nativeLicensesPath(name)} has no entry for ${component.file}`);
+  }
+  return record;
+}
+
+/** The THIRD-PARTY-NOTICES sections of the native components (see `runtimeNotices`). */
+export function nativeSections(record) {
+  return (record.components ?? []).map((component) => ({
+    title: `${component.name}, linked into CPython (${component.modules.join(", ")})`,
+    license: component.licenses.join(" AND ") || "see the licence text",
+    texts:
+      typeof record.texts[component.file] === "string"
+        ? [{ file: component.file, text: record.texts[component.file] }]
+        : [],
+  }));
+}
+
 export function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
@@ -544,7 +651,7 @@ function cdxLicense(license) {
  * its licence, purl and the SHA-256 of the file that was installed.
  * `dists`: [{ name, version, license, wheel?: { filename, sha256, url } }].
  */
-export function cyclonedx({ info, dists, extensionVersion }) {
+export function cyclonedx({ info, dists, extensionVersion, native = [] }) {
   const interpreter = {
     type: "application",
     "bom-ref": `cpython@${info.cpython}`,
@@ -560,6 +667,22 @@ export function cyclonedx({ info, dists, extensionVersion }) {
         url: `https://github.com/astral-sh/python-build-standalone/releases/download/${info.pythonBuildStandalone}/${encodeURIComponent(info.archive)}`,
       },
     ],
+    // The native libraries linked into the interpreter (OpenSSL, zlib, …), from the full archive's PYTHON.json.
+    ...(native.length > 0
+      ? {
+          components: native.map((component) => ({
+            type: "library",
+            "bom-ref": `cpython@${info.cpython}/${component.name}`,
+            name: component.name,
+            licenses: component.licenses.length
+              ? component.licenses.map((id) =>
+                  id.startsWith("LicenseRef-") ? { license: { name: id } } : { license: { id } },
+                )
+              : [{ license: { name: `see ${component.file}` } }],
+            properties: [{ name: "opentide:cpythonModules", value: component.modules.join(",") }],
+          })),
+        }
+      : {}),
   };
   const components = [
     interpreter,
