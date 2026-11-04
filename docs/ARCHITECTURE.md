@@ -45,7 +45,8 @@ background. Nothing on that path starts a process (SPEC §14: activation < 300 m
   instead: no core and no feature activates. Languages, grammars and language configuration are
   declarative and still work; a language status item says "Highlighting only", and every contributed
   command answers with an explanation instead of "command not found". Hide what needs a runtime with
-  `opentide.runtimeReady` (never set there) or `!isWeb` in `when` clauses. The web bundle must not import
+  `opentide.runtimeReady` (never set there) or `!virtualWorkspace` in `when` clauses, never `!isWeb`,
+which is false in a desktop virtual workspace (Remote Repositories) that runs the same web mode. The web bundle must not import
   `src/core/` or a Node built-in (`test/scripts/web-bundle.test.mjs`).
 
 ## How to add a feature
