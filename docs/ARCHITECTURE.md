@@ -213,7 +213,10 @@ The window's one `LanguageClient` (vscode-languageclient 10): `current`, `ready(
 diagnostics are on and the server's refresh requests are honoured by the client. **Add no middleware
 that handles `publishDiagnostics`**; the `opentide` diagnostic collection is the server's. Use
 `client.sendRequest` for server requests (`opentide/compiledKql`, `workspace/symbol`, …). The core
-registers `opentide.showReferences` for the reference lens.
+registers `opentide.showReferences` for the reference lens. `onCatalogChanged` fires `{ root }` on the
+server's `opentide/catalogChanged` (ask `opentide/catalog` again); subscribe to it rather than calling
+`client.onNotification` for that notification, since the client keeps one handler per notification and a
+second registration replaces the first.
 
 ### `ctx.catalog`
 
@@ -279,12 +282,23 @@ changes).
 
 ## Webviews
 
-`ctx.webview.createPanel({ viewType, title, entry, validators, column?, retainContextWhenHidden? })`
+`ctx.webview.createPanel({ viewType, title, entry, validators, column?, beside?, kit?, retainContextWhenHidden? })`
 opens a panel on `dist/webview/<entry>.js` with:
 
 - a CSP of `default-src 'none'`, scripts only with a per-page nonce, styles and images only from the
   extension; `localResourceRoots` = `dist/webview`;
-- `dist/webview/base.css`, theme variables only (light, dark, high contrast);
+- `dist/webview/base.css`, theme variables only (light, dark, high contrast), and the design tokens
+  (`--ot-space-*`, `--ot-radius-*`, `--ot-font-*`);
+- the codicon font (`dist/webview/codicons/`, from `@vscode/codicons`, under the CSP's `font-src`);
+- with `kit: true`, the panels kit (`dist/webview/kit.css`, body class `ot-kit`): the components of
+  `src/core/webview/kit/components.ts` (vscode-free, DOM-free VNodes, unit-tested) built by
+  `webview/panels-kit/dom.ts` (`mount`, `replace` that keeps the focus, keyed `patchKeyed`), the virtual
+  table and list, menus and hover cards;
+- with `beside: true` (a panel about an object), `ViewColumn.Beside` and `preserveFocus` when an editor
+  is active. Keep one panel per kind with `PanelPool` (`src/core/webview/placement.ts`): `choose(target)`
+  reveals the panel showing it, retargets the most recent unlocked one, or says to create one;
+  `panelTitle("Query", name, platform)` names the object; `fileColumnFrom(panel.viewColumn)` is where a
+  file opened from the panel goes;
 - a typed channel. Declare the protocol once in a file both sides import (no `vscode`, no DOM):
 
   ```ts

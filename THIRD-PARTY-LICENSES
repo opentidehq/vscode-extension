@@ -49,6 +49,14 @@ inlines code under MIT notices of its own (Ralf S. Engelschall's Promises/A+ The
 based on jQuery's, Gaetan Renaudeau's bezier curve generator and Koen Bok's Framer.js spring); the build
 keeps every such notice, gathered at the end of each bundle.
 
+dist/webview/codicons/codicon.ttf, dist/webview/codicons/codicon.css
+--------------------------------------------------------------------
+Source:  the npm package @vscode/codicons (https://github.com/microsoft/vscode-codicons), the version in
+         package-lock.json, copied unchanged by scripts/build.mjs for the panels' icons.
+Licence: CC-BY-4.0 AND MIT: the icon font (codicon.ttf) is under CC BY 4.0, "Codicons" by Microsoft
+         Corporation (https://creativecommons.org/licenses/by/4.0/); the stylesheet (codicon.css) is MIT,
+         Copyright (c) Microsoft Corporation. Both licence texts are in dist/THIRD-PARTY-NOTICES.txt.
+
 images/activity.svg, images/icon.png
 ------------------------------------
 Source:  opentidehq/.github assets/svg/icon-normal.svg and assets/png/icon-normal-256px.png, built on

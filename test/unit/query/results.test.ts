@@ -12,19 +12,26 @@ import {
   toJsonl,
   toMarkdown,
 } from "../../../src/features/query/format";
+import { credentialVariables } from "../../../src/features/query/platforms";
 import type { QueryPanelState } from "../../../src/features/query/protocol";
 import {
   applyProgress,
   canStartRun,
   choosingState,
+  credentialAction,
+  errorVariables,
   exportable,
   formatMs,
   keepable,
+  parseCredentialAction,
   pendingTabs,
   progressFromEvent,
+  queryIdentity,
   queryViewState,
   tabSummary,
   tabsFromDocument,
+  tenantErrorKind,
+  viewApplies,
 } from "../../../src/features/query/results";
 
 // A Sentinel rule on two tenants, one answering 403 (the shape of `opentide --json query`).
@@ -253,6 +260,10 @@ describe("query: while the tenant picker is open (#47)", () => {
   it("stops showing a run in progress once opentide asks which tenants", () => {
     const running: QueryPanelState = {
       title: "Suspicious LSASS Access · Microsoft Sentinel",
+      name: "Suspicious LSASS Access",
+      platformId: "sentinel",
+      locked: false,
+      tenants: [],
       platform: "Microsoft Sentinel",
       windowLabel: "last 24 hours",
       limit: 100,
@@ -278,5 +289,87 @@ describe("query: while the tenant picker is open (#47)", () => {
     assert.equal(canStartRun(choosing.phase), false, "no Re-run or Tenants while the picker is open");
     assert.equal(canStartRun("running"), false);
     for (const phase of ["done", "failed", "cancelled"]) assert.equal(canStartRun(phase), true, phase);
+  });
+});
+
+describe("query: what a failed tenant offers next", () => {
+  it("tells unset credentials, refused credentials and an unreachable tenant apart", () => {
+    const unset =
+      "Sentinel credentials are unset ($AZURE_CLIENT_ID, $AZURE_CLIENT_SECRET). Set those environment variables before a live check.";
+    assert.equal(tenantErrorKind(unset, null), "credentials");
+    assert.deepEqual(errorVariables(unset), ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"]);
+    assert.equal(tenantErrorKind("HTTP 403 Forbidden", "AuthorizationFailed"), "auth");
+    assert.equal(tenantErrorKind("cannot authenticate to sentinel tenant 'prod': bad secret", null), "auth");
+    assert.equal(
+      tenantErrorKind(
+        "sentinel tenant 'prod' did not answer the query within 60s: timed out",
+        "narrow the window",
+      ),
+      "network",
+    );
+    assert.equal(tenantErrorKind("Cannot reach api.example.com", null), "network");
+    assert.equal(tenantErrorKind("KeyError: 'rows'", null), "other");
+    assert.equal(tenantErrorKind(null, null), "other");
+    assert.deepEqual(errorVariables("no variables here"), []);
+  });
+
+  it("classifies each failed tab of a document, and no ok tab", () => {
+    const [ok, failed] = tabsFromDocument({
+      results: [
+        { tenant: "prod", status: "ok", columns: [{ name: "a" }], rows: [{ a: 1 }] },
+        { tenant: "dev", status: "failed", error: "credentials are unset ($DEV_TOKEN)" },
+      ],
+    });
+    assert.equal(ok?.errorKind, null);
+    assert.deepEqual(ok?.variables, []);
+    assert.equal(failed?.errorKind, "credentials");
+    assert.deepEqual(failed?.variables, ["DEV_TOKEN"]);
+  });
+});
+
+describe("query: a retargeted panel's table view", () => {
+  it("keeps the filter and sort for the same query only", () => {
+    const a = { name: "LSASS handle", platformId: "sentinel" };
+    assert.equal(viewApplies(undefined, a), true, "a fresh page takes what was saved");
+    assert.equal(viewApplies(queryIdentity(a), a), true);
+    assert.equal(viewApplies(queryIdentity(a), { ...a, name: "Other rule" }), false);
+    assert.equal(viewApplies(queryIdentity(a), { ...a, platformId: "splunk" }), false);
+    assert.deepEqual(queryViewState({ query: queryIdentity(a), selected: "prod" }), {
+      selected: "prod",
+      query: queryIdentity(a),
+    });
+    assert.equal(queryViewState({ query: 3 }).query, undefined);
+  });
+});
+
+describe("query: Set Credential… for a tenant info does not list", () => {
+  it("carries the variables the error named, and offers them when info has none", () => {
+    const code = credentialAction("staging", ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"]);
+    assert.equal(code, "credentials:staging:AZURE_CLIENT_ID,AZURE_CLIENT_SECRET");
+    assert.deepEqual(parseCredentialAction(code), {
+      tenant: "staging",
+      variables: ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+    });
+    assert.deepEqual(parseCredentialAction(credentialAction("prod", [])), { tenant: "prod", variables: [] });
+    assert.equal(parseCredentialAction("credentials:x:not valid"), undefined);
+    assert.equal(parseCredentialAction("configure"), undefined);
+    // Not in info: the error's variables, unset, instead of a dead end.
+    assert.deepEqual(credentialVariables([], ["AZURE_CLIENT_ID", "AZURE_CLIENT_ID"]), [
+      { name: "AZURE_CLIENT_ID", set: false },
+    ]);
+    const known = [
+      {
+        name: "prod",
+        description: "",
+        strategies: [],
+        manual: false,
+        variables: [{ name: "TOKEN", set: true }],
+      },
+    ];
+    assert.deepEqual(
+      credentialVariables(known, ["OTHER"]),
+      [{ name: "TOKEN", set: true }],
+      "info's list wins",
+    );
   });
 });

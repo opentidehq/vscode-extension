@@ -1,4 +1,19 @@
 // The ATT&CK matrix panel (SPEC §10.2): tactics as columns, techniques as cells shaded by rule count.
+// The grid scrolls in both directions inside its own area, with the tactic headers sticky; a cell's hover
+// card names its top rules; a click lists them in the aside. A state update with the same layout patches
+// the cells in place (counts, shading) instead of rebuilding the grid.
+import {
+  button,
+  chip,
+  emptyState,
+  errorState,
+  keyHint,
+  progressBar,
+  segmented,
+  spinner,
+  toolbar,
+} from "../../src/core/webview/kit/components";
+import { snapColumn } from "../../src/core/webview/kit/virtual";
 import type {
   Cell,
   CellDetail,
@@ -8,10 +23,10 @@ import type {
   ObjectRef,
 } from "../../src/features/matrix/model";
 import { type MatrixProtocol, type MatrixState, webviewValidators } from "../../src/features/matrix/protocol";
-import { addStyles, announce, h, KIT_CSS, replace, stateBox } from "../panels-kit/dom";
+import { addStyles, announce, h, mount, replace, setClass, setText } from "../panels-kit/dom";
+import { hideHoverCard, hoverCard } from "../panels-kit/menu";
 import { createChannel, vscodeApi } from "../shared/channel";
 
-addStyles(KIT_CSS + MATRIX_CSS());
 const channel = createChannel<MatrixProtocol>(webviewValidators);
 const root = document.getElementById("root") ?? document.body;
 
@@ -32,8 +47,49 @@ const persist = () => vscodeApi().setState(ui);
 
 let state: MatrixState | undefined;
 let detail: CellDetail | undefined;
-/** The focused cell (roving tabindex). */
+/**
+ * The focused cell (roving tabindex), as `column:technique`: a technique under two tactics has a cell in
+ * each, and the arrow keys move between cells, not techniques.
+ */
 let focused: string | undefined;
+const cellKey = (column: number, id: string) => `${column}:${id}`;
+/** The grid's layout key: what decides which cells exist (columns, expanded, hidden, found). */
+let layoutKey = "";
+let grid: string[][] = [];
+/** Every cell shown, by id. */
+let cellsById = new Map<string, Cell>();
+
+// The regions, built once.
+const header = h("div");
+const filters = h("div");
+const progress = h("div", { class: "region-progress" });
+const legendRegion = h("div");
+const message = h("div");
+const matrixElement = h("div", {
+  id: "matrix",
+  class: "matrix",
+  attrs: { role: "grid", "aria-label": "ATT&CK matrix", "aria-readonly": "true" },
+  on: {
+    mouseover: (event) => onHover(event),
+    mouseleave: () => hideHoverCard(),
+    click: (event) => onCellClick(event),
+    keydown: (event) => onKey(event),
+    focusin: (event) => {
+      const key = (event.target as HTMLElement).closest<HTMLElement>(".cell")?.dataset.k;
+      if (key) focused = key;
+    },
+  },
+});
+const aside = h("aside", {
+  id: "detail",
+  class: "detail",
+  attrs: { "aria-live": "polite", "aria-label": "Technique" },
+});
+const scroller = h("div", { class: "matrix-scroll" }, [matrixElement]);
+const layout = h("div", { class: "layout" }, [scroller, aside]);
+const unknown = h("div");
+const placeholder = h("div");
+replace(root, header, filters, progress, legendRegion, message, placeholder, layout, unknown);
 
 channel.on("state", (next) => {
   state = next;
@@ -46,73 +102,91 @@ channel.on("detail", (next) => {
 channel.on("focus", (technique) => {
   const parent = technique.split(".")[0] ?? technique;
   if (technique.includes(".") && !ui.expanded.includes(parent)) ui.expanded.push(parent);
-  focused = technique;
   render();
-  focusCell(technique);
+  // The technique's first cell (a technique can sit under several tactics).
+  const first = matrixElement.querySelector<HTMLElement>(`.cell[data-id="${CSS.escape(technique)}"]`)?.dataset
+    .k;
+  focused = first ?? focused;
+  focusCell(focused);
 });
 
-replace(root, stateBox({ kind: "loading", title: "Loading coverage…" }));
+replace(header, toolbar({ title: "ATT&CK coverage", context: [chip({ text: "Loading…", tone: "muted" })] }));
+replace(progress, progressBar({ active: true, label: "Reading the catalogue" }));
+layout.hidden = true;
 channel.post("ready", undefined);
 
 function render(): void {
   const s = state;
   if (!s) return;
+  renderHeader(s);
+  replace(
+    progress,
+    progressBar({ active: s.status === "loading" || s.refreshing, label: "Reading the catalogue" }),
+  );
   if (s.status !== "ready" || !s.view) {
-    const kind = s.status === "loading" ? "loading" : s.status === "error" ? "error" : "info";
-    const actions = s.action
-      ? [{ label: s.action.label, run: () => channel.post("action", s.action?.id ?? "") }]
-      : [];
-    if (s.status === "error")
-      actions.push({ label: "Show output", run: () => channel.post("action", "output") });
-    replace(
-      root,
-      header(s),
-      stateBox({
-        kind,
-        title:
-          s.status === "loading"
-            ? "Reading the catalogue…"
-            : s.status === "unavailable"
-              ? "ATT&CK coverage is not available"
-              : s.status === "no-folder"
-                ? "No opentide folder"
-                : "Could not read the catalogue",
-        ...(s.message ? { body: s.message } : {}),
-        actions,
-      }),
-    );
+    layout.hidden = true;
+    replace(filters);
+    replace(legendRegion);
+    replace(unknown);
+    replace(message);
+    replace(placeholder, notReady(s));
     return;
   }
+  replace(placeholder);
+  layout.hidden = false;
   const view = s.view;
+  renderFilters(s, view);
+  replace(legendRegion, legend(s.filters));
+  replace(message, s.message ? h("div", { class: "ot-callout warning", text: s.message }) : null);
+  renderGrid(view, s.filters);
+  renderDetail();
   replace(
-    root,
-    header(s),
-    filtersBar(s, view),
-    legend(view, s.filters),
-    s.message ? h("div", { class: "banner", text: s.message }) : null,
-    h("div", { class: "layout" }, [
-      matrix(view, s.filters),
-      h("aside", { id: "detail", class: "detail", attrs: { "aria-live": "polite" } }),
-    ]),
+    unknown,
     view.unknown.length > 0
-      ? h("p", {
-          class: "muted",
-          text: `Not in the Enterprise matrix: ${view.unknown.join(", ")}.`,
-        })
+      ? h("p", { class: "ot-hint", text: `Not in the Enterprise matrix: ${view.unknown.join(", ")}.` })
       : null,
   );
-  renderDetail();
 }
 
-function header(s: MatrixState): HTMLElement {
+function notReady(s: MatrixState) {
+  const action = s.action
+    ? { label: s.action.label, run: () => channel.post("action", s.action?.id ?? "") }
+    : undefined;
+  if (s.status === "loading")
+    return h(
+      "div",
+      { class: "matrix-skeleton", attrs: { "aria-busy": "true", "aria-label": "Reading the catalogue" } },
+      Array.from({ length: 8 }, () =>
+        h(
+          "div",
+          { class: "skeleton-column" },
+          Array.from({ length: 10 }, () => h("div", { class: "skeleton-cell" })),
+        ),
+      ),
+    );
+  if (s.status === "error")
+    return errorState({
+      title: "Could not read the catalogue",
+      ...(s.message ? { body: s.message } : {}),
+      ...(action ? { action } : {}),
+      onShowOutput: () => channel.post("action", "output"),
+    });
+  return emptyState({
+    icon: s.status === "no-folder" ? "folder" : "info",
+    title: s.status === "no-folder" ? "No opentide folder" : "ATT&CK coverage is not available",
+    ...(s.message ? { body: s.message } : {}),
+    ...(action ? { action } : {}),
+  });
+}
+
+function renderHeader(s: MatrixState): void {
   const view = s.view;
-  return h("header", { class: "toolbar" }, [
-    h("h1", { text: "ATT&CK coverage" }),
+  const context = [
     s.folders.length > 1
       ? h(
           "select",
           {
-            attrs: { "aria-label": "Folder" },
+            attrs: { "aria-label": "Folder", "data-focus": "folder" },
             on: { change: (event) => channel.post("folder", (event.target as HTMLSelectElement).value) },
           },
           s.folders.map((f) =>
@@ -120,32 +194,46 @@ function header(s: MatrixState): HTMLElement {
           ),
         )
       : s.folder
-        ? h("span", { class: "muted", text: s.folder.name })
+        ? chip({ text: s.folder.name, icon: "folder" })
         : null,
     view
-      ? h("span", {
-          class: "muted",
-          text: `${view.covered} of ${view.techniques} techniques have a rule · ${view.rules} rule${view.rules === 1 ? "" : "s"}`,
+      ? chip({
+          text: `${view.covered} of ${view.techniques} techniques covered`,
+          icon: "target",
+          tone: view.covered > 0 ? "ok" : "muted",
+          title: "Techniques (not sub-techniques) with at least one rule",
         })
       : null,
-    s.refreshing
-      ? h("span", { class: "muted" }, [h("span", { class: "spin", text: "◌" }), " refreshing"])
-      : null,
-    h("span", { class: "spacer" }),
-    h("button", {
-      class: "secondary",
-      text: "Refresh",
-      on: { click: () => channel.post("action", "refresh") },
+    view ? chip({ text: `${view.rules} rule${view.rules === 1 ? "" : "s"}`, icon: "shield" }) : null,
+    s.refreshing ? h("span", { class: "ot-hint" }, [mount(spinner("Refreshing")), " refreshing"]) : null,
+  ];
+  replace(
+    header,
+    toolbar({
+      title: "ATT&CK coverage",
+      context,
+      label: "Matrix",
+      actions: [
+        button({
+          label: "Refresh",
+          variant: "icon",
+          icon: "refresh",
+          focusKey: "refresh",
+          onClick: () => channel.post("action", "refresh"),
+        }),
+        s.features.navigator
+          ? button({
+              label: "Export Navigator layer",
+              variant: "secondary",
+              icon: "export",
+              focusKey: "navigator",
+              title: "opentide generate exports navigator",
+              onClick: () => channel.post("exportNavigator", undefined),
+            })
+          : null,
+      ],
     }),
-    s.features.navigator
-      ? h("button", {
-          class: "secondary",
-          text: "Export Navigator layer",
-          title: "opentide generate exports navigator",
-          on: { click: () => channel.post("exportNavigator", undefined) },
-        })
-      : null,
-  ]);
+  );
 }
 
 function setFilters(change: Partial<MatrixFilters>): void {
@@ -169,16 +257,19 @@ function select(
     label,
     h(
       "select",
-      { attrs: { disabled }, on: { change: (event) => onChange((event.target as HTMLSelectElement).value) } },
+      {
+        attrs: { disabled, "data-focus": `select:${label}` },
+        on: { change: (event) => onChange((event.target as HTMLSelectElement).value) },
+      },
       options.map(([v, text]) => h("option", { text, attrs: { value: v, selected: v === value } })),
     ),
   ]);
 }
 
-function checkbox(label: string, checked: boolean, onChange: (checked: boolean) => void, title?: string) {
-  return h("label", { ...(title ? { title } : {}) }, [
+function toggle(label: string, checked: boolean, onChange: (checked: boolean) => void, title?: string) {
+  return h("label", { class: "toggle", ...(title ? { title } : {}) }, [
     h("input", {
-      attrs: { type: "checkbox", checked },
+      attrs: { type: "checkbox", checked, "data-focus": `toggle:${label}` },
       on: { change: (event) => onChange((event.target as HTMLInputElement).checked) },
     }),
     label,
@@ -192,82 +283,123 @@ function withCurrent(values: readonly string[], current: string | undefined): [s
   return options;
 }
 
-function filtersBar(s: MatrixState, view: MatrixView): HTMLElement {
+function renderFilters(s: MatrixState, view: MatrixView): void {
   const f = s.filters;
-  return h("div", { class: "toolbar", attrs: { role: "toolbar", "aria-label": "Filters" } }, [
-    select(
-      "Layer ",
-      f.layer,
-      [
-        ["rules", "Rules"],
-        ["planned", "Rules + planned objectives"],
-        ["unaddressed", "Rules + planned + unaddressed threats"],
-      ],
-      (layer) => setFilters({ layer: layer as Layer }),
-    ),
-    select(
-      "Platform ",
-      f.platform ?? "",
-      [["", "All"], ...withCurrent(view.platforms, f.platform)],
-      (platform) => setFilters({ platform: platform || undefined }),
-    ),
-    select(
-      "Tenant ",
-      f.tenant ?? "",
-      [["", view.tenants.length ? "All" : "No deployments recorded"], ...withCurrent(view.tenants, f.tenant)],
-      (tenant) => setFilters({ tenant: tenant || undefined }),
-      // A set filter must stay clearable, even with nothing to choose from.
-      view.tenants.length === 0 && !f.tenant,
-    ),
-    checkbox(
-      "Exclude INERT",
-      f.excludeInert,
-      (excludeInert) => setFilters({ excludeInert }),
-      "Leave out rules whose blocks are all INERT (DESIGN and similar statuses)",
-    ),
-    checkbox(
-      "Inherited techniques",
-      f.inherited,
-      (inherited) => setFilters({ inherited }),
-      "Count techniques a rule inherits from its objective and threat. Off: only its own, as opentide info coverage counts",
-    ),
-    checkbox("Hide empty", ui.hideEmpty, (hideEmpty) => {
-      ui.hideEmpty = hideEmpty;
-      persist();
-      render();
-    }),
+  // The find box keeps its element (and the caret) across renders.
+  const find =
+    filters.querySelector<HTMLInputElement>("input[type=search]") ??
     h("input", {
       attrs: {
         type: "search",
         placeholder: "Find technique",
         "aria-label": "Find technique by id or name",
-        value: ui.find,
+        "data-focus": "find",
       },
       on: {
         input: (event) => {
           ui.find = (event.target as HTMLInputElement).value;
           persist();
-          renderColumns();
+          if (state?.view) renderGrid(state.view, state.filters);
         },
       },
-    }),
-  ]);
+    });
+  if (find.value !== ui.find) find.value = ui.find;
+  replace(
+    filters,
+    h("div", { class: "ot-bar", attrs: { role: "group", "aria-label": "Filters" } }, [
+      segmented({
+        name: "layer",
+        label: "Layer",
+        value: f.layer,
+        options: [
+          { value: "rules", label: "Rules", title: "Rules only" },
+          { value: "planned", label: "+ Planned", title: "Rules and objectives without rules" },
+          {
+            value: "unaddressed",
+            label: "+ Unaddressed",
+            title: "Rules, planned objectives and threats with no objective",
+          },
+        ],
+        onChange: (layer) => setFilters({ layer: layer as Layer }),
+      }),
+      select(
+        "Platform ",
+        f.platform ?? "",
+        [["", "All"], ...withCurrent(view.platforms, f.platform)],
+        (platform) => setFilters({ platform: platform || undefined }),
+      ),
+      select(
+        "Tenant ",
+        f.tenant ?? "",
+        [
+          ["", view.tenants.length ? "All" : "No deployments recorded"],
+          ...withCurrent(view.tenants, f.tenant),
+        ],
+        (tenant) => setFilters({ tenant: tenant || undefined }),
+        // A set filter must stay clearable, even with nothing to choose from.
+        view.tenants.length === 0 && !f.tenant,
+      ),
+      h("span", { class: "ot-divider", attrs: { "aria-hidden": "true" } }),
+      toggle(
+        "Exclude INERT",
+        f.excludeInert,
+        (excludeInert) => setFilters({ excludeInert }),
+        "Leave out rules whose blocks are all INERT (DESIGN and similar statuses)",
+      ),
+      toggle(
+        "Inherited",
+        f.inherited,
+        (inherited) => setFilters({ inherited }),
+        "Count techniques a rule inherits from its objective and threat. Off: only its own, as opentide info coverage counts",
+      ),
+      toggle("Hide empty", ui.hideEmpty, (hideEmpty) => {
+        ui.hideEmpty = hideEmpty;
+        persist();
+        if (state?.view) renderGrid(state.view, state.filters);
+      }),
+      h("span", { class: "ot-spacer" }),
+      find,
+    ]),
+  );
 }
 
-function legend(view: MatrixView, filters: MatrixFilters): HTMLElement {
-  return h("div", { class: "legend muted", attrs: { "aria-label": "Legend" } }, [
-    h("span", { class: "cell-swatch gap", attrs: { "aria-hidden": "true" } }),
-    " gap (0 rules) ",
-    ...([1, 2, 3, 4] as const).flatMap((l) => [
-      h("span", { class: `cell-swatch level-${l}`, attrs: { "aria-hidden": "true" } }),
-      ` ${["", "1", "2–3", "4–9", "10+"][l]} `,
-    ]),
-    filters.layer !== "rules" ? h("span", { text: " · ◷ planned objective" }) : null,
-    filters.layer === "unaddressed" ? h("span", { text: " · ! unaddressed threat" }) : null,
-    h("span", {
-      text: ` · ${view.columns.length} tactics · arrow keys move, Enter lists rules, + / − sub-techniques`,
-    }),
-  ]);
+const LEVELS = [
+  [1, "1"],
+  [2, "2–3"],
+  [3, "4–9"],
+  [4, "10+"],
+] as const;
+
+function legend(f: MatrixFilters): HTMLElement {
+  return h(
+    "div",
+    { class: "legend", attrs: { role: "group", "aria-label": "Legend: rules per technique" } },
+    [
+      h("span", { class: "legend-item" }, [
+        h("span", { class: "swatch gap", attrs: { "aria-hidden": "true" } }),
+        "gap (0)",
+      ]),
+      ...LEVELS.map(([level, text]) =>
+        h("span", { class: "legend-item" }, [
+          h("span", { class: `swatch level-${level}`, attrs: { "aria-hidden": "true" } }),
+          `${text} rule${level === 1 ? "" : "s"}`,
+        ]),
+      ),
+      f.layer !== "rules"
+        ? h("span", { class: "legend-item" }, [
+            h("span", { class: "codicon codicon-clock planned" }),
+            "planned objective",
+          ])
+        : null,
+      f.layer === "unaddressed"
+        ? h("span", { class: "legend-item" }, [
+            h("span", { class: "codicon codicon-warning unaddressed" }),
+            "unaddressed threat",
+          ])
+        : null,
+      mount(keyHint("Arrows move · Enter lists rules · + / − sub-techniques · Shift+scroll pans")),
+    ],
+  );
 }
 
 function matches(cell: Cell): boolean {
@@ -277,73 +409,83 @@ function matches(cell: Cell): boolean {
   return self || cell.subtechniques.some(matches);
 }
 
+const empty = (cell: Cell) => cell.rules === 0 && cell.planned === 0 && cell.unaddressed === 0;
+
 /** The visible cells of a column, in order (expanded sub-techniques under their parent). */
 function visible(cells: readonly Cell[]): Cell[] {
   const out: Cell[] = [];
   for (const cell of cells) {
     if (!matches(cell)) continue;
-    if (ui.hideEmpty && cell.rules === 0 && cell.planned === 0 && cell.unaddressed === 0) continue;
+    if (ui.hideEmpty && empty(cell) && cell.subtechniques.every(empty)) continue;
     out.push(cell);
     if (ui.expanded.includes(cell.id))
-      out.push(
-        ...cell.subtechniques.filter((sub) => !ui.hideEmpty || sub.rules + sub.planned + sub.unaddressed > 0),
-      );
+      out.push(...cell.subtechniques.filter((sub) => !ui.hideEmpty || !empty(sub)));
   }
   return out;
 }
 
-let grid: string[][] = [];
-
-function matrix(view: MatrixView, filters: MatrixFilters): HTMLElement {
-  return h(
-    "div",
-    {
-      id: "matrix",
-      class: "matrix",
-      attrs: { role: "grid", "aria-label": "ATT&CK matrix", "aria-readonly": "true" },
-    },
-    columns(view, filters),
-  );
-}
-
-function renderColumns(): void {
-  const element = document.getElementById("matrix");
-  if (element && state?.view) replace(element, ...columns(state.view, state.filters));
-}
-
-function columns(view: MatrixView, filters: MatrixFilters): HTMLElement[] {
-  grid = view.columns.map((column) => visible(column.cells).map((c) => c.id));
-  const all = grid.flat();
+/**
+ * Build the grid when its layout changed (filters that hide cells, expansion, a new catalogue's shape);
+ * otherwise update each cell's counts and shading in place.
+ */
+function renderGrid(view: MatrixView, f: MatrixFilters): void {
+  const columns = view.columns.map((column) => ({ column, cells: visible(column.cells) }));
+  const key = JSON.stringify([
+    f.layer,
+    columns.map(({ column, cells }) => [column.id, cells.map((c) => c.id)]),
+  ]);
+  grid = columns.map(({ cells }) => cells.map((c) => c.id));
+  cellsById = new Map(columns.flatMap(({ cells }) => cells.map((c) => [c.id, c] as const)));
+  const all = grid.flatMap((ids, c) => ids.map((id) => cellKey(c, id)));
   if (!focused || !all.includes(focused)) focused = all[0];
-  return view.columns.map((column, c) => {
-    const cells = visible(column.cells);
-    return h(
-      "section",
-      {
-        class: "column",
-        attrs: {
-          role: "row",
-          "aria-label": `${column.name}: ${column.covered} of ${column.cells.length} techniques covered`,
-        },
-      },
-      [
-        h("h2", { class: "column-title", attrs: { role: "columnheader" } }, [
-          h("span", { text: column.name }),
-          h("span", { class: "muted", text: `${column.covered}/${column.cells.length}` }),
-        ]),
-        ...cells.map((cell, r) => cellElement(cell, c, r, filters)),
-      ],
+  if (key !== layoutKey) {
+    layoutKey = key;
+    const hadFocus = matrixElement.contains(document.activeElement);
+    replace(
+      matrixElement,
+      ...columns.map(({ column, cells }, c) =>
+        h(
+          "section",
+          {
+            class: "column",
+            attrs: {
+              role: "row",
+              "aria-label": `${column.name}: ${column.covered} of ${column.cells.length} techniques covered`,
+            },
+          },
+          [
+            h("h2", { class: "column-title", attrs: { role: "columnheader" } }, [
+              h("span", { class: "column-name", text: column.name }),
+              h("span", { class: "column-count", text: `${column.covered}/${column.cells.length}` }),
+              h("span", { class: "column-bar", attrs: { "aria-hidden": "true" } }, [
+                h("span", { class: "column-fill" }),
+              ]),
+            ]),
+            ...cells.map((cell, r) => cellElement(cell, c, r)),
+          ],
+        ),
+      ),
     );
-  });
+    for (const [index, { column }] of columns.entries()) {
+      const fill = matrixElement.children[index]?.querySelector<HTMLElement>(".column-fill");
+      if (fill)
+        fill.style.width = `${column.cells.length ? Math.round((column.covered / column.cells.length) * 100) : 0}%`;
+    }
+    if (hadFocus) focusCell(focused);
+  }
+  for (const element of matrixElement.querySelectorAll<HTMLElement>(".cell")) {
+    const cell = cellsById.get(element.dataset.id ?? "");
+    if (cell) updateCell(element, cell, f);
+  }
 }
 
-function cellLabel(cell: Cell, filters: MatrixFilters): string {
+function cellLabel(cell: Cell, f: MatrixFilters): string {
   const parts = [
     `${cell.id} ${cell.name}`,
     cell.rules === 0 ? "gap, no rule" : `${cell.rules} rule${cell.rules === 1 ? "" : "s"}`,
   ];
-  if (filters.layer !== "rules" && cell.planned) parts.push(`${cell.planned} planned`);
-  if (filters.layer === "unaddressed" && cell.unaddressed) parts.push(`${cell.unaddressed} unaddressed`);
+  if (f.layer !== "rules" && cell.planned) parts.push(`${cell.planned} planned`);
+  if (f.layer === "unaddressed" && cell.unaddressed) parts.push(`${cell.unaddressed} unaddressed`);
   if (cell.subtechniques.length)
     parts.push(
       `${cell.subtechniques.length} sub-techniques, ${ui.expanded.includes(cell.id) ? "expanded" : "collapsed"}`,
@@ -351,55 +493,31 @@ function cellLabel(cell: Cell, filters: MatrixFilters): string {
   return parts.join(", ");
 }
 
-function cellElement(cell: Cell, c: number, r: number, filters: MatrixFilters): HTMLElement {
-  const sub = cell.id.includes(".");
-  const expanded = ui.expanded.includes(cell.id);
+function cellElement(cell: Cell, c: number, r: number): HTMLElement {
   const element = h(
     "div",
     {
-      class: `cell level-${cell.level}${cell.level === 0 ? " gap" : ""}${sub ? " sub" : ""}${detail?.id === cell.id ? " selected" : ""}`,
+      class: `cell${cell.id.includes(".") ? " sub" : ""}`,
       attrs: {
         role: "gridcell",
-        tabindex: cell.id === focused ? 0 : -1,
+        tabindex: -1,
         "data-id": cell.id,
-        "aria-label": cellLabel(cell, filters),
-        "aria-selected": detail?.id === cell.id ? "true" : "false",
-        ...(cell.subtechniques.length ? { "aria-expanded": expanded ? "true" : "false" } : {}),
-      },
-      on: {
-        click: () => {
-          focused = cell.id;
-          channel.post("select", cell.id);
-        },
-        keydown: (event) => onKey(event, cell, c, r),
-        focus: () => {
-          focused = cell.id;
-        },
+        "data-k": cellKey(c, cell.id),
+        "data-c": c,
+        "data-r": r,
       },
     },
     [
       h("span", { class: "cell-id", text: cell.id }),
       h("span", { class: "cell-name", text: cell.name }),
       h("span", { class: "cell-counts" }, [
-        h("span", { class: "count", text: String(cell.rules), title: "Rules" }),
-        filters.layer !== "rules" && cell.planned
-          ? h("span", { class: "planned", text: `◷${cell.planned}`, title: "Planned objectives" })
-          : null,
-        filters.layer === "unaddressed" && cell.unaddressed
-          ? h("span", { class: "unaddressed", text: `!${cell.unaddressed}`, title: "Unaddressed threats" })
-          : null,
+        h("span", { class: "count" }),
+        h("span", { class: "planned" }),
+        h("span", { class: "unaddressed" }),
         cell.subtechniques.length
           ? h("button", {
               class: "expand",
-              text: expanded ? "−" : `+${cell.subtechniques.length}`,
-              title: expanded ? "Collapse sub-techniques" : "Expand sub-techniques",
-              attrs: { tabindex: -1, "aria-hidden": "true" },
-              on: {
-                click: (event) => {
-                  event.stopPropagation();
-                  toggle(cell.id);
-                },
-              },
+              attrs: { tabindex: -1, "aria-hidden": "true", type: "button" },
             })
           : null,
       ]),
@@ -408,36 +526,165 @@ function cellElement(cell: Cell, c: number, r: number, filters: MatrixFilters): 
   return element;
 }
 
-function toggle(id: string, open?: boolean): void {
+/** A cell's counts, shading and state, set in place. */
+function updateCell(element: HTMLElement, cell: Cell, f: MatrixFilters): void {
+  const expanded = ui.expanded.includes(cell.id);
+  for (let level = 0; level <= 4; level++) setClass(element, `level-${level}`, cell.level === level);
+  setClass(element, "gap", cell.level === 0);
+  setClass(element, "selected", detail?.id === cell.id);
+  element.tabIndex = element.dataset.k === focused ? 0 : -1;
+  element.setAttribute("aria-label", cellLabel(cell, f));
+  element.setAttribute("aria-selected", detail?.id === cell.id ? "true" : "false");
+  if (cell.subtechniques.length) element.setAttribute("aria-expanded", String(expanded));
+  const count = element.querySelector(".count");
+  if (count) setText(count, String(cell.rules));
+  const planned = element.querySelector<HTMLElement>(".planned");
+  if (planned) {
+    const show = f.layer !== "rules" && cell.planned > 0;
+    planned.hidden = !show;
+    planned.title = "Planned objectives";
+    setText(planned, show ? `◷${cell.planned}` : "");
+  }
+  const unaddressed = element.querySelector<HTMLElement>(".unaddressed");
+  if (unaddressed) {
+    const show = f.layer === "unaddressed" && cell.unaddressed > 0;
+    unaddressed.hidden = !show;
+    unaddressed.title = "Unaddressed threats";
+    setText(unaddressed, show ? `!${cell.unaddressed}` : "");
+  }
+  const expand = element.querySelector<HTMLElement>(".expand");
+  if (expand) {
+    setText(expand, expanded ? "−" : `+${cell.subtechniques.length}`);
+    expand.title = expanded ? "Collapse sub-techniques" : "Expand sub-techniques";
+  }
+}
+
+function cellFrom(event: Event): HTMLElement | null {
+  return (event.target as HTMLElement | null)?.closest<HTMLElement>(".cell") ?? null;
+}
+
+function onHover(event: MouseEvent): void {
+  const element = cellFrom(event);
+  if (!element) {
+    hideHoverCard();
+    return;
+  }
+  if (element.dataset.hovered === "1") return;
+  for (const other of matrixElement.querySelectorAll<HTMLElement>('[data-hovered="1"]'))
+    delete other.dataset.hovered;
+  element.dataset.hovered = "1";
+  element.addEventListener(
+    "mouseleave",
+    () => {
+      delete element.dataset.hovered;
+      hideHoverCard();
+    },
+    { once: true },
+  );
+  const cell = cellsById.get(element.dataset.id ?? "");
+  if (!cell) return;
+  // Inside the grid's area: the card never covers the side list.
+  hoverCard(element, () => hoverContent(cell), { bounds: () => scroller.getBoundingClientRect() });
+}
+
+function hoverContent(cell: Cell): Node {
+  const more = cell.rules - cell.top.length;
+  return h("div", { class: "card" }, [
+    h("div", { class: "card-title" }, [h("span", { class: "mono", text: cell.id }), ` ${cell.name}`]),
+    h("div", {
+      class: cell.rules === 0 ? "card-gap" : "card-count",
+      text:
+        cell.rules === 0 ? "A gap: no rule covers it" : `${cell.rules} rule${cell.rules === 1 ? "" : "s"}`,
+    }),
+    cell.top.length
+      ? h("ul", { class: "card-rules" }, [
+          ...cell.top.map((name) => h("li", { text: name })),
+          more > 0 ? h("li", { class: "muted", text: `and ${more} more` }) : null,
+        ])
+      : null,
+    state?.filters.layer !== "rules" && cell.planned
+      ? h("div", {
+          class: "muted",
+          text: `${cell.planned} planned objective${cell.planned === 1 ? "" : "s"}`,
+        })
+      : null,
+    h("div", { class: "ot-hint", text: "Click to list them" }),
+  ]);
+}
+
+function onCellClick(event: MouseEvent): void {
+  const element = cellFrom(event);
+  const id = element?.dataset.id;
+  if (!element || !id) return;
+  const key = element.dataset.k;
+  if ((event.target as HTMLElement).closest(".expand")) {
+    event.stopPropagation();
+    toggleExpand(id, undefined, key);
+    return;
+  }
+  focused = key;
+  hideHoverCard();
+  focusCell(key);
+  channel.post("select", id);
+}
+
+function toggleExpand(id: string, open?: boolean, key?: string): void {
   const isOpen = ui.expanded.includes(id);
   const want = open ?? !isOpen;
   if (want === isOpen) return;
   ui.expanded = want ? [...ui.expanded, id] : ui.expanded.filter((e) => e !== id);
   persist();
-  focused = id;
-  renderColumns();
-  focusCell(id);
+  if (key) focused = key;
+  if (state?.view) renderGrid(state.view, state.filters);
+  focusCell(focused);
   announce(want ? "Sub-techniques expanded" : "Sub-techniques collapsed");
 }
 
-function focusCell(id: string | undefined): void {
-  if (!id) return;
-  const element = document.querySelector<HTMLElement>(`.cell[data-id="${CSS.escape(id)}"]`);
+function focusCell(key: string | undefined): void {
+  if (!key) return;
+  const element = matrixElement.querySelector<HTMLElement>(`.cell[data-k="${CSS.escape(key)}"]`);
   if (!element) return;
-  for (const other of document.querySelectorAll<HTMLElement>('.cell[tabindex="0"]')) other.tabIndex = -1;
+  for (const other of matrixElement.querySelectorAll<HTMLElement>('.cell[tabindex="0"]')) other.tabIndex = -1;
   element.tabIndex = 0;
-  element.focus();
-  focused = id;
+  element.focus({ preventScroll: true });
+  // Keep the cell in view inside the grid's own scroll area: vertically below the sticky header, and
+  // horizontally with its whole column (a column cut by a few pixels reads "econnaissance").
+  element.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const column = element.closest<HTMLElement>(".column");
+  if (column) {
+    const box = scroller.getBoundingClientRect();
+    const rect = column.getBoundingClientRect();
+    const left = snapColumn({
+      columnLeft: rect.left - box.left + scroller.scrollLeft,
+      columnRight: rect.right - box.left + scroller.scrollLeft,
+      scrollLeft: scroller.scrollLeft,
+      viewportWidth: scroller.clientWidth,
+    });
+    if (left !== undefined) scroller.scrollLeft = left;
+  }
+  focused = key;
 }
 
-function onKey(event: KeyboardEvent, cell: Cell, c: number, r: number): void {
+function focusAt(column: number, row: number): void {
+  const id = grid[column]?.[row];
+  if (id) focusCell(cellKey(column, id));
+}
+
+function onKey(event: KeyboardEvent): void {
+  const element = cellFrom(event);
+  const id = element?.dataset.id;
+  if (!element || !id) return;
+  const cell = cellsById.get(id);
+  const c = Number(element.dataset.c);
+  const r = Number(element.dataset.r);
   const move = (dc: number, dr: number) => {
     let column = c + dc;
     while (column >= 0 && column < grid.length && (grid[column]?.length ?? 0) === 0) column += dc || 1;
     const cells = grid[column];
     if (!cells || cells.length === 0) return;
     const row = dc === 0 ? Math.min(cells.length - 1, Math.max(0, r + dr)) : Math.min(cells.length - 1, r);
-    focusCell(cells[row]);
+    const target = cells[row];
+    if (target) focusCell(cellKey(column, target));
   };
   switch (event.key) {
     case "ArrowRight":
@@ -452,23 +699,38 @@ function onKey(event: KeyboardEvent, cell: Cell, c: number, r: number): void {
     case "ArrowUp":
       move(0, -1);
       break;
+    case "PageDown":
+      move(0, 10);
+      break;
+    case "PageUp":
+      move(0, -10);
+      break;
     case "Home":
-      focusCell(grid[c]?.[0]);
+      if (event.ctrlKey) focusAt(0, 0);
+      else focusAt(c, 0);
       break;
     case "End":
-      focusCell(grid[c]?.[(grid[c]?.length ?? 1) - 1]);
+      if (event.ctrlKey) focusAt(grid.length - 1, (grid.at(-1)?.length ?? 1) - 1);
+      else focusAt(c, (grid[c]?.length ?? 1) - 1);
       break;
     case "Enter":
     case " ":
-      channel.post("select", cell.id);
+      hideHoverCard();
+      channel.post("select", id);
       break;
     case "+":
     case "=":
-      if (cell.subtechniques.length) toggle(cell.id, true);
+      if (cell?.subtechniques.length) toggleExpand(id, true, element.dataset.k);
       break;
     case "-":
-      if (cell.subtechniques.length) toggle(cell.id, false);
-      else if (cell.id.includes(".")) toggle(cell.id.split(".")[0] ?? cell.id, false);
+      if (cell?.subtechniques.length) toggleExpand(id, false, element.dataset.k);
+      else if (id.includes(".")) {
+        const parent = id.split(".")[0] ?? id;
+        toggleExpand(parent, false, cellKey(c, parent));
+      }
+      break;
+    case "Escape":
+      hideHoverCard();
       break;
     default:
       return;
@@ -476,32 +738,38 @@ function onKey(event: KeyboardEvent, cell: Cell, c: number, r: number): void {
   event.preventDefault();
 }
 
-function refList(title: string, refs: readonly ObjectRef[], empty: string): HTMLElement {
-  return h("section", {}, [
-    h("h3", { text: `${title} (${refs.length})` }),
+function refList(title: string, refs: readonly ObjectRef[], empty_: string, icon: string): HTMLElement {
+  return h("section", { class: "refs-section" }, [
+    h("h3", {}, [
+      h("span", { class: `codicon codicon-${icon}`, attrs: { "aria-hidden": "true" } }),
+      ` ${title} `,
+      h("span", { class: "ot-badge", text: String(refs.length) }),
+    ]),
     refs.length === 0
-      ? h("p", { class: "muted", text: empty })
+      ? h("p", { class: "ot-hint", text: empty_ })
       : h(
           "ul",
           { class: "refs" },
           refs.map((ref) =>
             h("li", {}, [
-              h("button", {
-                class: "link",
-                text: ref.name,
-                title: `${ref.path}\n${ref.uuid}`,
-                on: { click: () => channel.post("open", ref.uuid) },
-              }),
+              mount(
+                button({
+                  label: ref.name,
+                  variant: "link",
+                  title: `${ref.path}\n${ref.uuid}\nOpens beside the matrix`,
+                  onClick: () => channel.post("open", ref.uuid),
+                }),
+              ),
               " ",
               h("span", {
-                class: "badge",
-                text: ref.via,
+                class: `ot-tag ${ref.via === "own" ? "" : "muted"}`,
+                text: ref.via === "own" ? "Technique" : "inherited",
                 title:
                   ref.via === "own"
                     ? "Names the technique itself"
                     : "Inherits it from its objective or threat",
               }),
-              ref.statuses.length ? h("div", { class: "muted small", text: ref.statuses.join(" · ") }) : null,
+              ref.statuses.length ? h("div", { class: "ot-hint", text: ref.statuses.join(" · ") }) : null,
             ]),
           ),
         ),
@@ -509,80 +777,127 @@ function refList(title: string, refs: readonly ObjectRef[], empty: string): HTML
 }
 
 function renderDetail(): void {
-  const element = document.getElementById("detail");
-  if (!element || !state) return;
-  for (const cell of document.querySelectorAll(".cell.selected")) cell.classList.remove("selected");
+  if (!state) return;
+  for (const cell of matrixElement.querySelectorAll(".cell.selected")) cell.classList.remove("selected");
   if (!detail) {
-    replace(element, h("p", { class: "muted", text: "Select a technique to list the rules covering it." }));
+    replace(
+      aside,
+      emptyState({
+        icon: "target",
+        title: "Pick a technique",
+        body: "Click a cell, or press Enter on it, to list the rules that cover it.",
+      }),
+    );
     return;
   }
   const d = detail;
-  document.querySelector(`.cell[data-id="${CSS.escape(d.id)}"]`)?.classList.add("selected");
+  // A technique under several tactics is selected in each.
+  for (const selectedCell of matrixElement.querySelectorAll(`.cell[data-id="${CSS.escape(d.id)}"]`)) {
+    selectedCell.classList.add("selected");
+    selectedCell.setAttribute("aria-selected", "true");
+  }
   const f = state.filters;
   replace(
-    element,
-    h("h2", { text: `${d.id} ${d.name}` }),
-    refList("Rules", d.rules, "No rule covers it: a gap."),
+    aside,
+    h("div", { class: "detail-head" }, [
+      h("div", { class: "mono muted", text: d.id }),
+      h("h2", { text: d.name }),
+    ]),
+    refList("Rules", d.rules, "No rule covers it: a gap.", "shield"),
     f.layer !== "rules"
-      ? refList("Planned objectives", d.planned, "No objective without rules names it.")
+      ? refList("Planned objectives", d.planned, "No objective without rules names it.", "clock")
       : null,
     f.layer === "unaddressed"
-      ? refList("Unaddressed threats", d.unaddressed, "No threat without an objective names it.")
+      ? refList("Unaddressed threats", d.unaddressed, "No threat without an objective names it.", "warning")
       : null,
-    h("div", { class: "toolbar" }, [
+    h("div", { class: "ot-bar" }, [
       state.features.search
-        ? h("button", {
-            class: "secondary",
-            text: "Open in search",
-            on: { click: () => channel.post("search", d.id) },
-          })
+        ? mount(
+            button({
+              label: "Open in search",
+              variant: "secondary",
+              icon: "search",
+              onClick: () => channel.post("search", d.id),
+            }),
+          )
         : null,
       state.features.newObjective
-        ? h("button", {
-            class: "secondary",
-            text: "New objective…",
-            title: "opentide new objective: add this technique to it once it is written",
-            on: { click: () => channel.post("newObjective", d.id) },
-          })
+        ? mount(
+            button({
+              label: "New objective…",
+              variant: "secondary",
+              icon: "add",
+              title: "opentide new objective: add this technique to it once it is written",
+              onClick: () => channel.post("newObjective", d.id),
+            }),
+          )
         : null,
     ]),
   );
 }
 
-function MATRIX_CSS(): string {
-  return `
-.layout { display: flex; gap: 12px; align-items: flex-start; }
-.matrix { display: flex; gap: 4px; overflow-x: auto; flex: 1; padding-bottom: 8px; }
-.column { display: flex; flex-direction: column; gap: 3px; min-width: 150px; max-width: 180px; flex: 0 0 160px; }
-.column-title { font-size: 0.9em; margin: 0 0 4px; display: flex; justify-content: space-between; gap: 6px;
-  border-bottom: 2px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
-  position: sticky; top: 0; background: var(--vscode-editor-background); padding: 2px 0; }
-.cell { display: grid; grid-template-columns: 1fr auto; gap: 0 4px; padding: 3px 5px; border-radius: 2px; cursor: pointer;
-  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border)); font-size: 0.88em; line-height: 1.25; }
-.cell:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
-.cell.selected { outline: 2px solid var(--vscode-focusBorder); }
+addStyles(`
+.region-progress { margin: 0 calc(-1 * var(--ot-space-4)); }
+.toggle { display: inline-flex; gap: var(--ot-space-1); align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--ot-space-1) var(--ot-space-3); align-items: center; margin: var(--ot-space-1) 0 var(--ot-space-2);
+  color: var(--ot-muted); font-size: var(--ot-font-sm); }
+.legend-item { display: inline-flex; gap: var(--ot-space-1); align-items: center; }
+#root { display: flex; flex-direction: column; height: calc(100vh - var(--ot-space-4)); }
+.layout { display: flex; gap: var(--ot-space-3); align-items: stretch; flex: 1; min-height: 320px; }
+.matrix-scroll { flex: 1; min-width: 0; overflow: auto; border: 1px solid var(--ot-border); border-radius: var(--ot-radius-2);
+  scroll-padding: 40px 4px 8px 4px; }
+.matrix { display: flex; gap: var(--ot-space-1); padding: 0 var(--ot-space-1) var(--ot-space-2); width: max-content; }
+.column { display: flex; flex-direction: column; gap: 3px; width: 168px; }
+.ot-kit .column-title { position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: 1fr auto; gap: 2px var(--ot-space-1);
+  margin: 0 0 var(--ot-space-1); padding: var(--ot-space-1) 2px; font-size: var(--ot-font-sm);
+  background: var(--vscode-editor-background); border-bottom: 1px solid var(--ot-border); }
+.column-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.column-count { color: var(--ot-muted); font-weight: normal; font-variant-numeric: tabular-nums; }
+.column-bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: var(--ot-border); overflow: hidden; }
+.column-fill { display: block; height: 100%; background: var(--vscode-charts-green); }
+.cell { display: grid; grid-template-columns: 1fr auto; gap: 0 var(--ot-space-1); padding: 3px 5px; border-radius: var(--ot-radius-1);
+  cursor: pointer; border: 1px solid var(--ot-border); font-size: var(--ot-font-sm); line-height: 1.25; min-height: 34px; box-sizing: border-box; }
+.cell:hover { border-color: var(--ot-focus); }
+.cell:focus-visible { outline: 2px solid var(--ot-focus); outline-offset: 1px; }
+.cell.selected { outline: 2px solid var(--ot-focus); outline-offset: -1px; }
 .cell.sub { margin-left: 10px; }
-.cell-id { grid-column: 1; font-family: var(--vscode-editor-font-family); font-size: 0.92em; color: var(--vscode-descriptionForeground); }
+.cell-id { grid-column: 1; font-family: var(--vscode-editor-font-family); font-size: var(--ot-font-xs); color: var(--ot-muted); }
 .cell-name { grid-column: 1; overflow: hidden; text-overflow: ellipsis; }
 .cell-counts { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
-.count { font-weight: 600; }
-.expand { padding: 0 4px; font-size: 0.85em; }
-.cell.gap, .cell-swatch.gap { border-style: dashed;
-  background: repeating-linear-gradient(135deg, transparent 0 4px,
-    color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-panel-border)) 55%, transparent) 4px 5px); }
-.level-1 { background: color-mix(in srgb, var(--vscode-charts-green) 18%, transparent); }
-.level-2 { background: color-mix(in srgb, var(--vscode-charts-green) 34%, transparent); }
-.level-3 { background: color-mix(in srgb, var(--vscode-charts-green) 52%, transparent); }
-.level-4 { background: color-mix(in srgb, var(--vscode-charts-green) 72%, transparent); border-width: 2px; }
+.count { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cell .expand { padding: 0 4px; min-height: 0; font-size: var(--ot-font-xs); line-height: 14px; border-radius: var(--ot-radius-1);
+  color: var(--ot-muted); background: transparent; border: 1px solid var(--ot-border); }
+.cell .expand:hover { color: var(--vscode-foreground); background: var(--ot-hover); }
+.cell.gap, .swatch.gap { border-style: dashed;
+  background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--ot-border) 60%, transparent) 4px 5px); }
+.level-1 { background: color-mix(in srgb, var(--vscode-charts-green) 18%, var(--vscode-editor-background)); }
+.level-2 { background: color-mix(in srgb, var(--vscode-charts-green) 34%, var(--vscode-editor-background)); }
+.level-3 { background: color-mix(in srgb, var(--vscode-charts-green) 52%, var(--vscode-editor-background)); }
+.level-4 { background: color-mix(in srgb, var(--vscode-charts-green) 70%, var(--vscode-editor-background)); border-width: 2px; }
+.vscode-high-contrast .cell.level-1 { border-width: 1px; border-color: var(--vscode-charts-green); }
+.vscode-high-contrast .cell.level-2, .vscode-high-contrast .cell.level-3 { border-width: 2px; border-color: var(--vscode-charts-green); }
+.vscode-high-contrast .cell.level-4 { border-width: 3px; border-color: var(--vscode-charts-green); }
+.vscode-high-contrast .cell[class*="level-"]:not(.gap) { background: transparent; }
+.vscode-high-contrast .cell.gap { background: none; }
+.vscode-high-contrast .swatch.level-1 { border: 1px solid var(--vscode-charts-green); background: transparent; }
+.vscode-high-contrast .swatch.level-2, .vscode-high-contrast .swatch.level-3 { border: 2px solid var(--vscode-charts-green); background: transparent; }
+.vscode-high-contrast .swatch.level-4 { border: 3px solid var(--vscode-charts-green); background: transparent; }
 .planned { color: var(--vscode-charts-yellow); }
-.unaddressed { color: var(--vscode-errorForeground); font-weight: 600; }
-.cell-swatch { display: inline-block; width: 14px; height: 10px; vertical-align: middle; border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border)); }
-.legend { margin: 4px 0 8px; }
-.detail { flex: 0 0 300px; position: sticky; top: 0; max-height: 90vh; overflow: auto;
-  border-left: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border)); padding-left: 12px; }
+.unaddressed { color: var(--ot-error); font-weight: 600; }
+.swatch { display: inline-block; width: 16px; height: 12px; border-radius: 2px; border: 1px solid var(--ot-border); box-sizing: border-box; }
+.detail { flex: 0 0 300px; overflow: auto; border: 1px solid var(--ot-border); border-radius: var(--ot-radius-2); padding: var(--ot-space-2) var(--ot-space-3); }
+.detail .ot-state { margin: var(--ot-space-6) auto; }
+.detail-head h2 { margin: 2px 0 var(--ot-space-2); }
+.refs-section h3 { display: flex; align-items: center; gap: var(--ot-space-1); }
 .refs { list-style: none; padding: 0; margin: 0; }
-.refs li { margin: 4px 0; }
-.small { font-size: 0.85em; }
-@media (max-width: 800px) { .layout { flex-direction: column; } .detail { position: static; border-left: none; padding-left: 0; } }
-`;
-}
+.refs li { margin: var(--ot-space-1) 0; }
+.card-title { font-weight: 600; margin-bottom: 2px; }
+.card-count { font-weight: 600; color: var(--ot-ok); }
+.card-gap { color: var(--ot-muted); }
+.card-rules { margin: var(--ot-space-1) 0; padding-left: 18px; }
+.matrix-skeleton { display: flex; gap: var(--ot-space-1); flex: 1; overflow: hidden; }
+.skeleton-column { display: flex; flex-direction: column; gap: 3px; width: 168px; }
+.skeleton-cell { height: 34px; border-radius: 2px; background: var(--ot-border); opacity: 0.35; animation: ot-pulse 1.4s ease-in-out infinite; }
+@media (max-width: 720px) { #root { height: auto; } .layout { flex-direction: column; flex: none; } .matrix-scroll { height: 55vh; flex: none; }
+  .detail { flex: none; max-height: 45vh; } }
+`);

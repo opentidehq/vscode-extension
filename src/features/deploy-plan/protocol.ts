@@ -8,7 +8,12 @@ export type ScopeKind = "changed" | "all" | "selected";
 
 export interface DeployPanelState {
   readonly phase: "running" | "done" | "failed" | "cancelled";
+  /** Pinned to its rules: another preview opens its own panel. */
+  readonly locked: boolean;
   readonly folder: string;
+  readonly folderName: string;
+  /** Each platform id's display name ("Microsoft Sentinel"). */
+  readonly platformLabels: Readonly<Record<string, string>>;
   readonly strategies: readonly Strategy[];
   readonly scope: ScopeKind;
   readonly platform: string | null;
@@ -39,6 +44,14 @@ export function cancelledState(state: DeployPanelState, durationMs: number): Dep
   return { ...state, phase: "cancelled", failure: null, progress: null, durationMs };
 }
 
+/**
+ * The state of a panel retargeted to other rules: the previous rules' plan goes (a run on the new
+ * rules, and a cancelled one, must not show it under their title).
+ */
+export function withoutPlan(state: DeployPanelState): DeployPanelState {
+  return { ...state, plan: null, failure: null, progress: null, durationMs: null };
+}
+
 /** What the panel's body shows while it has no plan: "Planning…" during a run, else what to do. */
 export function noPlanBox(state: Pick<DeployPanelState, "phase">): {
   readonly kind: "loading" | "info";
@@ -67,6 +80,7 @@ export interface DeployPlanProtocol extends Protocol {
     open: string;
     copy: "dryRun" | "deploy" | "ci";
     action: string;
+    lock: boolean;
   };
 }
 
@@ -90,6 +104,7 @@ export const hostValidators: Validators<DeployPlanProtocol["toHost"]> = {
   copy: (value): value is "dryRun" | "deploy" | "ci" =>
     value === "dryRun" || value === "deploy" || value === "ci",
   action: is.string,
+  lock: is.boolean,
 };
 
 export const webviewValidators: Validators<DeployPlanProtocol["toWebview"]> = {

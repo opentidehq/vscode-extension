@@ -60,19 +60,35 @@ describe("third-party notices", () => {
     assert.match(text, /@scope\/pkg 1\.2\.3 \(MIT\)\n-+\nMIT text/);
   });
 
-  it("carries every licence file of a package (codicons: the icons' and the code's)", async () => {
-    const { thirdPartyNotices } = await import("../../scripts/build-lib.mjs");
-    const dir = mkdtempSync(join(tmpdir(), "otide-notices-"));
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ version: "0.0.45", license: "CC-BY-4.0" }));
-    writeFileSync(join(dir, "LICENSE"), "CC-BY text");
-    writeFileSync(join(dir, "LICENSE-CODE"), "MIT text");
-    writeFileSync(join(dir, "README.md"), "not a licence");
-    const { readFileSync } = await import("node:fs");
-    const text = thirdPartyNotices(new Map([["@vscode/codicons", dir]]), (file) =>
-      readFileSync(file, "utf8"),
+  it("lists the packages the build copies, with every licence file", async () => {
+    const { bundledPackages, thirdPartyNotices, COPIED_PACKAGES, copiedAssets } = await import(
+      "../../scripts/build-lib.mjs"
     );
-    assert.match(text, /CC-BY text\n\nMIT text/);
-    assert.doesNotMatch(text, /not a licence/);
+    assert.deepEqual(COPIED_PACKAGES, ["@vscode/codicons"]);
+    const root = mkdtempSync(join(tmpdir(), "otide-copied-"));
+    const dir = join(root, "node_modules", "@vscode", "codicons");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ version: "0.0.45", license: "CC-BY-4.0" }));
+    writeFileSync(join(dir, "LICENSE"), "CC BY 4.0 text");
+    writeFileSync(join(dir, "LICENSE-CODE"), "MIT code text");
+    const packages = bundledPackages({ inputs: {} }, root, COPIED_PACKAGES);
+    assert.deepEqual([...packages.keys()], ["@vscode/codicons"]);
+    const { readFileSync } = await import("node:fs");
+    const text = thirdPartyNotices(packages, (file) => readFileSync(file, "utf8"));
+    assert.match(
+      text,
+      /@vscode\/codicons 0\.0\.45 \(CC-BY-4\.0 AND MIT\)/,
+      "the font's and the CSS's licences",
+    );
+    const legal = readFileSync(new URL("../../THIRD-PARTY-LICENSES", import.meta.url), "utf8");
+    assert.match(legal, /dist\/webview\/codicons\/codicon\.ttf[\s\S]*Licence: CC-BY-4\.0 AND MIT/);
+    assert.match(text, /LICENSE:\n\nCC BY 4\.0 text/);
+    assert.match(text, /LICENSE-CODE:\n\nMIT code text/);
+    // The font and its stylesheet land next to the webview bundles, under the CSP's font-src.
+    const targets = copiedAssets(root).map(([, to]) => to.replaceAll("\\", "/"));
+    assert.ok(targets.some((to) => to.endsWith("dist/webview/codicons/codicon.ttf")));
+    assert.ok(targets.some((to) => to.endsWith("dist/webview/codicons/codicon.css")));
+    assert.ok(targets.some((to) => to.endsWith("dist/webview/kit.css")));
   });
 
   it("covers the webview bundles too", async () => {

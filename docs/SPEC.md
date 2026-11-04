@@ -499,8 +499,10 @@ A webview stepper. It is a form over `opentide setup` flags (D3), so it writes n
 | ⑤ Extras | Pre-commit hooks, `.env.example` | `setup hooks`, `setup env` |
 | ⑥ Review | The files each step will write, and the exact commands, with "Copy as script" | `setup --plan` ([§15](#15-what-this-needs-from-opentide-and-language-server)) |
 
-- **Apply** runs the commands in order with `--yes --json` and shows each `steps[]` entry as it completes. On failure it stops and shows that step's `failure` with its fix.
-- **On success:** reveal the Catalogue, open the README, and mark walkthrough step 2 done.
+The stepper marks each step done, current, invalid (a visited step with a problem) or to do; each field shows its message once touched or once Next leaves its step. Review badges each file `new`, `merge`, `unchanged` or `remove`.
+
+- **Apply** runs the commands in order with `--yes --json` and shows each `steps[]` entry as it completes, with a progress bar and each command's status. On failure it stops and shows that step's `failure` with its fix.
+- **On success:** reveal the Catalogue, open the README beside the wizard, mark walkthrough step 2 done, and show a finish screen: **Open README**, **New Rule**, **Show Graph**, the Catalogue (or **Open the folder** when it is not in the window).
 - **Existing workspace** (`.opentide/` present): the wizard opens on steps ②–⑤ to add platforms, CI or agents (`setup platforms`, `setup ci`, `setup mcp`, `setup skills`, `setup hooks`).
 - **CoreTIDE layout:** not supported (opentide 0.21.0). The wizard says so before it opens, and sets up a new layout beside it only if asked to continue.
 
@@ -520,7 +522,7 @@ A webview stepper. It is a form over `opentide setup` flags (D3), so it writes n
 
 ## 9. The opentide sidebar
 
-**Requirements 3 and 4.** An activity bar container, `opentide`, with five views. In a multi-root window each view groups by folder.
+**Requirements 3 and 4.** An activity bar container, `opentide`, with six views. In a multi-root window each view groups by folder.
 
 ```text
 OPENTIDE
@@ -533,6 +535,12 @@ OPENTIDE
   ▸ Objectives without a threat (1)
   ▸ Rules without an objective (3)
   ▸ Files that failed to load (1)
+▾ RELATIONS          Following: Suspicious LSASS Access  [←] [→] [pin]
+    ◆ Rule · Suspicious LSASS Access          objects/rules/suspicious-lsass.yaml
+  ▾ Implements 1 →
+      ◎ Detect LSASS access                   objects/objectives/detect-lsass.yaml
+  ▾ Technique 1 →
+      T1003.001                               LSASS Memory
 ▸ COVERAGE                     212 techniques · 37 covered
 ▸ PLATFORMS & TENANTS
 ▸ HEALTH                       ✓ 15  ! 2  ✗ 1
@@ -542,6 +550,7 @@ OPENTIDE
 | View | Content | Actions |
 |------|---------|---------|
 | **Catalogue** | Threats → objectives → (signals) → rules, as in `opentide tui`, plus groups for objectives without a threat, rules without an objective and files that failed to load. Each rule shows its platforms (icon per block, dimmed when the status is `INERT`) and its problem badge. Group by threat chain (default), type, platform, status or technique; by folder is not in 0.1 ([#41](https://github.com/opentidehq/vscode-extension/issues/41)) | Open; New…; Validate; Show in graph; Run query; Preview deploy; Copy UUID; Reveal in Explorer. The tree find widget filters by name, UUID or technique |
+| **Relations** | The active editor's object (followed, debounced 150 ms; or pinned), then its relations in groups: outgoing (`Implements 1 →`) before incoming (`← Implemented by 3`), each kind in `RELATION_ORDER` with the words, arrow and codicon of `RELATION_WORDS` (`src/core/catalog/relations.ts`). Rows are objects (type icon, name, workspace path; tooltip with platforms and counts both ways), signals, ATT&CK techniques (with their name) and log sources; a reference no object carries is a `missing` row with the warning icon | Click: open beside the followed editor's group (`preview`), at the `name:` line, a signal in its objective at the signal; Open to the Side; Show Relations (retarget); Show in Graph; Copy UUID; Back and Forward; Pin and Unpin |
 | **Coverage** | ATT&CK techniques named by any object: rule count, gaps (`0`) first, sub-techniques under their parent (a parent counts its sub-techniques' rules, as `info coverage` does) | Open the matrix; show the rules; "New objective for this technique" |
 | **Platforms & tenants** | The nine platforms: enabled, `can_deploy`, `can_validate`, `can_query`; tenants per platform and their credential state from `doctor`'s `credentials` check | Enable a platform (`setup platforms`); open its TOML; **Set credential…**: SecretStorage, injected as the `$VAR` the TOML names (D3: never written to a file); Test connection (`doctor`) |
 | **Health** | `opentide doctor` checks, pass/warn/fail/skip, each with its `fix` | Run the fix; re-run; "Copy report" (redacted) for bug reports |
@@ -551,6 +560,10 @@ OPENTIDE
 - The Catalogue, Coverage and search all come from **one** `info catalog` document per folder ([§15](#15-what-this-needs-from-opentide-and-language-server), O3), answered by `opentide serve` from its warm registry and cached in memory.
 - **Refresh triggers:** activation; create, delete or rename under an object folder; save of an object or configuration file; after any command that writes. Refreshes are debounced by 1 s and run one at a time.
 - **Until the first run returns,** the tree shows names from the server's `workspace/symbol`, so it is never empty for long.
+- **Relations:** one `RelationIndex` per catalogue document (`relationIndexOf`, memoised on the document the store hands out), never per render; following the editor reads it and runs nothing. Without `info catalog`, the Relations view asks the language server for `opentide/catalog` once per index version (`opentide/catalogChanged`), turns each object's reference fields into edges (`detection_model` implements, `objective.threats.<i>` covers, `threat.chaining.<i>.vector` chains, a signal's `parent`) and inverts them for the incoming side, and says that its source is the language server's index, which has no techniques or log sources. A server without the request (MethodNotFound, the bundled opentide 0.21.0) gets one line, "Relations need a newer opentide", with Switch Runtime….
+- **Editor entry points:** **opentide: Show Relations** (palette, editor title and context menu of Tide YAML; no default key) reveals the view on the active object without taking the focus. A CodeLens on the object's `name:` line sums up its object relations both ways in the same words (`Implements → Detect LSASS access · ← Implemented by 3 rules`) and shows the view; it needs `info catalog` and `opentide.relations.codeLens` turns it off. The language server's reference lens on `metadata.uuid` (`3 rules use this objective`) stays, and still peeks the references.
+- **Icons:** one codicon and theme colour per kind (`src/core/catalog/objectIcons.ts`: threat `flame` red, objective `target` blue, rule `shield` green, signal `pulse` purple, technique `symbol-event` orange, log source `database` cyan), the graph's colours, in every tree. A row with errors or warnings takes the problem colour instead.
+- **Refreshes:** a tree refreshes only the rows whose content or children changed (`onDidChangeTreeData` with those elements); a whole-tree refresh only when its top level changed.
 
 ---
 
@@ -560,7 +573,12 @@ OPENTIDE
 - **Theming:** VS Code theme variables, including high-contrast themes.
 - **Security:** a strict CSP (`default-src 'none'`, nonce scripts), no remote resources, and `localResourceRoots` limited to the bundled assets.
 - **Messaging:** typed messages, validated on both sides. A webview never receives a secret, and all actions go through the extension host.
-- **Components:** small DOM helpers and a virtual table of the extension's own (`webview/panels-kit/`), styled with VS Code's theme variables, since Microsoft's webview UI toolkit was retired. Cytoscape draws the graph.
+- **Components:** the panels kit of the extension's own, since Microsoft's webview UI toolkit was retired. Its components (`src/core/webview/kit/`) are vscode-free and DOM-free render functions, unit-tested in plain node; `webview/panels-kit/` builds them and holds the virtual table, the virtualised list, menus and hover cards. Cytoscape draws the graph.
+  - *Tokens:* a 4/8 px spacing grid, radii and a type scale (`--ot-*` in `base.css`), every colour a `--vscode-*` theme variable; `kit.css` styles the components. Codicons ship in the extension (`@vscode/codicons`, `dist/webview/codicons/`), loaded under the page's CSP, never from a CDN.
+  - *Components:* a toolbar (the object and its context on the left, actions on the right, sticky), buttons and icon toggles, a segmented control (a radio group, arrow keys), chips, badges and tags, a progress bar and skeleton rows while loading (always in the page, so nothing moves when data arrives), empty and error states with one primary action and **Show output**, callouts (info, warning, error), collapsible sections, stat cards, a stepper, menus and hover cards.
+  - *Behaviour:* visible focus rings; the focus kept on re-render; `prefers-reduced-motion` and VS Code's own reduce-motion setting stop every animation; high-contrast themes get contrast borders and outlines where a fill would be the only signal.
+- **Beside the object:** a panel about an object (query results, the deploy plan of a rule, the matrix asked for a technique) opens in `ViewColumn.Beside` with `preserveFocus` when invoked from an editor, so the YAML stays in view; so do the compiled query, payload and setup file documents (in preview) and the Explain page (Markdown preview to the side). Each kind keeps one panel and retargets it to the next object; its title names the object ("Query · LSASS handle… · Sentinel"). A lock button pins a panel to its object: the next object opens a panel of its own, and an object already shown in a panel is revealed there. A file opened from a panel goes to the group beside the panel (the object's editor group when the panel is beside it).
+- **Fast:** a state update patches the page (keyed updates; unchanged sections, their open state and the focus stay); lists longer than 200 rows are virtualised; the virtual table keeps a pool of row elements and only changes their text; sorting and filtering 10,000 rows each take less than a frame (16 ms, `test/unit/webview/table.test.ts`).
 
 ### 10.1 Graph: how detections connect
 
@@ -617,7 +635,8 @@ OPENTIDE
 - **Layout:** tactics as columns and techniques as cells, shaded by the number of rules (0 = gap, with a distinct pattern, not colour alone). Sub-techniques expand in place.
 - **Layers:** rules only; rules plus objectives without rules ("planned"); threats with no objective ("unaddressed"). These match the Navigator layer opentide exports.
 - **Filters:** platform, status (exclude `INERT`), tenant.
-- **Clicks:** a cell lists its rules and objectives, and opens one. "New objective for this technique" starts the flow with the technique prefilled.
+- **Clicks:** a cell's hover card names the technique, its rule count and top rules; a click lists its rules and objectives in the side panel, and a rule opens beside the matrix. "New objective for this technique" starts the flow with the technique prefilled.
+- **Scrolling:** the grid scrolls in both directions inside its own area under sticky tactic headers; the arrow keys, PageUp/PageDown and Home/End move the focus and keep it in view. The filters sit in one bar, and the colour scale has a legend.
 - **Export:** "Export Navigator layer" runs `opentide generate exports navigator` and reveals the file.
 
 ### 10.3 Search
@@ -655,12 +674,13 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - A rule with unsaved edits asks first: the CLI reads the saved file, so the choice is Save and Run, Run Saved Version, or nothing. **Validate live** (`validate query --live --file`) asks the same.
 - **Running** `opentide --json query --rule <uuid> | --file <rule> | <text>`. Rows arrive at the end, so the panel shows progress per tenant and a Cancel button ([§4](#4-the-runtime-resolution-processes-status)).
 - **Results:**
-  - one tab per tenant;
-  - typed columns, sortable and filterable, with a virtual table (up to the CLI's 5,000-row limit);
+  - a toolbar with the rule or file, chips for the platform, window, limit and the tenants contacted (globe), the running time and what it waits for beside **Cancel**, and copy and export in one **Export** menu;
+  - one tab per tenant, with its row count;
+  - typed columns, sortable, filterable (in all columns or one) and resizable (drag, double-click to fit, Alt+←/→), with a virtual table (up to the CLI's 5,000-row limit) and a cell menu (Shift+F10);
   - copy a cell, a row or the table as Markdown;
   - export CSV or JSONL (in CSV, and in Copy as CSV, a cell starting with `=`, `+`, `-`, `@`, tab or CR gets a leading `'` so a spreadsheet does not evaluate it; plain numbers are left alone; `opentide query --format csv` does not do this);
   - `sent` (the query as sent) and `vendor_query_id` in a details drawer;
-  - failures show `error` and `detail`;
+  - failures show `error` and `detail`, and one next action: a tenant whose credentials are unset or refused offers **Set Credential…** (SecretStorage), an unreachable one **Re-run**, a platform without tenants **Configure tenants…**, no runtime **Switch Runtime…**;
   - partial and truncated results are labelled.
 - **Privacy:** results can hold personal data. They live in memory only, are dropped when the panel closes (unless `opentide.query.retainResults`, default off, keeps the last results for the window), and are written to disk only by an explicit export.
 - **Platforms:** Sysdig has no query runner, so it gets no button. Elastic `kuery` runs as a rule preview, which writes preview alerts. The button says so (AGENTS.md: the one write).
@@ -674,12 +694,13 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
 - **Runs** `opentide --json deploy --dry-run --strategy … [--all] [--platform …]`. No credentials are needed.
 - **Unsaved rules:** a preview of rule files with unsaved edits asks first to save them or to preview the saved versions.
 - **Shows:**
-  - **Changes:** platform → tenant → rule → action (`create`, `update`, `upsert`, `disable`, `delete`), with the status.
+  - **Summary:** the count of each action as cards.
+  - **Changes:** platform → tenant → rule → action (`create`, `update`, `upsert`, `disable`, `delete`), with the status, one collapsible section per platform (lists longer than 200 rows virtualised).
   - **Skipped:** each rule with its reason (strategy, status, unconfigured).
-  - **Missing tenants.**
+  - **Missing tenants:** a callout in the platform's section, with **Open configuration**.
   - **Diagnostics:** also added to Problems, under `opentide deploy`.
   - **Payloads:** each `api_request` opens as a read-only JSON document (`opentide-payload:`), so search, folding and copy are the editor's.
-- **Footer:** the command line, and "Copy as CI step": a GitHub Actions step whose `env` names every credential variable of the tenants the plan deploys to (from `info`'s tenants, set in the editor or not), plus any the plan's warnings name. No "Deploy" button (D6).
+- **Commands** (a collapsed section): the command line, and "Copy as CI step": a GitHub Actions step whose `env` names every credential variable of the tenants the plan deploys to (from `info`'s tenants, set in the editor or not), plus any the plan's warnings name. No "Deploy" button (D6).
 
 ---
 

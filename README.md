@@ -78,15 +78,19 @@ The workspace's `tide-*` snippets (`opentide generate snippets`) complete in Tid
 
 ### The opentide sidebar
 
-The opentide activity bar has five views. In a multi-root window each view groups by folder.
+The opentide activity bar has six views. In a multi-root window each view groups by folder.
 
 - **Catalogue**: threats → objectives → signals → rules, with objectives without a threat, rules without
   an objective, and files that failed to load. Group by threat chain, type, platform, status or technique
   (the group button). Filter by name, UUID, path or technique, or use the tree's find widget. Click an
-  object to open it at its name. Its menu validates it, shows it in the graph, previews sharing, runs a
+  object to open it at its name. Hover an object for its type, path, platforms with their status and its
+  relations both ways (`Implements 1 →`, `← Implemented by 3`). Each object row has **Open to the Side**,
+  **Show Relations** and **Show in Graph** buttons; its menu also validates it, previews sharing, runs a
   rule's query or previews its deploy, creates a rule for an objective or an objective for a threat, copies
   its UUID, or reveals the file. Until opentide answers, or when it has no `info catalog`, the tree shows
-  names from the language server.
+  names from the language server, with one **Switch Runtime…** line.
+- **Relations**: the object in the active editor, what it points to (→) and what points to it (←). See
+  [Relations](#relations).
 - **Coverage**: the ATT&CK techniques your objects name, by tactic, with how many rules cover each. Gaps
   come first, and sub-techniques sit under their parent. Opens the ATT&CK matrix.
 - **Platforms & Tenants**: the nine platforms, which are enabled, and what each can deploy, validate and
@@ -99,12 +103,57 @@ The opentide activity bar has five views. In a multi-root window each view group
 - **Activity**: every opentide command the extension ran, with its status, its duration and the exact
   command line to copy into a terminal or CI.
 
+### Relations
+
+The **Relations** view, under the Catalogue, follows the active threat, objective or rule (its title says
+`Following: <name>`) and lists its relations in groups, outgoing first, each with its count:
+
+```text
+RELATIONS              Following: LSASS handle opened by unsigned process   [Back] [Forward] [Pin]
+  ◆ Rule · LSASS handle opened by unsigned process      objects/rules/lsass-handle-opened-….yaml
+  ▾ Implements 1 →
+      ◎ Detect LSASS memory access                      objects/objectives/detect-lsass-memory-access.yaml
+  ▾ Technique 1 →
+      T1003.001                                         LSASS Memory
+```
+
+The same words, arrows and icons are used everywhere: `Implements →` / `← Implemented by`, `Covers →` /
+`← Covered by`, `Has signal →` / `← Signal of`, `Child of →` / `← Parent of`, `Technique →`, `Uses log
+source →`; a threat chain reads as its relation, `Precedes →` / `← Preceded by`, `Enables →` / `← Enabled
+by` and so on (`Chains to →` / `← Chained from` when it has none), one group per relation. A reference to a UUID no object carries shows as **missing**,
+with a warning icon.
+
+- Click an object to open it in the editor group beside the one you are reading, at its `name:` line; the
+  view stays on its object and keeps the focus, so the arrow keys move on to the next relation (**Open to
+  the Side** moves the focus to the editor). A signal opens in its objective,
+  at the signal. A technique opens the ATT&CK matrix.
+- Each object row has **Open to the Side**, **Show Relations** (the view moves to that object) and **Show
+  in Graph**; **Back** and **Forward** in the view's title go through the objects it showed.
+- **Pin** keeps the view on its object while you move between editors; **Unpin** follows the editor again.
+- **opentide: Show Relations** (Command Palette, the editor title, the editor's context menu) shows the
+  view on the active object without taking the focus from the editor. It has no default key; bind
+  `opentide.relations.show` in Keyboard Shortcuts, for example to `Ctrl+Shift+Alt+R`
+  (`Cmd+Shift+Alt+R` on macOS) with `when` `editorLangId == opentide-yaml`.
+- A CodeLens on each object's `name:` line sums up its relations both ways, for example `Implements →
+  Detect LSASS memory access · ← Implemented by 3 rules`; click it to show the view. It needs `info
+  catalog`, and `opentide.relations.codeLens` turns it off. The language server's own lens on
+  `metadata.uuid` (`3 rules use this objective`) still opens the references in place.
+
+The view reads the cached catalogue, so following the editor runs no opentide command. With an opentide
+that has no `info catalog` (the bundled 0.21.0), it reads the language server's `opentide/catalog` index
+instead, inverting every object's references to find what points to it, and says so in its message:
+references between objects only, without techniques and log sources. A language server without that
+request shows one line, **Relations need a newer opentide**, with **Switch Runtime…**.
+
 ### Set up a repository
 
 **opentide: Set Up Repository…** (or **Create a Detection Repository Here** in an empty folder's sidebar)
 opens a wizard over `opentide setup`: repository, platforms, CI, agents and extras. **Review** lists every
 file each step will create or merge before anything is written (with an opentide that has `setup --plan`),
-and **Copy as Script** gives the same commands for a terminal. **Apply** runs them and opens the README. In
+and **Copy as Script** gives the same commands for a terminal. The stepper marks the steps that are done
+and those that need attention, and each field says what is wrong as you type. **Apply** runs the commands
+with a progress bar and the status of each, opens the README beside the wizard, and ends on what to do
+next: **Open README**, **New Rule**, **Show Graph** or the Catalogue. In
 an existing repository the wizard adds platforms, CI, MCP, skills and hooks. The **Get started with
 opentide** walkthrough goes from the runtime to your first validated rule, its coverage, a deploy preview
 and your agent.
@@ -174,16 +223,21 @@ types and paths only.
 **opentide: Open ATT&CK Matrix** shows your coverage, tactic by tactic. Each technique is shaded by the
 number of rules covering it, and gaps are hatched. Add planned objectives and unaddressed threats, filter
 by platform, tenant or status, and select a technique to list and open its rules, search for it, or start
-a new objective. **Export Navigator layer** writes the ATT&CK Navigator file. The matrix needs an opentide
-with `info catalog`.
+a new objective. The grid scrolls both ways under sticky tactic headers, and the arrow keys move through it;
+hover a cell for its rule count and top rules. Rules open beside the matrix. **Export Navigator layer**
+writes the ATT&CK Navigator file. The matrix needs an opentide with `info catalog`.
 
 ### Run queries on your tenants
 
 Above every query in a rule, and in `.kql`, `.spl`, `.esql`, `.eql`, `.kuery` and `.lucene` files, lenses
 run the query on the platform's tenants (**Run on prod**), check it there (**Validate live**), or show the
 KQL or SPL the platform runs (**Compiled query**). Pick the tenants and the time window, and the results
-panel shows each tenant's progress, then one tab per tenant: sort, filter, copy as CSV, JSON or Markdown,
-or export CSV or JSONL. Queries are read-only, except Elastic Kuery: it runs as a rule preview, which
+panel opens beside the rule, keeping your place in it. It shows each tenant's progress and the running
+time with **Cancel**, then one tab per tenant: sort, filter, resize columns, copy a cell or a row
+(Shift+F10 for the cell menu), and copy or export the rows from the **Export** menu. A tenant whose
+credentials are unset or refused offers **Set Credential…**. Running another query reuses the panel;
+**Lock** keeps it on its results and the next query opens a panel of its own. Queries are read-only,
+except Elastic Kuery: it runs as a rule preview, which
 writes preview alerts, and the lens says so. Results stay in memory and are dropped when the panel closes.
 Credentials you set are kept in VS Code's secret storage.
 
@@ -191,9 +245,11 @@ Credentials you set are kept in VS Code's secret storage.
 
 **opentide: Preview Deploy** (editor title, explorer, palette, the Catalogue and the graph) runs `opentide
 deploy --dry-run` for the current rule, the selected rules or the changed rules. It shows what each
-platform and tenant would get, the rules that would fail to compile (also in Problems), skipped rules and
-missing tenants. Each API request opens as a read-only JSON document. The editor never deploys: copy the
-deploy command or a ready-made CI step instead.
+platform and tenant would get, beside the rule: the counts as cards, a section per platform with its
+tenants' changes, the rules that would fail to compile (also in Problems), skipped rules and missing
+tenants (with **Open configuration**). Switch between Changed, All and Only this rule. Each API request
+opens beside as a read-only JSON document. Previewing another rule reuses the panel unless it is locked.
+The editor never deploys: copy the deploy command or a ready-made CI step instead.
 
 ### Every command, in the palette, tasks and the terminal
 
@@ -231,8 +287,10 @@ deploy command or a ready-made CI step instead.
 
 ### Status
 
-The status bar shows the opentide version in use and the workspace's problem counts. Its menu
-restarts the server, switches the runtime and shows the output. When the repository pins a different
+The status bar shows the opentide version in use, a lightning icon while the warm backend (`opentide serve`)
+runs, and the workspace's problem counts; its tooltip names the runtime, the backend and the problems.
+Its menu runs the common actions, shows Problems, restarts the server, switches the runtime and shows the
+output. When the repository pins a different
 opentide, it says so and offers the pinned version.
 
 ### Web and virtual workspaces
@@ -278,6 +336,7 @@ workspace's executables. Commands, tasks, panels and MCP need a trusted folder.
 | `opentide.query.defaultWindow` | `24h` | The look-back a query run offers first (`--since`) |
 | `opentide.query.defaultLimit` | `100` | Rows per tenant (`--limit`, at most 5,000) |
 | `opentide.query.retainResults` | `false` | Keep a query's last results in memory after its panel closes, for this window |
+| `opentide.relations.codeLens` | `true` | The relations CodeLens on each object's `name:` line (needs `info catalog`) |
 | `opentide.mcp.provide` | `auto` | Give VS Code's agents the opentide MCP server: `auto`, `always` or `never` |
 | `opentide.terminal.addToPath` | `true` | Put the bundled `opentide` on new integrated terminals' `PATH` |
 

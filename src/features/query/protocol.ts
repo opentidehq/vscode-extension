@@ -4,6 +4,12 @@ import type { Column, CopyFormat, Row } from "./format";
 
 export type TenantStatus = "pending" | "ok" | "failed";
 
+/**
+ * Why a tenant failed, for its next action: `credentials` (a `$VAR` is unset: Set Credential…), `auth`
+ * (the tenant refused the credentials: Set Credential…), `network` (unreachable or timed out: Re-run).
+ */
+export type TenantErrorKind = "credentials" | "auth" | "network" | "other";
+
 /** One result tab: a tenant, or a tenant and one of a rule's queries (`label`). */
 export interface TenantTab {
   readonly key: string;
@@ -20,6 +26,9 @@ export interface TenantTab {
   readonly vendorQueryId: string | null;
   readonly error: string | null;
   readonly detail: string | null;
+  /** A failed tab's kind of error, and the `$VAR`s it names. */
+  readonly errorKind: TenantErrorKind | null;
+  readonly variables: readonly string[];
   readonly warnings: readonly string[];
   readonly elapsedMs: number | null;
 }
@@ -29,6 +38,13 @@ export type QueryPhase = "running" | "choosing" | "done" | "failed" | "cancelled
 
 export interface QueryPanelState {
   readonly title: string;
+  /** The rule or query file's name, and the platform id. */
+  readonly name: string;
+  readonly platformId: string;
+  /** Pinned to this query: another query opens its own panel. */
+  readonly locked: boolean;
+  /** The tenants named on the command line (none: the platform's only tenant, or `all`). */
+  readonly tenants: readonly string[];
   readonly platform: string;
   readonly windowLabel: string;
   readonly limit: number;
@@ -80,6 +96,7 @@ export interface QueryProtocol extends Protocol {
     copy: CopyRequest;
     export: ExportRequest;
     action: string;
+    lock: boolean;
   };
 }
 
@@ -102,6 +119,7 @@ export const hostValidators: Validators<QueryProtocol["toHost"]> = {
     is.string(value.text) &&
     is.string(value.name),
   action: is.string,
+  lock: is.boolean,
 };
 
 export const webviewValidators: Validators<QueryProtocol["toWebview"]> = {

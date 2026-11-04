@@ -75,11 +75,25 @@ pre-releases odd ones.
 
 - The opentide wave mark (from opentidehq/.github's brand assets) in the activity bar and as the
   Marketplace icon, on a Reflex Blue (`#001489`) gallery banner.
-- The opentide sidebar, five views in the opentide activity bar:
+- The opentide sidebar, six views in the opentide activity bar:
   - **Catalogue:** threats → objectives → signals → rules, plus groups for orphans and files that
     failed to load. Group by threat chain, type, platform, status or technique; filter by name, UUID,
     path or technique. Each rule shows its platforms and problem counts, and its menu runs its query
-    or previews its deploy.
+    or previews its deploy. A tooltip gives an object's type, path, platforms with their status and its
+    relation counts both ways; Open to the Side, Show Relations and Show in Graph are buttons on each
+    object row. Without `info catalog` the names from the language server come with one Switch
+    Runtime… line.
+  - **Relations:** the active object (followed with a 150 ms debounce, or pinned) and what it points to
+    and what points to it, in groups such as `Implements 1 →` and `← Implemented by 3`, with missing
+    references marked. Rows open beside the editor, signals in their objective at the signal; Back and
+    Forward go through the objects it showed. Without `info catalog` it reads the language server's
+    `opentide/catalog` and inverts the references, and says so; a server without that request gets one
+    "needs a newer opentide" line with Switch Runtime….
+  - **opentide: Show Relations** (palette, editor title, editor context menu) and a CodeLens on each
+    object's `name:` line, `Implements → Detect LSASS memory access · ← Implemented by 3 rules`, which
+    `opentide.relations.codeLens` turns off.
+  - One set of words, arrows and icons for relations, and one icon and colour per object type, in every
+    view. The trees refresh only the rows that changed.
   - **Coverage:** ATT&CK techniques by tactic, with rule counts, gaps first.
   - **Platforms & Tenants:** capabilities, tenants and where each credential comes from. Set a
     credential (in VS Code's secret storage, never a file), check it with doctor, or enable a platform.
@@ -161,6 +175,34 @@ pre-releases odd ones.
   `opentide info catalog`. Gaps show without relying on colour, sub-techniques expand in place, and
   layers add planned objectives and unaddressed threats. Filter by platform, tenant, INERT status and
   inherited techniques. Each cell lists its rules, and **Export Navigator layer** writes the file.
+- Panels open beside the object: the query results, the deploy plan of a rule, the compiled query, a
+  payload and a setup file open in the next editor group without taking the focus, so the YAML stays in
+  view. Each kind keeps one panel and retargets it to the next object, with the object in its title
+  ("Query · LSASS handle… · Sentinel"); a lock button keeps a panel on its object, and the next one gets
+  a panel of its own. Rules opened from a panel go to the group beside it.
+- One look for every panel: codicons (bundled, no CDN), design tokens on VS Code's theme variables, a
+  toolbar with what the panel is about on the left and its actions on the right, a progress bar and
+  skeleton rows while loading (nothing moves when the data arrives), empty and error states with one
+  primary action and **Show output**, callouts, collapsible sections, and visible focus rings. Light,
+  dark and high-contrast themes, and reduced motion, are honoured.
+- Query results: chips for the platform, window, limit and the tenants it contacts; tenant tabs with
+  counts; the running time and what it waits for beside **Cancel**; columns to resize (drag, double-click
+  to fit, Alt+←/→), a cell menu (Shift+F10: copy, filter to this value, sort); copy and export in one
+  **Export** menu. A failed tenant says whether its credentials are unset or refused (**Set
+  Credential…**) or it could not be reached (**Re-run**). A 10,000-row table sorts and filters within a
+  frame (`test/unit/webview/table.test.ts`).
+- Deploy plan: the counts as cards, a collapsible section per platform with each tenant's changes (long
+  lists are virtualised), a missing tenant as a callout with **Open configuration**, Changed / All /
+  Only this rule and the strategy as segmented controls, and the commands folded into one section.
+- ATT&CK matrix: the grid scrolls in both directions under sticky tactic headers, a cell's hover card
+  names its top rules, a click lists them in the side panel, the shading has a legend and outlines in
+  high contrast, and every filter sits in one bar. A state update patches the cells in place.
+- Setup wizard: a stepper that marks done and invalid steps, inline messages under each field, file
+  badges in Review, a progress bar and status per command during Apply, and a finish screen with **Open
+  README**, **New Rule**, **Show Graph** and the Catalogue.
+- The status item shows the warm backend (`$(zap)` while `opentide serve` runs) next to the version and
+  problem counts; its tooltip says which runtime, which backend and how many problems, with links, and
+  its menu groups the actions and the runtime's commands.
 
 #### Commands, tasks and agents
 

@@ -116,9 +116,30 @@ export interface ApplyProgress {
   readonly ok: boolean;
 }
 
+/** After a successful Apply: what the finish screen offers next. */
+export interface Finished {
+  /** The README (or first file) setup wrote, relative to the folder. */
+  readonly readme: string | null;
+  /** The folder is open in this window (else: Open Folder). */
+  readonly inWorkspace: boolean;
+  /** The window has the New Rule flow and the graph (other features). */
+  readonly newRule: boolean;
+  readonly graph: boolean;
+}
+
+export type NextAction = "readme" | "newRule" | "graph" | "openFolder" | "catalogue";
+export const NEXT_ACTIONS: readonly NextAction[] = ["readme", "newRule", "graph", "openFolder", "catalogue"];
+
 export interface WizardProtocol extends Protocol {
-  toWebview: { init: WizardInit; review: Review; reviewing: undefined; progress: ApplyProgress };
+  toWebview: {
+    init: WizardInit;
+    review: Review;
+    reviewing: undefined;
+    progress: ApplyProgress;
+    finished: Finished;
+  };
   toHost: {
+    next: NextAction;
     ready: undefined;
     review: SetupAnswers;
     apply: SetupAnswers;
@@ -172,6 +193,8 @@ export function isAnswers(value: unknown): value is SetupAnswers {
 }
 
 export const hostValidators: Validators<WizardProtocol["toHost"]> = {
+  next: (value): value is NextAction =>
+    typeof value === "string" && (NEXT_ACTIONS as readonly string[]).includes(value),
   ready: is.nothing,
   review: isAnswers,
   apply: isAnswers,
@@ -193,4 +216,6 @@ export const webviewValidators: Validators<WizardProtocol["toWebview"]> = {
     is.object(value) && Array.isArray(value.steps) && Array.isArray(value.problems),
   reviewing: is.nothing,
   progress: (value): value is ApplyProgress => is.object(value) && Array.isArray(value.commands),
+  finished: (value): value is Finished =>
+    is.object(value) && (value.readme === null || is.string(value.readme)) && is.boolean(value.inWorkspace),
 };

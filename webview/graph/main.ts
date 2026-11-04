@@ -2,7 +2,6 @@
 // selected node points to and what points to it, and "View as list" shows the same as a keyboard tree.
 // Selection and hover only change Cytoscape classes (no re-render, no layout); expanding a node places
 // its neighbours beside it. Every action goes to the host.
-import "@vscode/codicons/dist/codicon.css";
 import cytoscape from "cytoscape";
 import { NODE_ACTION_LABELS, type NodeAction, nodeActions } from "../../src/features/graph/actions";
 import { canvasColor } from "../../src/features/graph/colors";
@@ -82,12 +81,7 @@ const style = document.createElement("style");
 style.nonce = scriptNonce;
 style.textContent = CSS;
 document.head.append(style);
-// The codicon font and its stylesheet, bundled next to this script (dist/webview/graph.css).
-if (script?.src) {
-  const link = h("link", { rel: "stylesheet", href: script.src.replace(/\.js(\?.*)?$/, ".css") });
-  link.nonce = scriptNonce;
-  document.head.append(link);
-}
+// The codicon font comes with every opentide page (codicons/codicon.css, linked by createPanel).
 
 const channel = createChannel<GraphProtocol>(webviewValidators);
 
