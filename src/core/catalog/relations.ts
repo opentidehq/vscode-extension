@@ -1,7 +1,7 @@
 // The one vocabulary for relations between catalogue objects: which way they point, the words and the
 // icon every surface (tree views, graph, hovers, tooltips, CodeLens) uses for them, and an index that
 // answers "what does this object point to, and what points to it" in O(1) per object. vscode-free.
-import type { CatalogDocument, CatalogEdge } from "./types";
+import type { CatalogDocument } from "./types";
 
 /**
  * A relation kind. The catalogue's edge kinds, plus `signal` (an objective owns a signal: from
@@ -35,9 +35,36 @@ export const RELATION_WORDS: Readonly<Record<RelationKind, RelationWords>> = {
   signal: { out: "Has signal", in: "Signal of", icon: "pulse" },
   parent: { out: "Child of", in: "Parent of", icon: "type-hierarchy-sub" },
   chains: { out: "Chains to", in: "Chained from", icon: "arrow-swap" },
+  // The index lists techniques and log sources from the object's side only, so their `in` words are
+  // reserved for a surface that lists a technique's or log source's objects.
   technique: { out: "Technique", in: "Used by", icon: "symbol-event" },
   logsource: { out: "Uses log source", in: "Read by", icon: "database" },
 };
+
+/**
+ * The words of each threat chaining relation (opentide's chaining_relations vocabulary, the name after
+ * `stage::`), read from the threat that holds the reference (`out`) and from the threat it names (`in`).
+ * "A preceeds B" means B happens after A: A "Precedes →" B, B "← Preceded by" A.
+ */
+export const CHAIN_WORDS: Readonly<Record<string, Pick<RelationWords, "out" | "in">>> = {
+  preceeds: { out: "Precedes", in: "Preceded by" },
+  succeeds: { out: "Succeeds", in: "Succeeded by" },
+  implemented: { out: "Implemented by", in: "Implements" },
+  implements: { out: "Implements", in: "Implemented by" },
+  enabled: { out: "Enables", in: "Enabled by" },
+  enabling: { out: "Enabled by", in: "Enables" },
+  synergize: { out: "Synergizes with", in: "Synergizes with" },
+};
+
+/** The words of a relation in `direction`: a chain's own relation when it is known, else its kind's. */
+export function relationWords(kind: RelationKind, direction: Direction, relation?: string | null): string {
+  if (kind === "chains" && relation) {
+    const name = relation.slice(relation.lastIndexOf(":") + 1).toLowerCase();
+    const words = CHAIN_WORDS[name];
+    if (words) return words[direction];
+  }
+  return RELATION_WORDS[kind][direction];
+}
 
 /** The order kinds are listed in, strongest link first. */
 export const RELATION_ORDER: readonly RelationKind[] = [
@@ -56,11 +83,17 @@ export const ARROW: Readonly<Record<Direction, string>> = { out: "→", in: "←
 export const MISSING_ICON = "warning";
 
 /**
- * The label of a relation group or row, with its arrow: "Implements →", "← Implemented by 3".
+ * The label of a relation group or row, with its arrow: "Implements →", "← Implemented by 3",
+ * "Precedes →" for a chain whose `relation` is `sequence::preceeds`.
  * The arrow sits on the side the other object is read from, so a column of mixed labels stays scannable.
  */
-export function relationLabel(kind: RelationKind, direction: Direction, count?: number): string {
-  const words = RELATION_WORDS[kind][direction];
+export function relationLabel(
+  kind: RelationKind,
+  direction: Direction,
+  count?: number,
+  relation?: string | null,
+): string {
+  const words = relationWords(kind, direction, relation);
   const counted = count === undefined ? words : `${words} ${count}`;
   return direction === "out" ? `${counted} ${ARROW.out}` : `${ARROW.in} ${counted}`;
 }
@@ -95,13 +128,17 @@ function isKind(kind: string): kind is RelationKind {
   return KNOWN.has(kind);
 }
 
-function endKind(edge: Pick<CatalogEdge, "kind">): EndKind {
-  if (edge.kind === "technique") return "technique";
-  if (edge.kind === "logsource") return "logsource";
-  return "object";
+const key = (id: string): string => id.toLowerCase();
+
+/** What `id`, at the far end of an edge of `kind`, is. */
+function endKind(kind: string, id: string, signals: ReadonlySet<string>): EndKind {
+  if (kind === "technique") return "technique";
+  if (kind === "logsource") return "logsource";
+  return signals.has(key(id)) ? "signal" : "object";
 }
 
-const key = (id: string): string => id.toLowerCase();
+const identity = (r: Relation): string =>
+  `${r.kind}\u0000${key(r.other)}\u0000${r.fieldPath}\u0000${r.relation ?? ""}`;
 
 function byKind(a: Relation, b: Relation): number {
   return (
@@ -116,34 +153,34 @@ export class RelationIndex {
   private readonly byId = new Map<string, { outgoing: Relation[]; incoming: Relation[] }>();
 
   constructor(catalog: Pick<CatalogDocument, "edges" | "signals">) {
-    const slot = (id: string) => {
+    const signals = new Set(catalog.signals.map((signal) => key(signal.uuid)));
+    const seen = new Set<string>();
+    const add = (id: string, relation: Relation) => {
       const k = key(id);
+      // The same reference twice (a field listing an id twice) is one relation.
+      const unique = `${k}\u0000${relation.direction}\u0000${identity(relation)}`;
+      if (seen.has(unique)) return;
+      seen.add(unique);
       let entry = this.byId.get(k);
       if (!entry) {
         entry = { outgoing: [], incoming: [] };
         this.byId.set(k, entry);
       }
-      return entry;
+      (relation.direction === "out" ? entry.outgoing : entry.incoming).push(relation);
     };
     for (const edge of catalog.edges) {
       if (!isKind(edge.kind)) continue;
-      const otherKind = endKind(edge);
       const base = { kind: edge.kind, fieldPath: edge.field_path, relation: edge.relation ?? null };
-      slot(edge.from).outgoing.push({
-        ...base,
-        direction: "out",
-        other: edge.to,
-        otherKind,
-        missing: edge.missing,
-      });
+      const target = endKind(edge.kind, edge.to, signals);
+      add(edge.from, { ...base, direction: "out", other: edge.to, otherKind: target, missing: edge.missing });
       // Techniques and log sources are listed from the object's side only; a dangling target has no
       // object to list the reference on.
-      if (otherKind === "object" && !edge.missing) {
-        slot(edge.to).incoming.push({
+      if ((target === "object" || target === "signal") && !edge.missing) {
+        add(edge.to, {
           ...base,
           direction: "in",
           other: edge.from,
-          otherKind: "object",
+          otherKind: endKind(edge.kind, edge.from, signals),
           missing: false,
         });
       }
@@ -151,18 +188,8 @@ export class RelationIndex {
     for (const signal of catalog.signals) {
       if (!signal.objective) continue;
       const base = { kind: "signal" as const, fieldPath: "", relation: null, missing: false };
-      slot(signal.objective).outgoing.push({
-        ...base,
-        direction: "out",
-        other: signal.uuid,
-        otherKind: "signal",
-      });
-      slot(signal.uuid).incoming.push({
-        ...base,
-        direction: "in",
-        other: signal.objective,
-        otherKind: "object",
-      });
+      add(signal.objective, { ...base, direction: "out", other: signal.uuid, otherKind: "signal" });
+      add(signal.uuid, { ...base, direction: "in", other: signal.objective, otherKind: "object" });
     }
     for (const entry of this.byId.values()) {
       entry.outgoing.sort(byKind);

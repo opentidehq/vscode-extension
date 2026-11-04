@@ -118,8 +118,9 @@ RELATIONS              Following: LSASS handle opened by unsigned process   [Bac
 ```
 
 The same words, arrows and icons are used everywhere: `Implements →` / `← Implemented by`, `Covers →` /
-`← Covered by`, `Has signal →` / `← Signal of`, `Child of →` / `← Parent of`, `Chains to →` / `← Chained
-from`, `Technique →`, `Uses log source →`. A reference to a UUID no object carries shows as **missing**,
+`← Covered by`, `Has signal →` / `← Signal of`, `Child of →` / `← Parent of`, `Technique →`, `Uses log
+source →`; a threat chain reads as its relation, `Precedes →` / `← Preceded by`, `Enables →` / `← Enabled
+by` and so on (`Chains to →` / `← Chained from` when it has none), one group per relation. A reference to a UUID no object carries shows as **missing**,
 with a warning icon.
 
 - Click an object to open it in the editor group beside the one you are reading, at its `name:` line; the

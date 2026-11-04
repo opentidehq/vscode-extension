@@ -13,6 +13,7 @@ import {
   type RelationKind,
   relationIndexOf,
   relationLabel,
+  relationWords,
 } from "../../core/catalog/relations";
 import { isLoaded } from "../../core/catalog/rows";
 import { type ServerObject, serverRelations } from "../../core/catalog/serverCatalog";
@@ -183,11 +184,35 @@ export function escapeMarkdown(text: string): string {
   return text.replace(/[\\`*_{}[\]()#+\-.!|<>~$&]/g, (c) => `\\${c}`);
 }
 
+export interface RelationGroup {
+  readonly kind: RelationKind;
+  /** A chain's relation (`sequence::preceeds`): chains are grouped by it, each with its own words. */
+  readonly relation: string | null;
+  readonly relations: Relation[];
+}
+
+/** `relations` by kind in RELATION_ORDER, and chains by their relation, so each group has one label. */
+export function relationGroups(relations: readonly Relation[]): RelationGroup[] {
+  return groupByKind(relations).flatMap(({ kind, relations: list }): RelationGroup[] => {
+    if (kind !== "chains") return [{ kind, relation: null, relations: list }];
+    const byRelation = new Map<string, Relation[]>();
+    for (const r of list) {
+      const words = relationWords("chains", "out", r.relation);
+      byRelation.set(words, [...(byRelation.get(words) ?? []), r]);
+    }
+    return [...byRelation.values()].map((group) => ({
+      kind,
+      relation: group[0]?.relation ?? null,
+      relations: group,
+    }));
+  });
+}
+
 /** `Implements 1 → · Technique 2 →`, or "" when there is none that way. */
 export function countsLine(index: RelationIndex, uuid: string, direction: Direction): string {
-  return index
-    .counts(uuid, direction)
-    .map((c) => relationLabel(c.kind, direction, c.count))
+  const { outgoing, incoming } = index.of(uuid);
+  return relationGroups(direction === "out" ? outgoing : incoming)
+    .map((g) => relationLabel(g.kind, direction, g.relations.length, g.relation))
     .join(" · ");
 }
 
@@ -257,8 +282,8 @@ function familyOf(graph: RelationGraph, relations: readonly Relation[]): string 
 export function lensText(graph: RelationGraph, uuid: string): string {
   const { outgoing, incoming } = graph.index.of(uuid);
   const parts: string[] = [];
-  for (const group of groupByKind(outgoing.filter((r) => LENS_KINDS.includes(r.kind)))) {
-    const head = relationLabel(group.kind, "out");
+  for (const group of relationGroups(outgoing.filter((r) => LENS_KINDS.includes(r.kind)))) {
+    const head = relationLabel(group.kind, "out", undefined, group.relation);
     const [only] = group.relations;
     if (group.relations.length === 1 && only) {
       const name = only.missing ? undefined : graph.nameOf(only.other);
@@ -271,10 +296,10 @@ export function lensText(graph: RelationGraph, uuid: string): string {
       );
     }
   }
-  for (const group of groupByKind(incoming.filter((r) => LENS_KINDS.includes(r.kind)))) {
+  for (const group of relationGroups(incoming.filter((r) => LENS_KINDS.includes(r.kind)))) {
     const n = group.relations.length;
     const noun = countOf(n, familyOf(graph, group.relations)).replace(/^\d+ /, "");
-    parts.push(`${relationLabel(group.kind, "in", n)} ${noun}`);
+    parts.push(`${relationLabel(group.kind, "in", n, group.relation)} ${noun}`);
   }
   return parts.length ? parts.join(" · ") : "No relations";
 }
@@ -509,17 +534,18 @@ function relationRow(graph: RelationGraph, relation: Relation, parentId: string)
 function groups(graph: RelationGraph, uuid: string, name: string): TreeNode[] {
   const { outgoing, incoming } = graph.index.of(uuid);
   const build = (direction: Direction, list: readonly Relation[]): TreeNode[] =>
-    groupByKind(list).map(({ kind, relations }) => {
-      const id = `rel:${uuid}:${direction}:${kind}`;
-      const words = RELATION_WORDS[kind];
+    relationGroups(list).map(({ kind, relation, relations }) => {
+      const id = `rel:${uuid}:${direction}:${kind}${relation ? `:${relation}` : ""}`;
+      const icon = RELATION_WORDS[kind].icon;
+      const words = { out: relationWords(kind, "out", relation), in: relationWords(kind, "in", relation) };
       const fields = [...new Set(relations.map((r) => r.fieldPath).filter(Boolean))];
       const rows = relations
         .map((r) => relationRow(graph, r, id))
         .sort((a, b) => (a.sortKey ?? a.label).localeCompare(b.sortKey ?? b.label));
       return {
         id,
-        label: relationLabel(kind, direction, relations.length),
-        icon: words.icon,
+        label: relationLabel(kind, direction, relations.length, relation),
+        icon,
         contextValue: "relation.group",
         tooltip:
           direction === "out"

@@ -73,6 +73,8 @@ pre-releases odd ones.
 
 #### Sidebar and setup
 
+- The opentide wave mark (from opentidehq/.github's brand assets) in the activity bar and as the
+  Marketplace icon, on a Reflex Blue (`#001489`) gallery banner.
 - The opentide sidebar, six views in the opentide activity bar:
   - **Catalogue:** threats → objectives → signals → rules, plus groups for orphans and files that
     failed to load. Group by threat chain, type, platform, status or technique; filter by name, UUID,

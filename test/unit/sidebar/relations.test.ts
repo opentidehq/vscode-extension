@@ -101,6 +101,32 @@ describe("Relations view", () => {
     assert.equal(missing?.command, undefined);
   });
 
+  it("words and groups a threat chain by its relation, both ways", () => {
+    const threat = ready(UUID.threat);
+    assert.ok(labels(threat.nodes).includes("Precedes 1 →"), labels(threat.nodes).join());
+    const lateral = ready(UUID.lateral);
+    assert.ok(labels(lateral.nodes).includes("← Preceded by 1"), labels(lateral.nodes).join());
+    const doc = sampleCatalog();
+    const edges = [
+      ...doc.edges,
+      {
+        from: UUID.threat,
+        to: UUID.lateral,
+        kind: "chains",
+        field_path: "threat.chaining",
+        relation: "support::enabled",
+        missing: false,
+      },
+    ];
+    const both = relationsViewModel(
+      { kind: "ready", graph: graphFromCatalog({ ...doc, edges }, ROOT, "linux"), uuid: UUID.threat },
+      false,
+    );
+    const chains = labels(both.nodes).filter((l) => /Precedes|Enables/.test(l));
+    assert.deepEqual(chains, ["Precedes 1 →", "Enables 1 →"]);
+    assert.equal(new Set(both.nodes.map((n) => n.id)).size, both.nodes.length);
+  });
+
   it("says when an object has no relations, and names the source when it is the language server", () => {
     const orphan = ready(UUID.orphan);
     assert.deepEqual(labels(orphan.nodes), ["Objective · Orphan objective", "No relations"]);
@@ -218,7 +244,7 @@ describe("relations CodeLens", () => {
       lensText(graph(), UUID.objective),
       "Covers → Credential Dumping · Has signal → 2 signals · ← Implemented by 1 rule",
     );
-    assert.equal(lensText(graph(), UUID.threat), "Chains to → Lateral Movement · ← Covered by 1 objective");
+    assert.equal(lensText(graph(), UUID.threat), "Precedes → Lateral Movement · ← Covered by 1 objective");
     assert.equal(lensText(graph(), UUID.broken), "Implements → $(warning) missing");
     assert.equal(lensText(graph(), UUID.orphan), "No relations");
   });
