@@ -600,6 +600,7 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
     case "commands":
       return [commandsDocument(), 0];
     case "crash-once":
+    case "shut-down-once":
     case "echo":
       return [envelope("echo", { argv: args, env: pick(env), cwd }), 0];
     case "fail":
@@ -869,6 +870,7 @@ async function serve() {
     }
     busy = false;
   };
+  let shutDown = false;
   const handle = async (message) => {
     const { id, method, params } = message;
     if (method === "initialize") {
@@ -878,8 +880,20 @@ async function serve() {
       const protocol = Number(process.env.FAKE_SERVE_PROTOCOL ?? 1);
       return send({ id, result: { protocol, version, commands_digest: "fake-digest" } });
     }
-    if (method === "shutdown") return send({ id, result: null });
+    if (method === "shutdown") {
+      shutDown = true;
+      return send({ id, result: null });
+    }
     if (method === "run") {
+      // As opentide serve: once shut down, every request is refused before it runs.
+      if (shutDown)
+        return send({ id, error: { code: -32600, message: "The server is shut down; send exit" } });
+      // shut-down-once: this serve shuts down under the first such request (a runtime restart racing it).
+      if (params?.argv?.[0] === "shut-down-once" && !existsSync(process.env.FAKE_SHUTDOWN_FILE)) {
+        writeFileSync(process.env.FAKE_SHUTDOWN_FILE, "shut down");
+        shutDown = true;
+        return send({ id, error: { code: -32600, message: "The server is shut down; send exit" } });
+      }
       if (!params || !Array.isArray(params.argv))
         return send({ id, error: { code: -32602, message: "run needs argv" } });
       if (params.argv[0] === "crash") process.exit(3);
