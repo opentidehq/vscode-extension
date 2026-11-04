@@ -86,6 +86,9 @@ for each target in `runtimeTargets`, `runtime/locks/<t>.txt` with `uv pip compil
 existing lock's versions are kept where `requirements.in` still allows them; `--upgrade` re-resolves to
 the newest. `--check` fails when either is stale (CI). `--target` locks one target, also one outside
 `runtimeTargets`, to see whether its closure has wheels yet: it fails naming the packages that have none.
+The locks are uv's output, so CI and `publish.yml` install the uv `pins.json` names (`uv.version`, with
+`astral-sh/setup-uv`), and the script warns when the local uv differs. Committed files are compared as
+LF (`.gitattributes` keeps them LF in a Windows checkout too).
 
 ### `npm run package -- --target <t> | --universal [--pre-release]`
 

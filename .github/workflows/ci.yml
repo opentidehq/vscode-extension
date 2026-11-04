@@ -36,6 +36,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: uv version from pins.json
+        run: echo "UV_VERSION=$(node -p 'require("./pins.json").uv.version')" >> "$GITHUB_ENV"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
       - name: package.json contributes match contrib/*.json
         run: npm run manifest:check
       - name: Grammars match the pinned highlights zip
@@ -171,6 +177,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: uv version from pins.json
+        run: echo "UV_VERSION=$(node -p 'require("./pins.json").uv.version')" >> "$GITHUB_ENV"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
       - name: Universal package
         run: npm run package -- --universal
       # The per-platform package exists only for a target pins.json gives a runtime.
@@ -182,6 +194,7 @@ jobs:
             exit 0
           fi
           version="$(node -p 'require("./package.json").version')"
+          npm run runtime:build -- --target linux-x64
           npm run package -- --target linux-x64
           npm run smoke -- "dist-vsix/opentide-linux-x64-${version}.vsix"
       - name: Sizes

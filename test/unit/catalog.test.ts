@@ -89,6 +89,26 @@ describe("catalogue store", () => {
     instance.dispose();
   });
 
+  it("forgets folders no longer in the workspace, so refreshAll leaves them alone", async () => {
+    const ran: string[] = [];
+    const { instance } = store({
+      runCatalog: async (folder) => {
+        ran.push(folder);
+        return { document: catalogDocument(1), exitCode: 0 };
+      },
+    });
+    await instance.refresh("/a", { immediate: true });
+    await instance.refresh("/b", { immediate: true });
+    instance.retain(["/a"]);
+    assert.deepEqual(instance.folders(), ["/a"]);
+    ran.length = 0;
+    instance.refreshAll({ immediate: true });
+    await until(() => ran.length > 0);
+    await sleep(60);
+    assert.deepEqual(ran, ["/a"]);
+    instance.dispose();
+  });
+
   it("keeps the last good catalogue when a refresh fails", async () => {
     let fail = false;
     const { instance } = store({

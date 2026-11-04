@@ -1,0 +1,14 @@
+# LF everywhere, also in a Windows checkout (core.autocrlf=true on GitHub's Windows runners): the runtime
+# lock check and the script tests compare committed files byte for byte.
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
+*.jpg binary
+*.ico binary
+*.vsix binary
+*.zip binary
+*.gz binary
+
+# Verbatim from the language-server highlights zip (npm run grammars:check compares its bytes).
+syntaxes/LICENSE.language-server -text

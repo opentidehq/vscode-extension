@@ -52,6 +52,7 @@ import {
   sha256,
   sha256SumsUrl,
   shouldRemove,
+  tarCommand,
   uvEnv,
 } from "./runtime-lib.mjs";
 
@@ -245,7 +246,9 @@ async function main() {
   }
   const unpack = join(runtimeDir, ".unpack");
   mkdirSync(unpack);
-  const tar = spawnSync("tar", ["-xzf", archivePath, "-C", unpack], { stdio: "inherit" });
+  const tar = spawnSync(tarCommand(process.platform, process.env), ["-xzf", archivePath, "-C", unpack], {
+    stdio: "inherit",
+  });
   if (tar.status !== 0) throw new RuntimeError(`tar could not unpack ${archivePath}`);
   for (const entry of readdirSync(join(unpack, "python"))) {
     renameSync(join(unpack, "python", entry), join(runtimeDir, entry));

@@ -7,7 +7,8 @@
 #   prepare      the version is CHANGELOG.md's newest dated section (scripts/release.mjs); the notes PR
 #                merged ([Unreleased] is empty, package.json has the version) and its tag does not exist
 #   build        one job per pins.json runtimeTargets entry, on that target's native runner: the
-#                runtime lock, the package and its smoke test (Alpine's in an Alpine container)
+#                runtime lock, the runtime build (uv at pins.json uv.version), the package and its smoke
+#                test (Alpine's in an Alpine container)
 #   universal    the package without a runtime, for every other target and the web
 #   attest       every VSIX is this version and channel, one per target; SHA256SUMS; build provenance
 #                (public repository, or the repository variable ATTEST=true on GitHub Enterprise Cloud;
@@ -120,8 +121,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: uv version from pins.json
+        run: echo "UV_VERSION=$(node -p 'require("./pins.json").uv.version')" >> "$GITHUB_ENV"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
       - name: Runtime lock matches pins.json
         run: npm run runtime:lock -- --check
+      - name: Bundled runtime
+        run: npm run runtime:build -- --target "${TARGET}"
       - name: Package
         run: |
           set -euo pipefail
@@ -271,11 +280,29 @@ jobs:
         with:
           name: release-assets
           path: release
+      # Re-runnable: when an earlier attempt of this run already made the Release (and a later step
+      # failed), it is finished instead of created again, as long as it is on this run's commit.
       - name: Create the tag and the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          existing="${RUNNER_TEMP}/existing.json"
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json isDraft,targetCommitish > "${existing}" 2>/dev/null; then
+            if [[ "$(jq -r .isDraft "${existing}")" == "true" ]]; then
+              commit="$(jq -r .targetCommitish "${existing}")"
+            else
+              commit="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq .sha)"
+            fi
+            if [[ "${commit}" != "${GITHUB_SHA}" ]]; then
+              echo "::error::${TAG} already exists on ${commit}, not on this run's ${GITHUB_SHA}. Release the next version instead." >&2
+              exit 1
+            fi
+            echo "${TAG} exists from an earlier attempt of this run: uploading its assets again"
+            gh release upload "${TAG}" release/* --repo "${GITHUB_REPOSITORY}" --clobber
+            gh release edit "${TAG}" --repo "${GITHUB_REPOSITORY}" --draft=false
+            exit 0
+          fi
           notes=()
           if [[ "${ATTESTED}" != "true" ]]; then notes+=(--no-attestation); fi
           node scripts/release.mjs notes "${VERSION}" "${notes[@]}" > "${RUNNER_TEMP}/notes.md"
@@ -334,7 +361,9 @@ jobs:
           set -euo pipefail
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
           (cd release && sha256sum --check --strict SHA256SUMS)
-      # One call for every package: one OIDC exchange gives one Marketplace token.
+      # One call for every package. vsce exchanges a fresh OIDC token for each VSIX (getPAT per package,
+      # duplicates included), so a refusal partway leaves the earlier packages published; a re-run is
+      # safe with --skip-duplicate.
       - name: vsce publish --oidc
         run: |
           set -euo pipefail

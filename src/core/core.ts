@@ -7,7 +7,7 @@ import { Backend } from "./backend/backend";
 import { spawnRun } from "./backend/spawn";
 import { Capabilities, type CommandsCache } from "./capabilities/capabilities";
 import { CatalogStore, INFO_CATALOG } from "./catalog/store";
-import type { CatalogSymbol } from "./catalog/types";
+import { folderSymbols, type WorkspaceSymbol } from "./catalog/symbols";
 import type { FeatureContext, TrustService } from "./context";
 import { CredentialStore } from "./credentials";
 import { parseEnvFile } from "./envfile";
@@ -16,6 +16,7 @@ import { processEnv } from "./runtime/env";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
 import { cliCommand } from "./runtime/types";
+import { execStep, runSteps, venvSteps } from "./runtime/venv";
 import { LanguageClientManager } from "./services/languageClient";
 import { createLogger } from "./services/logger";
 import { onDidChangePythonEnvironment } from "./services/python";
@@ -129,25 +130,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
     symbols: async (folder) => {
       const lc = client.current;
       if (!lc) return undefined;
-      const symbols = (await lc.sendRequest("workspace/symbol", { query: "" })) as
-        | {
-            name: string;
-            containerName?: string;
-            location: { uri: string; range?: { start: { line: number; character: number } } };
-          }[]
-        | null;
-      const root = vscode.Uri.file(folder).toString();
-      return (symbols ?? [])
-        .filter((symbol) => symbol.location.uri.startsWith(`${root}/`))
-        .map(
-          (symbol): CatalogSymbol => ({
-            name: symbol.name,
-            family: symbol.containerName ?? "",
-            uri: symbol.location.uri,
-            line: symbol.location.range?.start.line ?? 0,
-            character: symbol.location.range?.start.character ?? 0,
-          }),
-        );
+      const symbols = (await lc.sendRequest("workspace/symbol", { query: "" })) as WorkspaceSymbol[] | null;
+      return folderSymbols(symbols, folder, process.platform, (file) => vscode.Uri.file(file).toString());
     },
     log: (level, message) => log[level](message),
   });
@@ -228,11 +212,19 @@ export function createCore(context: vscode.ExtensionContext): Core {
         void catalog.refresh(run.folder);
       }
     }),
+    // A save reaches serve at once: the watcher's batch comes 300 ms after its event, and a feature's
+    // run after the save would otherwise read serve's snapshot of the file from before it.
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      if (document.uri.scheme === "file" && folders.folderOf(document.uri))
+        backend.invalidate([document.uri.fsPath]);
+    }),
     fileEvents.onDidChange(({ folder, uris }) => {
       backend.invalidate(uris.map((uri) => uri.fsPath));
       if (catalog.folders().includes(folder.path)) void catalog.refresh(folder.path);
     }),
     folders.onDidChange((all) => {
+      // A removed folder's catalogue goes, so a restart's refreshAll does not run `info catalog` there.
+      catalog.retain(all.map((folder) => folder.path));
       // A new primary folder changes the runtime; a paths.toml edit only changes object folders.
       const primary = all[0]?.path;
       if (primary !== lastPrimary) {
@@ -455,19 +447,22 @@ async function createPinnedVenv(ctx: FeatureContext, runtime: RuntimeManager): P
     }
     return;
   }
-  const terminal = vscode.window.createTerminal({ name: "opentide: create .venv", cwd: folder.path });
-  terminal.show();
-  const quoted = /^[A-Za-z0-9_./:\\-]+$/.test(uv) ? uv : `"${uv.replaceAll('"', '\\"')}"`;
-  terminal.sendText(
-    `${quoted} venv .venv && ${quoted} pip install --python .venv "opentide==${pin.version}"`,
+  const steps = venvSteps(uv, pin.version);
+  const result = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `Creating .venv with opentide ${pin.version}` },
+    () =>
+      runSteps(steps, folder.path, execStep, (step, output) => {
+        ctx.log.info(`${step.command} ${step.args.join(" ")}\n${output.trimEnd()}`);
+      }),
   );
-  const done = vscode.window.onDidCloseTerminal((closed) => {
-    if (closed !== terminal) return;
-    done.dispose();
-    void runtime.restart(".venv created");
-  });
-  ctx.subscriptions.push(done);
-  void vscode.window.showInformationMessage(
-    `Creating .venv with opentide ${pin.version}. Close the terminal when it finishes to switch to it.`,
-  );
+  if (!result.ok) {
+    const choice = await vscode.window.showErrorMessage(
+      `\`uv ${result.step.args.slice(0, 2).join(" ")}\` failed (exit ${result.code}); the .venv was not set up.`,
+      "Show Log",
+    );
+    if (choice) ctx.log.show();
+    return;
+  }
+  void runtime.restart(".venv created");
+  void vscode.window.showInformationMessage(`Created .venv with opentide ${pin.version}.`);
 }

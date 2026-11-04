@@ -193,11 +193,11 @@ pre-release first when it changes much.
 | Job | Runs on | Does |
 |-----|---------|------|
 | `prepare` | ubuntu | Refuses unless run on `main`, `CHANGELOG.md`'s newest version matches `package.json`, `[Unreleased]` is empty and `v<version>` is not tagged; computes the channel and the build matrix from `pins.json` `runtimeTargets` |
-| `build` | each target's native runner | `runtime:lock -- --check`, `package -- --target <t>`, `smoke` (Alpine: in a digest-pinned `node:22-alpine` container on the Linux runner of its architecture) |
+| `build` | each target's native runner | uv at `pins.json` `uv.version`, `runtime:lock -- --check`, `runtime:build -- --target <t>`, `package -- --target <t>`, `smoke` (Alpine: in a digest-pinned `node:22-alpine` container on the Linux runner of its architecture) |
 | `universal` | ubuntu | CI's checks, then `package -- --universal`: the package every target without a runtime, and the web, installs |
 | `attest` | ubuntu | Every VSIX is `opentidehq.opentide` at the version and channel, one universal and one per runtime target; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
 | `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and, when attested, their attestations |
-| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <every VSIX>`: one OIDC exchange, one token, one call |
+| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <every VSIX>`: one call, with one OIDC exchange per package (vsce asks for a token for each VSIX, skipped duplicates included) |
 | `publish-openvsx` | ubuntu, `production` | `ovsx publish --trusted-publishing --skip-duplicate --packagePath <every VSIX>`, or with `OVSX_PAT` when the secret is set |
 
 | Runtime target | Runner |
@@ -218,9 +218,10 @@ stores get nothing until the GitHub Release exists.
 | `prepare`: `[Unreleased] still holds …`, a version mismatch | Fix it in a PR; run again |
 | `prepare`: `v<version> is already tagged` | That version is out: re-run the failed jobs of its run, or release the next version |
 | `build` or `universal` | Nothing was tagged. Fix it on `main` (a PR) and run again |
+| `release` (GitHub Release) | **Re-run failed jobs**. When an earlier attempt already made the Release (for example the verify step failed), the job finds it, checks that its tag is on the run's commit, uploads the assets again with `--clobber` and goes on; a Release on another commit stops it. The stores get nothing until it succeeds |
 | `publish-marketplace` or `publish-openvsx` | **Re-run failed jobs** on the run. The other store is unaffected; `--skip-duplicate` skips what a store already has |
 | Open VSX `401`/`403` with trusted publishing | The trusted publisher's repository, workflow (`publish.yml`) or environment (`production`) differs from the run's; fix the registration and re-run the job |
-| Marketplace OIDC exchange refused | The policy expired or names something else; recreate it (step 4) and re-run the job |
+| Marketplace OIDC exchange refused | The policy expired or names something else; recreate it (step 4) and re-run the job. vsce exchanges a token per package, so a refusal partway leaves the earlier packages published; the re-run skips them (`--skip-duplicate`) |
 
 A re-run uses the run's own commit and the GitHub Release's assets, so it publishes exactly what was
 tagged and attested.

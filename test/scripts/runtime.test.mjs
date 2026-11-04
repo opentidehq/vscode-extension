@@ -13,6 +13,7 @@ import {
   installArgs,
   installedTags,
   isStaticInterpreter,
+  lf,
   licenseFiles,
   licenseOf,
   lockArgs,
@@ -31,6 +32,8 @@ import {
   serialNumber,
   shouldRemove,
   TARGETS,
+  tarCommand,
+  uvVersion,
   wheelTags,
 } from "../../scripts/runtime-lib.mjs";
 
@@ -476,5 +479,31 @@ describe("runtime build: committed pins.json", () => {
       text = recordArchiveSha(text, name, recorded.archive, recorded.sha256);
     }
     assert.equal(text, pinsText);
+  });
+});
+
+describe("runtime build: portable helpers", () => {
+  it("unpacks with System32's bsdtar on Windows and tar elsewhere", () => {
+    assert.equal(tarCommand("linux"), "tar");
+    assert.equal(tarCommand("darwin", { SystemRoot: "C:\\Windows" }), "tar");
+    assert.equal(tarCommand("win32", { SystemRoot: "D:\\Windows\\" }), "D:\\Windows\\System32\\tar.exe");
+    assert.equal(tarCommand("win32", {}), "C:\\Windows\\System32\\tar.exe");
+  });
+
+  it("compares the committed files as LF, as a Windows checkout may have CRLF", () => {
+    assert.equal(lf("opentide==0.21.0\r\nx\r\n"), "opentide==0.21.0\nx\n");
+    assert.equal(
+      lf(readFileSync(join(root, "runtime", "requirements.in"), "utf8").replaceAll("\n", "\r\n")),
+      requirementsIn(pins),
+    );
+  });
+
+  it(".gitattributes checks every text file out with LF, also on Windows", () => {
+    assert.match(readFileSync(join(root, ".gitattributes"), "utf8"), /^\* text=auto eol=lf$/m);
+  });
+
+  it("reads uv's version", () => {
+    assert.equal(uvVersion("uv 0.11.32 (x86_64-unknown-linux-gnu)\n"), "0.11.32");
+    assert.equal(uvVersion("nope"), undefined);
   });
 });

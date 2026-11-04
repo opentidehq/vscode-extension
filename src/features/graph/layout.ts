@@ -1,6 +1,6 @@
 // Layered left-to-right layout (dagre), and keeping positions stable across refreshes so the graph does
 // not jump while you work (SPEC §10.1 "Layout"). vscode-free and DOM-free: the webview imports it.
-import type { GraphEdge, GraphNode } from "./model";
+import type { GraphEdge, GraphNode, NodeKind } from "./model";
 
 // The part of dagre this uses. dagre ships ESM-only declarations next to the CommonJS build that this
 // CommonJS module (and esbuild's bundle of it) loads, so its API is declared here and loaded by require.
@@ -46,11 +46,31 @@ export function layoutDirection(edge: Pick<GraphEdge, "kind" | "source" | "targe
   }
 }
 
+/**
+ * Kinds laid out in fixed columns right of the objects, not by dagre, in this order. Each links to many
+ * objects, and those edges make dagre's crossing reduction take seconds, then minutes, at ~1,000 nodes.
+ */
+export const SATELLITE_KINDS: readonly NodeKind[] = ["technique", "logsource", "platform"];
+
+/** Above this many laid-out nodes dagre ranks with `longest-path`, far cheaper than network simplex. */
+export const LARGE_LAYOUT = 600;
+
+const RANK_SEP = 70;
+
 export function layout(nodes: readonly GraphNode[], edges: readonly GraphEdge[]): Map<string, Point> {
+  const satellite = new Set<NodeKind>(SATELLITE_KINDS);
+  const core = nodes.filter((node) => !satellite.has(node.kind));
   const graph = new dagre.graphlib.Graph({ multigraph: true });
-  graph.setGraph({ rankdir: "LR", nodesep: 8, ranksep: 70, marginx: 20, marginy: 20 });
+  graph.setGraph({
+    rankdir: "LR",
+    nodesep: 8,
+    ranksep: RANK_SEP,
+    marginx: 20,
+    marginy: 20,
+    ...(core.length > LARGE_LAYOUT ? { ranker: "longest-path" } : {}),
+  });
   graph.setDefaultEdgeLabel(() => ({}));
-  for (const node of nodes) graph.setNode(node.id, { width: NODE_BOX.width, height: NODE_BOX.height });
+  for (const node of core) graph.setNode(node.id, { width: NODE_BOX.width, height: NODE_BOX.height });
   for (const edge of edges) {
     const [from, to] = layoutDirection(edge);
     if (from !== to && graph.hasNode(from) && graph.hasNode(to)) graph.setEdge(from, to, {}, edge.id);
@@ -62,7 +82,59 @@ export function layout(nodes: readonly GraphNode[], edges: readonly GraphEdge[])
     if (node && typeof node.x === "number" && typeof node.y === "number")
       positions.set(id, { x: node.x, y: node.y });
   }
+  placeSatellites(
+    positions,
+    nodes.filter((node) => satellite.has(node.kind)),
+    edges,
+  );
   return wrapRanks(positions);
+}
+
+/**
+ * Put technique, log-source and platform nodes in one column per kind right of everything else, each
+ * at the mean height of the objects that reference it, moved down where it would overlap the one above.
+ */
+export function placeSatellites(
+  positions: Map<string, Point>,
+  satellites: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+): void {
+  if (satellites.length === 0) return;
+  const sums = new Map<string, { y: number; count: number }>();
+  const add = (id: string, other: string) => {
+    const point = positions.get(other);
+    if (!point) return;
+    const sum = sums.get(id) ?? { y: 0, count: 0 };
+    sums.set(id, { y: sum.y + point.y, count: sum.count + 1 });
+  };
+  for (const edge of edges) {
+    add(edge.source, edge.target);
+    add(edge.target, edge.source);
+  }
+  let x = 20 + NODE_BOX.width / 2;
+  let top = 20 + NODE_BOX.height / 2;
+  for (const point of positions.values()) {
+    x = Math.max(x, point.x);
+    top = Math.min(top, point.y);
+  }
+  for (const kind of SATELLITE_KINDS) {
+    const column = satellites
+      .filter((node) => node.kind === kind)
+      .map((node) => {
+        const sum = sums.get(node.id);
+        return { id: node.id, want: sum ? sum.y / sum.count : Number.POSITIVE_INFINITY };
+      })
+      .sort((a, b) => a.want - b.want || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    if (column.length === 0) continue;
+    x += NODE_BOX.width + RANK_SEP;
+    let previous = Number.NEGATIVE_INFINITY;
+    for (const { id, want } of column) {
+      const floor = previous + NODE_BOX.height;
+      const y = Number.isFinite(want) ? Math.max(want, floor) : Number.isFinite(floor) ? floor : top;
+      positions.set(id, { x, y });
+      previous = y;
+    }
+  }
 }
 
 /** The most nodes a column holds before a rank wraps: about a third as wide as it is tall. */

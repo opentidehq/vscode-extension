@@ -10,7 +10,7 @@ import {
 } from "../../../src/features/graph/layout";
 import { buildModel, type NodeKind, OBJECT_KINDS } from "../../../src/features/graph/model";
 import { computeView } from "../../../src/features/graph/view";
-import { document, object, sampleCatalog, UUID } from "../catalogFixture";
+import { document, object, sampleCatalog, syntheticCatalog, UUID } from "../catalogFixture";
 
 describe("graph layout", () => {
   it("lays threats, objectives and rules out left to right", () => {
@@ -137,5 +137,69 @@ describe("graph layout", () => {
       },
     );
     assert.deepEqual(bounds([]), { x: 0, y: 0, width: 0, height: 0 });
+  });
+});
+
+describe("graph layout: Catalogue mode at scale", () => {
+  /** syntheticCatalog plus what makes dagre slow: log sources per rule and techniques per objective. */
+  function dense(total: number) {
+    const catalog = syntheticCatalog(total);
+    const edges = [...catalog.edges];
+    for (const o of catalog.objects) {
+      const n = Number(o.uuid.slice(2));
+      if (o.type === "rule") {
+        edges.push(linkEdge(o.uuid, `source-${n % 40}`, "logsource"));
+        edges.push(linkEdge(o.uuid, `source-${(n + 7) % 40}`, "logsource"));
+      }
+      if (o.type === "objective")
+        edges.push(linkEdge(o.uuid, `T1${String(n % 600).padStart(3, "0")}`, "technique"));
+    }
+    return { ...catalog, edges };
+  }
+  function linkEdge(from: string, to: string, kind: string) {
+    return { from, to, kind, field_path: "", relation: null, missing: false };
+  }
+  const options = {
+    mode: "catalogue" as const,
+    focus: [],
+    depth: 2,
+    kinds: new Set<NodeKind>([...OBJECT_KINDS, "technique", "logsource", "platform"]),
+    platforms: new Set<string>(),
+    statuses: new Set<string>(),
+    problemsOnly: false,
+  };
+
+  for (const size of [500, 1000, 2000]) {
+    it(`lays out ${size} objects with their techniques, log sources and platforms in seconds, not minutes`, () => {
+      const view = computeView(buildModel(dense(size)), {}, options);
+      const started = performance.now();
+      const positions = layout(view.nodes, view.edges);
+      const elapsed = performance.now() - started;
+      assert.equal(positions.size, view.nodes.length);
+      assert.ok(view.nodes.some((node) => node.kind === "logsource"));
+      assert.ok(
+        elapsed < (size > 1000 ? 5000 : 2000),
+        `${view.nodes.length} nodes took ${Math.round(elapsed)} ms`,
+      );
+    });
+  }
+
+  it("puts techniques, log sources and platforms in columns right of the objects, without overlaps", () => {
+    const view = computeView(buildModel(dense(300)), {}, options);
+    const positions = layout(view.nodes, view.edges);
+    const kindOf = new Map(view.nodes.map((node) => [node.id, node.kind]));
+    const xs = (kind: NodeKind) =>
+      [...positions].filter(([id]) => kindOf.get(id) === kind).map(([, p]) => p.x);
+    const rightmostObject = Math.max(...OBJECT_KINDS.flatMap(xs));
+    for (const kind of ["technique", "logsource", "platform"] as const) {
+      assert.ok(Math.min(...xs(kind)) > rightmostObject, `${kind} right of every object`);
+    }
+    assert.ok(Math.min(...xs("logsource")) > Math.max(...xs("technique")));
+    const seen = new Set<string>();
+    for (const point of positions.values()) {
+      const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+      assert.ok(!seen.has(key), `two nodes at ${key}`);
+      seen.add(key);
+    }
   });
 });
