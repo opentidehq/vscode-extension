@@ -54,6 +54,24 @@ describe("graph model patches", () => {
     assert.equal(sender.next(model).kind, "full");
   });
 
+  it("stringifies only the new model on a change, not the one it sent before as well", () => {
+    const sender = new ModelSender();
+    sender.next(model);
+    const next = renamed(model, UUID.rule, "Renamed");
+    const original = JSON.stringify;
+    let calls = 0;
+    JSON.stringify = ((...args: Parameters<typeof JSON.stringify>) => {
+      calls += 1;
+      return original(...args);
+    }) as typeof JSON.stringify;
+    try {
+      assert.equal(sender.next(next).kind, "patch");
+    } finally {
+      JSON.stringify = original;
+    }
+    assert.equal(calls, next.nodes.length + next.edges.length);
+  });
+
   it("sends a model whose patch would be larger than half of it whole", () => {
     const sender = new ModelSender();
     sender.next(model);

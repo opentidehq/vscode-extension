@@ -15,27 +15,50 @@ export interface ModelPatch {
   readonly removedEdges: readonly string[];
 }
 
-function changes<T extends { readonly id: string }>(
-  previous: readonly T[],
+/** Each item's JSON by id: what a later model is compared with. */
+type Signatures = ReadonlyMap<string, string>;
+
+function signatures(items: readonly { readonly id: string }[]): Map<string, string> {
+  return new Map(items.map((item) => [item.id, JSON.stringify(item)]));
+}
+
+/** What changed from the items `before` describes to `next`, and `next`'s own signatures. */
+function changesFrom<T extends { readonly id: string }>(
+  before: Signatures,
   next: readonly T[],
-): { upsert: T[]; removed: string[] } {
-  const before = new Map<string, string>();
-  for (const item of previous) before.set(item.id, JSON.stringify(item));
+): { upsert: T[]; removed: string[]; after: Map<string, string> } {
   const upsert: T[] = [];
-  const seen = new Set<string>();
+  const after = new Map<string, string>();
   for (const item of next) {
-    seen.add(item.id);
-    if (before.get(item.id) !== JSON.stringify(item)) upsert.push(item);
+    const json = JSON.stringify(item);
+    after.set(item.id, json);
+    if (before.get(item.id) !== json) upsert.push(item);
   }
-  const removed = previous.filter((item) => !seen.has(item.id)).map((item) => item.id);
-  return { upsert, removed };
+  const removed = [...before.keys()].filter((id) => !after.has(id));
+  return { upsert, removed, after };
 }
 
 /** What changed from `previous` (revision `from`) to `next` (revision `to`). */
 export function diffModels(previous: GraphModel, next: GraphModel, from: number, to: number): ModelPatch {
-  const nodes = changes(previous.nodes, next.nodes);
-  const edges = changes(previous.edges, next.edges);
-  return {
+  return diffFrom({ nodes: signatures(previous.nodes), edges: signatures(previous.edges) }, next, from, to)
+    .patch;
+}
+
+interface ModelSignatures {
+  readonly nodes: Signatures;
+  readonly edges: Signatures;
+}
+
+/** diffModels against the signatures of the previous model, which a sender keeps instead of the model. */
+function diffFrom(
+  previous: ModelSignatures,
+  next: GraphModel,
+  from: number,
+  to: number,
+): { patch: ModelPatch; signatures: ModelSignatures } {
+  const nodes = changesFrom(previous.nodes, next.nodes);
+  const edges = changesFrom(previous.edges, next.edges);
+  const patch = {
     from,
     to,
     nodes: nodes.upsert,
@@ -43,6 +66,7 @@ export function diffModels(previous: GraphModel, next: GraphModel, from: number,
     edges: edges.upsert,
     removedEdges: edges.removed,
   };
+  return { patch, signatures: { nodes: nodes.after, edges: edges.after } };
 }
 
 export function patchSize(patch: ModelPatch): number {
@@ -92,17 +116,22 @@ export type ModelMessage =
  */
 export class ModelSender {
   private sent: GraphModel | undefined;
+  /** The sent model's items as JSON, so a change stringifies only the new model, once. */
+  private sentSignatures: ModelSignatures | undefined;
   private revision = 0;
 
   next(model: GraphModel): ModelMessage {
     const previous = this.sent;
+    const before = this.sentSignatures;
     this.sent = model;
-    if (previous === model) return { kind: "same", revision: this.revision };
-    if (!previous) {
+    if (previous === model && before) return { kind: "same", revision: this.revision };
+    if (!previous || !before) {
+      this.sentSignatures = { nodes: signatures(model.nodes), edges: signatures(model.edges) };
       this.revision += 1;
       return { kind: "full", revision: this.revision, model };
     }
-    const patch = diffModels(previous, model, this.revision, this.revision + 1);
+    const { patch, signatures: after } = diffFrom(before, model, this.revision, this.revision + 1);
+    this.sentSignatures = after;
     if (isEmptyPatch(patch)) return { kind: "same", revision: this.revision };
     this.revision += 1;
     if (patchSize(patch) * 2 > model.nodes.length + model.edges.length)
@@ -113,6 +142,7 @@ export class ModelSender {
   /** Forget what was sent: a new webview, another folder, or a webview that lost track (`resync`). */
   reset(): void {
     this.sent = undefined;
+    this.sentSignatures = undefined;
   }
 }
 
