@@ -13,7 +13,7 @@ import {
   dryRunCommand,
   neededVariables,
 } from "../../../src/features/deploy-plan/argv";
-import { parseTargetArgs } from "../../../src/features/deploy-plan/index";
+import { deployPanelTitle, parseTargetArgs, targetKey } from "../../../src/features/deploy-plan/index";
 import { deployedRequest, payloadDocuments, planView } from "../../../src/features/deploy-plan/plan";
 import {
   cancelledState,
@@ -172,7 +172,10 @@ describe("deploy plan (#18)", () => {
     const plan = planView(REAL);
     const running: DeployPanelState = {
       phase: "running",
+      locked: false,
       folder: "/repo",
+      folderName: "repo",
+      platformLabels: { splunk: "Splunk" },
       strategies: ["PREVIEW"],
       scope: "all",
       platform: null,
@@ -331,5 +334,32 @@ describe("deploy plan (#18)", () => {
     assert.ok(!hostValidators.run({ strategies: ["PREVIEW"], scope: "all", platform: "x; rm" }));
     assert.ok(hostValidators.copy("ci"));
     assert.ok(!hostValidators.copy("deployNow"));
+  });
+});
+
+describe("deploy plan: one panel per kind, retargeted to the rules asked for", () => {
+  it("keys a preview by its folder and rules, in any order", () => {
+    const a = targetKey({ folder: "/r", uuids: ["B", "a"], files: ["objects/rules/x.yaml"] });
+    const b = targetKey({ folder: "/r", uuids: ["a", "b"], files: ["objects/rules/x.yaml"] });
+    assert.equal(a, b);
+    assert.notEqual(targetKey({ folder: "/r", uuids: [], files: [] }), a);
+    assert.notEqual(
+      targetKey({ folder: "/other", uuids: [], files: [] }),
+      targetKey({ folder: "/r", uuids: [], files: [] }),
+    );
+  });
+
+  it("names the rules in the tab title", () => {
+    assert.equal(deployPanelTitle(null), "Deploy Plan");
+    assert.equal(
+      deployPanelTitle("Suspicious LSASS access by an unsigned binary"),
+      "Deploy Plan · Suspicious LSASS access by…",
+    );
+    assert.equal(deployPanelTitle("3 rules"), "Deploy Plan · 3 rules");
+  });
+
+  it("validates the lock toggle", () => {
+    assert.equal(hostValidators.lock(true), true);
+    assert.equal(hostValidators.lock("yes"), false);
   });
 });

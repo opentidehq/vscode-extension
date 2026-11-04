@@ -8,7 +8,12 @@ export type ScopeKind = "changed" | "all" | "selected";
 
 export interface DeployPanelState {
   readonly phase: "running" | "done" | "failed" | "cancelled";
+  /** Pinned to its rules: another preview opens its own panel. */
+  readonly locked: boolean;
   readonly folder: string;
+  readonly folderName: string;
+  /** Each platform id's display name ("Microsoft Sentinel"). */
+  readonly platformLabels: Readonly<Record<string, string>>;
   readonly strategies: readonly Strategy[];
   readonly scope: ScopeKind;
   readonly platform: string | null;
@@ -67,6 +72,7 @@ export interface DeployPlanProtocol extends Protocol {
     open: string;
     copy: "dryRun" | "deploy" | "ci";
     action: string;
+    lock: boolean;
   };
 }
 
@@ -90,6 +96,7 @@ export const hostValidators: Validators<DeployPlanProtocol["toHost"]> = {
   copy: (value): value is "dryRun" | "deploy" | "ci" =>
     value === "dryRun" || value === "deploy" || value === "ci",
   action: is.string,
+  lock: is.boolean,
 };
 
 export const webviewValidators: Validators<DeployPlanProtocol["toWebview"]> = {
