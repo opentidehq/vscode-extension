@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   codeVersion,
+  extensionLogs,
   restrictedLaunchArgs,
   runnerOptions,
   testFiles,
@@ -59,6 +60,22 @@ describe("test-restricted: Restricted Mode tests run untrusted", () => {
         preload: [],
         files,
       });
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("finds the extension's logs in a user-data-dir, and nothing when there are none", () => {
+    const scratch = mkdtempSync(join(tmpdir(), "otr-logs-"));
+    try {
+      assert.deepEqual(extensionLogs(scratch), []);
+      const exthost = join(scratch, "logs", "20261104T035700", "window1", "exthost");
+      mkdirSync(join(exthost, "opentidehq.opentide"), { recursive: true });
+      mkdirSync(join(exthost, "vscode.git"), { recursive: true });
+      writeFileSync(join(exthost, "opentidehq.opentide", "opentide.log"), "x");
+      writeFileSync(join(exthost, "vscode.git", "Git.log"), "x");
+      writeFileSync(join(exthost, "exthost.log"), "x");
+      assert.deepEqual(extensionLogs(scratch), [join(exthost, "opentidehq.opentide", "opentide.log")]);
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }

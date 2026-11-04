@@ -1,5 +1,5 @@
 // Pure helpers for scripts/test-restricted.mjs: the VS Code command line and the test runner's options.
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -57,4 +57,15 @@ export function testFiles(dir) {
  */
 export function runnerOptions({ files, timeout, color }) {
   return JSON.stringify({ mochaOpts: { ui: "bdd", timeout }, colorDefault: color, preload: [], files });
+}
+
+/** The extension's log files under a user-data-dir (`logs/<session>/.../exthost/opentidehq.opentide/`). */
+export function extensionLogs(userDataDir, extensionId = "opentidehq.opentide") {
+  const logs = join(userDataDir, "logs");
+  if (!existsSync(logs)) return [];
+  return readdirSync(logs, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".log"))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .filter((file) => file.split(/[\\/]/).includes(extensionId))
+    .sort();
 }

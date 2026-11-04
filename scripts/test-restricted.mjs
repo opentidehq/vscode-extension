@@ -8,12 +8,18 @@
 // @vscode/test-cli's in-host runner, as the integration label's do. Run `npm run test:restricted`, which
 // builds first; it needs a VS Code download, so it runs in CI.
 import { spawn } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { codeVersion, restrictedLaunchArgs, runnerOptions, testFiles } from "./test-restricted-lib.mjs";
+import {
+  codeVersion,
+  extensionLogs,
+  restrictedLaunchArgs,
+  runnerOptions,
+  testFiles,
+} from "./test-restricted-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -55,6 +61,13 @@ const code = await new Promise((resolve) => {
   child.on("exit", (exitCode, signal) => resolve(signal ? 1 : (exitCode ?? 1)));
 });
 
+// A failure is read from CI's log: print the extension's own logs before they go with the folder.
+if (code !== 0)
+  for (const file of extensionLogs(userDataDir)) {
+    console.log(`::group::${file}`);
+    console.log(readFileSync(file, "utf8"));
+    console.log("::endgroup::");
+  }
 try {
   rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
 } catch (error) {

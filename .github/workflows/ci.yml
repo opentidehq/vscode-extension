@@ -164,6 +164,19 @@ jobs:
           else
             npm run test:restricted -- --code-version "${CODE_VERSION}"
           fi
+      # The extension's output channels, which a failed test's message rarely explains. The Restricted
+      # Mode run prints its own: its user-data-dir is gone by now.
+      - name: The extension's logs from the integration tests
+        if: failure()
+        run: |
+          set -euo pipefail
+          logs=".vscode-test/user-data/logs"
+          [[ -d "${logs}" ]] || exit 0
+          find "${logs}" -type f -path '*/opentidehq.opentide/*' -name '*.log' | sort | while read -r file; do
+            echo "::group::${file}"
+            cat "${file}"
+            echo "::endgroup::"
+          done
 
   package:
     name: Packages (universal, linux-x64)
