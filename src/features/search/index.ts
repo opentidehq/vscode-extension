@@ -62,12 +62,18 @@ async function openItem(item: SearchItem, side: boolean): Promise<void> {
   });
 }
 
+/** What `opentide.search.open` opened: the quick pick's title and query (integration tests read it). */
+export interface SearchShown {
+  readonly title: string;
+  readonly value: string;
+}
+
 function openSearch(
   ctx: FeatureContext,
   indexCache: IndexCache,
   unreviewed: UnreviewedCache,
   args: SearchArgs,
-): void {
+): SearchShown {
   const pick = vscode.window.createQuickPick<Item>();
   pick.title = "Find Detection";
   pick.placeholder = "Name, or filters: t:T1003 p:sentinel s:production tactic:credential-access has:errors";
@@ -248,6 +254,7 @@ function openSearch(
   });
   update();
   pick.show();
+  return { title: pick.title ?? "", value: pick.value };
 }
 
 export default defineFeature({
@@ -287,15 +294,15 @@ export default defineFeature({
         }).dispose,
       },
       { dispose: ctx.runtime.onDidChange(() => unreviewed.clear()).dispose },
-      vscode.commands.registerCommand("opentide.search.open", (args?: unknown) => {
+      vscode.commands.registerCommand("opentide.search.open", (args?: unknown): SearchShown | undefined => {
         const parsed = parseSearchArgs(args);
         if (ctx.folders.all.length === 0) {
           void vscode.window.showInformationMessage(
             "Open a folder with an opentide workspace to find detections.",
           );
-          return;
+          return undefined;
         }
-        openSearch(ctx, indexCache, unreviewed, parsed);
+        return openSearch(ctx, indexCache, unreviewed, parsed);
       }),
     );
   },

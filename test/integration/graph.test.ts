@@ -3,12 +3,17 @@ import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
 import { activated, fixture, waitFor } from "./helpers";
 
-function graphTab(): vscode.Tab | undefined {
+/** Every graph panel's tab, in every editor group. */
+function graphTabs(): vscode.Tab[] {
   return vscode.window.tabGroups.all
     .flatMap((group) => group.tabs)
-    .find(
+    .filter(
       (tab) => tab.input instanceof vscode.TabInputWebview && tab.input.viewType.endsWith("opentide.graph"),
     );
+}
+
+function graphTab(): vscode.Tab | undefined {
+  return graphTabs()[0];
 }
 
 describe("graph (#19)", () => {
@@ -30,10 +35,9 @@ describe("graph (#19)", () => {
     const rule = fixture("objects", "rules", "suspicious-lsass-access.yaml");
     await vscode.window.showTextDocument(rule);
     await vscode.commands.executeCommand("opentide.graph.showInGraph", rule);
-    const tabs = vscode.window.tabGroups.all
-      .flatMap((group) => group.tabs)
-      .filter((tab) => tab === graphTab());
-    assert.equal(tabs.length, 1);
+    // A second panel would open asynchronously: give it the time to show up before counting.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    assert.equal(graphTabs().length, 1, "Show in Graph reused the panel instead of opening another");
   });
 
   it("reveals a UUID from another view without failing when it is unknown", async () => {
