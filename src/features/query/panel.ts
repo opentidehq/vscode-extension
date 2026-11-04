@@ -227,7 +227,12 @@ class QueryPanel implements vscode.Disposable {
 
   /** Show kept results (retained from a closed panel) without running. */
   show(spec: RunSpec, state: QueryPanelState): void {
-    this.cts?.cancel();
+    // The run in progress is over: cleared, so it neither overwrites the kept results when it comes
+    // back cancelled nor, from its tenant picker, runs its query again in this panel.
+    const running = this.cts;
+    this.cts = undefined;
+    running?.cancel();
+    running?.dispose();
     this.spec = spec;
     this.state = { ...state, locked: this.locked };
     this.view.panel.title = queryPanelTitle(spec);

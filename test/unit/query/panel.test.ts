@@ -5,6 +5,7 @@ import type { RunResult } from "../../../src/core/backend/backend";
 import type { FeatureContext, OpentideFolder } from "../../../src/core/context";
 import { type PanelHooks, QueryPanels, type RunSpec } from "../../../src/features/query/panel";
 import type { QueryPanelState } from "../../../src/features/query/protocol";
+import { stubState } from "../../stubs/vscode";
 
 interface Deferred<T> {
   readonly promise: Promise<T>;
@@ -235,5 +236,59 @@ describe("query panel", () => {
     assert.equal(h.created.length, 2);
     assert.equal(h.created[1]?.panel.title, "Query · Other rule · Sentinel");
     h.panels.dispose();
+  });
+
+  describe("with opentide.query.retainResults", () => {
+    beforeEach(() => {
+      stubState.config["opentide.query.retainResults"] = true;
+    });
+    afterEach(() => {
+      delete stubState.config["opentide.query.retainResults"];
+    });
+
+    const CANCELLED: RunResult = {
+      ...result({ exit_code: 130, message: "Interrupted" }, 130),
+      cancelled: true,
+    };
+
+    it("shows kept results in a retargeted panel, and the run they replaced does not overwrite them", async () => {
+      const running = deferred<RunResult>();
+      const h = harness([Promise.resolve(ROWS), running.promise]);
+      h.panels.run(spec("Kept rule"));
+      await flush();
+      h.created[0]?.dispose();
+      assert.equal(h.panels.size, 0);
+      h.panels.run(spec("Running rule"));
+      await flush();
+      assert.equal(h.last()?.phase, "running");
+      // The kept query retargets the running panel, which shows its results without running.
+      h.panels.run(spec("Kept rule"));
+      await flush();
+      assert.equal(h.last()?.name, "Kept rule");
+      assert.equal(h.last()?.phase, "done");
+      running.resolve(CANCELLED);
+      await flush();
+      assert.equal(h.last()?.name, "Kept rule", "the cancelled run is over");
+      assert.equal(h.last()?.phase, "done", "not 'Cancelled. Nothing was kept.'");
+      assert.equal(h.argvs.length, 2);
+      h.panels.dispose();
+    });
+
+    it("does not run the replaced query again when its tenant picker answers afterwards", async () => {
+      const h = harness([Promise.resolve(ROWS), Promise.resolve(CHOICES)]);
+      h.panels.run(spec("Kept rule"));
+      await flush();
+      h.created[0]?.dispose();
+      h.panels.run(spec("Picking rule"));
+      await flush();
+      assert.equal(h.last()?.phase, "choosing");
+      h.panels.run(spec("Kept rule"));
+      await flush();
+      h.picker.resolve(["prod"]);
+      await flush();
+      assert.equal(h.argvs.length, 2, "no third run, of the old query, in the retargeted panel");
+      assert.equal(h.last()?.name, "Kept rule");
+      h.panels.dispose();
+    });
   });
 });
