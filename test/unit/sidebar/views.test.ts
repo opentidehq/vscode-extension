@@ -508,6 +508,10 @@ describe("sidebar: loader and folder views", () => {
     assert.deepEqual([loader.state.status, loader.state.value], ["ready", 1]);
 
     for (let i = 0; i < 5; i++) loader.request();
+    // Debounced: a zero-delay timer set now runs first even on a stalled loop (Node runs expired timers
+    // by expiry, and this test's continuation before the next one), so no load has started yet.
+    await timersRan();
+    assert.equal(loads(), 1, "debounced: no load starts before debounceMs");
     await until(() => loads() === 2);
     loader.request({ immediate: true });
     await timersRan();
