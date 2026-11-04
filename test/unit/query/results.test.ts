@@ -12,8 +12,10 @@ import {
   toJsonl,
   toMarkdown,
 } from "../../../src/features/query/format";
+import type { QueryPanelState } from "../../../src/features/query/protocol";
 import {
   applyProgress,
+  choosingState,
   exportable,
   formatMs,
   keepable,
@@ -243,5 +245,34 @@ describe("query: CSV of attacker-controlled telemetry (CSV injection)", () => {
       false,
       "JSON untouched",
     );
+  });
+});
+
+describe("query: while the tenant picker is open (#47)", () => {
+  it("stops showing a run in progress once opentide asks which tenants", () => {
+    const running: QueryPanelState = {
+      title: "Suspicious LSASS Access · Microsoft Sentinel",
+      platform: "Microsoft Sentinel",
+      windowLabel: "last 24 hours",
+      limit: 100,
+      maxLimit: 5000,
+      contacts: "the Microsoft Sentinel tenant",
+      phase: "running",
+      startedAt: 0,
+      durationMs: null,
+      argvDisplay: "opentide --json query --platform sentinel",
+      message: "",
+      failure: null,
+      tabs: pendingTabs([]),
+      writesPreviewAlerts: false,
+      cancelMayLeaveSearch: false,
+      query: null,
+    };
+    const choosing = choosingState(running, 1200);
+    assert.equal(choosing.phase, "choosing", "no Running…, timer or Cancel");
+    assert.equal(choosing.message, "Pick the Microsoft Sentinel tenants to query");
+    assert.equal(choosing.durationMs, 1200);
+    assert.deepEqual(choosing.tabs, []);
+    assert.equal(keepable(choosing), false, "a panel closed while picking is not kept");
   });
 });

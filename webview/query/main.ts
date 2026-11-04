@@ -151,6 +151,7 @@ function toolbar(s: QueryPanelState): HTMLElement {
 
 function elapsedText(s: QueryPanelState): string {
   if (s.phase === "running") return `running ${formatMs(Date.now() - s.startedAt)}`;
+  if (s.phase === "choosing") return "";
   if (s.durationMs !== null)
     return `${s.phase === "cancelled" ? "cancelled after" : "took"} ${formatMs(s.durationMs)}`;
   return "";
@@ -193,6 +194,15 @@ function renderTabs(): void {
     replace(tabsElement);
     if (s.phase === "running") {
       replace(panel, stateBox({ kind: "loading", title: "Running…", body: `Waiting for ${s.contacts}.` }));
+    } else if (s.phase === "choosing") {
+      replace(
+        panel,
+        stateBox({
+          kind: "info",
+          title: s.message,
+          body: "The platform has several tenants: tick the ones to query in the picker.",
+        }),
+      );
     } else if (s.failure) {
       const actions = [
         ...(s.failure.action

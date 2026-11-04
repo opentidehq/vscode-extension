@@ -10,7 +10,14 @@ import type { OpentidePanel } from "../../core/webview/panel";
 import { MAX_LIMIT, type QueryOptions, queryArgv, sourceKey, tenantChoices, windowLabel } from "./argv";
 import { platformLabel, tenantPhrase } from "./lenses";
 import { hostValidators, type QueryPanelState, type QueryProtocol } from "./protocol";
-import { applyProgress, keepable, pendingTabs, progressFromEvent, tabsFromDocument } from "./results";
+import {
+  applyProgress,
+  choosingState,
+  keepable,
+  pendingTabs,
+  progressFromEvent,
+  tabsFromDocument,
+} from "./results";
 
 /** One run's inputs: what to send, and where. */
 export interface RunSpec {
@@ -214,6 +221,9 @@ class QueryPanel implements vscode.Disposable {
       const document = result.document;
       const choices = result.cancelled ? undefined : tenantChoices(document);
       if (choices) {
+        // The picker opens now: the panel says so, instead of "Running…" with a timer and a Cancel.
+        this.state = choosingState(this.state, result.durationMs);
+        this.post();
         const picked = await this.hooks.pickTenants(spec, choices);
         if (picked && this.cts === cts)
           return this.execute({ ...spec, options: { ...options, tenants: picked } });

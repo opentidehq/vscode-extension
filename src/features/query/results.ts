@@ -1,7 +1,7 @@
 // `opentide --json query` documents as the results panel shows them. vscode-free.
 import type { Column, Row } from "./format";
 import { type TableViewState, tableViewState } from "./format";
-import type { TenantProgress, TenantTab } from "./protocol";
+import type { QueryPanelState, TenantProgress, TenantTab } from "./protocol";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -127,12 +127,27 @@ export function formatMs(ms: number): string {
 }
 
 /**
+ * The state while the tenant picker is open: the run that asked which tenants is over (opentide answered
+ * exit 2 with the choices), so the panel stops its timer and Cancel, and says what it waits for.
+ */
+export function choosingState(state: QueryPanelState, durationMs: number): QueryPanelState {
+  return {
+    ...state,
+    phase: "choosing",
+    durationMs,
+    message: `Pick the ${state.platform} tenants to query`,
+    tabs: [],
+    failure: null,
+  };
+}
+
+/**
  * Whether a closed panel's state may be kept for `opentide.query.retainResults`: only a finished run. A
  * state closed mid-run is `running` with pending tabs, and reopening it showed a Cancel that cancelled
  * nothing and no Re-run, for the rest of the session.
  */
 export function keepable<T extends { readonly phase: string }>(state: T | undefined): state is T {
-  return state !== undefined && state.phase !== "running";
+  return state !== undefined && state.phase !== "running" && state.phase !== "choosing";
 }
 
 /**
