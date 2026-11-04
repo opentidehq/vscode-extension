@@ -117,11 +117,19 @@ export class CatalogStore {
     for (const folder of this.folders()) if (!folders.includes(folder)) this.delete(folder);
   }
 
-  /** Forget a folder (removed from the workspace). */
+  /**
+   * Forget a folder (removed from the workspace). A pending or queued refresh is dropped, and whoever
+   * waits for one gets the folder's last state now, rather than waiting forever (a "Refreshing…"
+   * progress, an agent tool).
+   */
   delete(folder: string): void {
     const slot = this.slots.get(folder);
-    if (slot?.timer) clearTimeout(slot.timer);
+    if (!slot) return;
+    if (slot.timer) clearTimeout(slot.timer);
+    slot.timer = undefined;
+    slot.again = false;
     this.slots.delete(folder);
+    for (const resolve of slot.waiters.splice(0)) resolve();
   }
 
   private slot(folder: string): Slot {
@@ -140,7 +148,10 @@ export class CatalogStore {
   }
 
   private kick(folder: string, slot: Slot): void {
-    if (this.disposed || this.slots.get(folder) !== slot) return;
+    if (this.disposed || this.slots.get(folder) !== slot) {
+      for (const resolve of slot.waiters.splice(0)) resolve();
+      return;
+    }
     if (slot.running) {
       slot.again = true;
       return;
@@ -240,7 +251,10 @@ export class CatalogStore {
 
   dispose(): void {
     this.disposed = true;
-    for (const slot of this.slots.values()) if (slot.timer) clearTimeout(slot.timer);
+    for (const slot of this.slots.values()) {
+      if (slot.timer) clearTimeout(slot.timer);
+      for (const resolve of slot.waiters.splice(0)) resolve();
+    }
     this.emitter.dispose();
   }
 }
