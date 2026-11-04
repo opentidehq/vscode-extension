@@ -1,6 +1,7 @@
 // The in-memory search index (SPEC §10.3): one item per object and signal of each folder's `info
 // catalog`, or per workspace symbol when the active opentide has no catalogue. Built once per
 // catalogue document, with every key lower-cased up front so a keystroke only compares. vscode-free.
+import { isLoaded, rowKey } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument, CatalogSymbol } from "../../core/catalog/types";
 
@@ -13,8 +14,9 @@ export interface ItemPlatform {
 }
 
 export interface SearchItem {
-  /** The graph's node id: a UUID, or `file:<path>` for a file that did not load without one. */
+  /** The graph's node id: a loaded object's UUID, or `file:<path>` for a file that did not load. */
   readonly id: string;
+  /** A loaded object's or a signal's UUID (a file that did not load has none here). */
   readonly uuid?: string;
   readonly type: string;
   readonly name: string;
@@ -85,7 +87,7 @@ function tacticKeys(catalog: CatalogDocument, tactics: readonly string[]): strin
   for (const shortname of tactics) {
     keys.push(shortname.toLowerCase());
     const tactic = catalog.attack?.tactics?.find((t) => t.shortname === shortname);
-    if (tactic) keys.push(tactic.id.toLowerCase(), tactic.name.toLowerCase().replace(/\s+/g, "-"));
+    if (tactic) keys.push(lower(tactic.id), tactic.name.toLowerCase().replace(/\s+/g, "-"));
   }
   return keys;
 }
@@ -97,17 +99,22 @@ function catalogItems(folder: string, catalog: CatalogDocument): SearchItem[] {
     const techniques = [
       ...new Set([...(object.techniques?.own ?? []), ...(object.techniques?.inherited ?? [])]),
     ];
-    const id = object.uuid || `file:${object.path}`;
+    const loaded = isLoaded(object);
+    const id = rowKey(object);
     const item: SearchItem = {
       id,
-      ...(object.uuid ? { uuid: object.uuid } : {}),
-      type: object.type,
-      name: object.name || object.path,
+      ...(loaded ? { uuid: object.uuid } : {}),
+      type: object.type ?? "rule",
+      name: object.name || object.path || object.file_path || id,
       folder,
-      path: object.path,
-      filePath: object.file_path,
+      path: object.path ?? "",
+      ...(object.file_path ? { filePath: object.file_path } : {}),
       line: object.line || 1,
-      platforms: (object.platforms ?? []).map((p) => ({ id: p.id, status: p.status, enabled: p.enabled })),
+      platforms: (object.platforms ?? []).map((p) => ({
+        id: p.id,
+        status: p.status ?? "",
+        enabled: p.enabled,
+      })),
       techniques,
       tactics: object.tactics ?? [],
       actors: object.actors ?? [],
@@ -131,10 +138,10 @@ function catalogItems(folder: string, catalog: CatalogDocument): SearchItem[] {
       },
     };
     items.push(item);
-    if (object.uuid) byUuid.set(object.uuid, item);
+    if (loaded) byUuid.set(object.uuid, item);
   }
   for (const signal of catalog.signals ?? []) {
-    const objective = byUuid.get(signal.objective);
+    const objective = signal.objective ? byUuid.get(signal.objective) : undefined;
     items.push({
       id: signal.uuid,
       uuid: signal.uuid,

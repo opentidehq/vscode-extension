@@ -1,5 +1,7 @@
 // The Catalogue view (SPEC §9): threats → objectives → signals → rules from `info catalog`, other
 // groupings, and names from `workspace/symbol` until (or instead of) the catalogue. vscode-free.
+
+import { isLoaded, type LoadedObject, loadedObjects } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument, CatalogObject, CatalogSymbol } from "../../core/catalog/types";
 import { branch, filterNodes, messageNode, type TreeNode, type ViewModel } from "./node";
@@ -174,7 +176,7 @@ function buildFolder(folder: CatalogueFolder, input: CatalogueInput, multi: bool
 }
 
 function objectNode(
-  object: CatalogObject,
+  object: LoadedObject,
   folder: string,
   input: CatalogueInput,
   id: string,
@@ -243,21 +245,24 @@ function group(id: string, label: string, icon: string, children: TreeNode[], to
 
 function loadErrorNode(object: CatalogObject, prefix: string): TreeNode {
   const error = object.load_error;
+  const where = object.path ?? object.file_path ?? object.name;
   return {
-    id: `${prefix}load:${object.path}`,
-    label: object.path,
+    id: `${prefix}load:${where}`,
+    label: where,
     description: error?.code,
     tooltip: `${error?.message ?? "Did not load"}${error?.line ? ` (line ${error.line})` : ""}`,
     icon: "error",
     iconColor: "problemsErrorIcon.foreground",
     contextValue: "loadError",
-    open: { path: object.file_path, line: Math.max(0, (error?.line ?? 1) - 1) },
-    search: `${object.path}\n${object.name ?? ""}`.toLowerCase(),
+    ...(object.file_path
+      ? { open: { path: object.file_path, line: Math.max(0, (error?.line ?? 1) - 1) } }
+      : {}),
+    search: `${where}\n${object.name ?? ""}`.toLowerCase(),
   };
 }
 
 function byName(a: CatalogObject, b: CatalogObject): number {
-  return (a.name || a.path).localeCompare(b.name || b.path);
+  return (a.name || a.path || "").localeCompare(b.name || b.path || "");
 }
 
 function fromCatalog(
@@ -266,8 +271,8 @@ function fromCatalog(
   input: CatalogueInput,
   prefix: string,
 ): TreeNode[] {
-  const loaded = doc.objects.filter((o) => !o.load_error && o.uuid);
-  const failed = doc.objects.filter((o) => o.load_error);
+  const loaded = loadedObjects(doc.objects);
+  const failed = doc.objects.filter((o) => !isLoaded(o));
   const failedGroup = failed.length
     ? [
         group(
@@ -279,7 +284,7 @@ function fromCatalog(
       ]
     : [];
   const rules = loaded.filter((o) => o.type === "rule").sort(byName);
-  const ruleNode = (rule: CatalogObject, parentId: string) =>
+  const ruleNode = (rule: LoadedObject, parentId: string) =>
     objectNode(rule, folder, input, `${parentId}/${rule.uuid}`);
   if (input.groupBy === "chain") return [...chain(doc, loaded, folder, input, prefix), ...failedGroup];
   if (input.groupBy === "type") {
@@ -304,8 +309,8 @@ function fromCatalog(
       ...failedGroup,
     ];
   }
-  const buckets = new Map<string, CatalogObject[]>();
-  const none: CatalogObject[] = [];
+  const buckets = new Map<string, LoadedObject[]>();
+  const none: LoadedObject[] = [];
   for (const rule of rules) {
     const keys =
       input.groupBy === "platform"
@@ -354,7 +359,7 @@ function fromCatalog(
 
 function chain(
   doc: CatalogDocument,
-  loaded: readonly CatalogObject[],
+  loaded: readonly LoadedObject[],
   folder: string,
   input: CatalogueInput,
   prefix: string,
@@ -362,8 +367,8 @@ function chain(
   const byUuid = new Map(loaded.map((o) => [o.uuid, o]));
   const signals = new Map(doc.signals.map((s) => [s.uuid, s]));
   // rule → its objective (directly or through a signal); objective → signal → rules.
-  const direct = new Map<string, CatalogObject[]>();
-  const viaSignal = new Map<string, CatalogObject[]>();
+  const direct = new Map<string, LoadedObject[]>();
+  const viaSignal = new Map<string, LoadedObject[]>();
   const placed = new Set<string>();
   const covers = new Map<string, string[]>();
   for (const edge of doc.edges) {
@@ -390,7 +395,7 @@ function chain(
       ...(direct.get(objective) ?? []).map((r) => r.uuid),
       ...signalsOf(objective).flatMap((s) => (viaSignal.get(s.uuid) ?? []).map((r) => r.uuid)),
     ]).size;
-  const objectiveNode = (objective: CatalogObject, parentId: string): TreeNode => {
+  const objectiveNode = (objective: LoadedObject, parentId: string): TreeNode => {
     const id = `${parentId}/${objective.uuid}`;
     const children: TreeNode[] = [
       ...signalsOf(objective.uuid).map((signal) => {

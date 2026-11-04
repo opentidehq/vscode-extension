@@ -91,6 +91,9 @@ pre-releases odd ones.
   - "View as list", a keyboard tree for keyboard and screen-reader users; Shift+F10 or the menu key
     opens a node's actions there, and on the canvas for the selected node.
 - "Show in Graph" in the editor and explorer context menus for Tide YAML.
+- A file that did not load appears by its path in the graph, search, the sidebar and the agents'
+  active-object tool, with its load error, even when it carries another object's UUID (a broken copy):
+  that object keeps its node, links and counts.
 - "opentide: Find Detection…" (Ctrl+Shift+Alt+F, Cmd+Shift+Alt+F on macOS): a quick search over the
   catalogue.
   - Filters: `type:`, `t:` (or `technique:`), `p:`, `s:`, `tactic:`, `actor:`, `author:`, `tlp:`,

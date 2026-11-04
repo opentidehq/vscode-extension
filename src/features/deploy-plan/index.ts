@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { BackendError } from "../../core/backend/types";
+import { findByUuid, loadedObjects } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { displayArgv } from "../../core/runtime/env";
@@ -299,7 +300,7 @@ class DeployPanel implements vscode.Disposable {
     if (total === 1) {
       const uuid = this.target.uuids[0];
       const catalog = this.ctx.catalog.get(this.target.folder).catalog;
-      const byUuid = uuid ? catalog?.objects.find((o) => o.uuid === uuid)?.name : undefined;
+      const byUuid = uuid && catalog ? findByUuid(catalog.objects, uuid)?.name : undefined;
       const byFile = files[0] ? catalog?.objects.find((o) => o.path === files[0])?.name : undefined;
       return byUuid ?? byFile ?? (files[0] ? path.basename(files[0]) : (uuid ?? ""));
     }
@@ -308,8 +309,10 @@ class DeployPanel implements vscode.Disposable {
 
   private focusUuids(): string[] {
     const catalog = this.ctx.catalog.get(this.target.folder).catalog;
-    const fromFiles = this.target.files.flatMap(
-      (file) => catalog?.objects.filter((o) => o.path === file).map((o) => o.uuid) ?? [],
+    const fromFiles = this.target.files.flatMap((file) =>
+      loadedObjects(catalog?.objects ?? [])
+        .filter((o) => o.path === file)
+        .map((o) => o.uuid),
     );
     return [...this.target.uuids, ...fromFiles];
   }
@@ -452,7 +455,7 @@ class DeployPanel implements vscode.Disposable {
 
   private async openRule(ref: string): Promise<void> {
     const catalog = this.ctx.catalog.get(this.target.folder).catalog;
-    const object = catalog?.objects.find((o) => o.uuid === ref);
+    const object = catalog ? findByUuid(catalog.objects, ref) : undefined;
     const fromPlan =
       this.plan?.platforms.flatMap((p) => p.payloads).find((p) => p.uuid === ref)?.file ??
       this.plan?.diagnostics.find((d) => d.uuid === ref)?.filePath ??

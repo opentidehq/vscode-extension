@@ -4,8 +4,9 @@ import type { Envelope } from "../backend/types";
 export interface CatalogPlatform {
   readonly id: string;
   readonly enabled: boolean;
-  readonly status: string;
-  readonly strategy: string;
+  readonly status: string | null;
+  /** null when deployment.toml maps the status to no strategy. */
+  readonly strategy: string | null;
 }
 
 export interface CatalogDeployment {
@@ -18,19 +19,26 @@ export interface CatalogDeployment {
 export interface CatalogLoadError {
   readonly code: string;
   readonly message: string;
-  readonly line?: number;
+  /** 1-based line of the problem; null when unknown. */
+  readonly line?: number | null;
 }
 
 export type ObjectType = "threat" | "objective" | "rule" | (string & {});
 
+/**
+ * A threat, objective or rule, or a file that should have been one (`load_error` set). A load-error row
+ * has whatever could be read from the file: its `uuid`, `type`, `schema` and paths may be null, and its
+ * `uuid` may equal a loaded object's (a copy that no longer parses), so it is never keyed by uuid.
+ */
 export interface CatalogObject {
-  readonly uuid: string;
-  readonly type: ObjectType;
-  readonly schema: string;
+  readonly uuid: string | null;
+  readonly type: ObjectType | null;
+  readonly schema: string | null;
   readonly name: string;
   /** Workspace-relative, forward slashes. */
-  readonly path: string;
-  readonly file_path: string;
+  readonly path: string | null;
+  /** Absolute. */
+  readonly file_path: string | null;
   /** 1-based line of the `name:` key, or 1. */
   readonly line: number;
   readonly tlp?: string | null;
@@ -62,12 +70,14 @@ export interface CatalogEdge {
 export interface CatalogSignal {
   readonly uuid: string;
   readonly name: string;
-  readonly objective: string;
+  /** null when the signal's owner is not known. */
+  readonly objective: string | null;
   readonly parent: string | null;
 }
 
 export interface AttackTactic {
-  readonly id: string;
+  /** The TA id; null when the vocabulary has none. */
+  readonly id: string | null;
   readonly shortname: string;
   readonly name: string;
   readonly techniques: readonly string[];
