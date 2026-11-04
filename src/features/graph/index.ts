@@ -196,6 +196,7 @@ class GraphPanel implements vscode.Disposable {
     if (!this.opened || !this.ready) return;
     const state = this.state();
     if (!this.folder || !state) {
+      this.modelSent.reset();
       void this.opened.channel.post("data", {
         status: "no-folder",
         folder: "",

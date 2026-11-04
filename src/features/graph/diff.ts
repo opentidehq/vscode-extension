@@ -124,6 +124,8 @@ export type Received =
   | { readonly kind: "same" }
   /** It lost track (a missed or out-of-order message): ask the host for the whole model. */
   | { readonly kind: "resync" }
+  /** It lost track and has asked already: wait for the whole model, do not ask again. */
+  | { readonly kind: "waiting" }
   /** The host's status is not `ready`: the model is gone. */
   | { readonly kind: "cleared" };
 
@@ -135,6 +137,8 @@ export type Received =
 export class ModelReceiver {
   private held: GraphModel | undefined;
   private at: number | undefined;
+  /** A resync was asked for and the whole model has not come yet: one desync, one resend. */
+  private resyncRequested = false;
 
   get model(): GraphModel | undefined {
     return this.held;
@@ -158,6 +162,7 @@ export class ModelReceiver {
     if (data.model) {
       this.held = data.model;
       this.at = data.revision;
+      this.resyncRequested = false;
       return { kind: "model", model: data.model, first };
     }
     if (data.patch) {
@@ -171,11 +176,14 @@ export class ModelReceiver {
   }
 
   private lost(): Received {
+    if (this.resyncRequested) return { kind: "waiting" };
+    this.resyncRequested = true;
     return { kind: "resync" };
   }
 
   clear(): void {
     this.held = undefined;
     this.at = undefined;
+    this.resyncRequested = false;
   }
 }

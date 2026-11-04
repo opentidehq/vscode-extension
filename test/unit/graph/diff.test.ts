@@ -77,6 +77,8 @@ describe("graph model patches", () => {
     assert.ok(!patched.model && patched.patch && patched.revision === 2);
     const loading = { status: "loading" as const, folder: "ws", refreshing: true };
     assert.deepEqual(outgoingData(loading, sender), loading);
+    const resent = outgoingData(data, sender);
+    assert.ok(resent.model, "after a status without a model, the webview has none: it gets it whole");
   });
 
   it("posts a few nodes, not 5,000, when one rule changes in a large catalogue", () => {
@@ -131,6 +133,20 @@ describe("graph model patches: the webview's end", () => {
     assert.equal(receiver.receive({ ...ready, revision: 2 }).kind, "resync");
     assert.equal(receiver.revision, 1, "it still says it holds revision 1");
     assert.equal(new ModelReceiver().receive({ ...ready, revision: 1 }).kind, "resync", "no model yet");
+  });
+
+  it("asks once per desync: more messages before the whole model arrives wait for it", () => {
+    const receiver = new ModelReceiver();
+    receiver.receive({ ...ready, model, revision: 1 });
+    const skipped = diffModels(model, renamed(model, UUID.rule, "R"), 2, 3);
+    assert.equal(receiver.receive({ ...ready, patch: skipped, revision: 3 }).kind, "resync");
+    assert.equal(receiver.receive({ ...ready, revision: 3 }).kind, "waiting");
+    assert.equal(
+      receiver.receive({ ...ready, patch: { ...skipped, from: 3, to: 4 }, revision: 4 }).kind,
+      "waiting",
+    );
+    assert.equal(receiver.receive({ ...ready, model, revision: 5 }).kind, "model");
+    assert.equal(receiver.receive({ ...ready, revision: 6 }).kind, "resync", "a new desync asks again");
   });
 
   it("drops its model when the host is not ready, and takes a resent model after a resync", () => {

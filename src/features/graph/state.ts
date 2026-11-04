@@ -72,7 +72,11 @@ export function graphData(state: CatalogState, folder: string, cache: ModelCache
  * against what `sender` last sent, or not at all when it did not change.
  */
 export function outgoingData(data: GraphData, sender: ModelSender): GraphData {
-  if (!data.model) return data;
+  if (!data.model) {
+    // A webview told anything but `ready` drops its model: the next one must go whole.
+    sender.reset();
+    return data;
+  }
   const { model, ...rest } = data;
   const message = sender.next(model);
   switch (message.kind) {

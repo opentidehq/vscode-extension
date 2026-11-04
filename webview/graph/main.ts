@@ -2163,8 +2163,10 @@ channel.on("data", (next) => {
       progress.classList.toggle("active", next.refreshing || next.status === "loading");
       return;
     case "resync":
-      // Lost track (a reload, a dropped or reordered message): ask for the whole model.
+      // Lost track (a reload, a dropped or reordered message): ask for the whole model, once.
       channel.post("resync", undefined);
+      return;
+    case "waiting":
       return;
     case "same":
       // The same model (a refresh started or ended): the status line only.
