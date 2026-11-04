@@ -9,6 +9,20 @@ const str = (value: unknown): string | null => (typeof value === "string" ? valu
 const num = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+/**
+ * The action a failed tab's "Set Credential…" posts: the tenant, and the `$VAR`s its error names (the
+ * fallback when `info` does not list the tenant). `credentials:<tenant>[:VAR,VAR]`.
+ */
+export function credentialAction(tenant: string, variables: readonly string[]): string {
+  return `credentials:${tenant}${variables.length ? `:${variables.join(",")}` : ""}`;
+}
+
+export function parseCredentialAction(code: string): { tenant: string; variables: string[] } | undefined {
+  const match = /^credentials:([^:]*)(?::([A-Z_][A-Z0-9_]*(?:,[A-Z_][A-Z0-9_]*)*))?$/.exec(code);
+  if (!match) return undefined;
+  return { tenant: match[1] ?? "", variables: match[2] ? match[2].split(",") : [] };
+}
+
 /** `$VAR` names in a tenant's error ("Sentinel credentials are unset ($AZURE_CLIENT_ID, …)"). */
 export function errorVariables(text: string): string[] {
   return [...new Set([...text.matchAll(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g)].map((m) => m[1] ?? ""))].filter(

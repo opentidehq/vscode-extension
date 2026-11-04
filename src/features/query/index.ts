@@ -18,6 +18,7 @@ import { type LensSpec, type LensTarget, lensesFor, platformLabel } from "./lens
 import { QueryPanels, type RunSpec } from "./panel";
 import { ensureCredentials, pickTenants, pickWindow, setCredentials } from "./pickers";
 import { PlatformInfoCache } from "./platforms";
+import { parseCredentialAction } from "./results";
 import {
   compiledMethod,
   elasticLanguage,
@@ -74,11 +75,13 @@ export default defineFeature({
         if (code === "untrusted") await vscode.commands.executeCommand("workbench.trust.manage");
         else if (code === "no-runtime" || code === "editor-only" || code === "spawn-failed")
           await vscode.commands.executeCommand("opentide.switchRuntime");
-        else if (code.startsWith("credentials:")) {
-          const tenant = code.slice("credentials:".length);
+        else if (parseCredentialAction(code)) {
+          const { tenant, variables } = parseCredentialAction(code) ?? { tenant: "", variables: [] };
           const caps = await info.caps(spec.folder.path, spec.options.platform);
           const known = caps.tenants?.find((t) => t.name === tenant);
-          if (await setCredentials(ctx, spec.folder.path, known ? [known] : [], tenant)) panels.run(spec);
+          // A tenant `info` does not list still offers the variables its error named.
+          if (await setCredentials(ctx, spec.folder.path, known ? [known] : [], tenant, variables))
+            panels.run(spec);
         } else await openPlatformConfig(spec.folder, spec.options.platform);
       },
     });

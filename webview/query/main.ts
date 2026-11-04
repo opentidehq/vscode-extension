@@ -24,6 +24,7 @@ import {
 import {
   applyProgress,
   canStartRun,
+  credentialAction,
   exportable,
   formatMs,
   queryIdentity,
@@ -480,7 +481,7 @@ function tenantError(tab: TenantTab) {
       ? {
           label: "Set Credential…",
           icon: "key",
-          run: () => channel.post("action", `credentials:${tab.tenant}`),
+          run: () => channel.post("action", credentialAction(tab.tenant, tab.variables)),
         }
       : { label: "Re-run", icon: "globe", run: () => channel.post("rerun", undefined) },
     onShowOutput: () => channel.post("action", "output"),

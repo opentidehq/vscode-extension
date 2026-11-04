@@ -12,15 +12,18 @@ import {
   toJsonl,
   toMarkdown,
 } from "../../../src/features/query/format";
+import { credentialVariables } from "../../../src/features/query/platforms";
 import type { QueryPanelState } from "../../../src/features/query/protocol";
 import {
   applyProgress,
   canStartRun,
   choosingState,
+  credentialAction,
   errorVariables,
   exportable,
   formatMs,
   keepable,
+  parseCredentialAction,
   pendingTabs,
   progressFromEvent,
   queryIdentity,
@@ -336,5 +339,37 @@ describe("query: a retargeted panel's table view", () => {
       query: queryIdentity(a),
     });
     assert.equal(queryViewState({ query: 3 }).query, undefined);
+  });
+});
+
+describe("query: Set Credential… for a tenant info does not list", () => {
+  it("carries the variables the error named, and offers them when info has none", () => {
+    const code = credentialAction("staging", ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"]);
+    assert.equal(code, "credentials:staging:AZURE_CLIENT_ID,AZURE_CLIENT_SECRET");
+    assert.deepEqual(parseCredentialAction(code), {
+      tenant: "staging",
+      variables: ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+    });
+    assert.deepEqual(parseCredentialAction(credentialAction("prod", [])), { tenant: "prod", variables: [] });
+    assert.equal(parseCredentialAction("credentials:x:not valid"), undefined);
+    assert.equal(parseCredentialAction("configure"), undefined);
+    // Not in info: the error's variables, unset, instead of a dead end.
+    assert.deepEqual(credentialVariables([], ["AZURE_CLIENT_ID", "AZURE_CLIENT_ID"]), [
+      { name: "AZURE_CLIENT_ID", set: false },
+    ]);
+    const known = [
+      {
+        name: "prod",
+        description: "",
+        strategies: [],
+        manual: false,
+        variables: [{ name: "TOKEN", set: true }],
+      },
+    ];
+    assert.deepEqual(
+      credentialVariables(known, ["OTHER"]),
+      [{ name: "TOKEN", set: true }],
+      "info's list wins",
+    );
   });
 });

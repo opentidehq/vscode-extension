@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
 import { isDuration, type QueryWindow } from "./argv";
 import { platformLabel } from "./lenses";
-import { missingVariables, type TenantInfo } from "./platforms";
+import { credentialVariables, missingVariables, type TenantInfo } from "./platforms";
 
 const ALL = "all";
 
@@ -151,16 +151,17 @@ export async function setCredentials(
   folder: string,
   tenants: readonly TenantInfo[],
   tenantName: string,
+  fromError: readonly string[] = [],
 ): Promise<boolean> {
   const stored = new Set(await ctx.credentials.names(folder));
-  const variables = tenants.flatMap((tenant) => tenant.variables);
+  const variables = credentialVariables(tenants, fromError);
   if (variables.length === 0) {
     void vscode.window.showInformationMessage(
       `opentide names no credential variable for ${tenantName}. Check its [tenants.setup] in the platform file.`,
     );
     return false;
   }
-  const missing = new Set(tenants.flatMap((tenant) => missingVariables(tenant, stored)));
+  const missing = new Set(variables.filter((v) => !v.set && !stored.has(v.name)).map((v) => v.name));
   const picked = await vscode.window.showQuickPick(
     variables.map((variable) => ({
       label: `$${variable.name}`,
