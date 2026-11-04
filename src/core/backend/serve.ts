@@ -245,7 +245,9 @@ export class ServeClient {
     this.pending.delete(id);
     if (message.error) {
       pending.reject(
-        new BackendError("protocol", `opentide serve: ${message.error.message} (${message.error.code})`),
+        isShutDown(message.error)
+          ? new BackendError("shut-down", `opentide serve: ${message.error.message} (${message.error.code})`)
+          : new BackendError("protocol", `opentide serve: ${message.error.message} (${message.error.code})`),
       );
     } else {
       pending.resolve(message.result);
@@ -265,4 +267,12 @@ export class ServeClient {
     this.exitEmitter.fire({ code, signal, expected: this.stopping });
     this.exitEmitter.dispose();
   }
+}
+
+/**
+ * The answer opentide serve gives a request that arrives after `shutdown` (Invalid Request, "The server
+ * is shut down; send exit"). It answers before parsing or running the request, so the request never ran.
+ */
+export function isShutDown(error: { code: number; message: string }): boolean {
+  return error.code === -32600 && /shut ?down/i.test(error.message);
 }

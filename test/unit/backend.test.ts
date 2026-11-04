@@ -164,6 +164,26 @@ describe("backend", () => {
     assert.equal(next.via, "serve", "the next request starts a new backend");
   });
 
+  it("runs a request again when the serve it reached was shutting down and refused it", async () => {
+    // opentide serve answers -32600 "The server is shut down" before running anything, so a runtime
+    // restart racing a request must not fail it.
+    const marker = path.join(mkdtempSync(path.join(tmpdir(), "otide-")), "shut-down");
+    const { instance, logs } = make({}, { FAKE_SHUTDOWN_FILE: marker });
+    const result = await instance.run(REPO, ["shut-down-once"]);
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.via, "serve");
+    assert.ok(logs.some((line) => line.includes("running it again")));
+  });
+
+  it("runs a writer again too when the serve refused it while shutting down: it never ran", async () => {
+    const marker = path.join(mkdtempSync(path.join(tmpdir(), "otide-")), "shut-down");
+    const { instance } = make({}, { FAKE_SHUTDOWN_FILE: marker });
+    const result = await instance.run(REPO, ["shut-down-once", "--write"]);
+    assert.equal(result.exitCode, 0);
+    const next = await instance.run(REPO, ["echo"]);
+    assert.equal(next.via, "serve", "the refusing serve was replaced");
+  });
+
   it("runs a writer that waited on a serve start overtaken by restart(): it never reached serve", async () => {
     const { instance } = make({}, { FAKE_SERVE_INIT_DELAY_MS: "300" });
     const writer = instance.run(REPO, ["echo", "--write"]);

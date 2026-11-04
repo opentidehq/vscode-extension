@@ -51,6 +51,11 @@ export type BackendErrorCode =
   | "bad-output"
   /** `opentide serve` exited while the request was pending. */
   | "crashed"
+  /**
+   * `opentide serve` was shutting down and refused the request without running it (JSON-RPC -32600,
+   * "The server is shut down"): safe to run again on a fresh backend, a writer included.
+   */
+  | "shut-down"
   /** A JSON-RPC protocol error from `opentide serve`. */
   | "protocol"
   /** The backend was disposed. */
