@@ -309,8 +309,8 @@ function renderSummary(plan: PlanView): void {
   const total = ACTIONS.reduce((n, a) => n + c[a], 0);
   replace(
     summary,
-    h("section", { class: "summary", attrs: { "aria-label": "Plan summary" } }, [
-      total > 0 ? h("p", { class: "summary-message", text: plan.message }) : null,
+    // The cards say the counts; the sentence is the summary's accessible name (and what announce() says).
+    h("section", { class: "summary", attrs: { "aria-label": plan.message || "Plan summary" } }, [
       h(
         "div",
         { class: "ot-cards" },
@@ -633,7 +633,9 @@ function renderCommands(s: DeployPanelState): void {
 
 addStyles(`
 .region-progress { margin: 0 calc(-1 * var(--ot-space-4)); }
-.summary-message { margin: var(--ot-space-3) 0 0; font-weight: 600; }
+/* Five cards on one row down to narrow panels; three per row below 420 px. */
+.summary .ot-cards { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 420px) { .summary .ot-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 body.stale .summary, body.stale .platforms { opacity: 0.6; }
 .tenant { margin: var(--ot-space-2) 0 var(--ot-space-3); }
 .tenant-name { display: flex; align-items: center; gap: var(--ot-space-1); margin: var(--ot-space-2) 0 var(--ot-space-1); }
