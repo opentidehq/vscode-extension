@@ -89,8 +89,9 @@ pre-releases odd ones.
   - A node's menu opens, validates, runs a rule's query, previews its deploy, or creates a rule for an
     objective or an objective for a threat.
   - Search, zoom and fit, and SVG, PNG or Mermaid export.
-  - "View as list", a keyboard tree for keyboard and screen-reader users; Shift+F10 or the menu key
-    opens a node's actions there, and on the canvas for the selected node.
+  - "View as list", a keyboard tree for keyboard and screen-reader users, which keeps the focused item
+    when the catalogue or Problems change; Shift+F10 or the menu key opens a node's actions there, and
+    on the canvas for the selected node.
 - "Show in Graph" in the editor and explorer context menus for Tide YAML.
 - "opentide: Find Detection…" (Ctrl+Shift+Alt+F, Cmd+Shift+Alt+F on macOS): a quick search over the
   catalogue.

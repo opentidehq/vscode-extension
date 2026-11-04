@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import {
   describe as describeNode,
   incomingLabel,
+  keptFocus,
   listGroups,
   opensMenu,
 } from "../../../src/features/graph/list";
@@ -66,5 +67,27 @@ describe("graph list: the node menu by keyboard", () => {
     assert.ok(opensMenu({ key: "F10", shiftKey: true }));
     assert.ok(!opensMenu({ key: "F10", shiftKey: false }));
     assert.ok(!opensMenu({ key: "Enter", shiftKey: true }));
+  });
+});
+
+describe("graph list: the focus across a redraw", () => {
+  const kinds: Record<string, string> = { r1: "rule", o1: "objective" };
+  const kindOf = (id: string) => kinds[id];
+
+  it("keeps the focused item, else the closest one still listed", () => {
+    const keys = ["group:objective", "node:o1", "link:o1:0", "group:rule", "node:r1"];
+    assert.equal(keptFocus("link:o1:0", keys, kindOf), "link:o1:0");
+    assert.equal(keptFocus("link:o1:3", keys, kindOf), "node:o1", "a link that went: its node");
+    assert.equal(
+      keptFocus("node:r2", keys, (id) => (id === "r2" ? "rule" : undefined)),
+      "group:rule",
+    );
+    assert.equal(
+      keptFocus("node:gone", keys, () => undefined),
+      "group:objective",
+      "else the first",
+    );
+    assert.equal(keptFocus("", keys, kindOf), "group:objective");
+    assert.equal(keptFocus("node:r1", [], kindOf), undefined);
   });
 });

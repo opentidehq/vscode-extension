@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import type { CatalogState } from "../../../src/core/catalog/store";
 import { hostValidators, webviewValidators } from "../../../src/features/graph/protocol";
 import {
+  ChangedOnly,
   exportBytes,
   folderWithNode,
   graphData,
@@ -174,5 +175,16 @@ describe("graph: problems of the folder shown", () => {
     assert.ok(inFolder("/repo", "/repo/objects/x.yaml", "linux"));
     assert.ok(!inFolder("/repo", "/repo-2/objects/x.yaml", "linux"));
     assert.ok(inFolder("C:\\Repo\\", "c:\\repo\\objects\\x.yaml", "win32"));
+  });
+});
+
+describe("graph host: problems posted only when they change", () => {
+  it("lets an unchanged problem map through once, and again after a reset", () => {
+    const gate = new ChangedOnly();
+    assert.equal(gate.changed({ a: { errors: 1, warnings: 0 } }), true);
+    assert.equal(gate.changed({ a: { errors: 1, warnings: 0 } }), false, "the same map is not posted again");
+    assert.equal(gate.changed({ a: { errors: 2, warnings: 0 } }), true);
+    gate.reset();
+    assert.equal(gate.changed({ a: { errors: 2, warnings: 0 } }), true, "a new webview gets it");
   });
 });

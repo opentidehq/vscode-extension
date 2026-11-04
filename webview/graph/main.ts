@@ -5,7 +5,7 @@ import { NODE_ACTION_LABELS, type NodeAction, nodeActions } from "../../src/feat
 import { canvasColor } from "../../src/features/graph/colors";
 import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg } from "../../src/features/graph/export";
 import { layout, type Point, stabilize } from "../../src/features/graph/layout";
-import { describe, type ListGroup, listGroups, opensMenu } from "../../src/features/graph/list";
+import { describe, keptFocus, type ListGroup, listGroups, opensMenu } from "../../src/features/graph/list";
 import {
   ALL_KINDS,
   edgeLabel,
@@ -640,7 +640,10 @@ contextMenu.addEventListener("keydown", (event) => {
   const index = items.indexOf(document.activeElement as HTMLButtonElement);
   if (event.key === "Escape") {
     contextMenu.hidden = true;
-    (menuOpener?.isConnected ? menuOpener : canvas).focus();
+    // The opener, else (the list was redrawn meanwhile) the list's current item; the canvas is hidden
+    // in View as list.
+    const listItem = list.querySelector<HTMLElement>('[tabindex="0"]');
+    (menuOpener?.isConnected ? menuOpener : settings.list && listItem ? listItem : canvas).focus();
   } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
     const next = (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
@@ -662,6 +665,8 @@ function renderList(): void {
   const groups: ListGroup[] = listGroups(view, problems);
   const matches = searchNodes(view.nodes, searchText);
   const items: HTMLElement[] = [];
+  // What the list shows, to leave the DOM (and a screen reader's place) alone when nothing changed.
+  const shown: string[] = [];
   const treeitem = (
     key: string,
     level: number,
@@ -688,6 +693,7 @@ function renderList(): void {
         description ? h("span", { class: "desc", text: description }) : undefined,
       ),
     );
+    shown.push([key, label, description, open, extra["aria-selected"] ?? ""].join("\u0000"));
     if (open && children) li.append(h("ul", { role: "group" }, ...children()));
     items.push(li);
     return li;
@@ -726,10 +732,26 @@ function renderList(): void {
       }),
     ),
   );
+  const signature = shown.join("\n");
+  if (signature === listSignature && list.childElementCount > 0) return;
+  listSignature = signature;
+  // New data or problems redraw the list: the focused item keeps the focus (or the closest one left).
+  const hadFocus = list.contains(document.activeElement);
   list.replaceChildren(...top);
-  const current = items.find((item) => item.dataset.key === listFocus) ?? (top[0] as HTMLElement | undefined);
-  if (current) current.tabIndex = 0;
+  const kept = keptFocus(
+    listFocus,
+    items.map((item) => item.dataset.key ?? ""),
+    (id) => nodesById.get(id)?.kind,
+  );
+  const current = items.find((item) => item.dataset.key === kept);
+  if (!current) return;
+  current.tabIndex = 0;
+  listFocus = kept ?? "";
+  if (hadFocus) current.focus();
 }
+
+/** The list's content as last drawn (see renderList). */
+let listSignature = "";
 
 function visibleItems(): HTMLElement[] {
   return [...list.querySelectorAll<HTMLElement>('[role="treeitem"]')];
