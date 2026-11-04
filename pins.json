@@ -14,9 +14,9 @@
     "macosDeploymentTarget": "11.0"
   },
   "highlights": {
-    "version": "0.9.1",
-    "url": "https://github.com/opentidehq/language-server/releases/download/v0.9.1/highlights-v0.9.1.zip",
-    "sha256": "515d17058357c4dfe1eaaded20f8802cc232664888cc016301fe80d67d6454ee"
+    "version": "0.10.0",
+    "url": "https://github.com/opentidehq/language-server/releases/download/v0.10.0/highlights-v0.10.0.zip",
+    "sha256": "c1dfda2b794a27f98f49fd91fe286b9ab0fa85d18e55ee16a8c37b1e4bc1a70a"
   },
   "tomlGrammar": {
     "source": "tamasfe/taplo, editors/vscode/toml.tmLanguage.json (Even Better TOML), MIT",
