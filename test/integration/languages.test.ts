@@ -12,6 +12,23 @@ describe("languages and file associations (#4)", () => {
     assert.equal(document.languageId, "opentide-yaml");
   });
 
+  it("gives CoreTIDE's Objects/ YAML back to yaml: the objects/ glob matches without case", async () => {
+    const coretide = vscode.Uri.joinPath(
+      fixture(),
+      "..",
+      "coretide",
+      "Objects",
+      "Rules",
+      "coretide-rule.yaml",
+    );
+    const document = await vscode.workspace.openTextDocument(coretide);
+    const language = await waitFor(() => {
+      const current = vscode.workspace.textDocuments.find((d) => d.uri.toString() === coretide.toString());
+      return current?.languageId === "opentide-yaml" ? undefined : current?.languageId;
+    }, 5000);
+    assert.equal(language, "yaml", `${document.uri.fsPath} stays out of the language server`);
+  });
+
   it("opens a rule in a paths.toml object folder as opentide-yaml", async () => {
     const document = await vscode.workspace.openTextDocument(
       fixture("detections", "rules", "custom-folder-rule.yaml"),

@@ -12,7 +12,7 @@ pre-releases odd ones.
 
 - Per-platform packages for win32-x64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64
   and darwin-arm64 bundle opentide 0.21.0 on CPython 3.13, with a CycloneDX SBOM and third-party
-  notices. Every other platform, including win32-arm64 for now, gets the universal package.
+  notices that include the native libraries linked into CPython (OpenSSL, zlib, libffi, sqlite, …). Every other platform, including win32-arm64 for now, gets the universal package.
 - Runtime resolution in four tiers: `opentide.path`, the workspace's environment, uv with the
   repository's pin (opt-in), and the bundled runtime; a version check (an untagged dev build such as
   `0.1.dev216+g0a65c49` is used with a note), pin-mismatch detection, a status bar item and a language
@@ -23,11 +23,18 @@ pre-releases odd ones.
   `opentide.showReferences`, and fix-all on save off by default.
 - The backend: `opentide serve` when the runtime has it, spawning `opentide --json` otherwise, with
   cancellation, capability gating from `opentide --json commands`, and an activity log.
+- opentide runs in UTF-8 mode (`-X utf8` for the bundled runtime, `PYTHONUTF8` and `PYTHONIOENCODING`
+  for the others), so rule names and paths with accents read correctly on Windows.
 - Languages for Tide YAML (`opentide-yaml`, on `objects/**` and the object folders `paths.toml`
   names), opentide configuration TOML (`opentide-config`) and the query languages `kql`, `spl`,
   `esql`, `eql`, `kuery`, `lucene` and `falco`, with grammars from the language-server highlights zip
   (ES|QL under `source.opentide.esql`), embedded query regions and language configurations.
+  YAML under a CoreTIDE `Objects/` folder stays `yaml`: VS Code matches `objects/` without case, and
+  the extension sets such a file back unless it is in an opentide folder.
 - Restricted Mode: only the bundled language server runs, with `PATH` limited to the runtime.
+- `opentide.envFile`: a `.env` file whose variables reach commands that contact a tenant. A line it
+  cannot read, a double quote never closed (that key is dropped, the lines after it still count) and a
+  missing file are reported in the opentide output.
 - Web mode (vscode.dev, github.dev and desktop virtual workspaces): languages, grammars and language
   configuration, a "Highlighting only" status item, and every command explaining that it needs
   opentide instead of failing.
@@ -35,11 +42,15 @@ pre-releases odd ones.
 #### Problems
 
 - Problems from `opentide validate` and `opentide lint` next to the language server's, one squiggle
-  per finding.
+  per finding, also where lint and the language server name the same check differently
+  (`filename_mismatch`/`filename_slug`, `metadata_recommended`/`missing_<key>`).
   - Saving an object file validates it (`validate --file`) and lints it (`lint --file`, when your
-    opentide has it); saving a configuration file validates the workspace.
+    opentide has it); saving a configuration file validates the workspace. Only files directly in an
+    object folder are checked this way (opentide accepts no other), and a run that fails keeps the
+    problems it would have replaced.
   - The workspace is also validated on startup and with "opentide: Validate Workspace".
-- Quick fixes from each finding's suggested fix, "Fix all safe opentide problems in this file", and
+- Quick fixes from each finding's suggested fix (also on the language server's diagnostic when it
+  replaces the finding), "Fix all safe opentide problems in this file", and
   "Fix All Safe Problems in the Workspace…", which shows the `validate --fix --dry-run` diff before
   applying.
 - "Explain <code>" on every opentide problem, and "opentide: Explain a Code…": `opentide explain` in a
@@ -74,7 +85,7 @@ pre-releases odd ones.
     files or contacts a tenant) and Copy Command Line.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
   create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
-  as Script reproduces it in a terminal. It also adds platforms, CI and agents to an existing
+  as Script reproduces it in a terminal. The window takes up the new repository without a reload. It also adds platforms, CI and agents to an existing
   repository. A CoreTIDE layout (`Objects/`, `Configurations/`, `global.toml`) is reported as not
   supported: opentide 0.21.0 has no migration.
 - "Get started with opentide": a seven-step walkthrough from runtime to agents, each step completing
@@ -93,6 +104,9 @@ pre-releases odd ones.
     when the catalogue or Problems change; Shift+F10 or the menu key opens a node's actions there, and
     on the canvas for the selected node.
 - "Show in Graph" in the editor and explorer context menus for Tide YAML.
+- A file that did not load appears by its path in the graph, search, the sidebar and the agents'
+  active-object tool, with its load error, even when it carries another object's UUID (a broken copy):
+  that object keeps its node, links and counts.
 - "opentide: Find Detection…" (Ctrl+Shift+Alt+F, Cmd+Shift+Alt+F on macOS): a quick search over the
   catalogue.
   - Filters: `type:`, `t:` (or `technique:`), `p:`, `s:`, `tactic:`, `actor:`, `author:`, `tlp:`,

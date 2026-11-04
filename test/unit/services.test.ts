@@ -8,7 +8,14 @@ import type { RunRecord } from "../../src/core/backend/backend";
 import { CredentialStore } from "../../src/core/credentials";
 import { defineFeature } from "../../src/core/feature";
 import { activateFeatures } from "../../src/core/featureHost";
-import { isObjectFile, isOpentideFolder, objectFolders, readTomlTable } from "../../src/core/folders";
+import {
+  isFamilyFile,
+  isObjectFile,
+  isOpentideFolder,
+  objectFolders,
+  objectsOnlyByCase,
+  readTomlTable,
+} from "../../src/core/folders";
 import { statusText, sumCounts } from "../../src/core/statusText";
 import { fakeRuntime } from "./helpers";
 
@@ -168,6 +175,30 @@ describe("opentide folders", () => {
     assert.ok(!isObjectFile("/r", "/r/detections/other/a.yaml", folders));
     assert.ok(!isObjectFile("/r", "/r/objects/rules/notes.md", folders));
     assert.ok(!isObjectFile("/r", "/elsewhere/objects/a.yaml", folders));
+  });
+
+  it("knows a file validate --file and lint --file accept: directly in a family folder", () => {
+    const defaults = objectFolders(undefined);
+    assert.ok(isFamilyFile("/r", "/r/objects/rules/a.yaml", defaults));
+    assert.ok(isFamilyFile("/r", "/r/objects/threats/t.yml", defaults));
+    assert.ok(!isFamilyFile("/r", "/r/objects/rules/sub/a.yaml", defaults), "a subfolder fails lint --file");
+    assert.ok(!isFamilyFile("/r", "/r/objects/a.yaml", defaults));
+    assert.ok(!isFamilyFile("/r", "/r/objects/rules/notes.md", defaults));
+    const custom = objectFolders(`[paths.objects]\nrule = "detections/rules/"\n`);
+    assert.ok(isFamilyFile("/r", "/r/detections/rules/a.yaml", custom));
+    assert.ok(!isFamilyFile("/r", "/r/detections/rules/x/a.yaml", custom));
+  });
+
+  it("knows a file the objects/ glob matches only without case (CoreTIDE's Objects/)", () => {
+    assert.ok(objectsOnlyByCase("/repo/Objects/Rules/a.yaml"));
+    assert.ok(objectsOnlyByCase("C:\\repo\\OBJECTS\\a.yml"));
+    assert.ok(!objectsOnlyByCase("/repo/objects/rules/a.yaml"));
+    assert.ok(
+      !objectsOnlyByCase("/Objects/repo/objects/rules/a.yaml"),
+      "one folder spelled objects is enough",
+    );
+    assert.ok(!objectsOnlyByCase("/repo/detections/a.yaml"));
+    assert.ok(!objectsOnlyByCase("/repo/Objects.yaml"), "only folders count");
   });
 });
 

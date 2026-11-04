@@ -42,7 +42,12 @@ export interface ParsedFindings {
   readonly findings: Finding[];
   /** Findings that name no file (logged, never shown). */
   readonly unlocated: number;
-  /** The document had the findings list at all (a usage or workspace failure has none). */
+  /**
+   * The run checked what it was asked to: the document has its findings list, and no failure other
+   * than "issues found" (`lint --file` on a file outside the family folders answers `findings: []`
+   * with `command_failed`; `validate --file` an unlocated `scope_no_match`). An incomplete result
+   * must not replace the problems it would otherwise clear.
+   */
   readonly complete: boolean;
 }
 
@@ -181,12 +186,14 @@ export function validateFindings(
   folder: string,
   spell: At = folderSpelling(folder),
 ): ParsedFindings {
-  if (!isObject(document) || !isObject(document.report))
+  if (!isObject(document) || !isObject(document.report) || failedRun(document))
     return { findings: [], unlocated: 0, complete: false };
   const entries = [
     ...(Array.isArray(document.report.issues) ? document.report.issues : []),
     ...(Array.isArray(document.report.warnings) ? document.report.warnings : []),
   ];
+  if (entries.some((entry) => isObject(entry) && entry.code === "scope_no_match"))
+    return { findings: [], unlocated: 0, complete: false };
   return collect("validate", entries, resolver(document, folder, "validate", spell));
 }
 
@@ -196,9 +203,15 @@ export function lintFindings(
   folder: string,
   spell: At = folderSpelling(folder),
 ): ParsedFindings {
-  if (!isObject(document) || !Array.isArray(document.findings))
+  if (!isObject(document) || !Array.isArray(document.findings) || failedRun(document))
     return { findings: [], unlocated: 0, complete: false };
   return collect("lint", document.findings, resolver(document, folder, "lint", spell));
+}
+
+/** A failure other than "issues found": the command did not check what it was asked to. */
+function failedRun(document: Json): boolean {
+  const failure = document.failure;
+  return isObject(failure) && failure.code !== "issues_found";
 }
 
 function collect(source: FindingSource, entries: readonly unknown[], at: At): ParsedFindings {

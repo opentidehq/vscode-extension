@@ -1,9 +1,7 @@
 # Dependabot version updates. Every PR runs CI; merge green ones after reading the release notes.
 #
-# Not covered: the vsce and ovsx versions in publish.yml (VSCE_VERSION, OVSX_VERSION) and the Alpine
-# smoke-test image digest in scripts/release-lib.mjs (ALPINE_IMAGE). Bump those by hand, checking
-# `npx @vscode/vsce@<v> publish --help` still lists --oidc and `npx ovsx@<v> publish --help`
-# --trusted-publishing. The bundled opentide (pins.json) is a release decision: docs/RELEASING.md.
+# Not covered: the Alpine smoke-test image digest in scripts/release-lib.mjs (ALPINE_IMAGE); bump it by
+# hand. The bundled opentide (pins.json) is a release decision: docs/RELEASING.md.
 version: 2
 updates:
   # Dependencies and the dev toolchain in package.json / package-lock.json (exact pins).
@@ -23,6 +21,20 @@ updates:
     ignore:
       # @types/vscode is the engines.vscode floor (docs/ARCHITECTURE.md); raise both together, by hand.
       - dependency-name: "@types/vscode"
+
+  # The store CLIs publish.yml runs (tools/publish). Before merging, check that
+  # `tools/publish/node_modules/.bin/vsce publish --help` still lists --oidc and `ovsx publish --help`
+  # --trusted-publishing: no CI job runs them.
+  - package-ecosystem: "npm"
+    directory: "/tools/publish"
+    schedule:
+      interval: "weekly"
+    versioning-strategy: increase
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      publish-tools:
+        patterns: ["*"]
 
   # Actions in .github/workflows are pinned by commit SHA with a version comment; Dependabot updates both.
   - package-ecosystem: "github-actions"

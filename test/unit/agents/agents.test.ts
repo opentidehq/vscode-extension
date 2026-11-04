@@ -258,7 +258,14 @@ describe("agents: language-model tools", () => {
         actors: [],
         load_error: null,
       },
-      { uuid: "o1", type: "objective", name: "Detect LSASS access", file_path: "/ws/objects/o.yaml" },
+      {
+        uuid: "o1",
+        type: "objective",
+        name: "Detect LSASS access",
+        path: "objects/o.yaml",
+        file_path: "/ws/objects/o.yaml",
+        load_error: null,
+      },
     ],
     edges: [
       {

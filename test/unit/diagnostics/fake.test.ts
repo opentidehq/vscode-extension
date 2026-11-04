@@ -74,6 +74,7 @@ describe("diagnostics against the fake opentide", function () {
     assert.equal(finding.file, file);
     const range = cliRange(linesOf(readFileSync(file, "utf8")), finding.span);
     assert.equal("  tlp: 🔥 ambr".slice(range.start.character, range.end.character), "ambr");
+    assert.equal(finding.span.end_line, finding.span.line, "end_line on every finding, as the real CLI");
     assert.equal(finding.fix?.edits[0]?.replacement, "amber");
     const model = new FindingsModel();
     const seq = model.begin();
@@ -105,6 +106,20 @@ describe("diagnostics against the fake opentide", function () {
       [["placeholder", "warning", 4, file]],
     );
     await withFile.backend.dispose();
+  });
+
+  it("a file in a family folder's subfolder: lint --file fails and validate --file matches nothing, both incomplete", async () => {
+    const nested = path.join(root, "objects", "rules", "sub", "x.yaml");
+    mkdirSync(path.dirname(nested), { recursive: true });
+    writeFileSync(nested, "name: x\nmetadata:\n  tlp: ambr\n");
+    const { backend } = await setup({ FAKE_LINT_FILE: "1" });
+    const lint = await backend.run(root, lintArgv([file, nested]));
+    assert.equal(lint.exitCode, 1);
+    assert.equal(lint.document.failure?.code, "command_failed");
+    assert.equal(lintFindings(lint.document, root).complete, false, "never clears the batch's problems");
+    const validate = await backend.run(root, validateArgv([nested]));
+    assert.equal(validateFindings(validate.document, root).complete, false);
+    await backend.dispose();
   });
 
   it("lint without --file covers the workspace", async () => {

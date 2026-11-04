@@ -74,11 +74,11 @@ Each per-platform VSIX therefore carries a CPython runtime and the opentide clos
 
 On disk it unpacks to two to three times that.
 
-**Measured** on linux-x64, 2026-11-03: python-build-standalone CPython 3.13.14 (`install_only_stripped`) and opentide 0.20.1 from PyPI. Each bundle was zipped as a VSIX is (per-file deflate, level 9), and the trimmed bundle ran `opentide validate` on a test workspace.
+**Measured first** on linux-x64, 2026-11-03, before the runtime build existed: python-build-standalone CPython 3.13.14 (`install_only_stripped`) and opentide 0.20.1 from PyPI. Each bundle was zipped as a VSIX is (per-file deflate, level 9), and the trimmed bundle ran `opentide validate` on a test workspace.
 
 | Bundle | VSIX (zipped) | Installed |
 |--------|--------------:|----------:|
-| Runtime + opentide closure, as published today | 136 MB | 333 MB |
+| Runtime + opentide closure, untrimmed | 136 MB | 333 MB |
 | Trimmed runtime (no duplicate shared `libpython`, Tk, headers, `pip`, `idlelib`, `ensurepip`) + closure without pandas, numpy and openpyxl | 83 MB | 181 MB |
 | …and without boto3 and botocore | 67 MB | 150 MB |
 
@@ -90,11 +90,13 @@ What is behind those numbers:
   - the analysis engine (`opentide._native`), 16 MB;
   - cryptography, 15 MB;
   - the platform SDKs, pydantic-core, dulwich and pygments, a few MB each.
-- **Other targets:** the compressed runtime alone is 33 MB on Linux, 24 MB on macOS arm64 and 21 MB on Windows x64 (`tar.gz` downloads). The other targets' full bundles are not measured yet.
+- **Other targets:** the compressed runtime alone is 33 MB on Linux, 24 MB on macOS arm64 and 21 MB on Windows x64 (`tar.gz` downloads).
+
+**The real packages** (opentide 0.21.0, which still requires pandas and numpy, on the trimmed CPython 3.13.14; [PACKAGING.md](PACKAGING.md#the-gates) has the full table): linux-x64 80.1 MiB (223 MiB installed), darwin-arm64 67.9 MiB, win32-x64 74.0 MiB. The trimming, not dropping pandas, is what brought the 136 MB down.
 
 **Size budget:**
-- 100 MB per VSIX, enforced in CI; the target is 70 MB.
-- Today's closure (136 MB) does not fit. Removing pandas and numpy from opentide's required dependencies is a prerequisite of M0 ([§15](#15-what-this-needs-from-opentide-and-language-server), O1).
+- 100 MiB (104,857,600 bytes) per VSIX, enforced in CI (`pins.json` `vsix.budgetBytes`); the target is 70 MiB.
+- Every package fits the budget with opentide 0.21.0 as it is; only darwin-arm64 meets the target. Moving pandas and numpy out of opentide's required dependencies ([§15](#15-what-this-needs-from-opentide-and-language-server), O1) and dropping botocore are what would bring the rest under 70 MiB.
 
 **Store limits:**
 - The Marketplace documents no hard cap. Microsoft's publishing guidance says to optimise a package over 50 MB ([Microsoft Learn](https://learn.microsoft.com/azure/devops/extend/publish/overview)).
@@ -159,7 +161,7 @@ So without a runtime the extension is a grammar pack and says so. That is the un
 **Capability gating.**
 - The extension reads `opentide --json commands` once per opentide version, cached by version.
 - It enables each feature only when the commands and options it needs exist. A feature the active opentide is too old for says which version it needs, instead of failing.
-- **TypeScript types** for every document are generated at build time from the `output_schema`s in that tree. A contract test validates real output from the pinned opentide against them.
+- **TypeScript types** for the documents the extension reads are written by hand from [CONTRACTS.md](CONTRACTS.md) and the `output_schema`s, and the tests against the pinned opentide (`OPENTIDE_TEST_BIN`) read its real output through them. Generating the types from the `output_schema`s at build time, and validating real output against those schemas, is open work.
 
 ### D3. The UI never writes workspace files itself
 
@@ -198,7 +200,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 | 8 per-platform VSIX (`vsce package --target`) | Extension, grammars, the **bundled opentide runtime** for that target, licences and SBOM | win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64 |
 | 1 universal VSIX | Extension and grammars, no runtime. Uses the workspace's opentide or `opentide.path`, and says plainly when there is none | Every other target, and the web entry ([§13](#13-trust-remote-and-web)) |
 
-- **win32-arm64** needs opentide `win_arm64` wheels, which opentide does not build today ([§15](#15-what-this-needs-from-opentide-and-language-server)). Until then that target gets the universal package.
+- **win32-arm64** needs opentide `win_arm64` wheels, which opentide does not build today ([§15](#15-what-this-needs-from-opentide-and-language-server)), and a `win_arm64` wheel of cryptography ≥ 47, which has none either. Until both exist that target gets the universal package, so 0.1 ships 7 per-platform packages (`pins.json` `universalTargets`, [PACKAGING.md](PACKAGING.md#why-a-target-gets-the-universal-package)).
 - **No `opentide-lsp` binary** in the per-platform packages. The bundled opentide contains the same engine, so a second copy would be about 20 MB for nothing. `opentide.path` may still name an `opentide-lsp` binary for people who want the bare server.
 
 ### Building the runtime
@@ -210,8 +212,8 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 - **Pins:**
   - The bundled opentide version is pinned in this repository, as opentide pins its engine. A bump is a PR.
   - The highlights zip version is **derived** from the engine pin inside that opentide, never chosen separately, so grammar colours and semantic tokens come from the same engine.
-- **At runtime:** the interpreter runs isolated (`-I`), with `-X pycache_prefix=<globalStorage>/pycache`, so the extension folder stays read-only and no `PYTHON*` variable or user site leaks in. The first activation compiles bytecode in the background.
-- **Size gate:** CI fails a package over 100 MB and reports each package's size and its five largest directories on the PR.
+- **At runtime:** the interpreter runs isolated (`-I`) in UTF-8 mode (`-X utf8`: Windows pipes are otherwise in the ANSI code page), with `-X pycache_prefix=<globalStorage>/pycache`, so the extension folder stays read-only and no `PYTHON*` variable or user site leaks in. The first activation compiles bytecode in the background.
+- **Size gate:** CI fails a package over 100 MiB and reports each package's size and its five largest directories on the PR.
 
 ### Publishing and supply chain
 
@@ -233,7 +235,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Store listing
 
-- **Identity:** display name `opentide`, publisher to be decided ([§17](#17-open-questions)).
+- **Identity:** display name `opentide`, publisher `opentidehq` on the Marketplace and namespace `opentidehq` on Open VSX ([RELEASING.md](RELEASING.md)).
 - **Categories:** Programming Languages, Linters, Snippets, AI.
 - **Keywords:** detection engineering, detection as code, KQL, SPL, ES|QL, Sentinel, Defender, Splunk, Elastic, Falco, MITRE ATT&CK.
 - **README:** short GIFs of the five moments in [§8](#8-setup-wizard-and-onboarding).
@@ -248,13 +250,13 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Resolution (revises #3)
 
-The first tier that answers wins:
+The first tier that answers wins, in the order 1, 2, 3, 4, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
 
 | Tier | Source | Trust | Features |
 |-----:|--------|-------|----------|
 | 1 | `opentide.path`: an `opentide` executable (`lsp start`), or an `opentide-lsp` executable (`--stdio`, editor features only) | Trusted only | All, or editor only for `opentide-lsp` |
 | 2 | The workspace's environment: Python Environments API, else the Python extension API, else `.venv`, else `PATH`. Re-resolved on `onDidChangeEnvironment` | Trusted only | All |
-| 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in**: offered when the repository pins a version the bundled runtime does not match | Trusted only | All |
+| 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in** (`opentide.uv.usePin`, then tried before tier 2): offered when the repository pins a version the bundled runtime does not match | Trusted only | All |
 | 4 | **The bundled runtime** | Always; the only tier in Restricted Mode | All when trusted; the language server only in Restricted Mode |
 
 - **Minimum versions:** tiers 1–3 must be an opentide released after opentide#734. An older one is refused with the upgrade command, and tier 4 takes over.
@@ -275,7 +277,7 @@ The first tier that answers wins:
 
 ### Status
 
-- **Status bar item:** runtime and catalogue health, `$(opentide-logo) 0.21.0 ✗ 2 ! 5`. Clicking it opens a menu: Validate workspace, Run doctor, Show output, Restart server, Switch runtime….
+- **Status bar item:** runtime and catalogue health, `$(shield) 0.21.0 ✗ 2 ! 5` (with `· repo pins 0.20.1` on a pin mismatch, and `$(shield) opentide: no runtime` without one). Clicking it opens a menu: Validate workspace, Run doctor, Show output, Restart server, Switch runtime….
 - **Language status item** (as in #3): reads `capabilities.experimental.opentide` and infers nothing. It shows:
   - `host`, `engine`, `catalog`, `configurationChecks`, `configurationSchemas`;
   - the tier, and the interpreter path.
@@ -287,7 +289,7 @@ The first tier that answers wins:
 **Requirement 2.** Issues #4 and #5 stand as written. The additions:
 
 - **Language ids** are the server's: `opentide-yaml`, `opentide-config`, `kql`, `spl`, `esql`, `eql`, `kuery`, `lucene` and `falco`. Never `sql`.
-- **Object folders.** `opentide-yaml` applies to `**/objects/**/*.{yaml,yml}`, and to the object folders `paths.toml` names, set on open with `languages.setTextDocumentLanguage`.
+- **Object folders.** `opentide-yaml` applies to `**/objects/**/*.{yaml,yml}`, and to the object folders `paths.toml` names, set on open with `languages.setTextDocumentLanguage`. VS Code matches the static pattern without case, so a file it matched only through a folder spelled otherwise (CoreTIDE's `Objects/`) is set back to `yaml` on open, unless it is an object file of an opentide folder.
 - **Grammars** are copied from the language-server highlights zip at build time:
   - The zip version is derived from the bundled engine (§3).
   - The build checks the zip against a SHA-256 recorded in this repository. Language-server publishes no checksums today ([§15](#15-what-this-needs-from-opentide-and-language-server)).
@@ -302,9 +304,9 @@ The first tier that answers wins:
 | Feature | Where | Source |
 |---------|-------|--------|
 | **Query lenses** above each query block: `▶ Run query` (platform `can_query`, tenants configured), `✓ Validate on tenant` (`can_validate`), `⧉ Copy compiled query` (KQL, SPL) | Rule files and query files | Query ranges from the server's `documentSymbol` (String nodes, `detail` = language). Compiled text from `opentide/compiledKql` / `opentide/compiledSpl` |
-| **Editor title actions:** Validate file, Show in graph, Preview deploy (rules), Open generated doc | Object files | CLI |
+| **Editor title actions:** Validate file, Show in graph, Preview deploy (rules), Open generated doc. Show in graph and Open generated doc are not in 0.1 ([#39](https://github.com/opentidehq/vscode-extension/issues/39)); Show in graph is in the editor context menu | Object files | CLI |
 | **Breadcrumbs and outline** | Object files | Server `documentSymbol` (free) |
-| **Deployment state** in the catalogue tooltip and a status entry for the active rule: `Sentinel ✓ prod · Splunk —` | Rule files | `info catalog` ([§15](#15-what-this-needs-from-opentide-and-language-server)), from `.opentide/states/deployment/` |
+| **Deployment state** in the catalogue tooltip and a status entry for the active rule: `Sentinel ✓ prod · Splunk —`. Not in 0.1 ([#38](https://github.com/opentidehq/vscode-extension/issues/38)) | Rule files | `info catalog` ([§15](#15-what-this-needs-from-opentide-and-language-server)), from `.opentide/states/deployment/` |
 | **Placeholder navigation** | Files with `# opentide:placeholder` | [§7](#7-new-objects-templates-placeholders-snippets) |
 
 ---
@@ -319,7 +321,7 @@ The first tier that answers wins:
 |------------|----------|--------|------|
 | `opentide` | The language server, pulled | Open files: objects, embedded queries, query files, configuration TOML | As you type |
 | `opentide validate` | `validate` (and `--file`), through `opentide serve` | Every object file, open or not, and checks the server does not run: platform enablement, configuration-wide checks, `cve`, `sharing-config` | On save of an object or configuration file (`opentide.validate.onSave: file` by default; `workspace` or `off`); on "Validate workspace"; on activation (`opentide.validate.onStartup`, default on) |
-| `opentide lint` | `lint` (and `--file`, O11), through `opentide serve` | Filenames, recommended metadata, placeholders, query style | On demand, and with workspace validation when `opentide.lint.withValidate` is on |
+| `opentide lint` | `lint` (and `--file`, O11), through `opentide serve` | Filenames, recommended metadata, placeholders, query style | On save of an object file (`opentide.lint.onSave: file` by default, when the active opentide has `lint --file`; or `off`); on "Lint workspace"; and with workspace validation when `opentide.lint.withValidate` is on |
 
 ### Rules
 
@@ -328,7 +330,7 @@ The first tier that answers wins:
 3. **Ranges:**
    - CLI positions are 1-based, in code points.
    - Convert them against the document text to VS Code's 0-based UTF-16 positions. This matters on lines with emoji and other astral characters.
-   - A validate finding has no `end_line`, so its range is (`line`, `column`)–(`line`, `end_column`). A finding without a column covers its line.
+   - A finding's range is (`line`, `column`)–(`end_line`, `end_column`). opentide reports `end_line` (O9); without one the range stays on `line`, and without an `end_column` it runs to the end of `end_line` (or is one character on a single line). A finding without a column covers its lines.
 4. **Severity:**
 
    | opentide severity | VS Code severity |
@@ -338,7 +340,7 @@ The first tier that answers wins:
    | `info` | Information |
    | `note` / hint | Hint |
 
-   `--strict` changes the exit code, not the severities, so it is a separate gate (`opentide.validate.strict`) used only for the status colour.
+   `--strict` changes the exit code, not the severities, so the extension never passes it: the status bar's colour comes from the error and warning counts.
 5. **What each diagnostic carries:**
    - `source`: `opentide`, `opentide validate` or `opentide lint`;
    - `code`: `{ value, target }`, with the target `https://opentide.org/docs/cli/diagnostics/#<code>`;
@@ -430,7 +432,7 @@ New rule ───────────────────────�
 
 ### Templates and snippets
 
-- **Templates** live in the workspace (`.opentide/templates/`, written by `opentide generate templates`). When `doctor`'s `templates_fresh` check fails, a notification offers "Regenerate templates, schemas and snippets" (`opentide generate templates schemas snippets`).
+- **Templates** live in the workspace (`.opentide/templates/`, written by `opentide generate templates`). When `doctor`'s `templates_fresh` check fails, a notification offers "Regenerate templates, schemas and snippets" (`opentide generate templates schemas snippets`). The notification is not in 0.1 ([#42](https://github.com/opentidehq/vscode-extension/issues/42)); the command is.
 - **Snippets.** opentide writes `.vscode/model-templates.code-snippets` (`tide-threat`, `tide-objective`, `tide-rule`, `tide-<platform>`) with `scope: "yaml"`. **Under the extension, object files are `opentide-yaml`, so those snippets disappear.**
   - Fix in opentide: write `scope: "yaml,opentide-yaml"` ([§15](#15-what-this-needs-from-opentide-and-language-server)).
   - Until then, the extension offers the workspace's `tide-*` snippets in `opentide-yaml` files through a completion provider that reads that file.
@@ -448,7 +450,7 @@ New rule ───────────────────────�
 
 **Requirement 3.** Five moments define the first hour:
 
-1. **Install.** The status item says `opentide 0.21.0 ready`, with no Python prompt.
+1. **Install.** The status item shows the bundled runtime's version (`$(shield) 0.21.0`), with no Python prompt.
 2. **Set up.** An empty folder offers "Create a detection repository".
 3. **Create.** The first rule, with placeholders to replace.
 4. **Check.** Problems fill as you type, and "Validate" agrees.
@@ -536,7 +538,7 @@ OPENTIDE
 
 | View | Content | Actions |
 |------|---------|---------|
-| **Catalogue** | Threats → objectives → (signals) → rules, as in `opentide tui`, plus groups for objectives without a threat, rules without an objective and files that failed to load. Each rule shows its platforms (icon per block, dimmed when the status is `INERT`) and its problem badge. Group by threat chain (default), platform, status, technique or folder | Open; New…; Validate; Show in graph; Run query; Preview deploy; Copy UUID; Reveal in Explorer. The tree find widget filters by name, UUID or technique |
+| **Catalogue** | Threats → objectives → (signals) → rules, as in `opentide tui`, plus groups for objectives without a threat, rules without an objective and files that failed to load. Each rule shows its platforms (icon per block, dimmed when the status is `INERT`) and its problem badge. Group by threat chain (default), type, platform, status or technique; by folder is not in 0.1 ([#41](https://github.com/opentidehq/vscode-extension/issues/41)) | Open; New…; Validate; Show in graph; Run query; Preview deploy; Copy UUID; Reveal in Explorer. The tree find widget filters by name, UUID or technique |
 | **Coverage** | ATT&CK techniques named by any object: rule count, gaps (`0`) first, sub-techniques under their parent (a parent counts its sub-techniques' rules, as `info coverage` does) | Open the matrix; show the rules; "New objective for this technique" |
 | **Platforms & tenants** | The nine platforms: enabled, `can_deploy`, `can_validate`, `can_query`; tenants per platform and their credential state from `doctor`'s `credentials` check | Enable a platform (`setup platforms`); open its TOML; **Set credential…**: SecretStorage, injected as the `$VAR` the TOML names (D3: never written to a file); Test connection (`doctor`) |
 | **Health** | `opentide doctor` checks, pass/warn/fail/skip, each with its `fix` | Run the fix; re-run; "Copy report" (redacted) for bug reports |
@@ -555,7 +557,7 @@ OPENTIDE
 - **Theming:** VS Code theme variables, including high-contrast themes.
 - **Security:** a strict CSP (`default-src 'none'`, nonce scripts), no remote resources, and `localResourceRoots` limited to the bundled assets.
 - **Messaging:** typed messages, validated on both sides. A webview never receives a secret, and all actions go through the extension host.
-- **Components:** `@vscode-elements/elements` (MIT), since Microsoft's webview UI toolkit was retired.
+- **Components:** small DOM helpers and a virtual table of the extension's own (`webview/panels-kit/`), styled with VS Code's theme variables, since Microsoft's webview UI toolkit was retired. Cytoscape draws the graph.
 
 ### 10.1 Graph: how detections connect
 
@@ -617,7 +619,7 @@ Three levels, from fastest to richest:
 
 1. **Go to detection** (`Ctrl+T`, workspace symbols) comes free from the server: names, UUIDs and families.
 2. **Quick search** ("opentide: Find Detection…", `Ctrl+Shift+Alt+F`, `Cmd+Shift+Alt+F` on macOS; `Ctrl+Alt+D` was taken by macOS's Dock and Xfce's Show Desktop): a quick pick over the catalogue data. Query syntax: free text, plus `type:rule`, `platform:sentinel`, `status:release`, `technique:T1003`, `tactic:credential-access`, `actor:APT29`, `tlp:amber`, `author:me`, `has:errors`, `has:placeholders`, `unreviewed:>90d`.
-3. **Search panel:** the same query with facets and counts in a side list, results grouped by type, each with its techniques, platforms, status and problems.
+3. **Search panel** (not in 0.1, [#37](https://github.com/opentidehq/vscode-extension/issues/37)): the same query with facets and counts in a side list, results grouped by type, each with its techniques, platforms, status and problems.
    - Select many results, then act on them: validate them, show them in the graph, preview their deploy.
    - Saved searches are kept per workspace.
 
@@ -653,7 +655,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - `sent` (the query as sent) and `vendor_query_id` in a details drawer;
   - failures show `error` and `detail`;
   - partial and truncated results are labelled.
-- **Privacy:** results can hold personal data. They live in memory only, are dropped when the panel closes (`opentide.queryResults.retain`, default off), and are written to disk only by an explicit export.
+- **Privacy:** results can hold personal data. They live in memory only, are dropped when the panel closes (unless `opentide.query.retainResults`, default off, keeps the last results for the window), and are written to disk only by an explicit export.
 - **Platforms:** Sysdig has no query runner, so it gets no button. Elastic `kuery` runs as a rule preview, which writes preview alerts. The button says so (AGENTS.md: the one write).
 
 ### 10.5 Deploy plan (dry run)
@@ -685,8 +687,8 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
 | `setup` (all subcommands) | Wizard (§8); Platforms view; palette |
 | `new threat \| objective \| rule` | New object flow (§7) |
 | `validate`, `validate --file`, `validate --fix`, `validate --fix --dry-run` | Problems (§6); "Validate file / workspace"; "Fix all safe problems" shows the `--fix --dry-run` diff first, then applies |
-| `validate query` (offline, `--live`, `--changed`) | Query lens "Validate on tenant"; palette "Validate changed queries on tenants" |
-| `lint`, `lint --fix` | Problems; "Fix filenames" shows the renames first |
+| `validate query` (offline, `--live`, `--changed`) | Query lens "Validate on tenant"; tasks; palette "Validate changed queries on tenants" (not in 0.1, [#40](https://github.com/opentidehq/vscode-extension/issues/40)) |
+| `lint`, `lint --fix` | Problems; "Fix filenames" shows the renames first (not in 0.1, [#40](https://github.com/opentidehq/vscode-extension/issues/40)) |
 | `info`, `info coverage`, `info vocab` | Catalogue, Coverage, Platforms; "Show vocabulary…" opens a vocabulary as a read-only document |
 | `query` | Query results panel (§10.4) |
 | `deploy --dry-run` | Deploy plan panel (§10.5) |
@@ -774,7 +776,7 @@ Revises #8 and #10.
 - **Optional `.env` file:** `opentide.envFile` (trusted only, default none) loads `$VAR`s for tenant credentials, because opentide reads only the process environment.
 - **Telemetry:** none.
 - **Web** (vscode.dev, github.dev):
-  - The universal package's `browser` entry gives grammars, semantic tokens from the WASM highlighter, and later the wasip1 language server behind a setting, as in #10.
+  - The universal package's `browser` entry gives languages, grammars and language configuration. Semantic tokens from the WASM highlighter and the wasip1 language server behind a setting come later, as in #10.
   - No Python means no commands and no panels ([D2](#d2-almost-every-action-runs-opentide-in-python-so-one-warm-process-serves-them)). The status item says so.
   - A later `opentide/catalog` request in the language server would bring the Catalogue, search and the graph to the web.
 
@@ -784,7 +786,7 @@ Revises #8 and #10.
 
 ### Performance budgets
 
-These are measured in CI on a 500-object fixture.
+The targets the design is held to. CI checks two of them: the quick search keystroke (50 ms at 5,000 objects, `test/unit/search/match.test.ts`) and the Catalogue-mode graph layout at scale (`test/unit/graph/layout.test.ts`, seconds rather than minutes). Measuring the rest in CI on a 500-object fixture is open work.
 
 | Moment | Budget |
 |--------|-------:|
@@ -810,14 +812,15 @@ These are measured in CI on a 500-object fixture.
 
 | Layer | Tool | Covers |
 |-------|------|--------|
-| Unit | `@vscode/test-cli` | Range conversion (code points → UTF-16), deduplication, severity mapping, command classification, search query parsing |
-| Contract | The pinned opentide | Every `--json` document the extension reads validates against its `output_schema`; `opentide --json commands` is fully classified |
-| Integration | `@vscode/test-electron` | Each tier with a fake executable; the bundled runtime end to end; the lens, fix-all, multi-root and refresh cases from #5; new → placeholder navigation; validate dedupe |
-| Restricted Mode | `.vscode-test.mjs` label | Only the language server starts; no restricted setting is read; no subprocess is spawned |
-| Webviews | Playwright against the built webview bundles | Graph, matrix, results, wizard: rendering, keyboard paths, axe accessibility checks |
-| Packages | Smoke test per target (§3) | Install, `doctor --offline`, LSP `initialize` host and engine |
+| Unit and script | mocha in plain node, with a `vscode` stub (`npm test`) | The vscode-free modules: range conversion (code points → UTF-16), deduplication, severity mapping, command classification, search, graph and matrix models, panels' protocols, the runtime, backend and serve clients against a fake opentide (`test/fixtures/fake-opentide.mjs`); and the scripts: manifest, grammars, runtime lock, packaging, release |
+| Against opentide | The same tests with `OPENTIDE_TEST_BIN` and `OPENTIDE_TEST_WORKSPACE` (CI on Ubuntu and Windows) | The documents the extension reads, from the pinned opentide: the catalogue, graph, search, panels, runner, agents, `serve`, and `opentide --json commands` fully classified |
+| Integration | `@vscode/test-cli` and `@vscode/test-electron` | Activation, languages, the runtime tiers, diagnostics, new objects, sidebar, setup, graph, search, panels and the runner in a real VS Code |
+| Restricted Mode | `scripts/test-restricted.mjs` (VS Code with workspace trust on, a fresh user-data-dir) | Only the language server starts; no restricted setting is read; no subprocess is spawned |
+| Packages | Smoke test (§3): linux-x64 in CI, every target in `publish.yml` | Install, `doctor --offline`, LSP `initialize` host and engine |
 
-CI runs {ubuntu, macos, windows} × {minimum engine, stable, insiders}, with Xvfb on Linux, as #2 says.
+CI runs the integration tests on {ubuntu, macos, windows} × {minimum engine, stable, insiders}, with Xvfb on Linux, as #2 says.
+
+**Open work:** contract tests that validate each document against its `output_schema` (and types generated from them); webview tests with Playwright against the built bundles, with axe accessibility checks; the performance budgets above, measured in CI.
 
 ---
 
@@ -829,8 +832,8 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
-| O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | The bundle is 136 MB with them and 83 MB without pandas and numpy (67 MB without boto3 too); the budget is 100 MB (D1) | **M0** |
-| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package | M0 *nice* (universal package until then) |
+| O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | pandas and numpy are about 15 MiB of each compressed package and botocore another 15 MiB; without them the packages approach the 70 MiB target. Every package already fits the 100 MiB budget with them (D1) | M0 *nice* (the target, not the budget) |
+| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package, which also waits for a cryptography ≥ 47 `win_arm64` wheel | M0 *nice* (universal package until then) |
 | O3 [opentide#749](https://github.com/opentidehq/opentide/issues/749) | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
 | O4 [opentide#751](https://github.com/opentidehq/opentide/issues/751) | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
 | O5 [opentide#752](https://github.com/opentidehq/opentide/issues/752) | Generated snippets use `scope: "yaml,opentide-yaml"` | Snippets vanish in `opentide-yaml` files | M1 *nice* (client workaround) |
@@ -859,11 +862,13 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | Milestone | Delivers | Issues |
 |-----------|----------|--------|
-| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #11, #9; opentide#747 |
+| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #11, #9; opentide#747 (*nice*: the size target) |
 | **M1 Editor** | Languages and grammars; resolution with the bundled tier; the server's features; Restricted Mode; the backend client (`opentide serve`, with spawning as the fallback) and capability gating; diagnostics from three sources with dedupe and Explain; new-object flow with placeholders; status items; output channel | #3, #12, #4, #5, #13, #14, #8 (Restricted Mode); opentide#750 |
 | **M2 Workbench** | The sidebar views; setup wizard and walkthrough; generic runner with classification; tasks, problem matcher, terminal `PATH` and links; MCP provider; query lenses and results panel; deploy plan; credentials in SecretStorage | #15, #16, #7, #6, #17, #18, #8 (the rest); opentide#749, #751, #754 |
-| **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | #19, #20, #21 |
+| **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | #19, #20, #21, #37 |
 | **M4 After 1.0** | Testing view (one test per object; validate as run, `--live` as a second profile); web mode; the live catalogue from the server (L4); hunting notebooks (query cells with result tables) if users ask; real deploys to development tenants if [§17](#17-open-questions) says yes | #10; language-server#197, #198 |
+
+**Not in 0.1:** the first release ships M0–M3 without these, each an issue of its own and still part of the 1.0 bar: the search panel ([#37](https://github.com/opentidehq/vscode-extension/issues/37)), deployment state in the editor ([#38](https://github.com/opentidehq/vscode-extension/issues/38)), the Show in graph and Open generated doc editor title actions ([#39](https://github.com/opentidehq/vscode-extension/issues/39)), "Validate changed queries on tenants" and "Fix filenames" ([#40](https://github.com/opentidehq/vscode-extension/issues/40)), grouping the Catalogue by folder ([#41](https://github.com/opentidehq/vscode-extension/issues/41)) and the `templates_fresh` notification ([#42](https://github.com/opentidehq/vscode-extension/issues/42)).
 
 ### Changes to existing issues
 
@@ -885,9 +890,9 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 These need a decision before the milestone named.
 
-1. **Bundling (M0).** Confirm D1: a 67–83 MB download per platform package once O1 lands (136 MB today), 150–181 MB on disk, downloaded again on every update.
+1. **Bundling (M0).** Confirm D1: a 68–80 MiB download per platform package with opentide 0.21.0 (less once O1 lands), 180–225 MiB on disk, downloaded again on every update.
 2. **Real deploys from the editor (M4).** Never, with CI only (the recommendation for 1.0), or later behind a setting, for tenants marked non-production, one rule at a time, with a modal confirmation? The latter needs O7 and a confirmation contract in `opentide deploy`.
-3. **Publisher identity (M0).** The Marketplace publisher id and Open VSX namespace (`opentide`?). Marketplace publisher verification for `opentide.org` becomes possible after six months.
+3. **Publisher identity (M0).** Settled: `opentidehq` on both stores. Marketplace publisher verification for `opentide.org` becomes possible after six months.
 4. **The VS Code floor and forks (M0).** Check the VS Code version Cursor and Windsurf are based on today, and set `engines.vscode` so they install the extension. Everything newer is feature-detected.
 5. **Licence review (M0).** EUPL-1.2 opentide, engine and (optionally) skills inside an MIT VSIX, shipped as separate programs. This extends #6's review to the runtime.
 6. **Object form editor (later).** A custom editor that edits an object as a form beside its YAML. Not planned for 1.0: the YAML, the server's completion and the templates cover authoring, and a second editing surface would have to stay in sync with every schema revision.

@@ -4,7 +4,10 @@
 // `lint --file` (opentide#755); FAKE_INFO_CATALOG=1 adds `info catalog`; FAKE_TENANTS=1 adds tenants to
 // `info` (opentide#754); FAKE_SETUP_PLAN=1 adds `setup --plan` and its flags (opentide#751);
 // FAKE_DEPLOY_SELECT=1 adds `deploy --uuid/--file` (opentide#753).
-// `validate`, `lint`, `explain`, `new`, `info`, `doctor` and `setup …` follow the real shapes.
+// `validate`, `lint`, `explain`, `new`, `info`, `doctor` and `setup …` follow the real shapes and rules:
+// findings carry `end_line`; `--file` takes only files directly in a family folder (lint fails with
+// command_failed, validate answers scope_no_match); `new` gives a taken name the UUID's first 8 characters
+// and refuses only a file named with `--path` (path_exists).
 // Panels (query, deploy plan, matrix): `info catalog` with FAKE_CATALOG_FIXTURE=1 prints panels/catalog.json;
 // `query` answers per tenant (FAKE_QUERY_TENANTS, default "prod"; a tenant named "dev" fails with 403;
 // FAKE_QUERY_DELAY_MS waits, cancellably); `deploy --dry-run` prints panels/deploy-dry-run.json, and
@@ -12,6 +15,7 @@
 // file. FAKE_INFO_PLAIN=1 makes `info` with no section a usage error.
 // Graph and search: FAKE_CATALOG_FILE names a JSON file whose keys (objects, edges, signals, attack,
 // summary) `info catalog` prints; FAKE_UNREVIEWED lists the paths (comma-separated) `rules unreviewed` reports.
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -284,6 +288,22 @@ const pick = (env) =>
 const optionValues = (args, flag) =>
   args.flatMap((a, i) => (a === flag && args[i + 1] !== undefined ? [args[i + 1]] : []));
 
+/** The family folders: objects/{threats,objectives,rules}/, or what paths.toml `[paths.objects]` names. */
+function familyFolders(root) {
+  const folders = { threat: "objects/threats/", objective: "objects/objectives/", rule: "objects/rules/" };
+  const toml = join(root, ".opentide", "configurations", "paths.toml");
+  if (existsSync(toml))
+    for (const m of readFileSync(toml, "utf8").matchAll(/^\s*(threat|objective|rule)\s*=\s*"([^"]+)"/gm))
+      folders[m[1]] = m[2].endsWith("/") ? m[2] : `${m[2]}/`;
+  return Object.values(folders);
+}
+
+/** As the real CLI: `--file` takes only a YAML file directly in a family folder. */
+function directlyInFamily(root, file) {
+  const rel = relative(root, file).split("\\").join("/");
+  return familyFolders(root).some((dir) => rel.startsWith(dir) && !rel.slice(dir.length).includes("/"));
+}
+
 function objectFiles(root) {
   const out = [];
   const walk = (dir) => {
@@ -295,7 +315,8 @@ function objectFiles(root) {
     }
   };
   walk(join(root, "objects"));
-  return out.sort();
+  for (const dir of familyFolders(root)) if (!dir.startsWith("objects/")) walk(join(root, dir));
+  return [...new Set(out)].sort();
 }
 
 /** Code points, 1-based, as the CLI counts columns. */
@@ -304,6 +325,41 @@ const codePointColumn = (line, utf16) => [...line.slice(0, utf16)].length + 1;
 /** `validate`: a `vocab_unknown` finding (with its fix) for each `tlp: ambr`, on each file or every object file. */
 function validate(root, args) {
   const files = optionValues(args, "--file").map((f) => resolve(root, f));
+  const outside = files.filter((f) => !directlyInFamily(root, f));
+  if (files.length > 0 && outside.length === files.length)
+    return [
+      envelope(
+        "validate",
+        {
+          status: "failed",
+          workspace: root,
+          report: {
+            ok: false,
+            issues: [
+              {
+                code: "scope_no_match",
+                severity: "error",
+                object_uuid: "",
+                object_type: "",
+                file_path: null,
+                yaml_line: null,
+                field_path: [],
+                message: "No objects matched the validation scope (check --file, --uuid, --type)",
+                path: null,
+                line: null,
+                column: null,
+                end_line: null,
+                end_column: null,
+              },
+            ],
+            warnings: [],
+          },
+        },
+        1,
+        { code: "issues_found", message: "Validation failed" },
+      ),
+      1,
+    ];
   const issues = [];
   for (const file of files.length > 0 ? files : objectFiles(root)) {
     if (!existsSync(file)) continue;
@@ -326,7 +382,7 @@ function validate(root, args) {
         path: relative(root, file).split("\\").join("/"),
         line: index + 1,
         column,
-        ...(process.env.FAKE_END_LINE === "1" ? { end_line: index + 1 } : {}),
+        end_line: index + 1,
         end_column: column + 4,
         help: "did you mean 'amber'?",
         fix: {
@@ -361,6 +417,26 @@ function lint(root, args) {
   const targets = optionValues(args, "--file");
   if (targets.length > 0 && process.env.FAKE_LINT_FILE !== "1")
     return [envelope("lint", {}, 2, { code: "usage_no_such_option", message: "No such option: --file" }), 2];
+  const outside = targets.filter(
+    (t) => existsSync(resolve(root, t)) && !directlyInFamily(root, resolve(root, t)),
+  );
+  if (outside.length > 0) {
+    const message = `No object file directly in ${familyFolders(root)
+      .map((d) => d.replace(/\/$/, ""))
+      .join(", ")} matched: ${outside.join(", ")}`;
+    return [
+      envelope(
+        "lint",
+        { path: root, findings: [], count: 0, fixed: 0, unmatched: outside, error: message },
+        1,
+        {
+          code: "command_failed",
+          message,
+        },
+      ),
+      1,
+    ];
+  }
   const files = targets.length > 0 ? targets.map((f) => resolve(root, f)) : objectFiles(root);
   const unmatched = targets.filter((t) => !existsSync(resolve(root, t)));
   const findings = [];
@@ -379,6 +455,7 @@ function lint(root, args) {
           help: "replace the value, then delete the '# opentide:placeholder' comment",
           line: index + 1,
           column: key + 1,
+          end_line: index + 1,
           end_column: key + 2,
           message: "holds a placeholder value written by opentide new",
           code: "placeholder",
@@ -448,12 +525,21 @@ function newObject(root, type, args) {
       2,
     ];
   const target = optionValues(args, "--path")[0];
-  const folder = join(root, "objects", `${type}s`);
+  const uuid = randomUUID();
+  let folder = join(root, "objects", `${type}s`);
   let file = join(folder, `${slug(name)}.yaml`);
+  const explicitFile = Boolean(target?.endsWith(".yaml"));
   if (target) {
     const full = isAbsolute(target) ? target : resolve(root, target);
-    file = target.endsWith(".yaml") ? full : join(full, `${slug(name)}.yaml`);
+    if (explicitFile) file = full;
+    else {
+      folder = full;
+      file = join(full, `${slug(name)}.yaml`);
+    }
   }
+  // As the real CLI: a name taken in the folder gets the UUID's first 8 characters; only a file named
+  // with --path is refused.
+  if (!explicitFile && existsSync(file)) file = join(folder, `${slug(name)}-${uuid.slice(0, 8)}.yaml`);
   if (existsSync(file))
     return [
       envelope(`new ${type}`, {}, 1, {
@@ -468,7 +554,7 @@ function newObject(root, type, args) {
     `name: ${name}`,
     "",
     "metadata:",
-    "  uuid: 11111111-2222-4333-8444-555555555555",
+    `  uuid: ${uuid}`,
     "  tlp: amber",
     "description: |  # opentide:placeholder",
     "  ...",
@@ -487,7 +573,7 @@ function newObject(root, type, args) {
     envelope(`new ${type}`, {
       path: relative(root, file).split("\\").join("/"),
       file_path: file,
-      uuid: "11111111-2222-4333-8444-555555555555",
+      uuid,
       type,
       name,
       platforms,

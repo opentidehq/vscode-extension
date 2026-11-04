@@ -25,7 +25,7 @@ scripts/                manifest.mjs, features-index.mjs, grammars.mjs, build.mj
 test/unit/              mocha in plain node (npm test); test/stubs/vscode.ts stands in for `vscode`
 test/scripts/           tests of scripts/*.mjs
 test/integration/       @vscode/test-cli, label `integration` (needs a VS Code download)
-test/restricted/        @vscode/test-cli, label `restricted` (Restricted Mode)
+test/restricted/        scripts/test-restricted.mjs (Restricted Mode, workspace trust on)
 test/fixtures/          fake-opentide.mjs (CLI and `serve`), commands-0.20.1.json, a workspace
 ```
 
@@ -45,7 +45,8 @@ background. Nothing on that path starts a process (SPEC §14: activation < 300 m
   instead: no core and no feature activates. Languages, grammars and language configuration are
   declarative and still work; a language status item says "Highlighting only", and every contributed
   command answers with an explanation instead of "command not found". Hide what needs a runtime with
-  `opentide.runtimeReady` (never set there) or `!isWeb` in `when` clauses. The web bundle must not import
+  `opentide.runtimeReady` (never set there) or `!virtualWorkspace` in `when` clauses, never `!isWeb`,
+which is false in a desktop virtual workspace (Remote Repositories) that runs the same web mode. The web bundle must not import
   `src/core/` or a Node built-in (`test/scripts/web-bundle.test.mjs`).
 
 ## How to add a feature
@@ -129,11 +130,12 @@ backend already logs every run (command line with secrets redacted, folder, dura
 Tiers (SPEC §4): 1 `opentide.path`; 2 the workspace environment (`opentide.interpreter`, else Python
 Environments, else the Python extension, else `.venv`, else `PATH`); 3 `uv tool run --from
 opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier 2); 4 the bundled
-`<extension>/runtime` (`python -I -X pycache_prefix=<globalStorage>/pycache -m opentide`; built as
+`<extension>/runtime` (`python -I -X utf8 -X pycache_prefix=<globalStorage>/pycache -m opentide`; tiers 1–3 get
+`PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` in their `env`; built as
 [PACKAGING.md](PACKAGING.md) says). The first time tier 4 runs, after the language server starts, the
 core compiles the runtime's bytecode into that prefix in the background (`src/core/runtime/precompile.ts`:
-`compileall -q`, low priority, cancelled on deactivation, once per `runtime/BUILD-INFO.json` `buildId`;
-the bytecode of builds whose runtime folder is gone is deleted). A tier older
+`compileall -q`, low priority, cancelled on deactivation, once per `runtime/BUILD-INFO.json` `buildId`
+and resolved runtime folder; the bytecode of runtime folders that are gone is deleted). A tier older
 than `MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command, except
 an untagged dev build (`0.1.devN+g<sha>`, what hatch-vcs reports for a checkout with no release tag), which
 cannot be ordered and is used with a note in the output channel. In
@@ -327,7 +329,8 @@ through the host.
 | `npm test` | tsc to `out/`, then mocha: test/unit and test/scripts in plain node |
 | `npm run manifest` / `manifest:check` | package.json from contrib/*.json |
 | `npm run grammars` / `grammars:check` | syntaxes/ and contrib/grammars.json from the pinned zip (SHA-256 checked) |
-| `npm run test:integration`, `test:restricted` | @vscode/test-cli labels (download VS Code) |
+| `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
+| `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
 | `npm run runtime:lock` / `-- --check` | runtime/locks/<target>.txt from runtime/requirements.in (pins.json) |
 | `npm run runtime:build -- --target <t>` | runtime/ for one target: interpreter, closure, BUILD-INFO, SBOM, notices |
 | `npm run package -- --target <t>` / `-- --universal` | dist-vsix/opentide-<t>-<version>.vsix (+ `.size.json`), size gate |

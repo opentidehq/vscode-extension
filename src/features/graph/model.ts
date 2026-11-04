@@ -1,6 +1,7 @@
 // The graph's nodes and edges, built from one `info catalog` document (CONTRACTS.md). No YAML is read
 // here: every edge is one opentide reported, plus three it implies (objective → its signals, threat →
 // its actors, rule → its platforms). vscode-free and DOM-free: the webview imports it too.
+import { isLoaded, type LoadedObject, rowKey } from "../../core/catalog/rows";
 import type { CatalogDocument, CatalogObject } from "../../core/catalog/types";
 
 export type NodeKind =
@@ -109,13 +110,16 @@ export const techniqueId = (id: string): string => `${KIND_PREFIX.technique}${id
 export const missingId = (id: string): string => `missing:${id}`;
 
 function objectKind(object: CatalogObject): NodeKind {
-  const type: string = object.type;
-  return type === "threat" || type === "objective" ? type : "rule";
+  if (object.type === "threat") return "threat";
+  return object.type === "objective" ? "objective" : "rule";
 }
 
-/** The id of an object row: its UUID, or its path for a file that did not load and has none. */
-export function objectNodeId(object: Pick<CatalogObject, "uuid" | "path">): string {
-  return object.uuid || `file:${object.path}`;
+/**
+ * The id of an object row: a loaded object's UUID, or `file:<path>` for a file that did not load, even
+ * one that carries a UUID (which may be a loaded object's).
+ */
+export function objectNodeId(object: CatalogObject): string {
+  return rowKey(object);
 }
 
 /** Strip a vocabulary prefix for display: `att&ck::G0016` → `G0016`. */
@@ -138,26 +142,30 @@ export function buildModel(catalog: CatalogDocument): GraphModel {
     edges.push({ ...edge, id });
   };
 
-  const objectsByUuid = new Map<string, CatalogObject>();
+  const objectsByUuid = new Map<string, LoadedObject>();
   for (const object of catalog.objects) {
     const id = objectNodeId(object);
-    if (object.uuid) objectsByUuid.set(object.uuid, object);
+    if (isLoaded(object)) objectsByUuid.set(object.uuid, object);
     nodes.set(id, {
       id,
       kind: objectKind(object),
-      label: object.name || object.path,
+      label: object.name || object.path || object.file_path || id,
       ...(object.uuid ? { uuid: object.uuid } : {}),
-      path: object.path,
-      filePath: object.file_path,
+      ...(object.path ? { path: object.path } : {}),
+      ...(object.file_path ? { filePath: object.file_path } : {}),
       line: object.line || 1,
-      platforms: (object.platforms ?? []).map((p) => ({ id: p.id, status: p.status, enabled: p.enabled })),
+      platforms: (object.platforms ?? []).map((p) => ({
+        id: p.id,
+        status: p.status ?? "",
+        enabled: p.enabled,
+      })),
       techniques: [...new Set([...(object.techniques?.own ?? []), ...(object.techniques?.inherited ?? [])])],
       ...(object.load_error ? { loadError: object.load_error.message } : {}),
     });
   }
 
   for (const signal of catalog.signals ?? []) {
-    const objective = objectsByUuid.get(signal.objective);
+    const objective = signal.objective ? objectsByUuid.get(signal.objective) : undefined;
     nodes.set(signal.uuid, {
       id: signal.uuid,
       kind: "signal",
@@ -168,9 +176,9 @@ export function buildModel(catalog: CatalogDocument): GraphModel {
         : {}),
       platforms: [],
       techniques: objective ? (nodes.get(objective.uuid)?.techniques ?? []) : [],
-      objective: signal.objective,
+      ...(signal.objective ? { objective: signal.objective } : {}),
     });
-    if (nodes.has(signal.objective)) {
+    if (signal.objective && objective) {
       addEdge({
         source: signal.objective,
         target: signal.uuid,

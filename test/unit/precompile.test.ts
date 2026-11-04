@@ -13,6 +13,7 @@ import {
   pycachePrefix,
   pycacheTree,
   stampFile,
+  stampKey,
   stdlibDir,
 } from "../../src/core/runtime/precompile";
 import { bundledArgs, bundledLayout } from "../../src/core/runtime/resolve";
@@ -20,7 +21,8 @@ import { fakeRuntime } from "./helpers";
 
 const EXT = "/ext/opentidehq.opentide-0.2.0-linux-x64";
 const STORAGE = "/storage";
-const PREFIX = path.posix.join(STORAGE, "pycache");
+// pycachePrefix joins with the host's node:path: so does the expected prefix.
+const PREFIX = path.join(STORAGE, "pycache");
 const bundled = fakeRuntime({ tier: 4, source: "bundled", command: `${EXT}/runtime/bin/python3`, args: [] });
 
 interface Fake {
@@ -33,7 +35,12 @@ interface Fake {
   killed: () => number;
 }
 
-function fake(files: Record<string, string> = {}, existing: string[] = []): Fake {
+function fake(
+  files: Record<string, string> = {},
+  existing: string[] = [],
+  links: Record<string, string> = {},
+  extensionPath = EXT,
+): Fake {
   const state = new Map(Object.entries(files));
   const spawned: { command: string; args: readonly string[] }[] = [];
   const removed: string[] = [];
@@ -42,14 +49,15 @@ function fake(files: Record<string, string> = {}, existing: string[] = []): Fake
   let kills = 0;
   const deps: PrecompileDeps = {
     platform: "linux",
-    extensionPath: EXT,
+    extensionPath,
     globalStoragePath: STORAGE,
     readFile: async (file) => state.get(file),
     writeFile: async (file, text) => {
       state.set(file, text);
     },
-    readdir: async (dir) => (dir === `${EXT}/runtime/lib` ? ["python3.13", "libfoo.so"] : []),
+    readdir: async (dir) => (dir.endsWith("/runtime/lib") ? ["python3.13", "libfoo.so"] : []),
     exists: (file) => existing.includes(file),
+    realpath: async (file) => links[file] ?? file,
     remove: async (dir) => {
       removed.push(dir);
     },
@@ -136,7 +144,7 @@ describe("bundled runtime bytecode precompile", () => {
     f.finish(1); // some file did not compile: still done
     assert.equal(await first, "compiled");
     assert.equal(await again, "compiled");
-    assert.ok(parseStamps(f.files.get(stampFile(PREFIX))).builds.b1);
+    assert.ok(parseStamps(f.files.get(stampFile(PREFIX))).builds[stampKey("b1", `${EXT}/runtime`)]);
 
     assert.equal(await precompiler.ensure(bundled), "already-compiled");
     assert.equal(f.spawned.length, 1);
@@ -203,7 +211,53 @@ describe("bundled runtime bytecode precompile", () => {
     f.finish(0);
     assert.equal(await run, "compiled");
     assert.deepEqual(f.removed, [pycacheTree(PREFIX, oldRoot, "linux")]);
-    assert.deepEqual(Object.keys(parseStamps(f.files.get(stampFile(PREFIX))).builds).sort(), ["live", "new"]);
+    assert.deepEqual(Object.keys(parseStamps(f.files.get(stampFile(PREFIX))).builds).sort(), [
+      "live",
+      stampKey("new", `${EXT}/runtime`),
+    ]);
+  });
+
+  it("compiles an update with the same build in its new folder, and drops the old folder's tree", async () => {
+    const oldRoot = "/ext/opentidehq.opentide-0.1.0-linux-x64/runtime";
+    const f = fake({
+      [`${EXT}/runtime/BUILD-INFO.json`]: '{"buildId":"b1"}',
+      // As an earlier version wrote it: keyed by the build id alone.
+      [stampFile(PREFIX)]: JSON.stringify({ builds: { b1: { root: oldRoot, compiledAt: "x" } } }),
+    });
+    const run = new Precompiler(f.deps).ensure(bundled);
+    await settle();
+    assert.equal(f.spawned.length, 1, "the new folder's runtime has no bytecode yet");
+    assert.equal(f.spawned[0]?.args.at(-1), `${EXT}/runtime/lib/python3.13`);
+    f.finish(0);
+    assert.equal(await run, "compiled");
+    assert.deepEqual(f.removed, [pycacheTree(PREFIX, oldRoot, "linux")]);
+    const builds = parseStamps(f.files.get(stampFile(PREFIX))).builds;
+    assert.deepEqual(
+      Object.values(builds).map((b) => [b.buildId, b.root]),
+      [["b1", `${EXT}/runtime`]],
+    );
+  });
+
+  it("compiles and stamps the resolved folder of a symlinked extension path", async () => {
+    const link = "/home/u/.vscode/extensions/opentidehq.opentide-0.2.0-linux-x64";
+    const real = "/data/vscode-ext/opentidehq.opentide-0.2.0-linux-x64";
+    const f = fake(
+      { [`${real}/runtime/BUILD-INFO.json`]: '{"buildId":"b1"}' },
+      [],
+      { [`${link}/runtime`]: `${real}/runtime` },
+      link,
+    );
+    const run = new Precompiler(f.deps).ensure(bundled);
+    await settle();
+    assert.equal(
+      f.spawned[0]?.args.at(-1),
+      `${real}/runtime/lib/python3.13`,
+      "Python imports from the real path",
+    );
+    f.finish(0);
+    assert.equal(await run, "compiled");
+    const [build] = Object.values(parseStamps(f.files.get(stampFile(PREFIX))).builds);
+    assert.equal(build?.root, `${real}/runtime`);
   });
 });
 

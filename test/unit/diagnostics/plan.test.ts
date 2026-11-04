@@ -10,9 +10,12 @@ import {
   codeText,
   countSeverities,
   dedupeKey,
+  droppedFixFor,
   lintArgv,
   nonOverlapping,
   planSave,
+  planSaveBatch,
+  serverKeys,
   summaryText,
   validateArgv,
   withoutDuplicates,
@@ -50,6 +53,30 @@ describe("diagnostics: plan", () => {
     );
   });
 
+  it("a batch with a configuration file validates the workspace, with lint.withValidate's workspace lint", () => {
+    const withValidate = { ...defaults, lintWithValidate: true };
+    assert.deepEqual(planSaveBatch({ objects: 0, configuration: true }, withValidate, both), {
+      validate: "workspace",
+      lint: "workspace",
+    });
+    assert.deepEqual(planSaveBatch({ objects: 2, configuration: true }, withValidate, both), {
+      validate: "workspace",
+      lint: "workspace",
+    });
+    // Without withValidate, the saved objects are still linted alone.
+    assert.deepEqual(planSaveBatch({ objects: 2, configuration: true }, defaults, both), {
+      validate: "workspace",
+      lint: "file",
+    });
+    assert.deepEqual(planSaveBatch({ objects: 0, configuration: true }, defaults, both), {
+      validate: "workspace",
+    });
+    assert.deepEqual(planSaveBatch({ objects: 1, configuration: false }, defaults, both), {
+      validate: "file",
+      lint: "file",
+    });
+  });
+
   it("does nothing when off, and for other files", () => {
     assert.deepEqual(planSave(object, { ...defaults, validateOnSave: "off", lintOnSave: "off" }, both), {});
     assert.deepEqual(planSave({ isObject: false, isConfiguration: false }, defaults, both), {});
@@ -70,6 +97,54 @@ describe("diagnostics: plan", () => {
     ];
     const kept = withoutDuplicates(validate, (item) => dedupeKey(item.code, item.line), server);
     assert.deepEqual(kept, [{ code: "kql_parse_error", line: 60 }]);
+  });
+
+  it("drops lint findings the server reports under its own codes (#46): five problems become two", () => {
+    // Engine 0.9.1 and opentide 0.21.0's lint name the same checks differently.
+    const server = new Set([
+      dedupeKey("filename_slug", 0),
+      dedupeKey("missing_author", 2),
+      dedupeKey("missing_organisation", 2),
+    ]);
+    const lint = [
+      {
+        code: "filename_mismatch",
+        line: 0,
+        message: "Filename 'broken-rule.yaml' does not match slugify(name)",
+      },
+      {
+        code: "metadata_recommended",
+        line: 2,
+        message: "Recommended metadata missing: author, organisation",
+      },
+      { code: "metadata_recommended", line: 2, message: "Recommended metadata missing: author, version" },
+    ];
+    const kept = withoutDuplicates(lint, (item) => serverKeys(item.code, item.line, item.message), server);
+    assert.deepEqual(
+      kept.map((item) => item.message),
+      ["Recommended metadata missing: author, version"],
+      "a key the server does not report keeps the lint finding",
+    );
+    assert.deepEqual(serverKeys("vocab_unknown", 3), [[dedupeKey("vocab_unknown", 3)]]);
+  });
+
+  it("offers a dropped finding's fix on the server diagnostic that replaced it (#45)", () => {
+    const fix = {
+      safe: false,
+      edits: [{ line: 14, column: 11, end_line: 14, end_column: 14, replacement: "High" }],
+    };
+    const dropped = { alternatives: serverKeys("vocab_unknown", 13), finding: { fix } };
+    const shownOne = { alternatives: serverKeys("vocab_unknown", 20), finding: { fix } };
+    const noFix = { alternatives: serverKeys("filename_mismatch", 0), finding: { fix: null } };
+    const rendered = [dropped, shownOne, noFix];
+    assert.equal(droppedFixFor(rendered, [shownOne], dedupeKey("vocab_unknown", 13)), dropped);
+    assert.equal(
+      droppedFixFor(rendered, [shownOne], dedupeKey("vocab_unknown", 20)),
+      undefined,
+      "shown: its own action",
+    );
+    assert.equal(droppedFixFor(rendered, [], dedupeKey("filename_slug", 0)), undefined, "no fix to offer");
+    assert.equal(droppedFixFor(rendered, [], dedupeKey("vocab_unknown", 14)), undefined);
   });
 
   it("reads codes as the language client gives them", () => {

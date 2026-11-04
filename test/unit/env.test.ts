@@ -1,6 +1,9 @@
 import * as assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import * as path from "node:path";
-import { parseEnvFile } from "../../src/core/envfile";
+import { join } from "node:path";
+import { loadEnvFile, parseEnvFile, readEnvFile } from "../../src/core/envfile";
 import { displayArgv, processEnv, redact, shellQuote } from "../../src/core/runtime/env";
 
 describe("process environments", () => {
@@ -85,5 +88,37 @@ describe(".env files", () => {
       EMPTY: "",
       MULTI: "a\nb",
     });
+  });
+});
+
+describe("env file: an unclosed double quote", () => {
+  it("drops that key and still reads the lines after it", () => {
+    const text = ['TOKEN="unterminated', "AZURE_CLIENT_SECRET=s3cret", "PLAIN=ok"].join("\n");
+    assert.deepEqual(readEnvFile(text), {
+      variables: { AZURE_CLIENT_SECRET: "s3cret", PLAIN: "ok" },
+      skipped: [1],
+    });
+  });
+
+  it("reports the lines it skipped, and a file it cannot read", () => {
+    const dir = mkdtempSync(join(tmpdir(), "opentide-env-"));
+    try {
+      const file = join(dir, ".env");
+      writeFileSync(file, '# ok\n\nA=1\nnot a line\nB="open\nC=3\n');
+      const warnings: string[] = [];
+      assert.deepEqual(
+        loadEnvFile(file, (m) => warnings.push(m)),
+        { A: "1", C: "3" },
+      );
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0] ?? "", /skipped lines 4, 5 of .*\.env/);
+      assert.deepEqual(
+        loadEnvFile(join(dir, "missing.env"), (m) => warnings.push(m)),
+        {},
+      );
+      assert.match(warnings[1] ?? "", /could not read .*missing\.env/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

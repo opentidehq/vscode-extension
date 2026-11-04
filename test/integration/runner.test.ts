@@ -61,10 +61,21 @@ describe("runner and agents (#6, #7)", () => {
 
     it("runs a command from keybinding arguments and records it in Activity", async () => {
       const api = await activated();
-      const before = api.ctx.activity.list().length;
+      const before = new Set(api.ctx.activity.list().map((entry) => entry.id));
       await vscode.commands.executeCommand("opentide.runner.run", { argv: ["explain", "vocab_unknown"] });
-      await waitFor(() => (api.ctx.activity.list().length > before ? true : undefined));
-      assert.equal(api.ctx.activity.list()[0]?.argv.join(" "), "explain vocab_unknown");
+      // The extension's own runs (a restart's catalogue refresh, `info`) land in Activity too: find this one.
+      const run = await waitFor(() =>
+        api.ctx.activity
+          .list()
+          .find((entry) => !before.has(entry.id) && entry.argv.join(" ") === "explain vocab_unknown"),
+      ).catch(() => undefined);
+      assert.ok(
+        run,
+        `explain vocab_unknown in Activity: ${api.ctx.activity
+          .list()
+          .map((entry) => entry.argv.join(" "))
+          .join(", ")}`,
+      );
     });
   });
 });

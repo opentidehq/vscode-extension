@@ -6,6 +6,7 @@ import {
   type ResolveInput,
   type RuntimeSettings,
   resolveRuntime,
+  uvExecutable,
 } from "../../src/core/runtime/resolve";
 
 const EXT = "/ext";
@@ -197,6 +198,19 @@ describe("runtime resolution", () => {
     assert.ok((state.probes[0]?.options.timeoutMs ?? 0) > 60_000, "uv may download: a longer timeout");
   });
 
+  it("tiers 1 to 3 run opentide in UTF-8 mode, probe included: Windows pipes are otherwise ANSI", async () => {
+    const { value, state } = input(
+      {},
+      { path: () => "/opt/opentide/bin/opentide" },
+      { versions: { "/opt/opentide/bin/opentide": "opentide 0.21.0" } },
+    );
+    const { runtime } = await resolveRuntime(value);
+    assert.equal(runtime?.tier, 1);
+    assert.equal(runtime?.env.PYTHONUTF8, "1");
+    assert.equal(runtime?.env.PYTHONIOENCODING, "utf-8");
+    assert.equal(state.probes[0]?.options.env.PYTHONUTF8, "1");
+  });
+
   it("tier 3 is never tried without the opt-in", async () => {
     const { value, state } = input(
       { pin: { version: "0.20.1", source: "uv.lock" } },
@@ -215,6 +229,8 @@ describe("runtime resolution", () => {
     assert.equal(runtime?.command, BUNDLED);
     assert.deepEqual(runtime?.args, [
       "-I",
+      "-X",
+      "utf8",
       "-X",
       `pycache_prefix=${path.join("/storage", "pycache")}`,
       "-m",
@@ -286,5 +302,31 @@ describe("runtime resolution", () => {
     const { runtime } = await resolveRuntime(value);
     assert.equal(runtime?.source, "interpreter-setting");
     assert.equal(runtime?.command, `${FOLDER}/py/bin/python`);
+  });
+});
+
+describe("the uv executable (tier 3 and Create .venv with the pinned version)", () => {
+  const which = (name: string) => (name === "uv" ? "/usr/bin/uv" : undefined);
+
+  it("expands ~ and the workspace folder variable in opentide.uv.path, relative to the folder", () => {
+    assert.equal(
+      uvExecutable("~/.local/bin/uv", FOLDER, "/home/me", which),
+      path.join("/home/me", ".local/bin/uv"),
+    );
+    assert.equal(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: VS Code's variable syntax, matched literally
+      uvExecutable("${workspaceFolder}/tools/uv", FOLDER, "/home/me", which),
+      `${FOLDER}/tools/uv`,
+    );
+    assert.equal(uvExecutable("tools/uv", FOLDER, "/home/me", which), path.resolve(FOLDER, "tools/uv"));
+  });
+
+  it("falls back to uv on PATH", () => {
+    assert.equal(uvExecutable(undefined, FOLDER, "/home/me", which), "/usr/bin/uv");
+    assert.equal(uvExecutable("  ", FOLDER, "/home/me", which), "/usr/bin/uv");
+    assert.equal(
+      uvExecutable(undefined, FOLDER, "/home/me", () => undefined),
+      undefined,
+    );
   });
 });

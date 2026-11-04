@@ -109,6 +109,32 @@ describe("catalogue store", () => {
     instance.dispose();
   });
 
+  it("answers whoever waits for a refresh of a folder it forgets: debounced, immediate or queued", async () => {
+    const settled = (promise: Promise<unknown>) =>
+      Promise.race([promise.then(() => "settled"), sleep(500).then(() => "pending")]);
+    const { instance, calls } = store();
+    await instance.refresh("/a", { immediate: true });
+
+    const debounced = instance.refresh("/a");
+    instance.retain([]);
+    assert.equal(await settled(debounced), "settled");
+
+    await instance.refresh("/b", { immediate: true });
+    const immediate = instance.refresh("/b", { immediate: true });
+    instance.delete("/b");
+    assert.equal(await settled(immediate), "settled");
+
+    await instance.refresh("/c", { immediate: true });
+    const running = instance.refresh("/c", { immediate: true });
+    await until(() => calls.concurrent === 1);
+    const queued = instance.refresh("/c", { immediate: true });
+    await sleep(5); // its timer fires during the run: one more run is queued
+    instance.retain([]);
+    assert.equal(await settled(running), "settled");
+    assert.equal(await settled(queued), "settled");
+    instance.dispose();
+  });
+
   it("keeps the last good catalogue when a refresh fails", async () => {
     let fail = false;
     const { instance } = store({

@@ -9,7 +9,7 @@ import { which } from "../../core/runtime/process";
 import { hasCli, type Runtime } from "../../core/runtime/types";
 import { readRestricted } from "../../core/services/settings";
 import { launcherDir, launcherFiles, prependPath, shouldAddToPath } from "./launcher";
-import { type TerminalMatch, terminalMatches } from "./links";
+import { linkedObject, type TerminalMatch, terminalMatches } from "./links";
 
 export const PROFILE_ID = "opentide.terminal";
 
@@ -129,13 +129,10 @@ export class TerminalIntegration implements vscode.Disposable {
   }
 
   private findObject(uuid: string): { name: string; file_path: string; line: number } | undefined {
-    for (const folder of this.ctx.folders.all) {
-      const object = this.ctx.catalog
-        .get(folder.path)
-        .catalog?.objects.find((o) => o.uuid.toLowerCase() === uuid);
-      if (object) return object;
-    }
-    return undefined;
+    return linkedObject(
+      this.ctx.folders.all.map((folder) => this.ctx.catalog.get(folder.path).catalog?.objects),
+      uuid,
+    );
   }
 
   private async openLink(link: OpentideLink): Promise<void> {

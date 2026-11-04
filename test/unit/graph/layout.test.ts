@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+import { loadedObjects } from "../../../src/core/catalog/rows";
 import {
   bounds,
   columnLimit,
@@ -147,7 +148,7 @@ describe("graph layout: Catalogue mode at scale", () => {
   function dense(total: number) {
     const catalog = syntheticCatalog(total);
     const edges = [...catalog.edges];
-    for (const o of catalog.objects) {
+    for (const o of loadedObjects(catalog.objects)) {
       const n = Number(o.uuid.slice(2));
       if (o.type === "rule") {
         edges.push(linkEdge(o.uuid, `source-${n % 40}`, "logsource"));

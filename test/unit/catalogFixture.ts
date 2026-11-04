@@ -168,8 +168,9 @@ export function sampleCatalog(): CatalogDocument {
       platforms: [{ id: "sentinel", enabled: true, status: "PRODUCTION", strategy: "RELEASE" }],
     }),
     object({
-      uuid: "",
+      uuid: null,
       type: "rule",
+      schema: null,
       name: "",
       path: "objects/rules/bad.yaml",
       load_error: { code: "yaml_parse", message: "mapping values are not allowed here", line: 4 },

@@ -2,6 +2,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { loadedObjects } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument } from "../../core/catalog/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
@@ -296,7 +297,9 @@ class MatrixPanel implements vscode.Disposable {
 
   private async openObject(uuid: string): Promise<void> {
     const object = this.folder
-      ? this.ctx.catalog.get(this.folder.path).catalog?.objects.find((o) => o.uuid === uuid)
+      ? loadedObjects(this.ctx.catalog.get(this.folder.path).catalog?.objects ?? []).find(
+          (o) => o.uuid === uuid,
+        )
       : undefined;
     if (!object) {
       void vscode.window.showWarningMessage(

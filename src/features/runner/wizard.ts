@@ -2,6 +2,7 @@
 // and run it in the background or a terminal. Glue over form.ts, commands.ts and run.ts.
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { loadedObjects } from "../../core/catalog/rows";
 import type { FeatureContext } from "../../core/context";
 import { displayArgv } from "../../core/runtime/env";
 import {
@@ -276,7 +277,9 @@ async function pickUuid(
   title: string,
 ): Promise<FieldValue | typeof BACK | "type"> {
   const catalog = ctx.catalog.get(folder).catalog;
-  const objects = (catalog?.objects ?? []).filter((o) => !field.objectType || o.type === field.objectType);
+  const objects = loadedObjects(catalog?.objects ?? []).filter(
+    (o) => !field.objectType || o.type === field.objectType,
+  );
   if (objects.length === 0) return "type";
   const typeOne = { label: "$(edit) Enter a value…", uuid: "" };
   const items = objects.map((o) => ({

@@ -46,6 +46,27 @@ export function planSave(target: SaveTarget, settings: SaveSettings, features: F
   return { ...(validate ? { validate } : {}), ...(lint ? { lint } : {}) };
 }
 
+/**
+ * What one batch of saves in a folder runs: its object files, and whether a configuration file was among
+ * them. A configuration file validates the workspace, which covers the object files, and brings the
+ * workspace lint `opentide.lint.withValidate` asks for; without that, the object files are still linted
+ * one by one.
+ */
+export function planSaveBatch(
+  batch: { readonly objects: number; readonly configuration: boolean },
+  settings: SaveSettings,
+  features: Features,
+): SavePlan {
+  const forObjects = planSave({ isObject: batch.objects > 0, isConfiguration: false }, settings, features);
+  if (!batch.configuration) return forObjects;
+  const forConfiguration = planSave({ isObject: false, isConfiguration: true }, settings, features);
+  const lint = forConfiguration.lint ?? forObjects.lint;
+  return {
+    ...(forConfiguration.validate ? { validate: forConfiguration.validate } : {}),
+    ...(lint ? { lint } : {}),
+  };
+}
+
 export function validateArgv(files?: readonly string[]): string[] {
   return ["validate", ...(files ?? []).flatMap((file) => ["--file", file])];
 }
@@ -68,13 +89,62 @@ export function dedupeKey(code: string, line0: number): string {
   return `${code}\u0000${line0}`;
 }
 
-/** Drop the items the language server already reports (same code, same start line). */
+/**
+ * The server diagnostics that report the same finding as a validate or lint one on `line0`: a list of
+ * alternatives, each a set of dedupe keys that must all be there. The first is the finding's own code;
+ * the others are the codes the language server gives the same check (engine 0.9.1 against opentide
+ * 0.21.0's lint, #46): `filename_mismatch` is `filename_slug`, and `metadata_recommended` ("Recommended
+ * metadata missing: author, organisation") is one `missing_<key>` per key it names.
+ */
+export function serverKeys(code: string, line0: number, message = ""): string[][] {
+  const out = [[dedupeKey(code, line0)]];
+  if (code === "filename_mismatch") out.push([dedupeKey("filename_slug", line0)]);
+  if (code === "metadata_recommended") {
+    const keys = /missing:\s*(.+?)\s*$/i
+      .exec(message.split("\n")[0] ?? "")?.[1]
+      ?.split(",")
+      .map((key) => key.trim())
+      .filter((key) => /^[a-z_]+$/.test(key));
+    if (keys?.length) out.push(keys.map((key) => dedupeKey(`missing_${key}`, line0)));
+  }
+  return out;
+}
+
+/** Whether the server reports it: one alternative of `serverKeys` is there in full. */
+export function reportedByServer(
+  alternatives: string | readonly (readonly string[])[],
+  server: ReadonlySet<string>,
+): boolean {
+  const sets = typeof alternatives === "string" ? [[alternatives]] : alternatives;
+  return sets.some((keys) => keys.length > 0 && keys.every((key) => server.has(key)));
+}
+
+/**
+ * The validate or lint finding the dedupe dropped for the server diagnostic `serverKey`, when it has a
+ * fix: the server's diagnostic is the one shown, so the fix goes on it (#45: validate's "did you mean"
+ * replacement for vocab_unknown, which the server's own diagnostic lacks).
+ */
+export function droppedFixFor<
+  T extends {
+    readonly alternatives: readonly (readonly string[])[];
+    readonly finding: { readonly fix: unknown };
+  },
+>(rendered: readonly T[], shown: readonly T[], serverKey: string): T | undefined {
+  return rendered.find(
+    (item) =>
+      item.finding.fix != null &&
+      !shown.includes(item) &&
+      item.alternatives.some((keys) => keys.includes(serverKey)),
+  );
+}
+
+/** Drop the items the language server already reports (same code, or its alias, on the same start line). */
 export function withoutDuplicates<T>(
   items: readonly T[],
-  keyOf: (item: T) => string,
+  keyOf: (item: T) => string | readonly (readonly string[])[],
   serverKeys: ReadonlySet<string>,
 ): T[] {
-  return items.filter((item) => !serverKeys.has(keyOf(item)));
+  return items.filter((item) => !reportedByServer(keyOf(item), serverKeys));
 }
 
 export interface Counts {
