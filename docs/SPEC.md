@@ -95,8 +95,8 @@ What is behind those numbers:
 **The real packages** (opentide 0.21.0, which still requires pandas and numpy, on the trimmed CPython 3.13.14; [PACKAGING.md](PACKAGING.md#the-gates) has the full table): linux-x64 80.1 MiB (223 MiB installed), darwin-arm64 67.9 MiB, win32-x64 74.0 MiB. The trimming, not dropping pandas, is what brought the 136 MB down.
 
 **Size budget:**
-- 100 MB per VSIX, enforced in CI; the target is 70 MB.
-- Every package fits the budget with opentide 0.21.0 as it is; only darwin-arm64 meets the target. Moving pandas and numpy out of opentide's required dependencies ([§15](#15-what-this-needs-from-opentide-and-language-server), O1) and dropping botocore are what would bring the rest under 70 MB.
+- 100 MiB (104,857,600 bytes) per VSIX, enforced in CI (`pins.json` `vsix.budgetBytes`); the target is 70 MiB.
+- Every package fits the budget with opentide 0.21.0 as it is; only darwin-arm64 meets the target. Moving pandas and numpy out of opentide's required dependencies ([§15](#15-what-this-needs-from-opentide-and-language-server), O1) and dropping botocore are what would bring the rest under 70 MiB.
 
 **Store limits:**
 - The Marketplace documents no hard cap. Microsoft's publishing guidance says to optimise a package over 50 MB ([Microsoft Learn](https://learn.microsoft.com/azure/devops/extend/publish/overview)).
@@ -212,7 +212,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
   - The bundled opentide version is pinned in this repository, as opentide pins its engine. A bump is a PR.
   - The highlights zip version is **derived** from the engine pin inside that opentide, never chosen separately, so grammar colours and semantic tokens come from the same engine.
 - **At runtime:** the interpreter runs isolated (`-I`) in UTF-8 mode (`-X utf8`: Windows pipes are otherwise in the ANSI code page), with `-X pycache_prefix=<globalStorage>/pycache`, so the extension folder stays read-only and no `PYTHON*` variable or user site leaks in. The first activation compiles bytecode in the background.
-- **Size gate:** CI fails a package over 100 MB and reports each package's size and its five largest directories on the PR.
+- **Size gate:** CI fails a package over 100 MiB and reports each package's size and its five largest directories on the PR.
 
 ### Publishing and supply chain
 
@@ -827,7 +827,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
-| O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | pandas and numpy are about 15 MiB of each compressed package and botocore another 15 MiB; without them the packages approach the 70 MB target. Every package already fits the 100 MB budget with them (D1) | M0 *nice* (the target, not the budget) |
+| O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | pandas and numpy are about 15 MiB of each compressed package and botocore another 15 MiB; without them the packages approach the 70 MiB target. Every package already fits the 100 MiB budget with them (D1) | M0 *nice* (the target, not the budget) |
 | O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package, which also waits for a cryptography ≥ 47 `win_arm64` wheel | M0 *nice* (universal package until then) |
 | O3 [opentide#749](https://github.com/opentidehq/opentide/issues/749) | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
 | O4 [opentide#751](https://github.com/opentidehq/opentide/issues/751) | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
