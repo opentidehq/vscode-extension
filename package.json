@@ -77,7 +77,10 @@
     "onLanguage:eql",
     "onLanguage:kuery",
     "onLanguage:lucene",
-    "onLanguage:falco"
+    "onLanguage:falco",
+    "onMcpCollection:opentide",
+    "onTaskType:opentide",
+    "onTerminalProfile:opentide.terminal"
   ],
   "contributes": {
     "languages": [
@@ -335,6 +338,40 @@
             "markdownDescription": "Traces the communication between VS Code and the opentide language server, in the `opentide Language Server Trace` output."
           }
         }
+      },
+      {
+        "id": "opentide-agents",
+        "title": "opentide: Agents",
+        "properties": {
+          "opentide.mcp.provide": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "default": "auto",
+            "scope": "window",
+            "enumDescriptions": [
+              "Provide the opentide MCP server to VS Code's agents, unless the workspace's `.vscode/mcp.json` already defines `opentide`.",
+              "Always provide it; VS Code shows one `opentide` server when a workspace file defines one too.",
+              "Never provide it."
+            ],
+            "markdownDescription": "Whether the extension gives VS Code's agents the opentide MCP server (`opentide mcp start` with the resolved runtime, the bundled one included). Off in Restricted Mode, where this setting is not read."
+          }
+        }
+      },
+      {
+        "id": "opentide-terminal",
+        "title": "opentide: Terminal",
+        "properties": {
+          "opentide.terminal.addToPath": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "markdownDescription": "When the bundled runtime is active and no `opentide` is on `PATH`, put the bundled `opentide` on new integrated terminals' `PATH`. Ignored in Restricted Mode."
+          }
+        }
       }
     ],
     "commands": [
@@ -373,6 +410,78 @@
         "command": "opentide.showReferences",
         "title": "Show References",
         "category": "opentide"
+      },
+      {
+        "command": "opentide.agents.addToEditorMcp",
+        "title": "Add opentide to This Editor's MCP Settings",
+        "category": "opentide",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "opentide.runner.run",
+        "title": "Run Command…",
+        "category": "opentide",
+        "icon": "$(play)"
+      },
+      {
+        "command": "opentide.runner.showLastResult",
+        "title": "Show Last Command Result",
+        "category": "opentide",
+        "icon": "$(json)"
+      },
+      {
+        "command": "opentide.runner.generate",
+        "title": "Generate…",
+        "category": "opentide",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "opentide.runner.openDocs",
+        "title": "Open Generated Docs",
+        "category": "opentide",
+        "icon": "$(book)"
+      },
+      {
+        "command": "opentide.runner.showVocabulary",
+        "title": "Show Vocabulary…",
+        "category": "opentide",
+        "icon": "$(symbol-enum)"
+      },
+      {
+        "command": "opentide.runner.showUnreviewed",
+        "title": "Show Unreviewed Rules",
+        "category": "opentide",
+        "icon": "$(history)"
+      },
+      {
+        "command": "opentide.runner.sharePreview",
+        "title": "Preview Sharing",
+        "category": "opentide",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "opentide.runner.shareStatus",
+        "title": "Show Sharing Status",
+        "category": "opentide",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "opentide.runner.shareTargets",
+        "title": "Show Sharing Targets",
+        "category": "opentide",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "opentide.runner.explain",
+        "title": "Explain a Code…",
+        "category": "opentide",
+        "icon": "$(question)"
+      },
+      {
+        "command": "opentide.runner.openTui",
+        "title": "Open TUI in Terminal",
+        "category": "opentide",
+        "icon": "$(table)"
       }
     ],
     "menus": {
@@ -396,9 +505,103 @@
         {
           "command": "opentide.createPinnedVenv",
           "when": "isWorkspaceTrusted && opentide.pinMismatch"
+        },
+        {
+          "command": "opentide.agents.addToEditorMcp",
+          "when": "isWorkspaceTrusted && opentide.agents.forkMcp"
+        },
+        {
+          "command": "opentide.runner.showLastResult",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "opentide.runner.generate",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.runner.openDocs",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.runner.showVocabulary",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.runner.showUnreviewed",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.runner.sharePreview",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.runner.shareStatus",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.runner.shareTargets",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.runner.openTui",
+          "when": "opentide.hasWorkspace"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "opentide.runner.sharePreview",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml",
+          "group": "opentide@1"
         }
       ]
     },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "opentide",
+        "label": "opentide"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "opentide_open_file_diagnostics",
+        "displayName": "opentide: File Diagnostics",
+        "toolReferenceName": "opentideDiagnostics",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(warning)",
+        "userDescription": "The problems VS Code shows for a file: the language server's, opentide validate's and lint's.",
+        "modelDescription": "Returns every diagnostic VS Code currently shows for one file, merged across the opentide language server, `opentide validate` and `opentide lint` (and other extensions), with severity, source, code, message and 1-based line/column ranges. Use it for the live state of a file the user is editing, including unsaved changes the language server has checked. Defaults to the active editor's file. For workspace-wide validation, use the opentide MCP server's tools instead.",
+        "tags": [
+          "opentide",
+          "diagnostics"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "An absolute path, or a path relative to the first workspace folder. Omit for the active editor's file."
+            }
+          }
+        }
+      },
+      {
+        "name": "opentide_active_object",
+        "displayName": "opentide: Active Object",
+        "toolReferenceName": "opentideActiveObject",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(symbol-class)",
+        "userDescription": "The Tide object in the active editor, its UUID and what it connects to.",
+        "modelDescription": "Returns the opentide object (threat, objective or rule) open in the active editor: its UUID, type, schema, name, TLP, platforms, techniques and tactics, and its graph neighbourhood one hop away (the objects, signals, ATT&CK techniques and log sources it points to or that point to it, with the edge kind and field path). Use it to learn what the user is looking at. For the whole catalogue, search or validation, use the opentide MCP server's tools instead.",
+        "tags": [
+          "opentide",
+          "catalog"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
     "grammars": [
       {
         "language": "eql",
@@ -451,7 +654,63 @@
         "scopeName": "source.opentide.toml",
         "path": "./syntaxes/opentide-config.tmLanguage.json"
       }
-    ]
+    ],
+    "taskDefinitions": [
+      {
+        "type": "opentide",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The opentide command path: validate, lint, generate, validate query, query, deploy (always as a dry run)…"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Arguments after the command, such as [\"--strict\"] or [\"--platform\", \"sentinel\"]."
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "opentide",
+        "label": "opentide code frames",
+        "owner": "opentide",
+        "source": "opentide",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": [
+          {
+            "regexp": "^(error|warning|note)\\[([A-Za-z0-9_.:-]+)\\]: (.*)$",
+            "severity": 1,
+            "code": 2,
+            "message": 3
+          },
+          {
+            "regexp": "^\\s*(?:╭─▶|╰─▶|-->)\\s+(.+?):(\\d+)(?::(\\d+))?\\s*$",
+            "file": 1,
+            "line": 2,
+            "column": 3
+          }
+        ]
+      }
+    ],
+    "terminal": {
+      "profiles": [
+        {
+          "id": "opentide.terminal",
+          "title": "opentide",
+          "icon": "terminal"
+        }
+      ]
+    }
   },
   "scripts": {
     "features": "node scripts/features-index.mjs",

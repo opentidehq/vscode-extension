@@ -333,6 +333,16 @@ export class Backend {
     };
   }
 
+  /**
+   * The environment a run of `folder` that contacts a tenant gets: stored credentials over
+   * `opentide.envFile` variables. For processes the extension starts itself (a task or a terminal running
+   * such a command). Never log or display the values; empty when commands cannot run.
+   */
+  async credentialEnv(folder: string): Promise<Readonly<Record<string, string>>> {
+    if (!hasCli(this.deps.runtime())) return {};
+    return this.deps.credentials(folder);
+  }
+
   /** Forward file changes to `opentide serve` (absolute paths). No-op when it is not running. */
   invalidate(paths: readonly string[]): void {
     this.serve?.invalidate(paths);
