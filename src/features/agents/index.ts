@@ -84,9 +84,9 @@ export default defineFeature({
 
 /**
  * The `opentide` servers of the workspace MCP files VS Code reads (`.vscode/mcp.json`, `.mcp.json`, and
- * `.cursor/mcp.json` when `chat.mcp.discovery.enabled` says so), in VS Code's priority order, each with
- * whether VS Code can start its command. decideMcp defers to a usable first one and logs, once, why it
- * provides its own under another label when the first is not.
+ * `.cursor/mcp.json` when `chat.mcp.discovery.enabled` says so), each with its order in VS Code and
+ * whether VS Code can start its command. decideMcp defers when those VS Code may keep can all start, and
+ * logs, once, why it provides its own under another label when one cannot.
  */
 async function workspaceEntries(): Promise<WorkspaceEntry[]> {
   const lookup = {
@@ -114,6 +114,7 @@ async function workspaceEntries(): Promise<WorkspaceEntry[]> {
         file: `${folder.name}/${file.segments.join("/")}`,
         command,
         usable: entryUsable(command, lookup, file.expansion),
+        order: file.order,
       });
     }
   }

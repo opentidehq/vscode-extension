@@ -109,10 +109,12 @@ describe("agents: MCP server", () => {
     assert.equal(decideMcp(inputs({ folder: undefined })).provide, false);
   });
 
+  /** A workspace entry; its order is VS Code's for that file: 0 for `.vscode/mcp.json`, else 1. */
   const entry = (file: string, usable: boolean, command: string | null = "opentide"): WorkspaceEntry => ({
     file,
     command,
     usable,
+    order: file.endsWith(".vscode/mcp.json") ? 0 : 1,
   });
 
   it("leaves a workspace's own opentide server alone in auto, and provides anyway with always", () => {
@@ -159,6 +161,34 @@ describe("agents: MCP server", () => {
     const decision = decideMcp(inputs({ workspaceEntries: brokenFirst }));
     assert.ok(decision.provide, "VS Code keeps the broken one, so deferring would leave no server");
     assert.equal(decision.server.label, MCP_SEPARATE_LABEL);
+    const reversed = decideMcp(inputs({ workspaceEntries: [entry("ws/.mcp.json", true), ...usableFirst] }));
+    assert.equal(reversed.provide, false, "the order VS Code gives each file counts, not the list's");
+  });
+
+  it("takes the separate label when VS Code may keep any of several equal-order entries that cannot start", () => {
+    // `.mcp.json` and `.cursor/mcp.json` (and every folder's `.mcp.json`) share order 1: VS Code keeps
+    // whichever registered first, which a file created during the session changes.
+    for (const entries of [
+      [entry("a/.mcp.json", true), entry("a/.cursor/mcp.json", false)],
+      [entry("a/.cursor/mcp.json", true), entry("a/.mcp.json", false)],
+      [entry("a/.mcp.json", true), entry("b/.mcp.json", false)],
+    ]) {
+      const decision = decideMcp(inputs({ workspaceEntries: entries }));
+      assert.ok(decision.provide, entries.map((e) => e.file).join(", "));
+      assert.equal(decision.server.label, MCP_SEPARATE_LABEL);
+      assert.match(decision.note ?? "", new RegExp(`^${entries[1]?.file}'s opentide server`));
+    }
+    const allUsable = [entry("a/.mcp.json", true), entry("b/.mcp.json", true)];
+    assert.deepEqual(decideMcp(inputs({ workspaceEntries: allUsable })), {
+      provide: false,
+      reason: "a/.mcp.json already defines opentide",
+    });
+    const shadowed = [
+      entry("a/.vscode/mcp.json", true),
+      entry("a/.mcp.json", false),
+      entry("b/.mcp.json", true),
+    ];
+    assert.equal(decideMcp(inputs({ workspaceEntries: shadowed })).provide, false, "order 0 wins outright");
   });
 
   it("logs once why it provides the server under the other label", () => {

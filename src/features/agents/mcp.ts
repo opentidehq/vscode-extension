@@ -57,6 +57,8 @@ export type Expansion = "variables" | "environment" | "none";
 export interface McpFile {
   readonly kind: McpFileKind;
   readonly expansion: Expansion;
+  /** VS Code's collection order: the lowest wins a name. */
+  readonly order: number;
   /** The path under the folder. */
   readonly segments: readonly string[];
   /** The watcher's glob. */
@@ -68,11 +70,18 @@ export const MCP_FILES: readonly McpFile[] = [
   {
     kind: "vscode",
     expansion: "variables",
+    order: 0,
     segments: [".vscode", "mcp.json"],
     glob: "**/.vscode/mcp.json",
   },
-  { kind: "root", expansion: "environment", segments: [".mcp.json"], glob: "**/.mcp.json" },
-  { kind: "cursor", expansion: "none", segments: [".cursor", "mcp.json"], glob: "**/.cursor/mcp.json" },
+  { kind: "root", expansion: "environment", order: 1, segments: [".mcp.json"], glob: "**/.mcp.json" },
+  {
+    kind: "cursor",
+    expansion: "none",
+    order: 1,
+    segments: [".cursor", "mcp.json"],
+    glob: "**/.cursor/mcp.json",
+  },
 ];
 
 /**
@@ -258,6 +267,8 @@ export interface WorkspaceEntry {
   readonly command: string | null;
   /** VS Code can start it ({@link entryUsable}). */
   readonly usable: boolean;
+  /** Its collection's order in VS Code ({@link McpFile.order}). */
+  readonly order: number;
 }
 
 export interface McpInputs {
@@ -269,8 +280,11 @@ export interface McpInputs {
   /** The folder the server is for: the first opentide folder, else the first workspace folder. */
   readonly folder: string | undefined;
   /**
-   * The workspace MCP files' `opentide` servers, in VS Code's priority order ({@link workspaceMcpFiles}
-   * of each folder): the first is the one VS Code keeps enabled.
+   * The workspace MCP sources' `opentide` servers. VS Code keeps the one with the lowest order. Among
+   * several with that order it keeps the one registered first, which depends on when each file appeared
+   * (a `.mcp.json` created during the session registers after an existing `.cursor/mcp.json`, or after
+   * another folder's), so the decision is conservative: it defers only when every one of them can start,
+   * and takes {@link MCP_SEPARATE_LABEL} when any cannot.
    */
   readonly workspaceEntries: readonly WorkspaceEntry[];
   /** VS Code's `http.proxy`. */
@@ -286,12 +300,15 @@ export function decideMcp(inputs: McpInputs): McpDecision {
     return { provide: false, reason: "the command tree is loading", pending: true };
   if (!inputs.hasMcpStart) return { provide: false, reason: "the active opentide has no `mcp start`" };
   if (!inputs.folder) return { provide: false, reason: "no workspace folder" };
-  // The entry VS Code keeps of every `opentide` (MCP_LABEL): deferring to one that cannot start would
-  // leave the agents a server that fails with ENOENT, and sharing its label would get ours disabled.
-  const kept = inputs.workspaceEntries[0];
-  if (inputs.mode === "auto" && kept?.usable)
+  // The entries VS Code may keep of every `opentide` (MCP_LABEL): deferring to one that cannot start
+  // would leave the agents a server that fails with ENOENT, and sharing its label would get ours disabled.
+  const first = Math.min(...inputs.workspaceEntries.map((entry) => entry.order));
+  const candidates = inputs.workspaceEntries.filter((entry) => entry.order === first);
+  const kept = candidates[0];
+  const broken = candidates.find((entry) => !entry.usable);
+  if (inputs.mode === "auto" && kept && !broken)
     return { provide: false, reason: `${kept.file} already defines opentide` };
-  const separate = kept !== undefined && !kept.usable;
+  const separate = broken !== undefined;
   const runtime = inputs.runtime;
   const { command, args } = cliCommand(runtime, ["mcp", "start"]);
   return {
@@ -308,9 +325,9 @@ export function decideMcp(inputs: McpInputs): McpDecision {
       },
       version: runtime.version,
     },
-    ...(separate
+    ...(broken
       ? {
-          note: `${kept.file}'s opentide server runs \`${kept.command}\`, which is not found, and VS Code keeps one server named opentide`,
+          note: `${broken.file}'s opentide server runs \`${broken.command}\`, which is not found, and VS Code keeps one server named opentide`,
         }
       : {}),
   };
