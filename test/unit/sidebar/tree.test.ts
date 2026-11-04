@@ -39,6 +39,17 @@ describe("NodeTree refreshes", () => {
     assert.equal(tree.getTreeItem(handed).description, "2 errors");
   });
 
+  it("refreshes a row whose decorations change", () => {
+    tree.set(model());
+    const [a] = tree.getChildren();
+    assert.ok(a);
+    tree.getChildren(a);
+    tree.set(model({ open: { path: "/ws/r.yaml", line: 0 } }));
+    tree.set(model({ open: { path: "/ws/r.yaml", line: 0 }, decorate: false }));
+    assert.equal(fired.length, 3);
+    assert.ok(tree.getTreeItem(tree.getChildren(a)[0] ?? a).resourceUri === undefined);
+  });
+
   it("refreshes the whole tree when its top level changes", () => {
     tree.set(model());
     tree.set({ nodes: [node("b")] });

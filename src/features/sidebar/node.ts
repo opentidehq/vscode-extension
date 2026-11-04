@@ -170,6 +170,7 @@ function face(node: TreeNode): string {
     node.contextValue,
     node.collapsed === undefined,
     node.open,
+    node.decorate,
     node.command,
     node.ref,
   ]);
