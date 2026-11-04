@@ -74,11 +74,6 @@ export class NodeTree implements vscode.TreeDataProvider<TreeNode>, vscode.Dispo
     return this.model.nodes;
   }
 
-  /** The node of `id` in the current model. */
-  find(id: string): TreeNode | undefined {
-    return this.byId.get(id);
-  }
-
   /**
    * Show `model`. Only the rows that changed are refreshed (`onDidChangeTreeData` with those
    * elements), so a catalogue refresh or a diagnostics change does not redraw the whole tree.
