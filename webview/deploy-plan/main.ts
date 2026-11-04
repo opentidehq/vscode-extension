@@ -487,6 +487,7 @@ function tenantBlock(p: PlatformPlan, tenant: TenantPlan, s: DeployPanelState): 
       h("span", { text: "" }),
     ]),
     virtualList<ChangeRow>({
+      key: `changes:${p.platform}:${tenant.tenant ?? ""}`,
       items: tenant.changes,
       rowHeight: 28,
       label: `Changes on ${tenant.tenant ?? label(s, p.platform)}`,
@@ -564,6 +565,7 @@ function renderSkipped(plan: PlanView): void {
               h("span", { text: "Maps to" }),
             ]),
             virtualList({
+              key: "skipped",
               items: plan.skipped,
               rowHeight: 26,
               label: "Skipped rules",

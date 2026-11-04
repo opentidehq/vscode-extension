@@ -16,7 +16,12 @@ export interface ListOptions<T> {
   readonly maxHeight?: string;
   readonly label: string;
   readonly role?: string;
+  /** Keeps the scroll position across a rebuild of the list under the same key (a re-run's plan). */
+  readonly key?: string;
 }
+
+/** Scroll positions of virtualised lists, by key, for the page's lifetime. */
+const scrollTops = new Map<string, number>();
 
 export function virtualList<T>(options: ListOptions<T>): HTMLElement {
   const threshold = options.threshold ?? 200;
@@ -77,8 +82,26 @@ export function virtualList<T>(options: ListOptions<T>): HTMLElement {
     });
   };
   const schedule = frameThrottle(draw);
-  viewport.addEventListener("scroll", schedule);
-  new ResizeObserver(schedule).observe(viewport);
+  const onScroll = () => {
+    if (options.key !== undefined) scrollTops.set(options.key, viewport.scrollTop);
+    schedule();
+  };
+  viewport.addEventListener("scroll", onScroll);
+  // A list replaced by a re-render lets go of its observer and listener (its resize fires on removal).
+  const observer = new ResizeObserver(() => {
+    if (!viewport.isConnected) {
+      observer.disconnect();
+      viewport.removeEventListener("scroll", onScroll);
+      return;
+    }
+    const saved = options.key === undefined ? undefined : scrollTops.get(options.key);
+    if (saved !== undefined && viewport.scrollTop !== saved && viewport.dataset.restored !== "1") {
+      viewport.dataset.restored = "1";
+      viewport.scrollTop = saved;
+    }
+    schedule();
+  });
+  observer.observe(viewport);
   draw();
   return viewport;
 }
