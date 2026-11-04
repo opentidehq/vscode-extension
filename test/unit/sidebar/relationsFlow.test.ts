@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import {
   FollowGuard,
+  RenderTurns,
   ServerCatalogCache,
   type ServerFetch,
 } from "../../../src/features/sidebar/relationsFlow";
@@ -80,6 +81,29 @@ describe("Relations view bookkeeping", () => {
       guard.opened(token);
       assert.equal(guard.shouldFollow("/ws/other.yaml"), true);
       assert.equal(guard.shouldFollow("/ws/o.yaml"), true);
+    });
+  });
+
+  describe("renders", () => {
+    it("lets the latest render win", () => {
+      const turns = new RenderTurns();
+      const first = turns.begin();
+      const second = turns.begin();
+      assert.equal(turns.current(first.turn), false);
+      assert.equal(turns.current(second.turn), true);
+    });
+
+    it("leaves no Back or Forward behind when a later render supersedes it", () => {
+      const turns = new RenderTurns();
+      turns.navigate();
+      const back = turns.begin();
+      assert.equal(back.navigating, true);
+      // A catalogue change renders again before Back's render finished; Back's render is dropped.
+      const refresh = turns.begin();
+      assert.equal(turns.current(back.turn), false);
+      assert.equal(refresh.navigating, false);
+      // The next object the editor shows goes onto the history.
+      assert.equal(turns.begin().navigating, false);
     });
   });
 });

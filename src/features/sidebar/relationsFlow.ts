@@ -68,3 +68,31 @@ export class FollowGuard {
     return !skip;
   }
 }
+
+/**
+ * The view's renders: the latest one wins, and a render started by Back or Forward does not push onto
+ * the history. Each render reads (and clears) that at its start, so a render a later one supersedes
+ * cannot leave it set for an unrelated render.
+ */
+export class RenderTurns {
+  private turn = 0;
+  private navigating = false;
+
+  /** The next render goes back or forward. */
+  navigate(): void {
+    this.navigating = true;
+  }
+
+  /** A render starts: its turn, and whether it goes back or forward. */
+  begin(): { readonly turn: number; readonly navigating: boolean } {
+    const navigating = this.navigating;
+    this.navigating = false;
+    this.turn += 1;
+    return { turn: this.turn, navigating };
+  }
+
+  /** Whether the render of `turn` is still the latest. */
+  current(turn: number): boolean {
+    return turn === this.turn;
+  }
+}

@@ -12,7 +12,7 @@ import {
 import type { FeatureContext } from "../../core/context";
 import { debounce } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
-import { FollowGuard, ServerCatalogCache, type ServerFetch } from "./relationsFlow";
+import { FollowGuard, RenderTurns, ServerCatalogCache, type ServerFetch } from "./relationsFlow";
 import {
   graphFromCatalog,
   graphFromServer,
@@ -67,15 +67,13 @@ export class RelationsView implements vscode.Disposable {
   private readonly history = new History<Shown>(
     (a, b) => a.folder === b.folder && a.uuid.toLowerCase() === b.uuid.toLowerCase(),
   );
-  /** Going back or forward: the render must not push. */
-  private navigating = false;
   /** The editor group the target shows in: rows open in the group beside it. */
   private column: vscode.ViewColumn | undefined;
   /** The view does not follow the editor one of its rows opened. */
   private readonly guard = new FollowGuard();
   private readonly server = new ServerCatalogCache<unknown>();
   private notification: vscode.Disposable | undefined;
-  private renders = 0;
+  private readonly renders = new RenderTurns();
   private stale = false;
   private readonly lensChanged = new vscode.EventEmitter<void>();
   private readonly follow = debounce(() => this.followEditor(), FOLLOW_MS);
@@ -273,13 +271,12 @@ export class RelationsView implements vscode.Disposable {
       return;
     }
     this.stale = false;
-    const render = ++this.renders;
+    const { turn, navigating } = this.renders.begin();
     const state = await this.resolve();
-    if (render !== this.renders) return;
+    if (!this.renders.current(turn)) return;
     this.tree.set(relationsViewModel(state, this.pinned));
-    if (state.kind === "ready" && !this.navigating)
+    if (state.kind === "ready" && !navigating)
       this.history.push({ folder: state.graph.folder, uuid: state.uuid });
-    this.navigating = false;
     setContext("opentide.relations.hasTarget", state.kind === "ready");
     setContext("opentide.relations.canBack", this.history.canBack);
     setContext("opentide.relations.canForward", this.history.canForward);
@@ -313,7 +310,7 @@ export class RelationsView implements vscode.Disposable {
 
   private go(shown: Shown | undefined): void {
     if (!shown) return;
-    this.navigating = true;
+    this.renders.navigate();
     this.retarget(shown);
   }
 
