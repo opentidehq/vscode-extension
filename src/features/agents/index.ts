@@ -14,10 +14,13 @@ import { forkTarget, mergeMcpEntry } from "./forks";
 import {
   decideMcp,
   entryUsable,
+  MCP_FILES,
   MCP_PROVIDER_ID,
   McpDecisionLog,
   opentideEntryCommand,
   provideMode,
+  type WorkspaceEntry,
+  workspaceMcpFiles,
 } from "./mcp";
 import {
   ACTIVE_OBJECT_TOOL,
@@ -79,33 +82,40 @@ export default defineFeature({
 });
 
 /**
- * `.vscode/mcp.json` of any workspace folder defines an `opentide` server VS Code can start. One whose
- * command is not found (`opentide` with only the bundled runtime) does not count: deferring to it would
- * leave the agents with a server that fails with ENOENT.
+ * The `opentide` servers of the workspace MCP files VS Code reads (`.vscode/mcp.json`, `.mcp.json`, and
+ * `.cursor/mcp.json` when `chat.mcp.discovery.enabled` says so), in VS Code's priority order, each with
+ * whether VS Code can start its command. decideMcp defers to a usable first one and logs, once, why it
+ * provides its own under another label when the first is not.
  */
-async function workspaceDefinesOpentide(log: FeatureContext["log"]): Promise<boolean> {
+async function workspaceEntries(): Promise<WorkspaceEntry[]> {
   const lookup = {
     isAbsolute: (file: string) => path.isAbsolute(file),
     exists: (file: string) => fs.existsSync(file),
     which: (name: string) => which(name, process.env.PATH, process.platform),
   };
-  for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    let text: string;
-    try {
-      text = new TextDecoder().decode(
-        await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder.uri, ".vscode", "mcp.json")),
-      );
-    } catch {
-      continue; // No file.
+  const files = workspaceMcpFiles(vscode.workspace.getConfiguration("chat.mcp").get("discovery.enabled"));
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  const entries: WorkspaceEntry[] = [];
+  for (const file of files) {
+    for (const folder of folders) {
+      let text: string;
+      try {
+        text = new TextDecoder().decode(
+          await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder.uri, ...file.segments)),
+        );
+      } catch {
+        continue; // No file.
+      }
+      const command = opentideEntryCommand(text, file.kind);
+      if (command === undefined) continue;
+      entries.push({
+        file: `${folder.name}/${file.segments.join("/")}`,
+        command,
+        usable: entryUsable(command, lookup),
+      });
     }
-    const command = opentideEntryCommand(text);
-    if (command === undefined) continue;
-    if (entryUsable(command, lookup)) return true;
-    log.info(
-      `${folder.name}/.vscode/mcp.json's opentide server runs \`${command}\`, which is not found: providing the extension's server instead`,
-    );
   }
-  return false;
+  return entries;
 }
 
 function registerMcpProvider(ctx: FeatureContext): void {
@@ -114,7 +124,7 @@ function registerMcpProvider(ctx: FeatureContext): void {
   if (!register || !Definition) return;
   const changed = new vscode.EventEmitter<void>();
   const fire = () => changed.fire();
-  const watcher = vscode.workspace.createFileSystemWatcher("**/.vscode/mcp.json");
+  const watchers = MCP_FILES.map((file) => vscode.workspace.createFileSystemWatcher(file.glob));
   const log = new McpDecisionLog();
   const provider: McpProvider = {
     onDidChangeMcpServerDefinitions: changed.event,
@@ -131,7 +141,7 @@ function registerMcpProvider(ctx: FeatureContext): void {
         // No tree yet for a runtime with commands: capabilities.onDidChange asks again once it loads.
         hasMcpStart: tree ? tree.hasCommand("mcp start") : undefined,
         folder: ctx.folders.all[0]?.path ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-        workspaceDefines: mode === "auto" ? await workspaceDefinesOpentide(ctx.log) : false,
+        workspaceEntries: mode === "never" ? [] : await workspaceEntries(),
         proxy: httpProxy(),
       });
       const line = log.line(decision);
@@ -152,16 +162,22 @@ function registerMcpProvider(ctx: FeatureContext): void {
   };
   ctx.subscriptions.push(
     changed,
-    watcher,
-    watcher.onDidCreate(fire),
-    watcher.onDidChange(fire),
-    watcher.onDidDelete(fire),
+    ...watchers.flatMap((watcher) => [
+      watcher,
+      watcher.onDidCreate(fire),
+      watcher.onDidChange(fire),
+      watcher.onDidDelete(fire),
+    ]),
     ctx.runtime.onDidChange(fire),
     ctx.capabilities.onDidChange(fire),
     ctx.trust.onDidGrant(fire),
     ctx.folders.onDidChange(fire),
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("opentide.mcp.provide")) fire();
+      if (
+        event.affectsConfiguration("opentide.mcp.provide") ||
+        event.affectsConfiguration("chat.mcp.discovery.enabled")
+      )
+        fire();
     }),
     register(MCP_PROVIDER_ID, provider),
   );
