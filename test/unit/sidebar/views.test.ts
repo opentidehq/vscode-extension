@@ -562,11 +562,11 @@ describe("sidebar: handovers", () => {
       ({ kind: "object", folder: "/r", uuid: "u1", type, name: "n", file: "/r/x.yaml" }) as const;
     assert.deepEqual(newObjectHandover(object("objective")), {
       command: "opentide.newObject.ruleForObjective",
-      uuid: "u1",
+      args: { uuid: "u1", folder: "/r" },
     });
     assert.deepEqual(newObjectHandover(object("threat")), {
       command: "opentide.newObject.objectiveForThreat",
-      uuid: "u1",
+      args: { uuid: "u1", folder: "/r" },
     });
     assert.deepEqual(newObjectHandover(object("rule")), { command: "opentide.newObject", folder: "/r" });
     // A coverage gap: the objective flow in the node's folder (an object, not a URI, which means --path).

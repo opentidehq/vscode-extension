@@ -59,6 +59,7 @@ export function nodeCommand(
       return { command, args: [{ uuid: node.uuid, folder }] };
     case "newRule":
     case "newObjective":
-      return { command, args: [node.uuid] };
+      // The folder too: in a multi-root window the new object goes next to its parent.
+      return { command, args: [{ uuid: node.uuid, folder }] };
   }
 }

@@ -310,3 +310,20 @@ export function placeholdersText(count: number): string {
 export function placeholdersLeft(count: number): string {
   return `${count} ${count === 1 ? "placeholder" : "placeholders"} left`;
 }
+
+/**
+ * What "New rule for this objective" and "New objective for this threat" are handed: the parent's UUID,
+ * and the workspace folder it is in (`{uuid, folder}` from the graph and the sidebar; a bare UUID or
+ * `{object: {uuid}}` still works). The folder keeps the new object next to its parent in a multi-root
+ * window, where the active editor's folder may be another.
+ */
+export function parentOf(value: unknown): { readonly uuid?: string; readonly folder?: string } {
+  if (typeof value === "string") return value ? { uuid: value } : {};
+  if (!value || typeof value !== "object") return {};
+  const { uuid, folder, object } = value as { uuid?: unknown; folder?: unknown; object?: { uuid?: unknown } };
+  const id = typeof uuid === "string" ? uuid : typeof object?.uuid === "string" ? object.uuid : undefined;
+  return {
+    ...(id ? { uuid: id } : {}),
+    ...(typeof folder === "string" && folder ? { folder } : {}),
+  };
+}

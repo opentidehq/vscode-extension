@@ -589,7 +589,6 @@ class Sidebar implements vscode.Disposable {
   private async newObject(ref: NodeRef | undefined): Promise<unknown> {
     const handover = newObjectHandover(ref);
     if ("args" in handover) return handOver(handover);
-    if ("uuid" in handover) return vscode.commands.executeCommand(handover.command, handover.uuid);
     if ("folder" in handover)
       return vscode.commands.executeCommand(handover.command, vscode.Uri.file(handover.folder));
     const folder = this.ctx.folders.all.length === 1 ? this.ctx.folders.all[0] : undefined;

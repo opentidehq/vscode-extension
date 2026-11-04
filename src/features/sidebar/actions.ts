@@ -3,7 +3,6 @@
 import type { NodeRef } from "./node";
 
 export type Handover =
-  | { readonly command: string; readonly uuid: string }
   | { readonly command: string; readonly folder: string }
   | { readonly command: string; readonly args: { readonly uuid?: string; readonly folder: string } }
   | { readonly command: string };
@@ -13,10 +12,11 @@ export type Handover =
  * from a coverage gap, else the generic flow in the node's folder.
  */
 export function newObjectHandover(ref: NodeRef | undefined): Handover {
+  // `{uuid, folder}`: in a multi-root window the new object goes in its parent's folder.
   if (ref?.kind === "object" && ref.type === "objective")
-    return { command: "opentide.newObject.ruleForObjective", uuid: ref.uuid };
+    return { command: "opentide.newObject.ruleForObjective", args: { uuid: ref.uuid, folder: ref.folder } };
   if (ref?.kind === "object" && ref.type === "threat")
-    return { command: "opentide.newObject.objectiveForThreat", uuid: ref.uuid };
+    return { command: "opentide.newObject.objectiveForThreat", args: { uuid: ref.uuid, folder: ref.folder } };
   // `{folder}`, not a folder URI: a URI is where to write (`--path`), and the repository root is no
   // objective folder. `opentide new objective` takes no technique.
   if (ref?.kind === "technique")

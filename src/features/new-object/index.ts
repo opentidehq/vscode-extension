@@ -25,6 +25,7 @@ import {
   objectFolderPaths,
   objectHeader,
   type PlatformInfo,
+  parentOf,
   placeholdersText,
   platformItems,
   platformsOf,
@@ -59,18 +60,6 @@ type PlatformPick = vscode.QuickPickItem & { readonly id: string };
 type ObjectPick = vscode.QuickPickItem & { readonly uuid?: string; readonly action?: "create" | "none" };
 type FolderPick = vscode.QuickPickItem & { readonly choose?: true };
 
-/** Read `uuid` from a catalogue node or an argument, whatever shape another view passes. */
-function uuidOf(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object") {
-    const candidate =
-      (value as { uuid?: unknown; object?: { uuid?: unknown } }).uuid ??
-      (value as { object?: { uuid?: unknown } }).object?.uuid;
-    if (typeof candidate === "string") return candidate;
-  }
-  return undefined;
-}
-
 function argsOf(value: unknown, kind?: ObjectKind): NewObjectArgs {
   if (value instanceof vscode.Uri) return { ...(kind ? { kind } : {}), path: value.fsPath };
   const args: NewObjectArgs = value && typeof value === "object" ? (value as NewObjectArgs) : {};
@@ -102,12 +91,20 @@ class NewObject implements vscode.Disposable, vscode.CodeActionProvider {
         command(`opentide.newObject.newFile.${kind}`, () => this.start({ kind })),
       ]),
       command("opentide.newObject.ruleForObjective", (arg) => {
-        const objective = uuidOf(arg);
-        return this.start({ kind: "rule", ...(objective ? { objective } : {}) });
+        const { uuid, folder } = parentOf(arg);
+        return this.start({
+          kind: "rule",
+          ...(uuid ? { objective: uuid } : {}),
+          ...(folder ? { folder } : {}),
+        });
       }),
       command("opentide.newObject.objectiveForThreat", (arg) => {
-        const threat = uuidOf(arg);
-        return this.start({ kind: "objective", ...(threat ? { threats: [threat] } : {}) });
+        const { uuid, folder } = parentOf(arg);
+        return this.start({
+          kind: "objective",
+          ...(uuid ? { threats: [uuid] } : {}),
+          ...(folder ? { folder } : {}),
+        });
       }),
       command("opentide.newObject.regenerateTemplates", () => this.regenerate()),
       vscode.languages.registerCodeActionsProvider({ language: "opentide-yaml" }, this, {
