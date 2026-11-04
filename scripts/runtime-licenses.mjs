@@ -3,7 +3,9 @@
 // licence texts, for the runtime's THIRD-PARTY-NOTICES and SBOM. `install_only_stripped` leaves those
 // out; the same release's `full` archive has them (python/PYTHON.json, python/licenses/). The archive
 // is streamed (SHA-256 checked against SHA256SUMS, zstd, tar) and only those files are kept, in
-// runtime-licenses/<target>.json, which runtime:build reads and checks against pins.json.
+// runtime-licenses/<target>.json, which runtime:build reads and checks against pins.json. A library whose
+// licence asks for a source offer (Berkeley DB's Sleepycat) also gets its source's version, URL and
+// SHA-256 from the release's pythonbuild/downloads.py, for the notices.
 //   node scripts/runtime-licenses.mjs [--target <t>]   every runtimeTargets target by default
 //   node scripts/runtime-licenses.mjs --check           each target's file is there and matches the pins
 import { createHash } from "node:crypto";
@@ -15,10 +17,13 @@ import { fileURLToPath } from "node:url";
 import { createZstdDecompress } from "node:zlib";
 import {
   checkNativeLicenses,
+  downloadEntry,
   fullArchive,
   nativeComponents,
   nativeLicensesPath,
+  needsSourceOffer,
   parseSha256Sums,
+  pbsDownloadsUrl,
   RuntimeError,
   runtimeTargets,
   sha256SumsUrl,
@@ -40,6 +45,18 @@ const read = (file) => {
     return undefined;
   }
 };
+
+let downloads;
+/** The release's downloads.py, fetched once. */
+async function downloadsPy(pins) {
+  if (downloads === undefined) {
+    const url = pbsDownloadsUrl(pins.python.pythonBuildStandalone);
+    const response = await fetch(url, { redirect: "follow" });
+    if (!response.ok) throw new RuntimeError(`GET ${url}: HTTP ${response.status}`);
+    downloads = await response.text();
+  }
+  return downloads;
+}
 
 async function record(pins, name, sums) {
   const full = fullArchive(pins, name, sums);
@@ -67,6 +84,14 @@ async function record(pins, name, sums) {
   const pythonJson = tar.files.get("python/PYTHON.json");
   if (!pythonJson) throw new RuntimeError(`${full.archive} has no python/PYTHON.json`);
   const components = nativeComponents(JSON.parse(pythonJson.toString("utf8")));
+  for (const component of components.filter(needsSourceOffer)) {
+    const source = downloadEntry(await downloadsPy(pins), component.name);
+    if (!source)
+      throw new RuntimeError(
+        `${pbsDownloadsUrl(pins.python.pythonBuildStandalone)} has no "${component.name}" with a version, url and sha256`,
+      );
+    component.source = source;
+  }
   const texts = {};
   for (const component of components) {
     const body = tar.files.get(`python/licenses/${component.file}`);

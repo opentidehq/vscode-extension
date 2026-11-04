@@ -12,7 +12,7 @@ pre-releases odd ones.
 
 - Per-platform packages for win32-x64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64
   and darwin-arm64 bundle opentide 0.21.0 on CPython 3.13, with a CycloneDX SBOM and third-party
-  notices that include the native libraries linked into CPython (OpenSSL, zlib, libffi, sqlite, …). Every other platform, including win32-arm64 for now, gets the universal package.
+  notices that include the native libraries linked into CPython (OpenSSL, zlib, libffi, sqlite, …). For Berkeley DB (Sleepycat licence, in the Linux and Alpine runtimes) the notices and SBOM say where its exact source, and CPython's, can be obtained. Every other platform, including win32-arm64 for now, gets the universal package.
 - Runtime resolution in four tiers: `opentide.path`, the workspace's environment, uv with the
   repository's pin (opt-in), and the bundled runtime; a version check (an untagged dev build such as
   `0.1.dev216+g0a65c49` is used with a note), pin-mismatch detection, a status bar item and a language

@@ -13,6 +13,7 @@ import {
   buildInfo,
   checkNativeLicenses,
   cyclonedx,
+  downloadEntry,
   expectedArchiveSha,
   fullArchive,
   hostTarget,
@@ -26,11 +27,13 @@ import {
   nativeComponents,
   nativeLicensesPath,
   nativeSections,
+  needsSourceOffer,
   noWheelsError,
   packagesWithoutWheels,
   parseLock,
   parseMetadata,
   parseSha256Sums,
+  pbsDownloadsUrl,
   pickWheel,
   RuntimeError,
   recordArchiveSha,
@@ -573,6 +576,65 @@ describe("runtime build: the native libraries inside CPython", () => {
     );
   });
 
+  it("says where Berkeley DB's source is, as its Sleepycat licence asks", () => {
+    const downloadsPy = [
+      "DOWNLOADS = {",
+      '    "bdb": {',
+      '        "url": "https://ftp.osuosl.org/pub/blfs/conglomeration/db/db-6.0.19.tar.gz",',
+      '        "size": 36541923,',
+      '        "sha256": "2917c28f60903908c2ca4587ded1363b812c4e830a5326aaa77c9879d13ae18e",',
+      '        "version": "6.0.19",',
+      '        "licenses": ["Sleepycat"],',
+      "    },",
+      '    "binutils": {',
+      '        "url": "https://example.invalid/binutils.tar.xz",',
+      "    },",
+      "}",
+    ].join("\n");
+    const source = downloadEntry(downloadsPy, "bdb");
+    assert.deepEqual(source, {
+      version: "6.0.19",
+      url: "https://ftp.osuosl.org/pub/blfs/conglomeration/db/db-6.0.19.tar.gz",
+      sha256: "2917c28f60903908c2ca4587ded1363b812c4e830a5326aaa77c9879d13ae18e",
+    });
+    assert.equal(downloadEntry(downloadsPy, "binutils"), undefined, "no version or sha256");
+    assert.equal(
+      pbsDownloadsUrl("20260718"),
+      "https://raw.githubusercontent.com/astral-sh/python-build-standalone/20260718/pythonbuild/downloads.py",
+    );
+    const bdb = { name: "bdb", file: "LICENSE.bdb.txt", modules: ["_dbm"], licenses: ["Sleepycat"] };
+    assert.equal(needsSourceOffer(bdb), true);
+    assert.equal(needsSourceOffer({ ...bdb, licenses: ["MIT"] }), false);
+    const record = {
+      pythonBuildStandalone: "20260718",
+      cpython: "3.13.14",
+      components: [bdb],
+      texts: { "LICENSE.bdb.txt": "Sleepycat" },
+    };
+    assert.throws(() => checkNativeLicenses(testPins, "linux-x64", record), /no source for bdb/);
+    const sourced = { ...record, components: [{ ...bdb, source }] };
+    assert.equal(checkNativeLicenses(testPins, "linux-x64", sourced), sourced);
+    const info = buildInfo({ pins: testPins, name: "linux-x64", archiveSha256: "a", lockSha256: "b" });
+    const notices = runtimeNotices(info, nativeSections(sourced));
+    assert.match(
+      notices,
+      /bdb, linked into CPython \(_dbm\) \(Sleepycat\)\n=+\n\nSource: the complete source of bdb 6\.0\.19/,
+    );
+    assert.ok(notices.includes(`no charge from ${source.url} (SHA-256 ${source.sha256})`));
+    assert.ok(notices.includes("https://github.com/astral-sh/python-build-standalone/tree/20260718"));
+    assert.ok(notices.includes("https://www.python.org/ftp/python/3.13.14/Python-3.13.14.tar.xz"));
+    const [cpython] = cyclonedx({
+      info,
+      dists: [],
+      extensionVersion: "0.2.0",
+      native: sourced.components,
+    }).components;
+    assert.equal(cpython.components[0].version, "6.0.19");
+    assert.deepEqual(cpython.components[0].externalReferences, [
+      { type: "source-distribution", url: source.url },
+    ]);
+  });
+
   it("refuses licences recorded for another CPython or python-build-standalone, or none", () => {
     const record = { pythonBuildStandalone: "20250101", cpython: "3.13.14", components: [], texts: {} };
     assert.throws(() => checkNativeLicenses(testPins, "linux-x64", record), /npm run runtime:licenses/);
@@ -588,6 +650,17 @@ describe("runtime build: the native libraries inside CPython", () => {
         record.components.some((c) => c.name.startsWith("openssl")),
         `${name} links OpenSSL`,
       );
+      // Berkeley DB (Sleepycat) is in the Linux and Alpine interpreters: their notices say where its source is.
+      const bdb = record.components.find((c) => c.name === "bdb");
+      assert.equal(Boolean(bdb), /^(?:linux|alpine)-/.test(name), `${name} links Berkeley DB`);
+      if (bdb) {
+        const notices = runtimeNotices(
+          buildInfo({ pins, name, archiveSha256: "a", lockSha256: "b" }),
+          nativeSections(record),
+        );
+        assert.match(notices, /Source: the complete source of bdb \d[\d.]+, as linked here, is available/);
+        assert.ok(notices.includes(bdb.source.url), name);
+      }
     }
   });
 
