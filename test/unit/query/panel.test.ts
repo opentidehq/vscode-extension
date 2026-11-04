@@ -290,5 +290,25 @@ describe("query panel", () => {
       assert.equal(h.last()?.name, "Kept rule");
       h.panels.dispose();
     });
+
+    it("reopens kept results unlocked, as the panel is", async () => {
+      const h = harness([Promise.resolve(ROWS), Promise.resolve(ROWS)]);
+      h.panels.run(spec("Pinned then closed"));
+      await flush();
+      await h.send("lock", true);
+      assert.equal(h.last()?.locked, true);
+      h.created[0]?.dispose();
+      h.panels.run(spec("Pinned then closed"));
+      await flush();
+      assert.equal(h.created.length, 2);
+      await h.send("ready", undefined, 1);
+      assert.equal(h.last()?.name, "Pinned then closed", "the kept results, not a run");
+      assert.equal(h.last()?.locked, false, "the webview shows what the pool does");
+      // And the reopened panel is retargeted, as an unlocked one is.
+      h.panels.run(spec("Next rule"));
+      await flush();
+      assert.equal(h.created.length, 2);
+      h.panels.dispose();
+    });
   });
 });

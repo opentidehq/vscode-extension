@@ -153,7 +153,8 @@ class QueryPanel implements vscode.Disposable {
     events: { disposed: () => void; active: () => void },
     initial?: QueryPanelState,
   ) {
-    this.state = initial;
+    // Kept results reopen in a new panel, which is unlocked: the webview shows the lock as it is.
+    this.state = initial ? { ...initial, locked: false } : undefined;
     this.view = ctx.webview.createPanel<QueryProtocol>({
       viewType: "opentide.query",
       title: queryPanelTitle(spec),
