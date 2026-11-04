@@ -21,7 +21,8 @@ import { fakeRuntime } from "./helpers";
 
 const EXT = "/ext/opentidehq.opentide-0.2.0-linux-x64";
 const STORAGE = "/storage";
-const PREFIX = path.posix.join(STORAGE, "pycache");
+// pycachePrefix joins with the host's node:path: so does the expected prefix.
+const PREFIX = path.join(STORAGE, "pycache");
 const bundled = fakeRuntime({ tier: 4, source: "bundled", command: `${EXT}/runtime/bin/python3`, args: [] });
 
 interface Fake {

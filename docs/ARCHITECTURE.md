@@ -25,7 +25,7 @@ scripts/                manifest.mjs, features-index.mjs, grammars.mjs, build.mj
 test/unit/              mocha in plain node (npm test); test/stubs/vscode.ts stands in for `vscode`
 test/scripts/           tests of scripts/*.mjs
 test/integration/       @vscode/test-cli, label `integration` (needs a VS Code download)
-test/restricted/        @vscode/test-cli, label `restricted` (Restricted Mode)
+test/restricted/        scripts/test-restricted.mjs (Restricted Mode, workspace trust on)
 test/fixtures/          fake-opentide.mjs (CLI and `serve`), commands-0.20.1.json, a workspace
 ```
 
@@ -329,7 +329,8 @@ through the host.
 | `npm test` | tsc to `out/`, then mocha: test/unit and test/scripts in plain node |
 | `npm run manifest` / `manifest:check` | package.json from contrib/*.json |
 | `npm run grammars` / `grammars:check` | syntaxes/ and contrib/grammars.json from the pinned zip (SHA-256 checked) |
-| `npm run test:integration`, `test:restricted` | @vscode/test-cli labels (download VS Code) |
+| `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
+| `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
 | `npm run runtime:lock` / `-- --check` | runtime/locks/<target>.txt from runtime/requirements.in (pins.json) |
 | `npm run runtime:build -- --target <t>` | runtime/ for one target: interpreter, closure, BUILD-INFO, SBOM, notices |
 | `npm run package -- --target <t>` / `-- --universal` | dist-vsix/opentide-<t>-<version>.vsix (+ `.size.json`), size gate |

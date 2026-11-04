@@ -10,7 +10,8 @@ import { lintFindings, validateFindings } from "../../src/features/diagnostics/f
 import { FindingsModel } from "../../src/features/diagnostics/model";
 import { createdOf } from "../../src/features/new-object/flow";
 
-const scratch = realpathSync(mkdtempSync(path.join(tmpdir(), "otide-link-")));
+// The native real path, as opentide reports it: on Windows it also expands 8.3 names (RUNNER~1).
+const scratch = realpathSync.native(mkdtempSync(path.join(tmpdir(), "otide-link-")));
 const real = path.join(scratch, "ws");
 const link = path.join(scratch, "link");
 mkdirSync(path.join(real, "objects", "rules"), { recursive: true });

@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
-import { activated } from "./helpers";
+import { activated, waitFor } from "./helpers";
 
 describe("setup (#16)", () => {
   it("registers the wizard and walkthrough commands", async () => {
@@ -30,7 +30,10 @@ describe("setup (#16)", () => {
     const api = await activated();
     if (!api.ctx.runtime.current) return;
     await vscode.commands.executeCommand("opentide.setup.open", api.ctx.folders.all[0]?.path);
-    const tab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.label === "Set Up opentide");
+    // The extension host hears of the new tab after the command returns.
+    const tab = await waitFor(() =>
+      vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.label === "Set Up opentide"),
+    ).catch(() => undefined);
     assert.ok(tab, "the wizard panel is open");
   });
 });
