@@ -25,6 +25,7 @@ import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./serv
 import { StatusManager } from "./services/status";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
 import { Emitter } from "./util/event";
+import { serialized } from "./util/serial";
 import { createWebviewHelpers } from "./webview/panel";
 
 export interface Core {
@@ -158,9 +159,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
   subscriptions.push(grant);
   void vscode.commands.executeCommand("setContext", "opentide.trusted", vscode.workspace.isTrusted);
 
-  // Restarts run one at a time; a restart asked for during one runs once more afterwards.
-  let restarting: Promise<void> | undefined;
-  let again: string | undefined;
+  // Restarts run one at a time; a restart asked for during one runs once more afterwards, and its
+  // caller waits for that run, not the one it arrived during.
   const doRestart = async (reason: string): Promise<void> => {
     log.info(`restart: ${reason}`);
     status.update({ runtime: runtime.current, resolving: true, pin: runtime.pin, trusted: trust.isTrusted });
@@ -177,23 +177,9 @@ export function createCore(context: vscode.ExtensionContext): Core {
     void precompiler.ensure(rt);
     catalog.refreshAll({ immediate: true });
   };
-  const restart = (reason: string): Promise<void> => {
-    if (restarting) {
-      again = reason;
-      return restarting;
-    }
-    restarting = doRestart(reason)
-      .catch((error: unknown) => log.error(`restart failed: ${String(error)}`))
-      .finally(() => {
-        restarting = undefined;
-        if (again) {
-          const next = again;
-          again = undefined;
-          void restart(next);
-        }
-      });
-    return restarting;
-  };
+  const restart = serialized((reason) =>
+    doRestart(reason).catch((error: unknown) => log.error(`restart failed: ${String(error)}`)),
+  );
   runtime.restartHandler = restart;
 
   let lastPrimary = folders.all[0]?.path;
