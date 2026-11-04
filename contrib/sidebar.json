@@ -181,13 +181,23 @@
       },
       {
         "view": "opentide.sidebar.relations",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.relations",
-        "when": "opentide.hasWorkspace && !virtualWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.relations",
+        "when": "opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "Open a threat, objective or rule. This view follows the editor and shows what the object points to (→) and what points to it (←).\n[Show Relations of the Active Editor](command:opentide.relations.show)"
+      },
+      {
+        "view": "opentide.sidebar.relations",
+        "when": "opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "Open a threat, objective or rule to see what it points to (→) and what points to it (←), from the language server's index. Trust this folder for the full catalogue.\n[Manage Workspace Trust](command:workbench.trust.manage)"
       },
       {
         "view": "opentide.sidebar.relations",

@@ -78,18 +78,21 @@ describe("the Relations view in the manifest", () => {
     }
   });
 
-  it("has a welcome per state: no folder, not a repository, nothing open, a virtual workspace", () => {
+  it("has a welcome per state: no folder, not a repository, nothing open (trusted or not), a virtual workspace", () => {
     const welcomes = pkg.contributes.viewsWelcome.filter((w) => w.view === RELATIONS);
     assert.deepEqual(
       welcomes.map((w) => w.when),
       [
         "workspaceFolderCount == 0",
-        "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
-        "opentide.hasWorkspace && !virtualWorkspace",
+        "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
+        "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
+        "opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
         "virtualWorkspace",
       ],
     );
-    assert.match(welcomes[2].contents, /\(command:opentide\.relations\.show\)/);
+    assert.match(welcomes[3].contents, /\(command:opentide\.relations\.show\)/);
+    assert.match(welcomes[4].contents, /\(command:workbench\.trust\.manage\)/);
   });
 
   it("turns the CodeLens on by default, with a setting to turn it off", () => {
