@@ -2,10 +2,13 @@
 // gaps first and sub-techniques under their parent (a parent counts its sub-techniques' rules, as
 // `info coverage` does). vscode-free.
 
+import { objectIcon } from "../../core/catalog/objectIcons";
+import { type RelationIndex, relationIndexOf } from "../../core/catalog/relations";
 import { type LoadedObject, loadedObjects } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument } from "../../core/catalog/types";
 import { branch, filterNodes, messageNode, type TreeNode, type ViewModel } from "./node";
+import { objectTooltip } from "./relationsModel";
 
 export interface TechniqueCount {
   readonly id: string;
@@ -98,7 +101,12 @@ export function summaryText(summary: CoverageSummary): string {
 }
 
 /** Tree nodes for one folder's coverage. */
-export function coverageNodes(coverage: Coverage, folder: string, prefix = ""): TreeNode[] {
+export function coverageNodes(
+  coverage: Coverage,
+  folder: string,
+  prefix = "",
+  index?: RelationIndex,
+): TreeNode[] {
   const techniqueNode = (t: TechniqueCount, parentId: string): TreeNode => {
     const id = `${parentId}/${t.id}`;
     const gap = t.rules.length === 0;
@@ -108,9 +116,13 @@ export function coverageNodes(coverage: Coverage, folder: string, prefix = ""): 
         (rule): TreeNode => ({
           id: `${id}/rule:${rule.uuid}`,
           label: rule.name,
-          icon: "shield",
+          description: rule.path,
+          tooltipMarkdown: objectTooltip(rule, index),
+          icon: objectIcon("rule").codicon,
+          iconColor: objectIcon("rule").themeColor,
           contextValue: "object.rule",
           open: { path: rule.file_path, line: Math.max(0, rule.line - 1) },
+          decorate: false,
           ref: {
             kind: "object",
             folder,
@@ -184,7 +196,7 @@ export function buildCoverageView(
       const coverage = computeCoverage(state.catalog);
       techniques += coverage.summary.techniques;
       covered += coverage.summary.covered;
-      inner = coverageNodes(coverage, folder.path, prefix);
+      inner = coverageNodes(coverage, folder.path, prefix, relationIndexOf(state.catalog));
     } else if (state.status === "empty" || state.status === "loading") {
       inner = [messageNode(`${prefix}coverage:loading`, "Loading coverage…", "loading~spin")];
     } else if (state.status === "error") {

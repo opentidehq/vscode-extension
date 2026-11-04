@@ -15,6 +15,14 @@ export type NodeRef =
       /** Absolute. */
       readonly file: string;
     }
+  | {
+      readonly kind: "signal";
+      readonly folder: string;
+      readonly uuid: string;
+      readonly name: string;
+      /** The objective that owns it, when known. */
+      readonly objective: string | null;
+    }
   | { readonly kind: "technique"; readonly folder: string; readonly id: string }
   | { readonly kind: "platform"; readonly folder: string; readonly id: string; readonly enabled: boolean }
   | {
@@ -49,6 +57,8 @@ export interface TreeNode {
   readonly label: string;
   description?: string;
   readonly tooltip?: string;
+  /** A Markdown tooltip (theme icons on), in place of `tooltip`. */
+  readonly tooltipMarkdown?: string;
   /** A codicon id (`shield`, `loading~spin`). */
   readonly icon?: string;
   /** A theme colour id for the icon. */
@@ -57,6 +67,8 @@ export interface TreeNode {
   /** Undefined: a leaf. */
   readonly collapsed?: "collapsed" | "expanded";
   readonly open?: OpenTarget;
+  /** `false`: no file decorations (problem and SCM colours) on the label, the open target aside. */
+  readonly decorate?: boolean;
   /** A command a click runs (instead of opening). */
   readonly command?: { readonly command: string; readonly title: string; readonly args?: readonly unknown[] };
   readonly ref?: NodeRef;
@@ -65,6 +77,8 @@ export interface TreeNode {
   readonly group?: boolean;
   /** What the filter matches against (lower case). */
   readonly search?: string;
+  /** How a model orders the node among its siblings (not shown). */
+  readonly sortKey?: string;
 }
 
 /** A view's content: its nodes, the message above them, and its badge. */
@@ -142,4 +156,45 @@ export function uniqueIds(nodes: readonly TreeNode[]): TreeNode[] {
     return { ...node, id, ...(children ? { children } : {}) };
   };
   return nodes.map(visit);
+}
+
+/** What a node shows, without its children: two nodes that agree on this draw the same row. */
+function face(node: TreeNode): string {
+  return JSON.stringify([
+    node.label,
+    node.description,
+    node.tooltip,
+    node.tooltipMarkdown,
+    node.icon,
+    node.iconColor,
+    node.contextValue,
+    node.collapsed === undefined,
+    node.open,
+    node.command,
+    node.ref,
+  ]);
+}
+
+/**
+ * The nodes to refresh so the tree shows `next` instead of `previous`, for
+ * `onDidChangeTreeData(element)`: "all" when the top level changed, else the highest nodes whose row or
+ * children differ (the tree maps each, by id, to the object VS Code holds, and then reads its row and
+ * children by id). A refreshed node redraws its subtree. Ids must be unique.
+ */
+export function changedNodes(previous: readonly TreeNode[], next: readonly TreeNode[]): TreeNode[] | "all" {
+  const ids = (nodes: readonly TreeNode[] | undefined) => (nodes ?? []).map((n) => n.id).join("\n");
+  if (ids(previous) !== ids(next)) return "all";
+  const before = new Map<string, TreeNode>();
+  walk(previous, (node) => before.set(node.id, node));
+  const changed: TreeNode[] = [];
+  const visit = (nodes: readonly TreeNode[]): void => {
+    for (const node of nodes) {
+      const old = before.get(node.id);
+      if (!old) continue; // its parent's children differ, so the parent is refreshed already
+      if (face(old) !== face(node) || ids(old.children) !== ids(node.children)) changed.push(old);
+      else if (node.children) visit(node.children);
+    }
+  };
+  visit(next);
+  return changed;
 }

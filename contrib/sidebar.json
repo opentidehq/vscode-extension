@@ -10,6 +10,12 @@
           "icon": "$(library)"
         },
         {
+          "id": "opentide.sidebar.relations",
+          "name": "Relations",
+          "contextualTitle": "opentide",
+          "icon": "$(references)"
+        },
+        {
           "id": "opentide.sidebar.coverage",
           "name": "Coverage",
           "contextualTitle": "opentide",
@@ -152,6 +158,26 @@
         "view": "opentide.sidebar.health",
         "when": "virtualWorkspace",
         "contents": "The health checks come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.relations",
+        "when": "workspaceFolderCount == 0",
+        "contents": "Open a folder with a detection repository to see how its threats, objectives and rules relate.\n[Open Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.relations",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.relations",
+        "when": "opentide.hasWorkspace && !virtualWorkspace",
+        "contents": "Open a threat, objective or rule. This view follows the editor and shows what the object points to (→) and what points to it (←).\n[Show Relations of the Active Editor](command:opentide.relations.show)"
+      },
+      {
+        "view": "opentide.sidebar.relations",
+        "when": "virtualWorkspace",
+        "contents": "Relations come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
       }
     ],
     "commands": [
@@ -336,6 +362,49 @@
         "title": "Clear Activity",
         "category": "opentide",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "opentide.relations.show",
+        "title": "Show Relations",
+        "category": "opentide",
+        "icon": "$(references)"
+      },
+      {
+        "command": "opentide.relations.open",
+        "title": "Open",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.relations.openToSide",
+        "title": "Open to the Side",
+        "category": "opentide",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "opentide.relations.pin",
+        "title": "Pin Relations to This Object",
+        "category": "opentide",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "opentide.relations.unpin",
+        "title": "Unpin Relations (Follow the Editor)",
+        "category": "opentide",
+        "icon": "$(pinned)"
+      },
+      {
+        "command": "opentide.relations.back",
+        "title": "Back",
+        "category": "opentide",
+        "icon": "$(arrow-left)",
+        "enablement": "opentide.relations.canBack"
+      },
+      {
+        "command": "opentide.relations.forward",
+        "title": "Forward",
+        "category": "opentide",
+        "icon": "$(arrow-right)",
+        "enablement": "opentide.relations.canForward"
       }
     ],
     "menus": {
@@ -459,6 +528,34 @@
         {
           "command": "opentide.sidebar.clearFilter",
           "when": "opentide.sidebar.filtered"
+        },
+        {
+          "command": "opentide.relations.show",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.relations.open",
+          "when": "false"
+        },
+        {
+          "command": "opentide.relations.openToSide",
+          "when": "false"
+        },
+        {
+          "command": "opentide.relations.pin",
+          "when": "opentide.relations.hasTarget && !opentide.relations.pinned"
+        },
+        {
+          "command": "opentide.relations.unpin",
+          "when": "opentide.relations.pinned"
+        },
+        {
+          "command": "opentide.relations.back",
+          "when": "opentide.relations.hasTarget"
+        },
+        {
+          "command": "opentide.relations.forward",
+          "when": "opentide.relations.hasTarget"
         }
       ],
       "view/title": [
@@ -521,47 +618,92 @@
           "command": "opentide.sidebar.clearActivity",
           "when": "view == opentide.sidebar.activity",
           "group": "navigation@1"
+        },
+        {
+          "command": "opentide.relations.back",
+          "when": "view == opentide.sidebar.relations && opentide.relations.hasTarget",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opentide.relations.forward",
+          "when": "view == opentide.sidebar.relations && opentide.relations.hasTarget",
+          "group": "navigation@2"
+        },
+        {
+          "command": "opentide.relations.pin",
+          "when": "view == opentide.sidebar.relations && opentide.relations.hasTarget && !opentide.relations.pinned",
+          "group": "navigation@3"
+        },
+        {
+          "command": "opentide.relations.unpin",
+          "when": "view == opentide.sidebar.relations && opentide.relations.pinned",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
         {
-          "command": "opentide.sidebar.validate",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "command": "opentide.relations.openToSide",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^object\\./",
           "group": "inline@1"
         },
         {
+          "command": "opentide.relations.show",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^(object\\.|signal$)/",
+          "group": "inline@2"
+        },
+        {
+          "command": "opentide.sidebar.showInGraph",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^(object\\.|signal$)/ && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
+          "group": "inline@3"
+        },
+        {
+          "command": "opentide.relations.openToSide",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^object\\./",
+          "group": "0_open@1"
+        },
+        {
+          "command": "opentide.relations.show",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^(object\\.|signal$)/",
+          "group": "0_open@2"
+        },
+        {
           "command": "opentide.sidebar.validate",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "group": "inline@4"
+        },
+        {
+          "command": "opentide.sidebar.validate",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
           "group": "1_check@1"
         },
         {
           "command": "opentide.sidebar.showInGraph",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^(object\\.|signal$)/ && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
           "group": "2_show@1"
         },
         {
           "command": "opentide.sidebar.sharePreview",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
           "group": "2_show@2"
         },
         {
           "command": "opentide.sidebar.runQuery",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
           "group": "4_rule@1"
         },
         {
           "command": "opentide.sidebar.previewDeploy",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
           "group": "4_rule@2"
         },
         {
           "command": "opentide.sidebar.newRuleForObjective",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.objective && isWorkspaceTrusted && opentide.hasCli",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem == object.objective && isWorkspaceTrusted && opentide.hasCli",
           "group": "3_new@1"
         },
         {
           "command": "opentide.sidebar.newObjectiveForThreat",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.threat && isWorkspaceTrusted && opentide.hasCli",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem == object.threat && isWorkspaceTrusted && opentide.hasCli",
           "group": "3_new@1"
         },
         {
@@ -571,17 +713,17 @@
         },
         {
           "command": "opentide.sidebar.openMatrix",
-          "when": "view == opentide.sidebar.coverage && viewItem =~ /^technique/ && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
+          "when": "(view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^technique/ && isWorkspaceTrusted && opentide.hasCli && opentide.hasInfoCatalog",
           "group": "2_show@1"
         },
         {
           "command": "opentide.sidebar.copyUuid",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^(object\\.|signal$)/",
           "group": "9_copy@1"
         },
         {
           "command": "opentide.sidebar.revealInExplorer",
-          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^object\\./",
           "group": "9_copy@2"
         },
         {
@@ -664,7 +806,31 @@
           "when": "view == opentide.sidebar.activity && viewItem =~ /^run/",
           "group": "1_run@2"
         }
+      ],
+      "editor/title": [
+        {
+          "command": "opentide.relations.show",
+          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
+          "group": "navigation@45"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opentide.relations.show",
+          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
+          "group": "opentide@5"
+        }
       ]
+    },
+    "configuration": {
+      "title": "opentide: Relations",
+      "properties": {
+        "opentide.relations.codeLens": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show a CodeLens on an object's `name:` line that sums up its relations both ways (`Implements → Detect LSASS memory access · ← Implemented by 3 rules`); click it to show the Relations view. Needs an opentide with `info catalog`."
+        }
+      }
     }
   }
 }
