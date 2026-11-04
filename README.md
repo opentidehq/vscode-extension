@@ -124,7 +124,8 @@ by` and so on (`Chains to →` / `← Chained from` when it has none), one group
 with a warning icon.
 
 - Click an object to open it in the editor group beside the one you are reading, at its `name:` line; the
-  view stays on its object, so you can open one relation after another. A signal opens in its objective,
+  view stays on its object and keeps the focus, so the arrow keys move on to the next relation (**Open to
+  the Side** moves the focus to the editor). A signal opens in its objective,
   at the signal. A technique opens the ATT&CK matrix.
 - Each object row has **Open to the Side**, **Show Relations** (the view moves to that object) and **Show
   in Graph**; **Back** and **Forward** in the view's title go through the objects it showed.
