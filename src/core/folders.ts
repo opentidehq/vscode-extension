@@ -136,3 +136,13 @@ export function isObjectFile(
   if (relative.startsWith("objects/") || relative.includes("/objects/")) return true;
   return Object.values(folders).some((dir) => relative.startsWith(dir));
 }
+
+/**
+ * Whether `file` gets `opentide-yaml` from the static objects-folder glob in contrib/core.json only because VS Code
+ * matches glob patterns without case: a folder of its path is `Objects` (CoreTIDE's layout) or another
+ * spelling, and none is `objects`.
+ */
+export function objectsOnlyByCase(file: string): boolean {
+  const dirs = file.split(/[\\/]/).slice(0, -1);
+  return dirs.some((dir) => dir.toLowerCase() === "objects") && !dirs.includes("objects");
+}

@@ -288,7 +288,7 @@ The first tier that answers wins, in the order 1, 2, 3, 4, except that with `ope
 **Requirement 2.** Issues #4 and #5 stand as written. The additions:
 
 - **Language ids** are the server's: `opentide-yaml`, `opentide-config`, `kql`, `spl`, `esql`, `eql`, `kuery`, `lucene` and `falco`. Never `sql`.
-- **Object folders.** `opentide-yaml` applies to `**/objects/**/*.{yaml,yml}`, and to the object folders `paths.toml` names, set on open with `languages.setTextDocumentLanguage`.
+- **Object folders.** `opentide-yaml` applies to `**/objects/**/*.{yaml,yml}`, and to the object folders `paths.toml` names, set on open with `languages.setTextDocumentLanguage`. VS Code matches the static pattern without case, so a file it matched only through a folder spelled otherwise (CoreTIDE's `Objects/`) is set back to `yaml` on open, unless it is an object file of an opentide folder.
 - **Grammars** are copied from the language-server highlights zip at build time:
   - The zip version is derived from the bundled engine (§3).
   - The build checks the zip against a SHA-256 recorded in this repository. Language-server publishes no checksums today ([§15](#15-what-this-needs-from-opentide-and-language-server)).

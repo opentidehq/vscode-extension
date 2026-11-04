@@ -27,6 +27,8 @@ pre-releases odd ones.
   names), opentide configuration TOML (`opentide-config`) and the query languages `kql`, `spl`,
   `esql`, `eql`, `kuery`, `lucene` and `falco`, with grammars from the language-server highlights zip
   (ES|QL under `source.opentide.esql`), embedded query regions and language configurations.
+  YAML under a CoreTIDE `Objects/` folder stays `yaml`: VS Code matches `objects/` without case, and
+  the extension sets such a file back unless it is in an opentide folder.
 - Restricted Mode: only the bundled language server runs, with `PATH` limited to the runtime.
 - `opentide.envFile`: a `.env` file whose variables reach commands that contact a tenant. A line it
   cannot read, a double quote never closed (that key is dropped, the lines after it still count) and a
