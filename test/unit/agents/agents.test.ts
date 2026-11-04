@@ -8,6 +8,7 @@ import {
   decideMcp,
   definesOpentide,
   entryUsable,
+  McpDecisionLog,
   type McpInputs,
   opentideEntryCommand,
   provideMode,
@@ -39,6 +40,21 @@ describe("agents: MCP server", () => {
     folder: "/ws",
     workspaceDefines: false,
     ...overrides,
+  });
+
+  it("waits for the command tree after a trust grant instead of logging that there is no `mcp start`", () => {
+    const loading = decideMcp(inputs({ hasMcpStart: undefined }));
+    assert.deepEqual(loading, { provide: false, reason: "the command tree is loading", pending: true });
+    const log = new McpDecisionLog();
+    assert.equal(log.line(loading), undefined, "nothing while it is not known");
+    const provided = decideMcp(inputs());
+    assert.equal(log.line(provided), undefined, "provided at once: nothing to correct");
+    assert.equal(log.line(provided), undefined);
+    const never = decideMcp(inputs({ mode: "never" }));
+    assert.equal(log.line(never), "MCP server not provided: opentide.mcp.provide is never");
+    assert.equal(log.line(never), undefined, "once per change");
+    assert.ok(provided.provide);
+    assert.equal(log.line(provided), `MCP server provided: ${provided.server.command}`);
   });
 
   it("provides `opentide mcp start` with the resolved runtime, in the folder", () => {

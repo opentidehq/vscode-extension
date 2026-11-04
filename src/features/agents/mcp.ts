@@ -73,14 +73,15 @@ export interface McpServerPlan {
 
 export type McpDecision =
   | { readonly provide: true; readonly server: McpServerPlan }
-  | { readonly provide: false; readonly reason: string };
+  /** `pending`: the answer is not known yet (the runtime's command tree is still loading). */
+  | { readonly provide: false; readonly reason: string; readonly pending?: true };
 
 export interface McpInputs {
   readonly trusted: boolean;
   readonly mode: ProvideMode;
   readonly runtime: Runtime | undefined;
-  /** The active opentide has `mcp start`. */
-  readonly hasMcpStart: boolean;
+  /** The active opentide has `mcp start`; undefined while its command tree has not loaded yet. */
+  readonly hasMcpStart: boolean | undefined;
   /** The folder the server is for: the first opentide folder, else the first workspace folder. */
   readonly folder: string | undefined;
   /** A workspace `.vscode/mcp.json` already defines an `opentide` server VS Code can start. */
@@ -94,6 +95,8 @@ export function decideMcp(inputs: McpInputs): McpDecision {
   if (!inputs.trusted) return { provide: false, reason: "Restricted Mode" };
   if (inputs.mode === "never") return { provide: false, reason: "opentide.mcp.provide is never" };
   if (!hasCli(inputs.runtime)) return { provide: false, reason: "no opentide runtime with commands" };
+  if (inputs.hasMcpStart === undefined)
+    return { provide: false, reason: "the command tree is loading", pending: true };
   if (!inputs.hasMcpStart) return { provide: false, reason: "the active opentide has no `mcp start`" };
   if (!inputs.folder) return { provide: false, reason: "no workspace folder" };
   if (inputs.mode === "auto" && inputs.workspaceDefines)
@@ -115,4 +118,24 @@ export function decideMcp(inputs: McpInputs): McpDecision {
       version: runtime.version,
     },
   };
+}
+
+/**
+ * The output channel's line for a decision, once per change: why the server is not provided, and that
+ * it is provided after it was not. Nothing while the answer is pending: right after a trust grant the
+ * command tree had not loaded yet, and the log said there was no `mcp start` before providing it (#49).
+ */
+export class McpDecisionLog {
+  private last: string | undefined;
+
+  line(decision: McpDecision): string | undefined {
+    if (!decision.provide && decision.pending) return undefined;
+    const key = decision.provide ? "provided" : decision.reason;
+    if (key === this.last) return undefined;
+    const said = this.last;
+    this.last = key;
+    if (decision.provide)
+      return said === undefined ? undefined : `MCP server provided: ${decision.server.command}`;
+    return `MCP server not provided: ${decision.reason}`;
+  }
 }
