@@ -7,7 +7,7 @@
   "license": "MIT",
   "icon": "images/icon.png",
   "galleryBanner": {
-    "color": "#0b213f",
+    "color": "#001489",
     "theme": "dark"
   },
   "homepage": "https://github.com/opentidehq/vscode-extension#readme",
