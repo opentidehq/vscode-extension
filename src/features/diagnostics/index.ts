@@ -30,6 +30,7 @@ import {
   codeText,
   countSeverities,
   dedupeKey,
+  droppedFixFor,
   itemSignature,
   lintArgv,
   nonOverlapping,
@@ -737,6 +738,23 @@ class Diagnostics implements vscode.Disposable {
           action.isPreferred = fix.safe;
           actions.push(action);
           if (fix.safe) safeHere = true;
+        }
+      }
+      if (source === SERVER_SOURCE && code) {
+        // A validate or lint finding the dedupe dropped in favour of this one still offers its fix here.
+        const rendered = this.rendered.get(document.uri.toString());
+        const key = dedupeKey(code, diagnostic.range.start.line);
+        for (const ourSource of SOURCES) {
+          const dropped = rendered
+            ? droppedFixFor(rendered[ourSource], entry?.[ourSource].items ?? [], key)
+            : undefined;
+          if (!dropped?.finding.fix) continue;
+          const action = new vscode.CodeAction(fixTitle(dropped.finding), vscode.CodeActionKind.QuickFix);
+          action.edit = this.editFor(document, [dropped.finding]);
+          action.diagnostics = [diagnostic];
+          action.isPreferred = dropped.finding.fix.safe;
+          actions.push(action);
+          break;
         }
       }
       if ((ours || source === SERVER_SOURCE) && isCode(code) && !explained.has(code)) {

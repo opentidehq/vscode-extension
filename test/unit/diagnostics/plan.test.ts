@@ -10,6 +10,7 @@ import {
   codeText,
   countSeverities,
   dedupeKey,
+  droppedFixFor,
   lintArgv,
   nonOverlapping,
   planSave,
@@ -125,6 +126,25 @@ describe("diagnostics: plan", () => {
       "a key the server does not report keeps the lint finding",
     );
     assert.deepEqual(serverKeys("vocab_unknown", 3), [[dedupeKey("vocab_unknown", 3)]]);
+  });
+
+  it("offers a dropped finding's fix on the server diagnostic that replaced it (#45)", () => {
+    const fix = {
+      safe: false,
+      edits: [{ line: 14, column: 11, end_line: 14, end_column: 14, replacement: "High" }],
+    };
+    const dropped = { alternatives: serverKeys("vocab_unknown", 13), finding: { fix } };
+    const shownOne = { alternatives: serverKeys("vocab_unknown", 20), finding: { fix } };
+    const noFix = { alternatives: serverKeys("filename_mismatch", 0), finding: { fix: null } };
+    const rendered = [dropped, shownOne, noFix];
+    assert.equal(droppedFixFor(rendered, [shownOne], dedupeKey("vocab_unknown", 13)), dropped);
+    assert.equal(
+      droppedFixFor(rendered, [shownOne], dedupeKey("vocab_unknown", 20)),
+      undefined,
+      "shown: its own action",
+    );
+    assert.equal(droppedFixFor(rendered, [], dedupeKey("filename_slug", 0)), undefined, "no fix to offer");
+    assert.equal(droppedFixFor(rendered, [], dedupeKey("vocab_unknown", 14)), undefined);
   });
 
   it("reads codes as the language client gives them", () => {

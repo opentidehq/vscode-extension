@@ -119,6 +119,25 @@ export function reportedByServer(
   return sets.some((keys) => keys.length > 0 && keys.every((key) => server.has(key)));
 }
 
+/**
+ * The validate or lint finding the dedupe dropped for the server diagnostic `serverKey`, when it has a
+ * fix: the server's diagnostic is the one shown, so the fix goes on it (#45: validate's "did you mean"
+ * replacement for vocab_unknown, which the server's own diagnostic lacks).
+ */
+export function droppedFixFor<
+  T extends {
+    readonly alternatives: readonly (readonly string[])[];
+    readonly finding: { readonly fix: unknown };
+  },
+>(rendered: readonly T[], shown: readonly T[], serverKey: string): T | undefined {
+  return rendered.find(
+    (item) =>
+      item.finding.fix != null &&
+      !shown.includes(item) &&
+      item.alternatives.some((keys) => keys.includes(serverKey)),
+  );
+}
+
 /** Drop the items the language server already reports (same code, or its alias, on the same start line). */
 export function withoutDuplicates<T>(
   items: readonly T[],

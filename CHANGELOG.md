@@ -49,7 +49,8 @@ pre-releases odd ones.
     object folder are checked this way (opentide accepts no other), and a run that fails keeps the
     problems it would have replaced.
   - The workspace is also validated on startup and with "opentide: Validate Workspace".
-- Quick fixes from each finding's suggested fix, "Fix all safe opentide problems in this file", and
+- Quick fixes from each finding's suggested fix (also on the language server's diagnostic when it
+  replaces the finding), "Fix all safe opentide problems in this file", and
   "Fix All Safe Problems in the Workspace…", which shows the `validate --fix --dry-run` diff before
   applying.
 - "Explain <code>" on every opentide problem, and "opentide: Explain a Code…": `opentide explain` in a
