@@ -330,6 +330,8 @@ export interface RelationsOpen {
 
 export const OPEN_COMMAND = "opentide.relations.open";
 export const MATRIX_COMMAND = "opentide.sidebar.openMatrix";
+/** Ask the language server for its index again, not only redraw. */
+export const RETRY_COMMAND = "opentide.relations.retry";
 
 export type RelationsState =
   /** No opentide object yet: the welcome view explains. */
@@ -627,7 +629,7 @@ function unavailableNode(
     case "failed":
       return messageNode("relations:failed", "The relations did not load", "error", {
         ...(detail ? { description: detail, tooltip: detail } : {}),
-        command: { command: "opentide.sidebar.refreshCatalogue", title: "Retry" },
+        command: { command: RETRY_COMMAND, title: "Retry" },
       });
     case "no-server":
       return messageNode("relations:no-server", "Relations need opentide or its language server", "info", {

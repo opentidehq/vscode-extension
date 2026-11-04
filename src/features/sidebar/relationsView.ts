@@ -8,11 +8,11 @@ import {
   rootOf,
   SERVER_CATALOG,
   SERVER_CATALOG_CHANGED,
-  type ServerCatalog,
 } from "../../core/catalog/serverCatalog";
 import type { FeatureContext } from "../../core/context";
 import { debounce } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
+import { ServerCatalogCache, type ServerFetch } from "./relationsFlow";
 import {
   graphFromCatalog,
   graphFromServer,
@@ -40,11 +40,6 @@ interface Shown {
   readonly folder: string;
   readonly uuid: string;
 }
-
-type ServerFetch =
-  | { readonly kind: "ok"; readonly catalog: ServerCatalog }
-  | { readonly kind: "unsupported" }
-  | { readonly kind: "failed"; readonly message: string };
 
 const setContext = (key: string, value: unknown) =>
   void vscode.commands.executeCommand("setContext", key, value);
@@ -77,7 +72,7 @@ export class RelationsView implements vscode.Disposable {
   private column: vscode.ViewColumn | undefined;
   /** A file a row click is opening: the view does not follow the editor it opened itself. */
   private opening: string | undefined;
-  private server: { client: unknown; promise: Promise<ServerFetch> } | undefined;
+  private readonly server = new ServerCatalogCache<unknown>();
   private notification: vscode.Disposable | undefined;
   private renders = 0;
   private stale = false;
@@ -123,8 +118,8 @@ export class RelationsView implements vscode.Disposable {
       ctx.folders.onDidChange(() => this.renderSoon()),
       ctx.onDidChangeFiles(() => {
         // The server says when its index changed; this covers a server that has no notification.
-        if (this.server && this.isServerSourced()) {
-          this.server = undefined;
+        if (this.server.held && this.isServerSourced()) {
+          this.server.drop();
           this.renderSoon();
         }
       }),
@@ -178,7 +173,7 @@ export class RelationsView implements vscode.Disposable {
   }
 
   private dropServer(): void {
-    this.server = undefined;
+    this.server.drop();
     this.notification?.dispose();
     this.notification = undefined;
   }
@@ -187,23 +182,23 @@ export class RelationsView implements vscode.Disposable {
   private fetchServer(): Promise<ServerFetch> | undefined {
     const client = this.ctx.client.current;
     if (!client) return undefined;
-    if (this.server?.client === client) return this.server.promise;
-    const promise = client.sendRequest(SERVER_CATALOG, {}).then(
-      (value): ServerFetch => {
-        const catalog = parseServerCatalog(value);
-        return catalog
-          ? { kind: "ok", catalog }
-          : { kind: "failed", message: "opentide/catalog sent no roots" };
-      },
-      (error: unknown): ServerFetch => {
-        if (isMethodNotFound(error)) return { kind: "unsupported" };
-        return { kind: "failed", message: error instanceof Error ? error.message : String(error) };
-      },
+    const promise = this.server.get(client, () =>
+      client.sendRequest(SERVER_CATALOG, {}).then(
+        (value): ServerFetch => {
+          const catalog = parseServerCatalog(value);
+          return catalog
+            ? { kind: "ok", catalog }
+            : { kind: "failed", message: "opentide/catalog sent no roots" };
+        },
+        (error: unknown): ServerFetch => {
+          if (isMethodNotFound(error)) return { kind: "unsupported" };
+          return { kind: "failed", message: error instanceof Error ? error.message : String(error) };
+        },
+      ),
     );
-    this.server = { client, promise };
     if (!this.notification) {
       this.notification = client.onNotification(SERVER_CATALOG_CHANGED, () => {
-        this.server = undefined;
+        this.server.drop();
         this.renderSoon();
       });
     }
@@ -301,6 +296,10 @@ export class RelationsView implements vscode.Disposable {
     command("opentide.relations.openToSide", (arg) => this.openToSide(arg));
     command("opentide.relations.pin", () => this.setPinned(true));
     command("opentide.relations.unpin", () => this.setPinned(false));
+    command("opentide.relations.retry", () => {
+      this.dropServer();
+      return this.render();
+    });
     command("opentide.relations.back", () => this.go(this.history.back()));
     command("opentide.relations.forward", () => this.go(this.history.forward()));
     // Integration tests read what the view shows; not contributed, and only in a test host.

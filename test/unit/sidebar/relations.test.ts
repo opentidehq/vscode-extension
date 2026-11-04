@@ -196,6 +196,9 @@ describe("Relations view", () => {
       title: "Switch Runtime…",
     });
     assert.equal(needs.description, "Following: Suspicious LSASS Access");
+    const failed = relationsViewModel({ kind: "unavailable", reason: "failed", detail: "timed out" }, false);
+    // Retry asks the language server again; refreshing the catalogue would only redraw the failure.
+    assert.deepEqual(failed.nodes[0]?.command, { command: "opentide.relations.retry", title: "Retry" });
     const untrusted = relationsViewModel({ kind: "unavailable", reason: "untrusted" }, false);
     assert.equal(untrusted.nodes[0]?.command?.command, "workbench.trust.manage");
     assert.equal(

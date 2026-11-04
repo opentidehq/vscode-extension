@@ -966,6 +966,12 @@
         "icon": "$(pinned)"
       },
       {
+        "command": "opentide.relations.retry",
+        "title": "Retry Relations",
+        "category": "opentide",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "opentide.relations.back",
         "title": "Back",
         "category": "opentide",
@@ -1317,6 +1323,10 @@
         {
           "command": "opentide.relations.unpin",
           "when": "opentide.relations.pinned"
+        },
+        {
+          "command": "opentide.relations.retry",
+          "when": "false"
         },
         {
           "command": "opentide.relations.back",
