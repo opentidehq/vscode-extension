@@ -1,10 +1,11 @@
-// The status bar item (`$(shield) 0.21.0 ✗ 2 ! 5 · repo pins 0.20.1`) with its menu, and the language status
-// item that shows `capabilities.experimental.opentide` from initialize, inferring nothing (#3).
+// The status bar item (`$(shield) 0.21.0 $(zap) ✗ 2 ! 5 · repo pins 0.20.1`: runtime, warm backend, problems)
+// with its menu, and the language status item that shows `capabilities.experimental.opentide` from
+// initialize, inferring nothing (#3).
 import * as vscode from "vscode";
 import type { OpentideServerInfo, ProblemCounts, StatusMenuItem, StatusService } from "../context";
 import { DOCUMENT_SELECTOR } from "../lsp";
 import { describeRuntime } from "../runtime/types";
-import { type StatusModel, statusText, sumCounts } from "../statusText";
+import { problemsText, type StatusModel, serveText, statusLabel, statusText, sumCounts } from "../statusText";
 
 export class StatusManager implements StatusService, vscode.Disposable {
   private readonly item = vscode.window.createStatusBarItem(
@@ -15,7 +16,8 @@ export class StatusManager implements StatusService, vscode.Disposable {
   private readonly language = vscode.languages.createLanguageStatusItem("opentide.server", DOCUMENT_SELECTOR);
   private readonly counts = new Map<string, ProblemCounts>();
   private readonly menu: StatusMenuItem[] = [];
-  private model: Omit<StatusModel, "counts"> = {
+  private serve = false;
+  private model: Omit<StatusModel, "counts" | "serve"> = {
     runtime: undefined,
     resolving: true,
     pin: undefined,
@@ -50,9 +52,20 @@ export class StatusManager implements StatusService, vscode.Disposable {
     return [...this.menu].sort((a, b) => (a.order ?? 50) - (b.order ?? 50));
   }
 
-  update(model: Omit<StatusModel, "counts">): void {
+  update(model: Omit<StatusModel, "counts" | "serve">): void {
     this.model = model;
     this.render();
+  }
+
+  /** The warm backend (`opentide serve`) started or stopped. */
+  setServe(running: boolean): void {
+    this.serve = running;
+    this.render();
+  }
+
+  /** The problems the item counts, for the menu. */
+  problemCounts(): ProblemCounts {
+    return sumCounts(this.counts.values());
   }
 
   setServer(info: OpentideServerInfo | undefined, running: boolean): void {
@@ -63,19 +76,38 @@ export class StatusManager implements StatusService, vscode.Disposable {
 
   private render(): void {
     const counts = sumCounts(this.counts.values());
-    const model = { ...this.model, counts };
+    const model = { ...this.model, counts, serve: this.serve };
     this.item.text = statusText(model);
+    this.item.accessibilityInformation = { label: statusLabel(model), role: "button" };
     const runtime = model.runtime;
     const tooltip = new vscode.MarkdownString(undefined, true);
+    tooltip.isTrusted = {
+      enabledCommands: [
+        "workbench.actions.view.problems",
+        "opentide.switchRuntime",
+        "opentide.restartServer",
+        "opentide.showOutput",
+      ],
+    };
     if (runtime) {
       tooltip.appendMarkdown(`**opentide ${runtime.version}** · ${describeRuntime(runtime)}\n\n`);
       tooltip.appendText(runtime.command);
+      tooltip.appendMarkdown(`\n\n${model.serve ? "$(zap)" : "$(circle-large-outline)"} ${serveText(model)}`);
+      tooltip.appendMarkdown(
+        `\n\n$(${counts.errors ? "error" : counts.warnings ? "warning" : "pass"}) ${problemsText(counts)} in opentide's checks` +
+          (counts.errors || counts.warnings
+            ? " · [Show Problems](command:workbench.actions.view.problems)"
+            : ""),
+      );
       if (runtime.restricted) tooltip.appendMarkdown("\n\nRestricted Mode: only the language server runs.");
       if (model.pin && model.pin.version !== runtime.version) {
         tooltip.appendMarkdown(
           `\n\nThe repository pins opentide ${model.pin.version} (\`${model.pin.source}\`).`,
         );
       }
+      tooltip.appendMarkdown(
+        "\n\n---\n\n[Switch Runtime…](command:opentide.switchRuntime) · [Restart](command:opentide.restartServer) · [Output](command:opentide.showOutput)",
+      );
     } else if (!model.resolving) {
       tooltip.appendMarkdown(
         "No opentide runtime. Install opentide in the workspace or set `opentide.path`.",

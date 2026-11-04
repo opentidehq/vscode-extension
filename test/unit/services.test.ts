@@ -16,7 +16,14 @@ import {
   objectsOnlyByCase,
   readTomlTable,
 } from "../../src/core/folders";
-import { statusText, sumCounts } from "../../src/core/statusText";
+import {
+  menuSections,
+  problemsText,
+  serveText,
+  statusLabel,
+  statusText,
+  sumCounts,
+} from "../../src/core/statusText";
 import { fakeRuntime } from "./helpers";
 
 const record = (id: number, status: RunRecord["status"], extra: Partial<RunRecord> = {}): RunRecord => ({
@@ -265,6 +272,57 @@ describe("status text", () => {
     assert.equal(
       statusText({ runtime: undefined, resolving: false, pin: undefined, counts, trusted: true }),
       "$(shield) opentide: no runtime",
+    );
+  });
+});
+
+describe("status item: one clear opentide item", () => {
+  const runtime = fakeRuntime({ version: "0.21.0" });
+  const counts = { errors: 2, warnings: 5 };
+
+  it("shows the warm backend, and says it all to screen readers", () => {
+    const model = { runtime, resolving: false, pin: undefined, counts, trusted: true, serve: true };
+    assert.equal(statusText(model), "$(shield) 0.21.0 $(zap) ✗ 2 ! 5");
+    assert.equal(statusLabel(model), "opentide 0.21.0, warm backend, 2 errors, 5 warnings");
+    assert.equal(
+      statusLabel({
+        ...model,
+        serve: false,
+        counts: { errors: 0, warnings: 0 },
+        pin: { version: "0.20.1", source: "uv.lock" },
+      }),
+      "opentide 0.21.0, the repository pins 0.20.1",
+    );
+    assert.equal(statusLabel({ ...model, runtime: undefined, resolving: true }), "opentide: starting");
+    assert.equal(serveText(model), "Warm backend: `opentide serve` answers commands");
+    assert.equal(serveText({ ...model, serve: false }), "Backend: one opentide process per command");
+    assert.match(serveText({ ...model, trusted: false }), /Restricted Mode/);
+  });
+
+  it("counts problems in words", () => {
+    assert.equal(problemsText({ errors: 0, warnings: 0 }), "No problems");
+    assert.equal(problemsText({ errors: 1, warnings: 0 }), "1 error");
+    assert.equal(problemsText({ errors: 2, warnings: 1 }), "2 errors, 1 warning");
+  });
+
+  it("orders the menu in two sections: the features' actions, then the core's", () => {
+    const sections = menuSections([
+      { label: "Switch runtime", order: 120 },
+      { label: "Run command", order: 90 },
+      { label: "Show output", order: 100 },
+      { label: "Show Problems", order: 99 },
+      { label: "Validate" },
+    ]);
+    assert.deepEqual(
+      sections.map((s) => [s.label, s.items.map((i) => i.label)]),
+      [
+        ["Actions", ["Validate", "Run command", "Show Problems"]],
+        ["opentide", ["Show output", "Switch runtime"]],
+      ],
+    );
+    assert.deepEqual(
+      menuSections([{ label: "x", order: 100 }]).map((s) => s.label),
+      ["opentide"],
     );
   });
 });
