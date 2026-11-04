@@ -147,7 +147,7 @@ The graph needs an opentide with `info catalog`; with an older one it says so an
 
 Repeating a filter means "or"; `-` excludes. A `word:` that is not a filter, such as `lsadump::dcsync`,
 is searched as text. Each result opens at its name line, to the side, or in
-the graph, and **Show all in the graph** focuses the graph on every result. A plain name, or one `t:`,
+the graph, and **Show all in the graph** focuses the graph on every result. A single word, or one `t:`,
 `uuid:` or `path:` filter, can also **Filter the Catalogue**. With opentide 0.21.0, search matches names,
 types and paths only.
 

@@ -233,12 +233,13 @@ export function parseSearchArgs(value: unknown): SearchArgs {
 
 /**
  * The Catalogue view's filter for a query, when it can say the same thing: the sidebar filters on one
- * substring of a name, UUID, path or technique, so only plain words, or a single `t:`, `uuid:` or
- * `path:` filter, carry over. Undefined otherwise (the action is not offered).
+ * substring of a name, UUID, path or technique, so only one plain word, or a single `t:`, `uuid:` or
+ * `path:` filter, carries over. Several words match each in any order here, but one substring there
+ * ("lsass access" would hide "LSASS memory access"). Undefined otherwise (the action is not offered).
  */
 export function catalogueFilterOf(query: ParsedQuery): string | undefined {
   if (query.excluded.length > 0 || query.problems.length > 0) return undefined;
-  if (query.filters.length === 0) return query.words.length > 0 ? query.words.join(" ") : undefined;
+  if (query.filters.length === 0) return query.words.length === 1 ? query.words[0] : undefined;
   const [only, ...rest] = query.filters;
   if (rest.length > 0 || query.words.length > 0 || !only || only.negated) return undefined;
   return only.key === "technique" || only.key === "uuid" || only.key === "path" ? only.value : undefined;
