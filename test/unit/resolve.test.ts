@@ -197,6 +197,19 @@ describe("runtime resolution", () => {
     assert.ok((state.probes[0]?.options.timeoutMs ?? 0) > 60_000, "uv may download: a longer timeout");
   });
 
+  it("tiers 1 to 3 run opentide in UTF-8 mode, probe included: Windows pipes are otherwise ANSI", async () => {
+    const { value, state } = input(
+      {},
+      { path: () => "/opt/opentide/bin/opentide" },
+      { versions: { "/opt/opentide/bin/opentide": "opentide 0.21.0" } },
+    );
+    const { runtime } = await resolveRuntime(value);
+    assert.equal(runtime?.tier, 1);
+    assert.equal(runtime?.env.PYTHONUTF8, "1");
+    assert.equal(runtime?.env.PYTHONIOENCODING, "utf-8");
+    assert.equal(state.probes[0]?.options.env.PYTHONUTF8, "1");
+  });
+
   it("tier 3 is never tried without the opt-in", async () => {
     const { value, state } = input(
       { pin: { version: "0.20.1", source: "uv.lock" } },
@@ -215,6 +228,8 @@ describe("runtime resolution", () => {
     assert.equal(runtime?.command, BUNDLED);
     assert.deepEqual(runtime?.args, [
       "-I",
+      "-X",
+      "utf8",
       "-X",
       `pycache_prefix=${path.join("/storage", "pycache")}`,
       "-m",

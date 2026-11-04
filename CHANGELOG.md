@@ -23,6 +23,8 @@ pre-releases odd ones.
   `opentide.showReferences`, and fix-all on save off by default.
 - The backend: `opentide serve` when the runtime has it, spawning `opentide --json` otherwise, with
   cancellation, capability gating from `opentide --json commands`, and an activity log.
+- opentide runs in UTF-8 mode (`-X utf8` for the bundled runtime, `PYTHONUTF8` and `PYTHONIOENCODING`
+  for the others), so rule names and paths with accents read correctly on Windows.
 - Languages for Tide YAML (`opentide-yaml`, on `objects/**` and the object folders `paths.toml`
   names), opentide configuration TOML (`opentide-config`) and the query languages `kql`, `spl`,
   `esql`, `eql`, `kuery`, `lucene` and `falco`, with grammars from the language-server highlights zip

@@ -73,7 +73,7 @@ then the next.
 | darwin-arm64 | aarch64-apple-darwin | aarch64-apple-darwin, likewise |
 
 The layout the core runs (`bundledLayout` in `src/core/runtime/resolve.ts`): `runtime/bin/python3` on
-Linux and macOS, `runtime/python.exe` on Windows, as `python -I -X
+Linux and macOS, `runtime/python.exe` on Windows, as `python -I -X utf8 -X
 pycache_prefix=<globalStorage>/pycache -m opentide`. On first use of the bundled runtime the extension
 compiles its bytecode into that prefix in the background, once per `BUILD-INFO.json` `buildId`
 (`src/core/runtime/precompile.ts`).

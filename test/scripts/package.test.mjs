@@ -200,6 +200,8 @@ describe("smoke: checks", () => {
     assert.deepEqual(opentideArgs("/p", ["--version"]), [
       "-I",
       "-X",
+      "utf8",
+      "-X",
       "pycache_prefix=/p",
       "-m",
       "opentide",

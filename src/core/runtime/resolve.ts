@@ -74,10 +74,29 @@ export function bundledLayout(
     : { python: path.join(root, "bin", "python3"), binDirs: [path.join(root, "bin")] };
 }
 
-/** The arguments that make the bundled interpreter run opentide isolated, its bytecode outside the extension. */
+/**
+ * The arguments that make the bundled interpreter run opentide isolated, its bytecode outside the
+ * extension, in UTF-8 mode (`-I` ignores `PYTHONUTF8`; without it Windows writes pipes in the ANSI code
+ * page, and every non-ASCII name the extension decodes as UTF-8 becomes U+FFFD).
+ */
 export function bundledArgs(globalStoragePath: string): string[] {
-  return ["-I", "-X", `pycache_prefix=${path.join(globalStoragePath, "pycache")}`, "-m", "opentide"];
+  return [
+    "-I",
+    "-X",
+    "utf8",
+    "-X",
+    `pycache_prefix=${path.join(globalStoragePath, "pycache")}`,
+    "-m",
+    "opentide",
+  ];
 }
+
+/**
+ * What every opentide process of tiers 1 to 3 gets: UTF-8 mode and UTF-8 stdio, so its output is UTF-8
+ * on Windows too, where Python otherwise writes pipes in the ANSI code page. The extension decodes every
+ * pipe as UTF-8. `PYTHONIOENCODING` also overrides one the user set, which UTF-8 mode does not.
+ */
+export const OPENTIDE_ENV: Readonly<Record<string, string>> = { PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
 
 /** Expand `~` and `${workspaceFolder}`, and resolve a relative path against the folder. */
 export function expandPath(value: string, folder: string | undefined, homeDir: string): string {
@@ -127,8 +146,8 @@ interface Candidate {
 export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult> {
   const attempts: ResolveAttempt[] = [];
   const check = async (candidate: Candidate, restricted: boolean): Promise<Runtime | undefined> => {
-    const env = candidate.env ?? {};
     const lsp = candidate.kind === "opentide-lsp";
+    const env = { ...(lsp ? {} : OPENTIDE_ENV), ...candidate.env };
     const probeArgs = lsp ? [...candidate.args, "--version", "--json"] : [...candidate.args, "--version"];
     const binDirs = candidate.binDirs ?? [path.dirname(candidate.command)];
     const result = await input.probe(candidate.command, probeArgs, {

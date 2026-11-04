@@ -211,7 +211,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 - **Pins:**
   - The bundled opentide version is pinned in this repository, as opentide pins its engine. A bump is a PR.
   - The highlights zip version is **derived** from the engine pin inside that opentide, never chosen separately, so grammar colours and semantic tokens come from the same engine.
-- **At runtime:** the interpreter runs isolated (`-I`), with `-X pycache_prefix=<globalStorage>/pycache`, so the extension folder stays read-only and no `PYTHON*` variable or user site leaks in. The first activation compiles bytecode in the background.
+- **At runtime:** the interpreter runs isolated (`-I`) in UTF-8 mode (`-X utf8`: Windows pipes are otherwise in the ANSI code page), with `-X pycache_prefix=<globalStorage>/pycache`, so the extension folder stays read-only and no `PYTHON*` variable or user site leaks in. The first activation compiles bytecode in the background.
 - **Size gate:** CI fails a package over 100 MB and reports each package's size and its five largest directories on the PR.
 
 ### Publishing and supply chain
