@@ -320,7 +320,7 @@ The first tier that answers wins:
 |------------|----------|--------|------|
 | `opentide` | The language server, pulled | Open files: objects, embedded queries, query files, configuration TOML | As you type |
 | `opentide validate` | `validate` (and `--file`), through `opentide serve` | Every object file, open or not, and checks the server does not run: platform enablement, configuration-wide checks, `cve`, `sharing-config` | On save of an object or configuration file (`opentide.validate.onSave: file` by default; `workspace` or `off`); on "Validate workspace"; on activation (`opentide.validate.onStartup`, default on) |
-| `opentide lint` | `lint` (and `--file`, O11), through `opentide serve` | Filenames, recommended metadata, placeholders, query style | On demand, and with workspace validation when `opentide.lint.withValidate` is on |
+| `opentide lint` | `lint` (and `--file`, O11), through `opentide serve` | Filenames, recommended metadata, placeholders, query style | On save of an object file (`opentide.lint.onSave: file` by default, when the active opentide has `lint --file`; or `off`); on "Lint workspace"; and with workspace validation when `opentide.lint.withValidate` is on |
 
 ### Rules
 
@@ -329,7 +329,7 @@ The first tier that answers wins:
 3. **Ranges:**
    - CLI positions are 1-based, in code points.
    - Convert them against the document text to VS Code's 0-based UTF-16 positions. This matters on lines with emoji and other astral characters.
-   - A validate finding has no `end_line`, so its range is (`line`, `column`)–(`line`, `end_column`). A finding without a column covers its line.
+   - A finding's range is (`line`, `column`)–(`end_line`, `end_column`). opentide reports `end_line` (O9); without one the range stays on `line`, and without an `end_column` it runs to the end of `end_line` (or is one character on a single line). A finding without a column covers its lines.
 4. **Severity:**
 
    | opentide severity | VS Code severity |
@@ -339,7 +339,7 @@ The first tier that answers wins:
    | `info` | Information |
    | `note` / hint | Hint |
 
-   `--strict` changes the exit code, not the severities, so it is a separate gate (`opentide.validate.strict`) used only for the status colour.
+   `--strict` changes the exit code, not the severities, so the extension never passes it: the status bar's colour comes from the error and warning counts.
 5. **What each diagnostic carries:**
    - `source`: `opentide`, `opentide validate` or `opentide lint`;
    - `code`: `{ value, target }`, with the target `https://opentide.org/docs/cli/diagnostics/#<code>`;
