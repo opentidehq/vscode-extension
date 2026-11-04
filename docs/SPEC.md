@@ -303,9 +303,9 @@ The first tier that answers wins:
 | Feature | Where | Source |
 |---------|-------|--------|
 | **Query lenses** above each query block: `▶ Run query` (platform `can_query`, tenants configured), `✓ Validate on tenant` (`can_validate`), `⧉ Copy compiled query` (KQL, SPL) | Rule files and query files | Query ranges from the server's `documentSymbol` (String nodes, `detail` = language). Compiled text from `opentide/compiledKql` / `opentide/compiledSpl` |
-| **Editor title actions:** Validate file, Show in graph, Preview deploy (rules), Open generated doc | Object files | CLI |
+| **Editor title actions:** Validate file, Show in graph, Preview deploy (rules), Open generated doc. Show in graph and Open generated doc are not in 0.1 ([#39](https://github.com/opentidehq/vscode-extension/issues/39)); Show in graph is in the editor context menu | Object files | CLI |
 | **Breadcrumbs and outline** | Object files | Server `documentSymbol` (free) |
-| **Deployment state** in the catalogue tooltip and a status entry for the active rule: `Sentinel ✓ prod · Splunk —` | Rule files | `info catalog` ([§15](#15-what-this-needs-from-opentide-and-language-server)), from `.opentide/states/deployment/` |
+| **Deployment state** in the catalogue tooltip and a status entry for the active rule: `Sentinel ✓ prod · Splunk —`. Not in 0.1 ([#38](https://github.com/opentidehq/vscode-extension/issues/38)) | Rule files | `info catalog` ([§15](#15-what-this-needs-from-opentide-and-language-server)), from `.opentide/states/deployment/` |
 | **Placeholder navigation** | Files with `# opentide:placeholder` | [§7](#7-new-objects-templates-placeholders-snippets) |
 
 ---
@@ -431,7 +431,7 @@ New rule ───────────────────────�
 
 ### Templates and snippets
 
-- **Templates** live in the workspace (`.opentide/templates/`, written by `opentide generate templates`). When `doctor`'s `templates_fresh` check fails, a notification offers "Regenerate templates, schemas and snippets" (`opentide generate templates schemas snippets`).
+- **Templates** live in the workspace (`.opentide/templates/`, written by `opentide generate templates`). When `doctor`'s `templates_fresh` check fails, a notification offers "Regenerate templates, schemas and snippets" (`opentide generate templates schemas snippets`). The notification is not in 0.1 ([#42](https://github.com/opentidehq/vscode-extension/issues/42)); the command is.
 - **Snippets.** opentide writes `.vscode/model-templates.code-snippets` (`tide-threat`, `tide-objective`, `tide-rule`, `tide-<platform>`) with `scope: "yaml"`. **Under the extension, object files are `opentide-yaml`, so those snippets disappear.**
   - Fix in opentide: write `scope: "yaml,opentide-yaml"` ([§15](#15-what-this-needs-from-opentide-and-language-server)).
   - Until then, the extension offers the workspace's `tide-*` snippets in `opentide-yaml` files through a completion provider that reads that file.
@@ -537,7 +537,7 @@ OPENTIDE
 
 | View | Content | Actions |
 |------|---------|---------|
-| **Catalogue** | Threats → objectives → (signals) → rules, as in `opentide tui`, plus groups for objectives without a threat, rules without an objective and files that failed to load. Each rule shows its platforms (icon per block, dimmed when the status is `INERT`) and its problem badge. Group by threat chain (default), platform, status, technique or folder | Open; New…; Validate; Show in graph; Run query; Preview deploy; Copy UUID; Reveal in Explorer. The tree find widget filters by name, UUID or technique |
+| **Catalogue** | Threats → objectives → (signals) → rules, as in `opentide tui`, plus groups for objectives without a threat, rules without an objective and files that failed to load. Each rule shows its platforms (icon per block, dimmed when the status is `INERT`) and its problem badge. Group by threat chain (default), type, platform, status or technique; by folder is not in 0.1 ([#41](https://github.com/opentidehq/vscode-extension/issues/41)) | Open; New…; Validate; Show in graph; Run query; Preview deploy; Copy UUID; Reveal in Explorer. The tree find widget filters by name, UUID or technique |
 | **Coverage** | ATT&CK techniques named by any object: rule count, gaps (`0`) first, sub-techniques under their parent (a parent counts its sub-techniques' rules, as `info coverage` does) | Open the matrix; show the rules; "New objective for this technique" |
 | **Platforms & tenants** | The nine platforms: enabled, `can_deploy`, `can_validate`, `can_query`; tenants per platform and their credential state from `doctor`'s `credentials` check | Enable a platform (`setup platforms`); open its TOML; **Set credential…**: SecretStorage, injected as the `$VAR` the TOML names (D3: never written to a file); Test connection (`doctor`) |
 | **Health** | `opentide doctor` checks, pass/warn/fail/skip, each with its `fix` | Run the fix; re-run; "Copy report" (redacted) for bug reports |
@@ -618,7 +618,7 @@ Three levels, from fastest to richest:
 
 1. **Go to detection** (`Ctrl+T`, workspace symbols) comes free from the server: names, UUIDs and families.
 2. **Quick search** ("opentide: Find Detection…", `Ctrl+Shift+Alt+F`, `Cmd+Shift+Alt+F` on macOS; `Ctrl+Alt+D` was taken by macOS's Dock and Xfce's Show Desktop): a quick pick over the catalogue data. Query syntax: free text, plus `type:rule`, `platform:sentinel`, `status:release`, `technique:T1003`, `tactic:credential-access`, `actor:APT29`, `tlp:amber`, `author:me`, `has:errors`, `has:placeholders`, `unreviewed:>90d`.
-3. **Search panel:** the same query with facets and counts in a side list, results grouped by type, each with its techniques, platforms, status and problems.
+3. **Search panel** (not in 0.1, [#37](https://github.com/opentidehq/vscode-extension/issues/37)): the same query with facets and counts in a side list, results grouped by type, each with its techniques, platforms, status and problems.
    - Select many results, then act on them: validate them, show them in the graph, preview their deploy.
    - Saved searches are kept per workspace.
 
@@ -684,8 +684,8 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
 | `setup` (all subcommands) | Wizard (§8); Platforms view; palette |
 | `new threat \| objective \| rule` | New object flow (§7) |
 | `validate`, `validate --file`, `validate --fix`, `validate --fix --dry-run` | Problems (§6); "Validate file / workspace"; "Fix all safe problems" shows the `--fix --dry-run` diff first, then applies |
-| `validate query` (offline, `--live`, `--changed`) | Query lens "Validate on tenant"; palette "Validate changed queries on tenants" |
-| `lint`, `lint --fix` | Problems; "Fix filenames" shows the renames first |
+| `validate query` (offline, `--live`, `--changed`) | Query lens "Validate on tenant"; tasks; palette "Validate changed queries on tenants" (not in 0.1, [#40](https://github.com/opentidehq/vscode-extension/issues/40)) |
+| `lint`, `lint --fix` | Problems; "Fix filenames" shows the renames first (not in 0.1, [#40](https://github.com/opentidehq/vscode-extension/issues/40)) |
 | `info`, `info coverage`, `info vocab` | Catalogue, Coverage, Platforms; "Show vocabulary…" opens a vocabulary as a read-only document |
 | `query` | Query results panel (§10.4) |
 | `deploy --dry-run` | Deploy plan panel (§10.5) |
@@ -859,8 +859,10 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 | **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #11, #9; opentide#747 (*nice*: the size target) |
 | **M1 Editor** | Languages and grammars; resolution with the bundled tier; the server's features; Restricted Mode; the backend client (`opentide serve`, with spawning as the fallback) and capability gating; diagnostics from three sources with dedupe and Explain; new-object flow with placeholders; status items; output channel | #3, #12, #4, #5, #13, #14, #8 (Restricted Mode); opentide#750 |
 | **M2 Workbench** | The sidebar views; setup wizard and walkthrough; generic runner with classification; tasks, problem matcher, terminal `PATH` and links; MCP provider; query lenses and results panel; deploy plan; credentials in SecretStorage | #15, #16, #7, #6, #17, #18, #8 (the rest); opentide#749, #751, #754 |
-| **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | #19, #20, #21 |
+| **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | #19, #20, #21, #37 |
 | **M4 After 1.0** | Testing view (one test per object; validate as run, `--live` as a second profile); web mode; the live catalogue from the server (L4); hunting notebooks (query cells with result tables) if users ask; real deploys to development tenants if [§17](#17-open-questions) says yes | #10; language-server#197, #198 |
+
+**Not in 0.1:** the first release ships M0–M3 without these, each an issue of its own and still part of the 1.0 bar: the search panel ([#37](https://github.com/opentidehq/vscode-extension/issues/37)), deployment state in the editor ([#38](https://github.com/opentidehq/vscode-extension/issues/38)), the Show in graph and Open generated doc editor title actions ([#39](https://github.com/opentidehq/vscode-extension/issues/39)), "Validate changed queries on tenants" and "Fix filenames" ([#40](https://github.com/opentidehq/vscode-extension/issues/40)), grouping the Catalogue by folder ([#41](https://github.com/opentidehq/vscode-extension/issues/41)) and the `templates_fresh` notification ([#42](https://github.com/opentidehq/vscode-extension/issues/42)).
 
 ### Changes to existing issues
 
