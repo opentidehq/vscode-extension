@@ -50,11 +50,12 @@ describe("runner and agents (#6, #7)", () => {
       assert.ok(validate, tasks.map((task) => task.name).join(", "));
       assert.ok(tasks.some((task) => task.name === "deploy --dry-run"));
       await vscode.tasks.executeTask(validate);
+      // The matcher's own source: the language server's `opentide` problems are there without the task.
       await waitFor(
         () =>
           vscode.languages
             .getDiagnostics()
-            .some(([, diagnostics]) => diagnostics.some((d) => d.source === "opentide")) || undefined,
+            .some(([, diagnostics]) => diagnostics.some((d) => d.source === "opentide task")) || undefined,
         60_000,
       );
     });
