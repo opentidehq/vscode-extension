@@ -247,6 +247,9 @@ export class VirtualTable {
   }
 
   private renderHeader(): void {
+    // A sort click rebuilds the header: the focus goes back to the same column's button.
+    const had = document.activeElement as HTMLElement | null;
+    const refocus = had && this.header.contains(had) ? had.dataset.focus : undefined;
     this.header.replaceChildren(
       ...this.model.columns.map((column, index) => {
         const active = this.sort?.column === column.name;
@@ -302,6 +305,10 @@ export class VirtualTable {
         );
       }),
     );
+    if (refocus)
+      this.header
+        .querySelector<HTMLElement>(`[data-focus="${CSS.escape(refocus)}"]`)
+        ?.focus({ preventScroll: true });
   }
 
   private startResize(event: PointerEvent, index: number, handle: HTMLElement): void {
@@ -472,38 +479,43 @@ export class VirtualTable {
     if (text === undefined || !row || column === undefined) return;
     const anchor = document.getElementById("vt-active");
     const where = at ?? (anchor ? { anchor } : { x: 40, y: 40 });
+    // After a menu action the focus returns to the grid, on the same cell.
+    const back = (action: () => void) => () => {
+      action();
+      this.viewport.focus({ preventScroll: true });
+    };
     showMenu(
       [
         {
           label: "Copy cell",
           icon: "copy",
           description: "Ctrl+C",
-          run: () => this.options.onCopy("cell", text),
+          run: back(() => this.options.onCopy("cell", text)),
         },
         {
           label: "Copy row as JSON",
           icon: "json",
           description: "Ctrl+Shift+C",
-          run: () => this.options.onCopy("row", JSON.stringify(row)),
+          run: back(() => this.options.onCopy("row", JSON.stringify(row))),
         },
         "separator",
         {
           label: `Filter ${column} to this value`,
           icon: "filter",
           disabled: text === "",
-          run: () => this.filterTo(column, text),
+          run: back(() => this.filterTo(column, text)),
         },
         {
           label: "Clear filter",
           icon: "clear-all",
           disabled: this.filterInput.value === "",
-          run: () => this.filterTo("", ""),
+          run: back(() => this.filterTo("", "")),
         },
         "separator",
         {
           label: `Sort by ${column}`,
           icon: "sort-precedence",
-          run: () => this.toggleSort(column),
+          run: back(() => this.toggleSort(column)),
         },
       ],
       where,
