@@ -1,5 +1,6 @@
 // @vscode/test-cli configurations. `npx vscode-test --label <label>`; they need a VS Code download, so
-// they run in CI, not in sandboxes without network access to update.code.visualstudio.com.
+// they run in CI, not in sandboxes without network access to update.code.visualstudio.com. The Restricted
+// Mode tests are scripts/test-restricted.mjs: test-cli always launches VS Code with workspace trust off.
 import { defineConfig } from "@vscode/test-cli";
 
 const workspaceFolder = "./test/fixtures/workspace";
@@ -21,13 +22,5 @@ export default defineConfig([
     launchArgs: ["--disable-workspace-trust"],
     mocha: { ...mocha, timeout: 60000 },
     env: { OPENTIDE_TEST_BIN: process.env.OPENTIDE_TEST_BIN ?? "" },
-  },
-  {
-    // Restricted Mode: workspace trust on, the fixture folder untrusted.
-    label: "restricted",
-    files: "out/test/restricted/**/*.test.js",
-    workspaceFolder,
-    launchArgs: ["--user-data-dir", "./test/fixtures/restricted-user"],
-    mocha: { timeout: 60000 },
   },
 ]);
