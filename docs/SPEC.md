@@ -653,7 +653,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - `sent` (the query as sent) and `vendor_query_id` in a details drawer;
   - failures show `error` and `detail`;
   - partial and truncated results are labelled.
-- **Privacy:** results can hold personal data. They live in memory only, are dropped when the panel closes (`opentide.queryResults.retain`, default off), and are written to disk only by an explicit export.
+- **Privacy:** results can hold personal data. They live in memory only, are dropped when the panel closes (unless `opentide.query.retainResults`, default off, keeps the last results for the window), and are written to disk only by an explicit export.
 - **Platforms:** Sysdig has no query runner, so it gets no button. Elastic `kuery` runs as a rule preview, which writes preview alerts. The button says so (AGENTS.md: the one write).
 
 ### 10.5 Deploy plan (dry run)
