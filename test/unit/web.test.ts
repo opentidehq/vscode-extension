@@ -65,10 +65,16 @@ describe("web mode", () => {
     assert.equal(isVirtualOnly(["vscode-vfs", "file"]), false);
   });
 
-  it("links to a README section", () => {
+  it("links to a README section that exists", () => {
     const anchor = WEB_DOCS_URL.split("#")[1];
     assert.ok(anchor);
-    // The integrator adds the README section (see the web mode result); until then this documents the anchor.
-    if (readme.includes("## Web and virtual workspaces")) assert.equal(anchor, "web-and-virtual-workspaces");
+    // GitHub's heading anchors: lower case, punctuation dropped, spaces as hyphens.
+    const slugs = [...readme.matchAll(/^#{1,6} +(.+?) *#*$/gm)].map((m) =>
+      (m[1] ?? "")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+        .replace(/ /g, "-"),
+    );
+    assert.ok(slugs.includes(anchor), `README.md has no heading with the anchor #${anchor}`);
   });
 });
