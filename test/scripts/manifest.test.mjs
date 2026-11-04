@@ -211,6 +211,24 @@ describe("package.json", () => {
   });
 });
 
+describe("Show in Graph", () => {
+  const entries = (menu) =>
+    (pkg.contributes.menus[menu] ?? []).filter((item) => item.command === "opentide.graph.showInGraph");
+
+  it("is on an opentide-yaml editor's title bar and context menu, and the explorer's", () => {
+    for (const menu of ["editor/title", "editor/context", "explorer/context"]) {
+      const [entry, ...more] = entries(menu);
+      assert.ok(entry, `${menu} has Show in Graph`);
+      assert.equal(more.length, 0, `${menu} has it once`);
+      assert.match(entry.when, /resourceLangId == opentide-yaml/, menu);
+      assert.match(entry.when, /opentide\.hasInfoCatalog/, `${menu}: only where the graph can draw`);
+    }
+    assert.match(entries("editor/title")[0].group, /^navigation@/, "an icon in the title bar");
+    const command = pkg.contributes.commands.find((c) => c.command === "opentide.graph.showInGraph");
+    assert.equal(command.icon, "$(type-hierarchy)");
+  });
+});
+
 describe("README settings table", () => {
   it("lists every contributed setting, and only those", () => {
     const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));

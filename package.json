@@ -1256,6 +1256,11 @@
           "command": "opentide.diagnostics.validateFile",
           "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
           "group": "navigation@50"
+        },
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "group": "navigation@20"
         }
       ],
       "explorer/context": [
