@@ -26,7 +26,7 @@ import {
   placeNear,
   withOverrides,
 } from "../../src/features/graph/expand";
-import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg } from "../../src/features/graph/export";
+import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg, truncate } from "../../src/features/graph/export";
 import { SelectionHistory } from "../../src/features/graph/history";
 import {
   bounds,
@@ -449,8 +449,9 @@ function stylesheet(large: boolean): cytoscape.StylesheetJson {
         "text-valign": "bottom",
         "text-halign": "center",
         "text-margin-y": 4,
-        "text-wrap": "ellipsis",
-        "text-max-width": "150px",
+        // Labels come truncated (truncate()): Cytoscape's own ellipsis measures each label character by
+        // character, seconds of the first frame at 5,000 nodes. The tooltip has the full name.
+        "text-wrap": "none",
         "min-zoomed-font-size": large ? 9 : 6,
         "overlay-opacity": 0,
         "transition-property": "opacity",
@@ -458,7 +459,10 @@ function stylesheet(large: boolean): cytoscape.StylesheetJson {
       },
     },
     ...ALL_KINDS.map((kind) => {
-      const glyph = glyphUri(NODE_ICONS[kind].codicon, kind === "missing" ? colors.error : colors.background);
+      // Above 1,500 nodes the glyphs cost a draw each per frame and are too small to see: shapes only.
+      const glyph = large
+        ? undefined
+        : glyphUri(NODE_ICONS[kind].codicon, kind === "missing" ? colors.error : colors.background);
       return {
         selector: `node[kind = "${kind}"]`,
         style: {
@@ -752,6 +756,9 @@ function nodeErrors(): Set<string> {
   return new Set(view.nodes.filter((node) => hasErrors(node, problems)).map((node) => node.id));
 }
 
+/** The characters of a node's label on the canvas (about 150 px at 11 px). */
+const LABEL_LIMIT = 26;
+
 /** At most this many new nodes join a drawn view beside their neighbours; more lay it out again. */
 const INCREMENTAL_LIMIT = 80;
 
@@ -843,7 +850,7 @@ function drawCanvas(fit: boolean, grown: readonly string[], growFrom: string | u
     for (const node of view.nodes) {
       const position = positions.get(node.id) ?? { x: 0, y: 0 };
       const error = errors.has(node.id) && node.kind !== "missing";
-      const display = `${error ? "✗ " : ""}${node.label}`;
+      const display = truncate(`${error ? "✗ " : ""}${node.label}`, LABEL_LIMIT);
       const focused = mode === "focus" && focusSet.has(node.id);
       const existing = core.getElementById(node.id);
       if (existing.nonempty()) {
