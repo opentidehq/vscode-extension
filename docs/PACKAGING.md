@@ -148,19 +148,19 @@ It exits non-zero on any failure. On a universal package it checks there is no r
 | The package runs | `npm run smoke` on each target's runner |
 | Bytecode precompile against a real runtime | `OPENTIDE_TEST_BUNDLED=<repo with a built runtime/> npm test` |
 
-Measured on 2026-11-03 with opentide 0.21.0 (which still requires pandas, and so numpy: opentide#747
-drops them; openpyxl is not in its closure), CPython 3.13.14 and python-build-standalone 20260718. All
-three fit the 100 MiB gate, so `pins.json` has no budget override; only darwin-arm64 meets the 70 MiB
-target. botocore (which only the Carbon Black SDK needs) and pandas with numpy make most of the
-difference. (The darwin-arm64 and win32-x64 builds still carried `runtime/locks/`, 0.3 MiB, which the packages
-now leave out.)
+Measured on 2026-11-04 with opentide 0.22.0 (which no longer requires pandas or numpy, opentide#747;
+openpyxl is not in its closure), CPython 3.13.14 and python-build-standalone 20260718. Every package
+fits the 100 MiB gate and meets the 70 MiB target, so `pins.json` has no budget override. botocore
+(which only the Carbon Black SDK needs) is now the largest directory in each. With opentide 0.21.0 the
+same packages were 80.5 MiB for linux-x64 (224.7 MiB installed, the same extension build), and on
+2026-11-03 67.9 MiB for darwin-arm64 and 74.0 MiB for win32-x64.
 
 | Target | VSIX | Installed | Largest directories (compressed) |
 |--------|-----:|----------:|----------------------------------|
-| linux-x64 | 80.1 MiB | 223.3 MiB | botocore 15.0, bin 11.9, numpy.libs 8.2, pandas 8.2, opentide 6.8 |
-| darwin-arm64 | 67.9 MiB | 183.5 MiB | botocore 15.0, numpy 10.0, pandas 7.5, bin 7.4, opentide 6.5 |
-| win32-x64 | 74.0 MiB | 200.2 MiB | botocore 15.0, opentide 6.8, pandas 6.8, numpy.libs 6.5, DLLs 4.4 |
-| universal | 0.4 MiB | 1.5 MiB | dist 0.2, dist/webview 0.2 |
+| linux-x64 | 57.7 MiB | 150.6 MiB | botocore 15.0, bin 11.9, opentide 6.8, cryptography 4.6, lib/python3.13 3.5 |
+| darwin-arm64 | 50.2 MiB | 127.1 MiB | botocore 15.0, bin 7.4, opentide 6.6, cryptography 3.7, lib/python3.13 2.6 |
+| win32-x64 | 56.1 MiB | 144.4 MiB | botocore 15.0, opentide 6.9, DLLs 4.4, cryptography 3.6, runtime 2.7 |
+| universal | 0.6 MiB | 1.9 MiB | dist 0.2, dist/webview 0.2, dist/webview/codicons 0.1 |
 
 Every package carries the production build (`vscode:prepublish`: minified, no source maps). With every
 feature merged: `dist/extension.js` 746 KiB and `dist/webview/graph.js` 520 KiB (Cytoscape), against
@@ -168,9 +168,10 @@ feature merged: `dist/extension.js` 746 KiB and `dist/webview/graph.js` 520 KiB 
 
 ## Why a target gets the universal package
 
-- **win32-arm64:** opentide 0.21.0 publishes no `win_arm64` wheel (opentide#748 adds one) and
-  cryptography ≥ 47 has none, so its closure cannot be installed. `npm run runtime:lock -- --target
-  win32-arm64` says which packages are missing.
+- **win32-arm64:** opentide publishes a `win_arm64` wheel since 0.22.0 (opentide#748), but
+  cryptography publishes none after 46.0.3. `npm run runtime:lock -- --target win32-arm64` resolves
+  only by falling back to cryptography 46.0.3, behind the 50.x every other target locks, so the target
+  stays universal until cryptography publishes a Windows on Arm wheel again.
 - **alpine-x64, alpine-arm64** get a runtime: opentide publishes `musllinux_1_2` wheels (its `_native`
   engine is in the abi3 wheel), and every closure package has a musllinux or pure wheel.
 

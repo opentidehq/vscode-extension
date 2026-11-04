@@ -61,7 +61,7 @@
           {
             "id": "ready",
             "title": "opentide is ready",
-            "description": "The extension bundles opentide, so it works without installing Python. The graph and the ATT&CK matrix need a newer opentide than the bundled one. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
+            "description": "The extension bundles opentide, so it works without installing Python, the graph and the ATT&CK matrix included. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
             "media": {
               "markdown": "media/walkthrough/ready.md"
             },

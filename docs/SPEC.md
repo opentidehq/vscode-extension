@@ -92,11 +92,11 @@ What is behind those numbers:
   - the platform SDKs, pydantic-core, dulwich and pygments, a few MB each.
 - **Other targets:** the compressed runtime alone is 33 MB on Linux, 24 MB on macOS arm64 and 21 MB on Windows x64 (`tar.gz` downloads).
 
-**The real packages** (opentide 0.21.0, which still requires pandas and numpy, on the trimmed CPython 3.13.14; [PACKAGING.md](PACKAGING.md#the-gates) has the full table): linux-x64 80.1 MiB (223 MiB installed), darwin-arm64 67.9 MiB, win32-x64 74.0 MiB. The trimming, not dropping pandas, is what brought the 136 MB down.
+**The real packages** (opentide 0.22.0, without pandas and numpy, on the trimmed CPython 3.13.14, measured 2026-11-04; [PACKAGING.md](PACKAGING.md#the-gates) has the full table): linux-x64 57.7 MiB (151 MiB installed), darwin-arm64 50.2 MiB (127 MiB), win32-x64 56.1 MiB (144 MiB). With opentide 0.21.0, which still required pandas and numpy, linux-x64 was 80.5 MiB (225 MiB installed). The trimming brought the 136 MB down to 80 MiB; dropping pandas and numpy (O1) the rest.
 
 **Size budget:**
 - 100 MiB (104,857,600 bytes) per VSIX, enforced in CI (`pins.json` `vsix.budgetBytes`); the target is 70 MiB.
-- Every package fits the budget with opentide 0.21.0 as it is; only darwin-arm64 meets the target. Moving pandas and numpy out of opentide's required dependencies ([§15](#15-what-this-needs-from-opentide-and-language-server), O1) and dropping botocore are what would bring the rest under 70 MiB.
+- Every package fits the budget and meets the target with opentide 0.22.0, which moved pandas and numpy out of its required dependencies ([§15](#15-what-this-needs-from-opentide-and-language-server), O1). botocore (15 MiB compressed, only the Carbon Black SDK needs it) is now the largest single directory.
 
 **Store limits:**
 - The Marketplace documents no hard cap. Microsoft's publishing guidance says to optimise a package over 50 MB ([Microsoft Learn](https://learn.microsoft.com/azure/devops/extend/publish/overview)).
@@ -200,7 +200,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 | 8 per-platform VSIX (`vsce package --target`) | Extension, grammars, the **bundled opentide runtime** for that target, licences and SBOM | win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64 |
 | 1 universal VSIX | Extension and grammars, no runtime. Uses the workspace's opentide or `opentide.path`, and says plainly when there is none | Every other target, and the web entry ([§13](#13-trust-remote-and-web)) |
 
-- **win32-arm64** needs opentide `win_arm64` wheels, which opentide does not build today ([§15](#15-what-this-needs-from-opentide-and-language-server)), and a `win_arm64` wheel of cryptography ≥ 47, which has none either. Until both exist that target gets the universal package, so 0.1 ships 7 per-platform packages (`pins.json` `universalTargets`, [PACKAGING.md](PACKAGING.md#why-a-target-gets-the-universal-package)).
+- **win32-arm64:** opentide publishes a `win_arm64` wheel since 0.22.0 ([§15](#15-what-this-needs-from-opentide-and-language-server), O2), but cryptography publishes none after 46.0.3, so a wheels-only closure resolves there only with cryptography 46.0.3, behind the 50.x every other target locks. Until cryptography publishes one again that target gets the universal package, so 0.1 ships 7 per-platform packages (`pins.json` `universalTargets`, [PACKAGING.md](PACKAGING.md#why-a-target-gets-the-universal-package)).
 - **No `opentide-lsp` binary** in the per-platform packages. The bundled opentide contains the same engine, so a second copy would be about 20 MB for nothing. `opentide.path` may still name an `opentide-lsp` binary for people who want the bare server.
 
 ### Building the runtime
@@ -450,7 +450,7 @@ New rule ───────────────────────�
 
 **Requirement 3.** Five moments define the first hour:
 
-1. **Install.** The status item shows the bundled runtime's version (`$(shield) 0.21.0`), with no Python prompt.
+1. **Install.** The status item shows the bundled runtime's version (`$(shield) 0.22.0`), with no Python prompt.
 2. **Set up.** An empty folder offers "Create a detection repository".
 3. **Create.** The first rule, with placeholders to replace.
 4. **Check.** Problems fill as you type, and "Validate" agrees.
@@ -560,7 +560,7 @@ OPENTIDE
 - The Catalogue, Coverage and search all come from **one** `info catalog` document per folder ([§15](#15-what-this-needs-from-opentide-and-language-server), O3), answered by `opentide serve` from its warm registry and cached in memory.
 - **Refresh triggers:** activation; create, delete or rename under an object folder; save of an object or configuration file; after any command that writes. Refreshes are debounced by 1 s and run one at a time.
 - **Until the first run returns,** the tree shows names from the server's `workspace/symbol`, so it is never empty for long.
-- **Relations:** one `RelationIndex` per catalogue document (`relationIndexOf`, memoised on the document the store hands out), never per render; following the editor reads it and runs nothing. Without `info catalog`, the Relations view asks the language server for `opentide/catalog` once per index version (`opentide/catalogChanged`), turns each object's reference fields into edges (`detection_model` implements, `objective.threats.<i>` covers, `threat.chaining.<i>.vector` chains, a signal's `parent`) and inverts them for the incoming side, and says that its source is the language server's index, which has no techniques or log sources. A server without the request (MethodNotFound, the bundled opentide 0.21.0) gets one line, "Relations need a newer opentide", with Switch Runtime….
+- **Relations:** one `RelationIndex` per catalogue document (`relationIndexOf`, memoised on the document the store hands out), never per render; following the editor reads it and runs nothing. Without `info catalog`, the Relations view asks the language server for `opentide/catalog` once per index version (`opentide/catalogChanged`), turns each object's reference fields into edges (`detection_model` implements, `objective.threats.<i>` covers, `threat.chaining.<i>.vector` chains, a signal's `parent`) and inverts them for the incoming side, and says that its source is the language server's index, which has no techniques or log sources. A server without the request (MethodNotFound: opentide 0.21.0 and earlier) gets one line, "Relations need a newer opentide", with Switch Runtime….
 - **Editor entry points:** **opentide: Show Relations** (palette, editor title and context menu of Tide YAML; no default key) reveals the view on the active object without taking the focus. A CodeLens on the object's `name:` line sums up its object relations both ways in the same words (`Implements → Detect LSASS access · ← Implemented by 3 rules`) and shows the view; it needs `info catalog` and `opentide.relations.codeLens` turns it off. The language server's reference lens on `metadata.uuid` (`3 rules use this objective`) stays, and still peeks the references.
 - **Icons:** one codicon and theme colour per kind (`src/core/catalog/objectIcons.ts`: threat `flame` red, objective `target` blue, rule `shield` green, signal `pulse` purple, technique `symbol-event` orange, log source `database` cyan), the graph's colours, in every tree. A row with errors or warnings takes the problem colour instead.
 - **Refreshes:** a tree refreshes only the rows whose content or children changed (`onDidChangeTreeData` with those elements); a whole-tree refresh only when its top level changed.
@@ -861,10 +861,13 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 ### opentide
 
+opentide 0.22.0, the version the 0.1 packages bundle, has every item: O11 came in 0.21.0, the others in
+0.22.0, O1 without boto3's removal (the Carbon Black SDK imports it).
+
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
 | O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | pandas and numpy are about 15 MiB of each compressed package and botocore another 15 MiB; without them the packages approach the 70 MiB target. Every package already fits the 100 MiB budget with them (D1) | M0 *nice* (the target, not the budget) |
-| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package, which also waits for a cryptography ≥ 47 `win_arm64` wheel | M0 *nice* (universal package until then) |
+| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package, which also waits for a cryptography `win_arm64` wheel newer than 46.0.3 | M0 *nice* (universal package until then) |
 | O3 [opentide#749](https://github.com/opentidehq/opentide/issues/749) | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
 | O4 [opentide#751](https://github.com/opentidehq/opentide/issues/751) | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
 | O5 [opentide#752](https://github.com/opentidehq/opentide/issues/752) | Generated snippets use `scope: "yaml,opentide-yaml"` | Snippets vanish in `opentide-yaml` files | M1 *nice* (client workaround) |
@@ -877,6 +880,10 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 | O12 [opentide#750](https://github.com/opentidehq/opentide/issues/750) | `opentide serve`: JSON-RPC over stdio that runs CLI commands in-process (argv in, the `--json` document out) with imports and the registry kept warm, invalidated by file-change notifications, and cancellable per request | Each spawned command re-imports and rebuilds the registry: 1.3–1.7 s and 100–190 MB per save or click at 500 rules (D2) | M1 (validate on save), M2 (sidebar and panels); spawning is the fallback |
 
 ### language-server
+
+language-server 0.10.0, the engine in opentide 0.22.0, ships L1 (its highlights zip names
+`source.opentide.esql`), L2 (`SHA256SUMS` on the release) and L4 (`opentide/catalog` and
+`opentide/catalogChanged`).
 
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
@@ -921,7 +928,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 These need a decision before the milestone named.
 
-1. **Bundling (M0).** Confirm D1: a 68–80 MiB download per platform package with opentide 0.21.0 (less once O1 lands), 180–225 MiB on disk, downloaded again on every update.
+1. **Bundling (M0).** Confirm D1: a 50–58 MiB download per platform package with opentide 0.22.0, 127–151 MiB on disk, downloaded again on every update.
 2. **Real deploys from the editor (M4).** Never, with CI only (the recommendation for 1.0), or later behind a setting, for tenants marked non-production, one rule at a time, with a modal confirmation? The latter needs O7 and a confirmation contract in `opentide deploy`.
 3. **Publisher identity (M0).** Settled: `opentidehq` on both stores. Marketplace publisher verification for `opentide.org` becomes possible after six months.
 4. **The VS Code floor and forks (M0).** Check the VS Code version Cursor and Windsurf are based on today, and set `engines.vscode` so they install the extension. Everything newer is feature-detected.

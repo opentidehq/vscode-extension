@@ -1,6 +1,6 @@
 # opentide is ready
 
-The extension ships with its own opentide, so it works on install: no Python, no `pip`, offline. A few features need a newer opentide than the bundled one: the graph and the ATT&CK matrix (`info catalog`), tenants in the Platforms view, and the setup wizard's review of what it will write.
+The extension ships with its own opentide, so it works on install: no Python, no `pip`, offline, with the graph and the ATT&CK matrix, tenants in the Platforms view and the setup wizard's review of what it will write. An older opentide in the repository's environment may lack some of them; each says so and offers to switch.
 
 The status bar item says which opentide runs and where it comes from. Click it for the runtime menu.
 
