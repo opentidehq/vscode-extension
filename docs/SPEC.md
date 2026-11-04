@@ -276,7 +276,7 @@ The first tier that answers wins:
 
 ### Status
 
-- **Status bar item:** runtime and catalogue health, `$(opentide-logo) 0.21.0 ✗ 2 ! 5`. Clicking it opens a menu: Validate workspace, Run doctor, Show output, Restart server, Switch runtime….
+- **Status bar item:** runtime and catalogue health, `$(shield) 0.21.0 ✗ 2 ! 5` (with `· repo pins 0.20.1` on a pin mismatch, and `$(shield) opentide: no runtime` without one). Clicking it opens a menu: Validate workspace, Run doctor, Show output, Restart server, Switch runtime….
 - **Language status item** (as in #3): reads `capabilities.experimental.opentide` and infers nothing. It shows:
   - `host`, `engine`, `catalog`, `configurationChecks`, `configurationSchemas`;
   - the tier, and the interpreter path.
@@ -449,7 +449,7 @@ New rule ───────────────────────�
 
 **Requirement 3.** Five moments define the first hour:
 
-1. **Install.** The status item says `opentide 0.21.0 ready`, with no Python prompt.
+1. **Install.** The status item shows the bundled runtime's version (`$(shield) 0.21.0`), with no Python prompt.
 2. **Set up.** An empty folder offers "Create a detection repository".
 3. **Create.** The first rule, with placeholders to replace.
 4. **Check.** Problems fill as you type, and "Validate" agrees.
