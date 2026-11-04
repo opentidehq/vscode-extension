@@ -210,7 +210,7 @@ describe("runner launcher", () => {
   });
 
   it("reads a non-ASCII path in UTF-8 on Windows, and restores the code page and exit code", () => {
-    const command = "C:\\Users\\Jörg\\.vscode\\ext\\runtime\\python.exe";
+    const command = "C:\\Users\\Jörg & ^x %y\\.vscode\\ext\\runtime\\python.exe";
     const [file] = launcherFiles({ command, args: ["-I", "-m", "opentide"], env: { A: "1" } }, "win32");
     const lines = file?.content.split("\r\n") ?? [];
     const switchAt = lines.indexOf("chcp 65001 >nul");
@@ -226,16 +226,18 @@ describe("runner launcher", () => {
         .some((line) => line.includes("('chcp')") && line.includes("OPENTIDE_LAUNCHER_CP")),
       "the console's code page is saved first",
     );
-    assert.equal(
-      lines[commandAt],
-      'set "OPENTIDE_LAUNCHER_RUN="C:\\Users\\Jörg\\.vscode\\ext\\runtime\\python.exe" "-I" "-m" "opentide""',
-      "the command line is read in UTF-8 into a variable",
-    );
-    // The code page is back before opentide runs: Ctrl+C at "Terminate batch job" cannot skip it.
-    assert.deepEqual(lines.slice(commandAt + 1), [
+    // One variable per token, NAME=value in one quoted region: `&` and `^` stay literal, `%` is doubled.
+    assert.deepEqual(lines.slice(commandAt), [
+      'set "OPENTIDE_LAUNCHER_ARG0=C:\\Users\\Jörg & ^x %%y\\.vscode\\ext\\runtime\\python.exe"',
+      'set "OPENTIDE_LAUNCHER_ARG1=-I"',
+      'set "OPENTIDE_LAUNCHER_ARG2=-m"',
+      'set "OPENTIDE_LAUNCHER_ARG3=opentide"',
+      // The code page is back before opentide runs: Ctrl+C at "Terminate batch job" cannot skip it.
       "if defined OPENTIDE_LAUNCHER_CP chcp %OPENTIDE_LAUNCHER_CP% >nul",
       'set "OPENTIDE_LAUNCHER_CP="',
-      'set "OPENTIDE_LAUNCHER_RUN=" & %OPENTIDE_LAUNCHER_RUN% %*',
+      'set "OPENTIDE_LAUNCHER_ARG0=" & set "OPENTIDE_LAUNCHER_ARG1=" & set "OPENTIDE_LAUNCHER_ARG2=" & ' +
+        'set "OPENTIDE_LAUNCHER_ARG3=" & "%OPENTIDE_LAUNCHER_ARG0%" "%OPENTIDE_LAUNCHER_ARG1%" ' +
+        '"%OPENTIDE_LAUNCHER_ARG2%" "%OPENTIDE_LAUNCHER_ARG3%" %*',
       "",
     ]);
     const [ascii] = launcherFiles({ command: "C:\\Users\\me\\python.exe", args: [], env: {} }, "win32");
@@ -246,22 +248,26 @@ describe("runner launcher", () => {
     if (process.platform !== "win32") this.skip();
     const dir = mkdtempSync(path.join(os.tmpdir(), "otl-"));
     try {
-      const folder = path.join(dir, "Jörg");
+      // cmd.exe's special characters too: `&` splits a command, `^` escapes, `%` expands.
+      const folder = path.join(dir, "Jörg & ^x %y");
       mkdirSync(folder);
       const probe = path.join(folder, "probe.js");
       writeFileSync(
         probe,
-        "process.stdout.write(JSON.stringify([process.env.A, process.argv.slice(2), Object.keys(process.env).filter((k) => k.startsWith('OPENTIDE_LAUNCHER'))])); process.exit(7);",
+        "process.stdout.write(JSON.stringify([process.env.A, process.argv.slice(1), Object.keys(process.env).filter((k) => k.startsWith('OPENTIDE_LAUNCHER'))])); process.exit(7);",
       );
-      const [file] = launcherFiles({ command: process.execPath, args: [probe], env: { A: "Zoë" } }, "win32");
+      const [file] = launcherFiles(
+        { command: process.execPath, args: [probe], env: { A: "Zoë & ^x %y" } },
+        "win32",
+      );
       const launcher = path.join(dir, "opentide.cmd");
       writeFileSync(launcher, file?.content ?? "");
       const run = spawnSync("cmd.exe", ["/d", "/c", launcher, "x y"], { encoding: "utf8" });
       assert.equal(run.status, 7, run.stderr);
       assert.deepEqual(
         JSON.parse(run.stdout),
-        ["Zoë", ["x y"], []],
-        "the launcher's own variables are cleared",
+        ["Zoë & ^x %y", [probe, "x y"], []],
+        "the path and variable as written, and the launcher's own variables cleared",
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });

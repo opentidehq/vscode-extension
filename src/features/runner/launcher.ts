@@ -58,12 +58,13 @@ function isAscii(line: string): boolean {
  * The `opentide.cmd` batch file. The file is UTF-8, but cmd.exe decodes a batch file in the console's code
  * page (an OEM one such as 850 or 932), so a non-ASCII path (`C:\Users\Jörg\…`) would be garbled. cmd.exe
  * reads a batch file line by line, so when a line is not ASCII the script switches the console to UTF-8
- * (65001) for those lines, keeps the command line in a variable, and restores the code page before it
- * runs opentide: its exit code is the script's, and Ctrl+C leaves the console's code page as it was.
+ * (65001) for those lines, keeps each token of the command line in a variable, and restores the code
+ * page before it runs opentide: its exit code is the script's, and Ctrl+C leaves the code page as it was.
  */
 function cmdLauncher(command: string, args: readonly string[], env: readonly [string, string][]): string {
   const sets = env.map(([name, value]) => `set ${cmdQuote(`${name}=${value}`)}`);
-  const commandLine = [command, ...args].map(cmdQuote).join(" ");
+  const tokens = [command, ...args];
+  const commandLine = tokens.map(cmdQuote).join(" ");
   const ascii = [...sets, commandLine].every(isAscii);
   const lines = [
     "@echo off",
@@ -77,12 +78,17 @@ function cmdLauncher(command: string, args: readonly string[], env: readonly [st
           `for /f "tokens=2 delims=:" %%a in ('chcp') do for /f "tokens=1 delims=. " %%b in ("%%a") do set "OPENTIDE_LAUNCHER_CP=%%b"`,
           "chcp 65001 >nul",
           ...sets,
-          // cmd.exe keeps variables in UTF-16: the command line read now runs the same in any code page.
-          `set "OPENTIDE_LAUNCHER_RUN=${commandLine}"`,
+          // cmd.exe keeps variables in UTF-16: each token read now runs the same in any code page. One
+          // variable per token, its NAME=value in one quoted region, so `&` and `^` in a path stay literal.
+          ...tokens.map((token, i) => `set ${cmdQuote(`OPENTIDE_LAUNCHER_ARG${i}=${token}`)}`),
           "if defined OPENTIDE_LAUNCHER_CP chcp %OPENTIDE_LAUNCHER_CP% >nul",
           'set "OPENTIDE_LAUNCHER_CP="',
-          // The line is expanded before it runs, so the variable is cleared and opentide does not inherit it.
-          'set "OPENTIDE_LAUNCHER_RUN=" & %OPENTIDE_LAUNCHER_RUN% %*',
+          // The line is expanded before it runs: the variables are cleared and opentide does not inherit
+          // them. Each expansion sits inside quotes, and % is expanded once, so a `%` in a path stays one.
+          [
+            ...tokens.map((_, i) => `set "OPENTIDE_LAUNCHER_ARG${i}="`),
+            `${tokens.map((_, i) => `"%OPENTIDE_LAUNCHER_ARG${i}%"`).join(" ")} %*`,
+          ].join(" & "),
         ]),
   ];
   return `${lines.join("\r\n")}\r\n`;
