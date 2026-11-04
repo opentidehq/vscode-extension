@@ -82,7 +82,7 @@ pre-releases odd ones.
   - **Activity:** the last 50 commands, with Run Again and Copy Command Line.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
   create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
-  as Script reproduces it in a terminal. It also adds platforms, CI and agents to an existing
+  as Script reproduces it in a terminal. The window takes up the new repository without a reload. It also adds platforms, CI and agents to an existing
   repository. A CoreTIDE layout (`Objects/`, `Configurations/`, `global.toml`) is reported as not
   supported: opentide 0.21.0 has no migration.
 - "Get started with opentide": a seven-step walkthrough from runtime to agents, each step completing

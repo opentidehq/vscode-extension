@@ -19,25 +19,49 @@ export class FolderManager implements FolderService, vscode.Disposable {
   private folders: OpentideFolder[] = [];
   private readonly emitter = new Emitter<readonly OpentideFolder[]>();
   private readonly disposables: vscode.Disposable[] = [];
+  private layoutWatchers: vscode.Disposable[] = [];
 
   readonly onDidChange = this.emitter.event;
 
   constructor() {
     this.recompute(false);
     const watcher = vscode.workspace.createFileSystemWatcher("**/.opentide/configurations/paths.toml");
-    const layout = vscode.workspace.createFileSystemWatcher("*/{.opentide,objects}", false, true, false);
-    const rootLayout = vscode.workspace.createFileSystemWatcher("{.opentide,objects}", false, true, false);
+    this.watchLayout();
     this.disposables.push(
       watcher,
-      layout,
-      rootLayout,
-      vscode.workspace.onDidChangeWorkspaceFolders(() => this.recompute(true)),
-      ...[watcher, layout, rootLayout].flatMap((w) => [
-        w.onDidCreate(() => this.recompute(true)),
-        w.onDidDelete(() => this.recompute(true)),
-      ]),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        this.watchLayout();
+        this.recompute(true);
+      }),
+      watcher.onDidCreate(() => this.recompute(true)),
+      watcher.onDidDelete(() => this.recompute(true)),
       watcher.onDidChange(() => this.recompute(true)),
     );
+  }
+
+  /**
+   * Watch each workspace folder's `.opentide/` and `objects/`, which make it an opentide folder (`opentide
+   * setup` creates them). A string glob is matched against the event's absolute path, so it has to be a
+   * RelativePattern on each folder: `{.opentide,objects}` alone never matched, and a folder set up in the
+   * window stayed "not an opentide repository" until a reload.
+   */
+  private watchLayout(): void {
+    for (const disposable of this.layoutWatchers) disposable.dispose();
+    this.layoutWatchers = [];
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      if (folder.uri.scheme !== "file") continue;
+      const layout = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(folder, "{.opentide,objects}"),
+        false,
+        true,
+        false,
+      );
+      this.layoutWatchers.push(
+        layout,
+        layout.onDidCreate(() => this.recompute(true)),
+        layout.onDidDelete(() => this.recompute(true)),
+      );
+    }
   }
 
   get all(): readonly OpentideFolder[] {
@@ -89,7 +113,7 @@ export class FolderManager implements FolderService, vscode.Disposable {
   }
 
   dispose(): void {
-    for (const disposable of this.disposables) disposable.dispose();
+    for (const disposable of [...this.disposables, ...this.layoutWatchers]) disposable.dispose();
     this.emitter.dispose();
   }
 }

@@ -9,13 +9,59 @@ export const stubState = {
   /** Every `section.key` a test's code read through getConfiguration().get. */
   readKeys: [] as string[],
   executed: [] as { command: string; args: unknown[] }[],
+  /** Every file system watcher created, with its pattern, until disposed. */
+  watchers: [] as StubWatcher[],
   reset(): void {
     this.trusted = true;
     this.config = {};
     this.readKeys = [];
     this.executed = [];
+    this.watchers = [];
+  },
+  /**
+   * A file was created (or deleted) at the absolute `fsPath`: fire the watchers whose pattern matches it
+   * as VS Code matches them. A string glob is matched against the absolute path; a RelativePattern
+   * against the path relative to its base.
+   */
+  fileEvent(kind: "create" | "delete", fsPath: string): void {
+    const file = fsPath.replaceAll("\\", "/");
+    for (const watcher of [...this.watchers]) {
+      if (kind === "create" ? watcher.ignoreCreate : watcher.ignoreDelete) continue;
+      const pattern = watcher.pattern;
+      let subject = file;
+      let glob: string;
+      if (typeof pattern === "string") glob = pattern;
+      else {
+        const base = (typeof pattern.base === "string" ? pattern.base : pattern.base.fsPath).replace(
+          /\/$/,
+          "",
+        );
+        if (!file.startsWith(`${base}/`)) continue;
+        subject = file.slice(base.length + 1);
+        glob = pattern.pattern;
+      }
+      if (globRegExp(glob).test(subject)) watcher.fire(kind, Uri.file(fsPath));
+    }
   },
 };
+
+/** A glob as VS Code reads it: `**`, `*`, `?` and `{a,b}`. */
+function globRegExp(glob: string): RegExp {
+  let out = "";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i] ?? "";
+    if (c === "*" && glob[i + 1] === "*") {
+      out += glob[i + 2] === "/" ? "(?:.*/)?" : ".*";
+      i += glob[i + 2] === "/" ? 2 : 1;
+    } else if (c === "*") out += "[^/]*";
+    else if (c === "?") out += "[^/]";
+    else if (c === "{") out += "(?:";
+    else if (c === "}") out += ")";
+    else if (c === ",") out += "|";
+    else out += c.replace(/[.+^$()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${out}$`);
+}
 
 export class Disposable {
   private fn: (() => void) | undefined;
@@ -91,6 +137,35 @@ export class Range {
   }
 }
 
+export class RelativePattern {
+  constructor(
+    readonly base: { readonly uri: Uri } | Uri | string,
+    readonly pattern: string,
+  ) {}
+}
+
+type StubPattern = string | { readonly base: Uri | string; readonly pattern: string };
+
+class StubWatcher {
+  private readonly created = new EventEmitter<Uri>();
+  private readonly deleted = new EventEmitter<Uri>();
+  private readonly changed = new EventEmitter<Uri>();
+  readonly onDidCreate = this.created.event;
+  readonly onDidDelete = this.deleted.event;
+  readonly onDidChange = this.changed.event;
+  constructor(
+    readonly pattern: StubPattern,
+    readonly ignoreCreate: boolean,
+    readonly ignoreDelete: boolean,
+  ) {}
+  fire(kind: "create" | "delete", uri: Uri): void {
+    (kind === "create" ? this.created : this.deleted).fire(uri);
+  }
+  dispose(): void {
+    stubState.watchers = stubState.watchers.filter((w) => w !== this);
+  }
+}
+
 export class Location {
   constructor(
     readonly uri: Uri,
@@ -109,6 +184,28 @@ export const workspace = {
     return stubState.trusted;
   },
   workspaceFolders: [] as unknown[],
+  onDidChangeWorkspaceFolders: new EventEmitter<unknown>().event,
+  createFileSystemWatcher(
+    pattern: string | RelativePattern,
+    ignoreCreate = false,
+    _ignoreChange = false,
+    ignoreDelete = false,
+  ): StubWatcher {
+    const base = typeof pattern === "string" ? undefined : pattern.base;
+    const normalized: StubPattern =
+      typeof pattern === "string"
+        ? pattern
+        : {
+            base:
+              base instanceof Uri || typeof base === "string"
+                ? (base as Uri | string)
+                : (base as { uri: Uri }).uri,
+            pattern: pattern.pattern,
+          };
+    const watcher = new StubWatcher(normalized, ignoreCreate, ignoreDelete);
+    stubState.watchers.push(watcher);
+    return watcher;
+  },
   getConfiguration(section?: string) {
     return {
       get<T>(key: string, defaultValue?: T): T | undefined {

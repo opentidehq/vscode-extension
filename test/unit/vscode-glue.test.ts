@@ -1,5 +1,8 @@
 // Modules that touch the VS Code API, against test/stubs/vscode.ts.
 import * as assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import {
   convertShowReferencesArgs,
@@ -8,6 +11,7 @@ import {
   readServerInfo,
 } from "../../src/core/lsp";
 import { RESTRICTED_SETTINGS, readSetting, runtimeSettings } from "../../src/core/services/settings";
+import { FolderManager } from "../../src/core/services/workspace";
 import type { CancellationToken } from "../../src/core/util/cancellation";
 import type { Event } from "../../src/core/util/event";
 import { contentSecurityPolicy, renderHtml } from "../../src/core/webview/html";
@@ -140,5 +144,49 @@ describe("vscode compatibility of the core's own types", () => {
     const asEvent = (event: vscode.Event<number>): Event<number> => event;
     assert.equal(typeof fromVscode, "function");
     assert.equal(typeof asEvent, "function");
+  });
+});
+
+// The window's opentide folders follow `opentide setup` without a reload (#44).
+describe("folders: an opentide folder created in the window (#44)", () => {
+  let dir: string;
+  const workspace = vscode.workspace as unknown as { workspaceFolders: unknown[] };
+  beforeEach(() => {
+    stubState.reset();
+    dir = mkdtempSync(path.join(tmpdir(), "opentide-fresh-"));
+    workspace.workspaceFolders = [{ uri: vscode.Uri.file(dir), name: "fresh", index: 0 }];
+  });
+  afterEach(() => {
+    workspace.workspaceFolders = [];
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("becomes an opentide folder when setup creates .opentide/, and stops when it goes", () => {
+    const folders = new FolderManager();
+    const changes: number[] = [];
+    folders.onDidChange((all) => changes.push(all.length));
+    assert.equal(folders.all.length, 0);
+    mkdirSync(path.join(dir, ".opentide"));
+    stubState.fileEvent("create", path.join(dir, ".opentide"));
+    assert.equal(folders.all.length, 1, "seen without a reload");
+    assert.deepEqual(changes, [1]);
+    assert.ok(
+      stubState.executed.some(
+        (e) => e.command === "setContext" && e.args[0] === "opentide.hasWorkspace" && e.args[1],
+      ),
+    );
+    rmSync(path.join(dir, ".opentide"), { recursive: true });
+    stubState.fileEvent("delete", path.join(dir, ".opentide"));
+    assert.equal(folders.all.length, 0);
+    folders.dispose();
+    assert.equal(stubState.watchers.length, 0, "every watcher is disposed");
+  });
+
+  it("also for objects/ alone", () => {
+    const folders = new FolderManager();
+    mkdirSync(path.join(dir, "objects"));
+    stubState.fileEvent("create", path.join(dir, "objects"));
+    assert.equal(folders.all.length, 1);
+    folders.dispose();
   });
 });
