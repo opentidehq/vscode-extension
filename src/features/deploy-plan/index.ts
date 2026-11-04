@@ -20,7 +20,13 @@ import {
   type Strategy,
 } from "./argv";
 import { type PlanView, payloadDocuments, planView } from "./plan";
-import { type DeployPanelState, type DeployPlanProtocol, hostValidators, type ScopeKind } from "./protocol";
+import {
+  cancelledState,
+  type DeployPanelState,
+  type DeployPlanProtocol,
+  hostValidators,
+  type ScopeKind,
+} from "./protocol";
 
 const PAYLOAD_SCHEME = "opentide-payload";
 const PLATFORMS = [
@@ -370,26 +376,29 @@ class DeployPanel implements vscode.Disposable {
         },
       });
       if (this.runId !== id) return;
-      const plan = planView(result.document);
-      this.plan = plan;
-      this.document = result.document;
-      this.payloads.replace(payloadDocuments(result.document));
-      this.publishDiagnostics(plan);
-      const unusable =
-        result.exitCode === 2 ||
-        (result.exitCode !== 0 && plan.platforms.length === 0 && plan.unmatched.length === 0);
-      this.state = {
-        ...this.state,
-        argvDisplay: result.argvDisplay,
-        phase: result.cancelled ? "cancelled" : unusable ? "failed" : "done",
-        plan: result.cancelled ? this.state.plan : plan,
-        failure: result.cancelled
-          ? null
-          : unusable
+      if (result.cancelled) {
+        // The cancelled envelope has no plan: the plan shown, its payloads and Problems stay.
+        this.state = cancelledState(this.state, result.durationMs);
+      } else {
+        const plan = planView(result.document);
+        this.plan = plan;
+        this.document = result.document;
+        this.payloads.replace(payloadDocuments(result.document));
+        this.publishDiagnostics(plan);
+        const unusable =
+          result.exitCode === 2 ||
+          (result.exitCode !== 0 && plan.platforms.length === 0 && plan.unmatched.length === 0);
+        this.state = {
+          ...this.state,
+          argvDisplay: result.argvDisplay,
+          phase: unusable ? "failed" : "done",
+          plan,
+          failure: unusable
             ? { code: result.document.failure?.code ?? "failed", message: result.document.message }
             : null,
-        durationMs: result.durationMs,
-      };
+          durationMs: result.durationMs,
+        };
+      }
     } catch (error) {
       if (this.runId !== id) return;
       this.state = {

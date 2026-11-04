@@ -31,6 +31,25 @@ export interface DeployPanelState {
   readonly durationMs: number | null;
 }
 
+/**
+ * The state after a cancelled dry run: the plan shown before it (or none), its payloads and diagnostics
+ * stay as they were, since the cancelled run's envelope has none of them.
+ */
+export function cancelledState(state: DeployPanelState, durationMs: number): DeployPanelState {
+  return { ...state, phase: "cancelled", failure: null, progress: null, durationMs };
+}
+
+/** What the panel's body shows while it has no plan: "Planning…" during a run, else what to do. */
+export function noPlanBox(state: Pick<DeployPanelState, "phase">): {
+  readonly kind: "loading" | "info";
+  readonly title: string;
+  readonly body: string;
+} {
+  return state.phase === "cancelled"
+    ? { kind: "info", title: "Cancelled", body: "Preview again to plan the deploy." }
+    : { kind: "loading", title: "Planning…", body: "opentide compiles each rule; this takes a few seconds." };
+}
+
 export interface RunRequest {
   readonly strategies: readonly Strategy[];
   readonly scope: ScopeKind;

@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
+import { cancelledEnvelope } from "../../../src/core/backend/types";
 import {
   assertDryRun,
   ciStep,
@@ -14,7 +15,12 @@ import {
 } from "../../../src/features/deploy-plan/argv";
 import { parseTargetArgs } from "../../../src/features/deploy-plan/index";
 import { deployedRequest, payloadDocuments, planView } from "../../../src/features/deploy-plan/plan";
-import { hostValidators } from "../../../src/features/deploy-plan/protocol";
+import {
+  cancelledState,
+  type DeployPanelState,
+  hostValidators,
+  noPlanBox,
+} from "../../../src/features/deploy-plan/protocol";
 import { parsePlatforms } from "../../../src/features/sidebar/platforms";
 import { ROOT } from "../helpers";
 
@@ -160,6 +166,41 @@ describe("deploy plan (#18)", () => {
       ),
       ["SPLUNK_TOKEN"],
     );
+  });
+
+  it("keeps the plan shown when a re-run is cancelled, and stops saying Planning after a cancelled first run", () => {
+    const plan = planView(REAL);
+    const running: DeployPanelState = {
+      phase: "running",
+      folder: "/repo",
+      strategies: ["PREVIEW"],
+      scope: "all",
+      platform: null,
+      selection: null,
+      canSelect: true,
+      focus: [],
+      platforms: ["splunk"],
+      argvDisplay: "opentide --json deploy --dry-run --all",
+      dryRunCommand: "",
+      deployCommand: "",
+      plan,
+      failure: null,
+      progress: "splunk 1/2",
+      note: null,
+      startedAt: 0,
+      durationMs: null,
+    };
+    const cancelled = cancelledState(running, 1200);
+    assert.equal(cancelled.phase, "cancelled");
+    assert.equal(cancelled.plan, plan, "the previous plan, not the cancelled envelope's empty one");
+    assert.equal(cancelled.durationMs, 1200);
+    assert.equal(cancelled.progress, null);
+    // The cancelled envelope has no payloads: replacing them with it would empty the payload documents.
+    assert.equal(payloadDocuments(cancelledEnvelope("deploy")).size, 0);
+    assert.ok(payloadDocuments(REAL).size > 0);
+    const first = cancelledState({ ...running, plan: null }, 300);
+    assert.equal(noPlanBox(first).kind, "info", "a cancelled first run is not still planning");
+    assert.equal(noPlanBox(running).kind, "loading");
   });
 
   it("matches opentide's changes: platform → tenant → rule → action, with counts", () => {

@@ -4,6 +4,7 @@ import type { PlanView, PlatformPlan } from "../../src/features/deploy-plan/plan
 import {
   type DeployPanelState,
   type DeployPlanProtocol,
+  noPlanBox,
   type ScopeKind,
   type Strategy,
   webviewValidators,
@@ -184,12 +185,12 @@ function body(s: DeployPanelState): HTMLElement {
     });
   }
   const plan = s.plan;
-  if (!plan)
-    return stateBox({
-      kind: "loading",
-      title: "Planning…",
-      body: "opentide compiles each rule; this takes a few seconds.",
-    });
+  if (!plan) {
+    const box = noPlanBox(s);
+    return stateBox(
+      box.kind === "info" ? { ...box, actions: [{ label: "Preview again", run: () => request({}) }] } : box,
+    );
+  }
   const dim = s.phase === "running" ? " stale" : "";
   return h("div", { class: `plan${dim}`, attrs: { "aria-busy": s.phase === "running" ? "true" : "false" } }, [
     summary(plan),
