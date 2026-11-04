@@ -728,8 +728,14 @@ export function cyclonedx({ info, dists, extensionVersion, native = [] }) {
             ...(component.source
               ? {
                   version: component.source.version,
-                  hashes: [{ alg: "SHA-256", content: component.source.sha256 }],
-                  externalReferences: [{ type: "source-distribution", url: component.source.url }],
+                  // The hash is the source tarball's, not the library's as linked: on the reference.
+                  externalReferences: [
+                    {
+                      type: "source-distribution",
+                      url: component.source.url,
+                      hashes: [{ alg: "SHA-256", content: component.source.sha256 }],
+                    },
+                  ],
                 }
               : {}),
             properties: [{ name: "opentide:cpythonModules", value: component.modules.join(",") }],

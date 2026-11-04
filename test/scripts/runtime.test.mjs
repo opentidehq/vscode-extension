@@ -631,8 +631,9 @@ describe("runtime build: the native libraries inside CPython", () => {
     }).components;
     assert.equal(cpython.components[0].version, "6.0.19");
     assert.deepEqual(cpython.components[0].externalReferences, [
-      { type: "source-distribution", url: source.url },
+      { type: "source-distribution", url: source.url, hashes: [{ alg: "SHA-256", content: source.sha256 }] },
     ]);
+    assert.equal(cpython.components[0].hashes, undefined, "the tarball's hash is not the library's");
   });
 
   it("refuses licences recorded for another CPython or python-build-standalone, or none", () => {
