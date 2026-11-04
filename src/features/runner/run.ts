@@ -9,6 +9,7 @@ import type { Classification } from "../../core/capabilities/classification";
 import type { FeatureContext } from "../../core/context";
 import { displayArgv } from "../../core/runtime/env";
 import { cliCommand, hasCli } from "../../core/runtime/types";
+import { httpProxy } from "../../core/services/settings";
 import { ProgressModel } from "./progress";
 import {
   changedFiles,
@@ -20,7 +21,7 @@ import {
   summarize,
 } from "./result";
 import { RESULT_SCHEME, type ResultStore } from "./resultStore";
-import { DRY_RUN, planRun, platformsOf, type RunPlan, selectedRuleCount } from "./safety";
+import { confirmMessage, DRY_RUN, planRun, platformsOf, type RunPlan, selectedRuleCount } from "./safety";
 import { PROBLEM_MATCHER, TASK_TYPE, taskEnv } from "./tasks";
 import { describeReach, missingVariables, type PlatformReach, reachOf } from "./tenants";
 
@@ -158,11 +159,8 @@ export class Runner implements vscode.Disposable {
       "",
       commandLabel(displayArgv(plan.argv)),
     ];
-    const message = plan.dryRunAdded
-      ? "Deploys and shares run in CI, not from the editor. Preview this one as a dry run?"
-      : "Run this dry run? It reads from the tenants it names.";
     const picked = await vscode.window.showWarningMessage(
-      message,
+      confirmMessage(plan),
       { modal: true, detail: lines.join("\n") },
       "Run Dry Run",
     );
@@ -362,7 +360,7 @@ export class Runner implements vscode.Disposable {
       "opentide",
       new vscode.ProcessExecution(command, args, {
         cwd: folder,
-        env: taskEnv(folder, runtime.env, credentials),
+        env: taskEnv(folder, runtime.env, httpProxy(), credentials),
       }),
       [PROBLEM_MATCHER],
     );

@@ -187,3 +187,21 @@ export function parseRevealArgs(value: unknown): string | undefined {
   const uuid = (value as { uuid?: unknown }).uuid;
   return typeof uuid === "string" && uuid ? uuid : undefined;
 }
+
+/** Sends a value only when it differs from the last one sent (the graph's problem map, per webview). */
+export class ChangedOnly {
+  private last: string | undefined;
+
+  /** Whether `value` differs from the last value seen; remembers it. */
+  changed(value: unknown): boolean {
+    const next = JSON.stringify(value);
+    if (next === this.last) return false;
+    this.last = next;
+    return true;
+  }
+
+  /** Forget the last value: a new webview or folder needs the next one whatever it is. */
+  reset(): void {
+    this.last = undefined;
+  }
+}

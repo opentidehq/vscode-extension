@@ -72,6 +72,59 @@ export function neededVariables(warnings: readonly string[]): string[] {
   return [...names].sort();
 }
 
+/** What `ciVariables` reads of `opentide --json info`'s platforms (opentide#754's tenants). */
+export interface InfoPlatform {
+  readonly name: string;
+  /** Undefined when the active opentide's `info` lists no tenants. */
+  readonly tenants?: readonly {
+    readonly name: string;
+    readonly strategies: readonly string[];
+    readonly variables: readonly { readonly name: string }[];
+  }[];
+}
+
+/** The tenants a plan sends to, by platform, from its `changes` (`null`: the platform has none). */
+export interface PlannedPlatform {
+  readonly platform: string;
+  readonly tenants: readonly { readonly tenant: string | null }[];
+}
+
+/**
+ * The secrets the CI step's real deploy needs: every credential variable of each tenant the plan deploys
+ * to, from `info` (a tenant the plan names, else each tenant of the platform whose strategies include one
+ * of the deploy's), whether or not it is set here; plus what the plan's warnings name, for an opentide
+ * whose `info` lists no tenants. The warning alone names only unset variables, and at most three.
+ */
+export function ciVariables(
+  options: DeployPlanOptions,
+  info: readonly InfoPlatform[],
+  planned: readonly PlannedPlatform[],
+  warnings: readonly string[],
+): string[] {
+  const names = new Set(neededVariables(warnings));
+  const strategies = options.strategies.length ? options.strategies : ["PREVIEW"];
+  const platforms = planned.length
+    ? planned.map((p) => p.platform)
+    : options.platform
+      ? [options.platform]
+      : info.map((p) => p.name);
+  for (const platform of platforms) {
+    const tenants = info.find((p) => p.name === platform)?.tenants ?? [];
+    const named = new Set(
+      (planned.find((p) => p.platform === platform)?.tenants ?? []).flatMap((t) =>
+        t.tenant ? [t.tenant] : [],
+      ),
+    );
+    for (const tenant of tenants) {
+      const reached = named.size
+        ? named.has(tenant.name)
+        : tenant.strategies.length === 0 || tenant.strategies.some((s) => strategies.includes(s as Strategy));
+      if (reached) for (const variable of tenant.variables) names.add(variable.name);
+    }
+  }
+  return [...names].sort();
+}
+
 /** A GitHub Actions step that runs the real deploy in CI, with the secrets it needs. */
 export function ciStep(options: DeployPlanOptions, variables: readonly string[] = []): string {
   const strategies = options.strategies.length ? options.strategies.join(", ") : "PREVIEW";

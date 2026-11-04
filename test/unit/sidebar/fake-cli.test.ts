@@ -15,7 +15,14 @@ import {
 } from "../../../src/features/setup/answers";
 import { apply, type Runner, review } from "../../../src/features/setup/flow";
 import { parseChecks } from "../../../src/features/sidebar/health";
-import { parsePlatforms, platformNodes, tenantCheck } from "../../../src/features/sidebar/platforms";
+import {
+  PRESENCE_PLACEHOLDER,
+  parsePlatforms,
+  platformNodes,
+  presenceEnv,
+  tenantCheck,
+  tenantVariableNames,
+} from "../../../src/features/sidebar/platforms";
 import { COMMANDS_FIXTURE, fakeRuntime } from "../helpers";
 
 const REPO = mkdtempSync(path.join(tmpdir(), "otide-sidebar-"));
@@ -73,6 +80,40 @@ describe("sidebar and setup against the fake opentide", function () {
     assert.equal(tenant?.description, "2 of 2 credentials set · PREVIEW, RELEASE");
     assert.ok([...map.values()].includes("secret-value"), "the secret lives in SecretStorage only");
     await instance.dispose();
+  });
+
+  it("reads the env file's repository for info, with the credentials only by name", async () => {
+    const { store } = secrets();
+    await store.set(REPO, "AZURE_CLIENT_SECRET", "secret-value");
+    // `setup env`'s .env, in opentide.envFile, sets OPENTIDE_REPO_ROOT next to the tenant's variables.
+    const envFile = { OPENTIDE_REPO_ROOT: REPO, AZURE_CLIENT_ID: "id-value" };
+    const instance = backend(store, { FAKE_TENANTS: "1" });
+    try {
+      const credentialEnv = { ...envFile, ...(await instance.credentialEnv(REPO)) };
+      const first = presenceEnv(credentialEnv, new Set(await store.names(REPO)));
+      const info = await instance.run(REPO, ["info"], { credentials: false, env: first });
+      assert.equal(info.document.repo, REPO, "the repository is the env file's, not the placeholder");
+      const platforms = parsePlatforms(info.document);
+      assert.ok(platforms.find((p) => p.name === "sentinel")?.enabled);
+      const tenant = platforms.find((p) => p.name === "sentinel")?.tenants?.[0];
+      assert.deepEqual(
+        tenant?.variables.map((v) => v.set),
+        [true, true],
+        "both credentials count as set",
+      );
+      const known = new Set([...(await store.names(REPO)), ...tenantVariableNames(platforms)]);
+      const echo = await instance.run(REPO, ["echo"], {
+        credentials: false,
+        env: presenceEnv({ ...credentialEnv, FAKE_SECRET: "fake-secret" }, known),
+      });
+      const seen = echo.document.env as Record<string, string>;
+      assert.equal(seen.OPENTIDE_REPO_ROOT, REPO);
+      assert.equal(seen.FAKE_SECRET, PRESENCE_PLACEHOLDER);
+      assert.ok(!JSON.stringify(echo.document).includes("secret-value"));
+      assert.ok(!JSON.stringify(echo.document).includes("id-value"));
+    } finally {
+      await instance.dispose();
+    }
   });
 
   for (const plan of [false, true]) {

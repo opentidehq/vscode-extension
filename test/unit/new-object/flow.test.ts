@@ -10,6 +10,7 @@ import {
   newArgv,
   objectFolderPaths,
   objectHeader,
+  parentOf,
   placeholdersLeft,
   placeholdersText,
   platformItems,
@@ -193,5 +194,15 @@ describe("new-object: flow", () => {
     assert.deepEqual(failureAction("template_missing", "", ROOT), { kind: "regenerate" });
     assert.deepEqual(failureAction("path_not_writable", "", ROOT), { kind: "regenerate" });
     assert.deepEqual(failureAction("internal", "", ROOT), { kind: "message" });
+  });
+});
+
+describe("new object: a rule for an objective, an objective for a threat", () => {
+  it("takes the parent's folder with its UUID, so a multi-root window writes next to the parent", () => {
+    assert.deepEqual(parentOf({ uuid: "o1", folder: "/b" }), { uuid: "o1", folder: "/b" });
+    assert.deepEqual(parentOf("o1"), { uuid: "o1" });
+    assert.deepEqual(parentOf({ object: { uuid: "o1" } }), { uuid: "o1" });
+    assert.deepEqual(parentOf({ uuid: 3, folder: "" }), {});
+    assert.deepEqual(parentOf(undefined), {});
   });
 });

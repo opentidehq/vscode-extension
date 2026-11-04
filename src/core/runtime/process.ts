@@ -21,7 +21,10 @@ export function isDirectory(dir: string): boolean {
   }
 }
 
-/** Find `name` on PATH (with PATHEXT on Windows), like `which`. */
+/**
+ * Find `name` on PATH (with PATHEXT on Windows), like `which`. On Windows a name that already has an
+ * extension (`opentide.exe`, as an MCP entry may say) is tried as it is first, as Windows does.
+ */
 export function which(
   name: string,
   envPath: string | undefined,
@@ -31,8 +34,8 @@ export function which(
 ): string | undefined {
   if (!envPath) return undefined;
   const delimiter = platform === "win32" ? ";" : ":";
-  const extensions =
-    platform === "win32" ? (pathExt ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean) : [""];
+  const pathExts = (pathExt ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const extensions = platform !== "win32" ? [""] : path.win32.extname(name) ? ["", ...pathExts] : pathExts;
   for (const dir of envPath.split(delimiter)) {
     if (!dir) continue;
     for (const extension of extensions) {

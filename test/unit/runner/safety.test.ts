@@ -4,6 +4,7 @@ import { classify } from "../../../src/core/capabilities/classification";
 import { CommandTree } from "../../../src/core/capabilities/tree";
 import { fieldsOf } from "../../../src/features/runner/form";
 import {
+  confirmMessage,
   DRY_RUN,
   flagValues,
   planRun,
@@ -46,6 +47,16 @@ describe("runner safety (D6)", () => {
       argv: ["share", "push", "--dry-run"],
       dryRunAdded: false,
     });
+  });
+
+  it("asks before a dry run without claiming it contacts the tenants", () => {
+    const given = plan(["share", "push", "--dry-run"]);
+    assert.ok(given.kind === "confirm");
+    assert.match(confirmMessage(given), /sends nothing/);
+    assert.doesNotMatch(confirmMessage(given), /reads from/);
+    const added = plan(["deploy", "--platform", "sentinel"]);
+    assert.ok(added.kind === "confirm");
+    assert.match(confirmMessage(added), /as a dry run\?$/);
   });
 
   it("refuses what has no dry run, and offers share preview for a share", () => {

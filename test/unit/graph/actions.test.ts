@@ -39,11 +39,11 @@ describe("graph: node actions", () => {
     });
     assert.deepEqual(nodeCommand("newRule", objective, "/ws"), {
       command: "opentide.newObject.ruleForObjective",
-      args: ["o1"],
+      args: [{ uuid: "o1", folder: "/ws" }],
     });
     assert.deepEqual(nodeCommand("newObjective", threat, "/ws"), {
       command: "opentide.newObject.objectiveForThreat",
-      args: ["t1"],
+      args: [{ uuid: "t1", folder: "/ws" }],
     });
     assert.deepEqual(nodeCommand("validate", rule, "/ws"), {
       command: "opentide.diagnostics.validateFile",

@@ -81,7 +81,8 @@ pre-releases odd ones.
   - **Platforms & Tenants:** capabilities, tenants and where each credential comes from. Set a
     credential (in VS Code's secret storage, never a file), check it with doctor, or enable a platform.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
-  - **Activity:** the last 50 commands, with Run Again and Copy Command Line.
+  - **Activity:** the last 50 commands, with Run Again (which asks first for a command that writes
+    files or contacts a tenant) and Copy Command Line.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
   create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
   as Script reproduces it in a terminal. The window takes up the new repository without a reload. It also adds platforms, CI and agents to an existing
@@ -99,8 +100,9 @@ pre-releases odd ones.
   - A node's menu opens, validates, runs a rule's query, previews its deploy, or creates a rule for an
     objective or an objective for a threat.
   - Search, zoom and fit, and SVG, PNG or Mermaid export.
-  - "View as list", a keyboard tree for keyboard and screen-reader users; Shift+F10 or the menu key
-    opens a node's actions there, and on the canvas for the selected node.
+  - "View as list", a keyboard tree for keyboard and screen-reader users, which keeps the focused item
+    when the catalogue or Problems change; Shift+F10 or the menu key opens a node's actions there, and
+    on the canvas for the selected node.
 - "Show in Graph" in the editor and explorer context menus for Tide YAML.
 - A file that did not load appears by its path in the graph, search, the sidebar and the agents'
   active-object tool, with its load error, even when it carries another object's UUID (a broken copy):
@@ -129,7 +131,8 @@ pre-releases odd ones.
 - The deploy plan ("opentide: Preview Deploy"): `opentide deploy --dry-run` for the current, selected
   or changed rules. It shows each rule's action per platform and tenant, compile failures (also in
   Problems), skipped rules and missing tenants. API payloads open as read-only JSON, and you can copy
-  the deploy command or a CI step. The editor never deploys.
+  the deploy command or a CI step that names the secrets of every tenant it deploys to. The editor never
+  deploys.
 - The ATT&CK matrix ("opentide: Open ATT&CK Matrix"): coverage per tactic and technique from
   `opentide info catalog`. Gaps show without relying on colour, sub-techniques expand in place, and
   layers add planned objectives and unaddressed threats. Filter by platform, tenant, INERT status and
@@ -151,9 +154,12 @@ pre-releases odd ones.
   Preview Sharing (also in the Explorer menu), Show Sharing Status, Show Sharing Targets, Open TUI in
   Terminal, Show Last Command Result.
 - `opentide` tasks (validate, lint, generate, deploy --dry-run, validate query, or any command in
-  tasks.json) with the `$opentide` problem matcher.
+  tasks.json) with the `$opentide` problem matcher, whose problems (source `opentide task`) sit next to
+  the language server's. Tasks and terminal runs get VS Code's `http.proxy`
+  as `OPENTIDE_PROXY`, as background runs do.
 - Terminal:
-  - the bundled `opentide` goes on new terminals' PATH (`opentide.terminal.addToPath`);
+  - the bundled `opentide` goes on new terminals' PATH (`opentide.terminal.addToPath`), also when
+    the Windows user folder's name is not ASCII;
   - an "opentide" terminal profile;
   - links: UUIDs open the object, `error[code]` opens Explain.
 - The opentide MCP server for VS Code's agents, working on install with the bundled runtime

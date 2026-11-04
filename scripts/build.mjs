@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import {
   bundledPackages,
+  commonOptions,
   mergeMetafiles,
   thirdPartyNotices,
   webExtensionOptions,
@@ -22,13 +23,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
 
-const common = {
-  bundle: true,
-  sourcemap: !production,
-  minify: production,
-  logLevel: "info",
-  legalComments: "none",
-};
+const common = commonOptions(production);
 
 const extension = {
   ...common,

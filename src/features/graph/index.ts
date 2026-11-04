@@ -15,6 +15,7 @@ import {
   type NodeActionRequest,
 } from "./protocol";
 import {
+  ChangedOnly,
   EXPORT_FILTERS,
   exportBytes,
   type FileProblems,
@@ -38,6 +39,8 @@ class GraphPanel implements vscode.Disposable {
   /** A file whose object to focus once the catalogue arrives (Show in Graph before it loaded). */
   private awaitingFile: { path: string; explicit: boolean } | undefined;
   private problemsTimer: NodeJS.Timeout | undefined;
+  /** The problem map last posted to this webview, so an unchanged one is not posted again. */
+  private readonly problemsSent = new ChangedOnly();
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly ctx: FeatureContext) {
@@ -83,6 +86,7 @@ class GraphPanel implements vscode.Disposable {
     if (this.ready) {
       if (switched) {
         this.postData();
+        this.problemsSent.reset();
         this.postProblems();
       }
       this.flushFocus();
@@ -99,6 +103,7 @@ class GraphPanel implements vscode.Disposable {
     const subscriptions = [
       channel.on("ready", () => {
         this.ready = true;
+        this.problemsSent.reset();
         this.postData();
         this.postProblems();
         this.flushFocus();
@@ -206,7 +211,11 @@ class GraphPanel implements vscode.Disposable {
       }
       if (errors + warnings > 0) files.push({ file: uri.fsPath, errors, warnings });
     }
-    void this.opened.channel.post("problems", problemsFor(catalog, files, process.platform));
+    const problems = problemsFor(catalog, files, process.platform);
+    // Every diagnostics change schedules this; an unchanged map would only redraw the view as list,
+    // and move a screen reader's place in it.
+    if (!this.problemsSent.changed(problems)) return;
+    void this.opened.channel.post("problems", problems);
   }
 
   private async open(id: string): Promise<void> {

@@ -39,6 +39,20 @@ describe("search query", () => {
     assert.deepEqual(parseQuery("http://evil.example").words, ["http://evil.example"]);
   });
 
+  it("reads a known key's value that starts with a slash as a filter", () => {
+    const query = parseQuery("path:/sentinel/ -in:/staging/");
+    assert.deepEqual(
+      query.filters.map((f) => [f.key, f.value, f.negated]),
+      [
+        ["path", "/sentinel/", false],
+        ["path", "/staging/", true],
+      ],
+    );
+    assert.deepEqual(query.words, []);
+    assert.deepEqual(parseQuery("file://share/x").words, ["file://share/x"], "a URL with a key's name");
+    assert.deepEqual(parseQuery("smb:/x").words, ["smb:/x"]);
+  });
+
   it("reads `m` in unreviewed: as months, as the rest of the language does", () => {
     assert.equal(parseQuery("unreviewed:6m").unreviewed, "180d");
     assert.equal(parseQuery("unreviewed:>6m").unreviewed, "180d");
@@ -76,6 +90,13 @@ describe("search query", () => {
     assert.deepEqual(query.excluded, ["test"]);
     assert.deepEqual(query.words, ["lsass"]);
     assert.deepEqual(parseQuery("-").words, ["-"]);
+  });
+
+  it("excludes text with colons with a leading dash too", () => {
+    const query = parseQuery("mimikatz -sekurlsa::logonpasswords -http://evil.example -T1003.001");
+    assert.deepEqual(query.words, ["mimikatz"]);
+    assert.deepEqual(query.excluded, ["sekurlsa::logonpasswords", "http://evil.example", "t1003.001"]);
+    assert.deepEqual(query.filters, []);
   });
 
   it("keeps technique ids, UUIDs and paths as text", () => {

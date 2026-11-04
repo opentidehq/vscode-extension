@@ -17,7 +17,7 @@ import {
   SHARE_PREVIEW,
   VALIDATE_FILE,
 } from "./actions";
-import { activityNodes, runningCount } from "./activity";
+import { activityNodes, rerunPlan, runningCount } from "./activity";
 import {
   buildCatalogue,
   GROUP_BY_LABELS,
@@ -39,7 +39,14 @@ import {
 import { debounce, Loader } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
 import { platformFlag, platformName, platformToml } from "./platformNames";
-import { type PlatformInfo, parsePlatforms, platformNodes, presenceEnv, tenantCheck } from "./platforms";
+import {
+  type PlatformInfo,
+  parsePlatforms,
+  platformNodes,
+  presenceEnv,
+  tenantCheck,
+  tenantVariableNames,
+} from "./platforms";
 import { NodeTree, openTargetUri } from "./tree";
 
 export const VIEWS = {
@@ -516,9 +523,21 @@ class Sidebar implements vscode.Disposable {
     this.renderCatalogue();
   }
 
-  /** Run options for a status command: every credential by name, with a placeholder, no value. */
+  /**
+   * Run options for a status command: every credential by name, with a placeholder, no value; the env
+   * file's configuration (`OPENTIDE_REPO_ROOT`, proxies) as it is.
+   */
   private async presence(folder: string): Promise<{ credentials: false; env: Record<string, string> }> {
-    return { credentials: false, env: presenceEnv(await this.ctx.backend.credentialEnv(folder)) };
+    // The variables the last `info` listed under the folder's tenants are credentials too.
+    const last = this.platformsLoader.state.value?.find((r) => r.folder === folder)?.value;
+    const credentials = new Set([
+      ...(await this.ctx.credentials.names(folder)),
+      ...tenantVariableNames(last?.platforms ?? []),
+    ]);
+    return {
+      credentials: false,
+      env: presenceEnv(await this.ctx.backend.credentialEnv(folder), credentials),
+    };
   }
 
   private async run(
@@ -570,7 +589,6 @@ class Sidebar implements vscode.Disposable {
   private async newObject(ref: NodeRef | undefined): Promise<unknown> {
     const handover = newObjectHandover(ref);
     if ("args" in handover) return handOver(handover);
-    if ("uuid" in handover) return vscode.commands.executeCommand(handover.command, handover.uuid);
     if ("folder" in handover)
       return vscode.commands.executeCommand(handover.command, vscode.Uri.file(handover.folder));
     const folder = this.ctx.folders.all.length === 1 ? this.ctx.folders.all[0] : undefined;
@@ -764,14 +782,11 @@ class Sidebar implements vscode.Disposable {
   private async rerun(ref: NodeRef | undefined): Promise<void> {
     if (ref?.kind !== "run") return;
     const { entry } = ref;
-    const classification = this.ctx.capabilities.classify(entry.argv);
-    if (classification.class === "deploys" || classification.class === "shares") return;
-    if (classification.contactsTenant) {
-      const choice = await vscode.window.showWarningMessage(
-        `This contacts a tenant: ${entry.argvDisplay}`,
-        "Run",
-      );
-      if (choice !== "Run") return;
+    const plan = rerunPlan(this.ctx.capabilities.classify(entry.argv), entry.argvDisplay);
+    if (plan.kind === "refuse") return;
+    if (plan.kind === "confirm") {
+      const choice = await vscode.window.showWarningMessage(plan.message, { modal: true }, plan.action);
+      if (choice !== plan.action) return;
     }
     const result = await this.run(entry.folder, [...entry.argv], `Running ${entry.argv.join(" ")}…`);
     if (!result || result.cancelled) return;

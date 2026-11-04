@@ -62,13 +62,23 @@ describe("runner tasks", () => {
   });
 
   it("gives tasks whole code frames and the folder, plus credentials when given", () => {
-    assert.deepEqual(taskEnv("/ws", { UV_X: "1" }, { SECRET: "s" }), {
+    assert.deepEqual(taskEnv("/ws", { UV_X: "1" }, undefined, { SECRET: "s" }), {
       UV_X: "1",
       OPENTIDE_REPO_ROOT: "/ws",
       OPENTIDE_LINKS: "none",
       COLUMNS: "4096",
       SECRET: "s",
     });
+  });
+
+  it("passes VS Code's http.proxy to tasks and terminal runs as OPENTIDE_PROXY", () => {
+    assert.equal(taskEnv("/ws", {}, "http://proxy:3128").OPENTIDE_PROXY, "http://proxy:3128");
+    assert.equal(
+      taskEnv("/ws", {}, "http://proxy:3128", { OPENTIDE_PROXY: "http://env-file:8080" }).OPENTIDE_PROXY,
+      "http://env-file:8080",
+      "the env file's own OPENTIDE_PROXY wins, as in the backend",
+    );
+    assert.ok(!("OPENTIDE_PROXY" in taskEnv("/ws", {}, undefined)));
   });
 
   it("$opentide reads opentide's code frames, notes and the ASCII fallback included", () => {
@@ -197,6 +207,33 @@ describe("runner launcher", () => {
     );
     assert.throws(() => cmdQuote('a"b'));
     assert.equal(shQuote("a b"), "'a b'");
+  });
+
+  it("reads a non-ASCII path in UTF-8 on Windows, and restores the code page and exit code", () => {
+    const command = "C:\\Users\\Jörg\\.vscode\\ext\\runtime\\python.exe";
+    const [file] = launcherFiles({ command, args: ["-I", "-m", "opentide"], env: { A: "1" } }, "win32");
+    const lines = file?.content.split("\r\n") ?? [];
+    const switchAt = lines.indexOf("chcp 65001 >nul");
+    const commandAt = lines.findIndex((line) => line.includes("Jörg"));
+    assert.ok(switchAt > 0 && switchAt < commandAt, "cmd.exe switches to UTF-8 before the path");
+    assert.ok(
+      lines.slice(0, switchAt).every((line) => /^[ -~]*$/.test(line)),
+      "ASCII before the switch",
+    );
+    assert.ok(
+      lines
+        .slice(0, switchAt)
+        .some((line) => line.includes("('chcp')") && line.includes("OPENTIDE_LAUNCHER_CP")),
+      "the console's code page is saved first",
+    );
+    assert.deepEqual(lines.slice(commandAt + 1), [
+      'set "OPENTIDE_LAUNCHER_STATUS=%ERRORLEVEL%"',
+      "if defined OPENTIDE_LAUNCHER_CP chcp %OPENTIDE_LAUNCHER_CP% >nul",
+      "exit /b %OPENTIDE_LAUNCHER_STATUS%",
+      "",
+    ]);
+    const [ascii] = launcherFiles({ command: "C:\\Users\\me\\python.exe", args: [], env: {} }, "win32");
+    assert.ok(!ascii?.content.includes("chcp"), "an ASCII launcher leaves the code page alone");
   });
 
   it("leaves PATH and names that are not variables out of the script", () => {

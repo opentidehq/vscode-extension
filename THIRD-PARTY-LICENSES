@@ -44,4 +44,7 @@ bundled package's name, version and licence text to dist/THIRD-PARTY-NOTICES.txt
 dist/webview/graph.js
 ---------------------
 Bundles Cytoscape.js (MIT) and dagre with graphlib (@dagrejs/dagre, @dagrejs/graphlib; MIT) for the
-graph panel. Their versions and licence texts are in dist/THIRD-PARTY-NOTICES.txt too.
+graph panel. Their versions and licence texts are in dist/THIRD-PARTY-NOTICES.txt too. Cytoscape.js
+inlines code under MIT notices of its own (Ralf S. Engelschall's Promises/A+ Thenable, an event object
+based on jQuery's, Gaetan Renaudeau's bezier curve generator and Koen Bok's Framer.js spring); the build
+keeps every such notice, gathered at the end of each bundle.

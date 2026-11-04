@@ -41,6 +41,34 @@ export function canRerun(classification: Pick<Classification, "class">): boolean
   return classification.class !== "deploys" && classification.class !== "shares";
 }
 
+/** What Run Again does with a run: refuse it, repeat it, or ask first (`message`, the button `action`). */
+export type RerunPlan =
+  | { readonly kind: "refuse" }
+  | { readonly kind: "run" }
+  | { readonly kind: "confirm"; readonly message: string; readonly action: string };
+
+/**
+ * Run Again for an Activity entry. A deploy or share never (D6); one that contacts a tenant or writes
+ * workspace files (`setup ci … --yes`, `validate --fix`) asks first in a modal, so a click on an old entry
+ * cannot rewrite files or reach a tenant unseen.
+ */
+export function rerunPlan(
+  classification: Pick<Classification, "class" | "writes" | "contactsTenant">,
+  argvDisplay: string,
+): RerunPlan {
+  if (!canRerun(classification)) return { kind: "refuse" };
+  const effects = [
+    classification.contactsTenant ? "contacts a tenant" : "",
+    classification.writes ? "writes files in the workspace" : "",
+  ].filter(Boolean);
+  if (effects.length === 0) return { kind: "run" };
+  return {
+    kind: "confirm",
+    message: `Run again? This ${effects.join(" and ")}: ${argvDisplay}`,
+    action: "Run",
+  };
+}
+
 export function activityNodes(
   entries: readonly ActivityEntry[],
   now: number,

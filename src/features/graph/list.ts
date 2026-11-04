@@ -119,3 +119,26 @@ export function listGroups(view: GraphView, problems: ProblemMap): ListGroup[] {
 export function opensMenu(event: { readonly key: string; readonly shiftKey: boolean }): boolean {
   return event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey);
 }
+
+/**
+ * The list item that keeps the focus after the list is drawn again (new data, new problems): the same
+ * item, else the closest one still there (a link's node, a node's group), else the first. Item keys are
+ * `group:<kind>`, `node:<id>` and `link:<id>:<index>`; `kindOf` names a node's kind.
+ */
+export function keptFocus(
+  key: string,
+  present: readonly string[],
+  kindOf: (id: string) => string | undefined,
+): string | undefined {
+  const has = new Set(present);
+  let candidate: string | undefined = key;
+  while (candidate) {
+    if (has.has(candidate)) return candidate;
+    if (candidate.startsWith("link:")) candidate = `node:${candidate.slice(5, candidate.lastIndexOf(":"))}`;
+    else if (candidate.startsWith("node:")) {
+      const kind = kindOf(candidate.slice(5));
+      candidate = kind ? `group:${kind}` : undefined;
+    } else candidate = undefined;
+  }
+  return present[0];
+}

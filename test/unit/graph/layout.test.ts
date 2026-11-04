@@ -3,6 +3,8 @@ import { loadedObjects } from "../../../src/core/catalog/rows";
 import {
   bounds,
   columnLimit,
+  HUGE_LAYOUT,
+  layeredLayout,
   layout,
   layoutDirection,
   NODE_BOX,
@@ -169,6 +171,38 @@ describe("graph layout: Catalogue mode at scale", () => {
     statuses: new Set<string>(),
     problemsOnly: false,
   };
+
+  it("lays out 5,000 objects in Catalogue mode in well under a few seconds, layered as dagre would", () => {
+    const view = computeView(buildModel(dense(5000)), {}, options);
+    const started = performance.now();
+    const positions = layout(view.nodes, view.edges);
+    const elapsed = performance.now() - started;
+    assert.equal(positions.size, view.nodes.length);
+    assert.ok(elapsed < 3000, `${view.nodes.length} nodes took ${Math.round(elapsed)} ms`);
+    const x = (id: string) => positions.get(id)?.x ?? Number.NaN;
+    assert.ok(x("t-0") < x("o-0") && x("o-0") < x("r-0"), "threat, objective, rule, left to right");
+    const seen = new Set<string>();
+    for (const point of positions.values()) {
+      const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+      assert.ok(!seen.has(key), `two nodes at ${key}`);
+      seen.add(key);
+    }
+  });
+
+  it("ranks a cycle without looping, and keeps children next to their parent", () => {
+    const node = (id: string, kind: NodeKind = "rule") => ({ id, kind, label: id }) as never;
+    const link = (source: string, target: string, kind = "signal") =>
+      ({ id: `${source}-${target}`, source, target, kind }) as never;
+    const positions = layeredLayout(
+      [node("a"), node("b"), node("c"), node("p"), node("q"), node("p1"), node("q1")],
+      [link("a", "b"), link("b", "c"), link("c", "a"), link("p", "p1"), link("q", "q1")],
+    );
+    assert.equal(positions.size, 7);
+    const at = (id: string) => positions.get(id) ?? { x: Number.NaN, y: Number.NaN };
+    assert.ok(at("a").x < at("b").x && at("b").x < at("c").x);
+    assert.ok(at("p").y < at("q").y === at("p1").y < at("q1").y, "children in their parents' order");
+    assert.ok(HUGE_LAYOUT >= 1000, "dagre still lays out what it does in about a second");
+  });
 
   for (const size of [500, 1000, 2000]) {
     it(`lays out ${size} objects with their techniques, log sources and platforms in seconds, not minutes`, () => {

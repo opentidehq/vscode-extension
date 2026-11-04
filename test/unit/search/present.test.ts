@@ -164,7 +164,9 @@ describe("search glue helpers", () => {
   });
 
   it("hands the Catalogue view only a query its substring filter can express", () => {
-    assert.equal(catalogueFilterOf(parseQuery("lsass access")), "lsass access");
+    assert.equal(catalogueFilterOf(parseQuery("lsass")), "lsass");
+    // Search matches each word in any order; the Catalogue one substring: not the same question.
+    assert.equal(catalogueFilterOf(parseQuery("lsass access")), undefined);
     assert.equal(catalogueFilterOf(parseQuery("t:T1003")), "t1003");
     assert.equal(catalogueFilterOf(parseQuery("technique:T1003.001")), "t1003.001");
     assert.equal(catalogueFilterOf(parseQuery("path:rules/")), "rules/");

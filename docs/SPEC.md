@@ -182,7 +182,8 @@ See [§6](#6-diagnostics). The language server owns open files. `opentide valida
 
 - **The editor previews.** It runs `deploy --dry-run` and `share preview`.
 - **CI executes.** A real deploy, `share push`, `share retract` and `deploy migrate-state` are not offered from any menu.
-- **The generic command runner** ([§11](#11-every-cli-command-has-a-home)) can still run them, behind a modal confirmation that names the platform and tenants.
+- **The generic command runner** ([§11](#11-every-cli-command-has-a-home)) runs a deploy or share only as its dry run, behind a modal confirmation that names the platforms and tenants; a dry run plans and compiles locally and sends nothing. A command without a dry run is refused.
+- **MCP is opentide's own surface.** The MCP server the extension provides ([§12](#12-agents)) is `opentide mcp start` unchanged, so its `deploy_rule` tool still takes `dry_run: false`. That is by design: the agent host asks before each tool call, and opentide's server instructions tell agents to deploy for real only when a person asks. The extension does not filter opentide's tools.
 
 Whether to add a gated "deploy to a development tenant" later is an [open question](#17-open-questions).
 
@@ -267,7 +268,7 @@ The first tier that answers wins, in the order 1, 2, 3, 4, except that with `ope
 |---------|----------|-------------|
 | `opentide lsp start` | One per window; restarted by "opentide: Restart Server" and by interpreter or settings changes | `OPENTIDE_OUTPUT=mcp` is implied. Never credentials |
 | `opentide serve` (D2) | One per window, started on the first request; restarted with the language server, and after a crash on the next request | As for a CLI command; credentials only on requests that contact a tenant |
-| `opentide --json <cmd>` | One per action, or every action when the runtime has no `serve` | `OPENTIDE_REPO_ROOT=<folder>` (multi-root: the folder the action is about); `NO_COLOR=1`; VS Code's `http.proxy` passed as `OPENTIDE_PROXY`; credentials from SecretStorage, only for commands that contact a tenant. Status commands that only count credentials (`info`, `doctor --offline`) get each stored or env-file variable's name with a placeholder value, never the value |
+| `opentide --json <cmd>` | One per action, or every action when the runtime has no `serve` | `OPENTIDE_REPO_ROOT=<folder>` (multi-root: the folder the action is about); `NO_COLOR=1`; VS Code's `http.proxy` passed as `OPENTIDE_PROXY`; credentials from SecretStorage, only for commands that contact a tenant. Status commands that only count credentials (`info`, `doctor --offline`) get each credential (a stored name, a variable a tenant names, any env-file variable that is not configuration) with a placeholder value, never the value; the env file's configuration (`OPENTIDE_*` such as `OPENTIDE_REPO_ROOT`, `*_PROXY`/`NO_PROXY`, `PYTHON*`, CA bundles) keeps its value unless its name reads as a secret (`…TOKEN`, `…_KEY`) |
 
 - **Concurrency:** at most one command that writes the workspace runs at a time; others queue. Read-only commands run concurrently.
 - **File changes:** the extension forwards create, change, delete and rename events under the object folders and `.opentide/` to `opentide serve`, which drops what they invalidate. Saves are debounced by 300 ms.
@@ -541,7 +542,7 @@ OPENTIDE
 | **Coverage** | ATT&CK techniques named by any object: rule count, gaps (`0`) first, sub-techniques under their parent (a parent counts its sub-techniques' rules, as `info coverage` does) | Open the matrix; show the rules; "New objective for this technique" |
 | **Platforms & tenants** | The nine platforms: enabled, `can_deploy`, `can_validate`, `can_query`; tenants per platform and their credential state from `doctor`'s `credentials` check | Enable a platform (`setup platforms`); open its TOML; **Set credential…**: SecretStorage, injected as the `$VAR` the TOML names (D3: never written to a file); Test connection (`doctor`) |
 | **Health** | `opentide doctor` checks, pass/warn/fail/skip, each with its `fix` | Run the fix; re-run; "Copy report" (redacted) for bug reports |
-| **Activity** | The last 50 commands the extension ran, with status, duration and the command line. The TUI's Results tab | Re-run; copy command; open output |
+| **Activity** | The last 50 commands the extension ran, with status, duration and the command line. The TUI's Results tab | Re-run (never a deploy or share; one that writes files or contacts a tenant asks first, in a modal); copy command; open output |
 
 **Data:**
 - The Catalogue, Coverage and search all come from **one** `info catalog` document per folder ([§15](#15-what-this-needs-from-opentide-and-language-server), O3), answered by `opentide serve` from its warm registry and cached in memory.
@@ -592,13 +593,13 @@ OPENTIDE
   - **Focus** (default): follows the active editor, depth 1–3.
   - **Catalogue:** everything, clustered by threat.
   - **Threat chains:** threats and their chaining only.
-- **Layout:** layered left to right, threat → objective → rule (Cytoscape.js and dagre, both MIT). Techniques, log sources and platforms go in one column per kind to the right, each beside the mean of what references it: laid out by dagre, their many edges made a 1,000-node Catalogue view take minutes. Above 600 laid-out nodes dagre ranks with `longest-path`. Positions stay stable across refreshes, so the graph does not jump while you work.
+- **Layout:** layered left to right, threat → objective → rule (Cytoscape.js and dagre, both MIT). Techniques, log sources and platforms go in one column per kind to the right, each beside the mean of what references it: laid out by dagre, their many edges made a 1,000-node Catalogue view take minutes. Above 600 laid-out nodes dagre ranks with `longest-path`; above 1,500 dagre is skipped (its ordering took 10–17 s on the webview's thread at 5,000 objects) for a linear layering of its own: longest-path ranks and one barycentre sweep. Positions stay stable across refreshes, so the graph does not jump while you work.
 - **Interaction:**
-  - click opens the object at its `name:` line;
+  - a click selects a node, a double-click (or Enter in View as list) opens the object at its `name:` line;
   - hover shows name, UUID, status, techniques and problems;
   - the context menu has the same actions as the catalogue (New rule for this objective, Validate, Run query, Preview deploy);
   - search highlights matches;
-  - filter by platform, status, technique and "has problems".
+  - filter by node kind (techniques, actors, log sources and platforms are kinds), platform, status and "has problems".
 - **Problems on the graph:** nodes with errors carry the error colour, and dangling references (`invalid_ref`) draw as dashed edges to a "missing" node.
 - **Export:** SVG, PNG and Mermaid (the same syntax opentide's generated docs use).
 - **Scale:** Catalogue mode handles 5,000 nodes. Above 1,000 nodes it opens in Focus mode and offers Catalogue.
@@ -622,7 +623,7 @@ Three levels, from fastest to richest:
    - Select many results, then act on them: validate them, show them in the graph, preview their deploy.
    - Saved searches are kept per workspace.
 
-The search runs client-side on the cached catalogue (an in-memory index), so results appear as you type. `rules unreviewed` feeds `unreviewed:`.
+The search runs client-side on the cached catalogue (an in-memory index), so results appear as you type. `rules unreviewed` feeds `unreviewed:`, run once the window has stopped changing for 400 ms (typing `>180d` runs no `1d` or `18d`).
 
 ### 10.4 Query results
 
@@ -644,6 +645,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - Pick the tenant(s). Several tenants with none named is the CLI's exit-2 case, so the picker uses its `choices`.
   - Pick the window (`--since`, or `--from`/`--to`) and the limit.
   - The run button shows a globe icon and names the tenants it will contact.
+  - A rule with unsaved edits asks first: the CLI reads the saved file, so the choice is Save and Run, Run Saved Version, or nothing. **Validate live** (`validate query --live --file`) asks the same.
 - **Running** `opentide --json query --rule <uuid> | --file <rule> | <text>`. Rows arrive at the end, so the panel shows progress per tenant and a Cancel button ([§4](#4-the-runtime-resolution-processes-status)).
 - **Results:**
   - one tab per tenant;
@@ -663,13 +665,14 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - strategy: `PREVIEW` or `RELEASE`;
   - scope: **changed rules** (the CLI's default, from the git diff) or **all** (`--all`). Per rule once opentide supports it ([§15](#15-what-this-needs-from-opentide-and-language-server)).
 - **Runs** `opentide --json deploy --dry-run --strategy … [--all] [--platform …]`. No credentials are needed.
+- **Unsaved rules:** a preview of rule files with unsaved edits asks first to save them or to preview the saved versions.
 - **Shows:**
   - **Changes:** platform → tenant → rule → action (`create`, `update`, `upsert`, `disable`, `delete`), with the status.
   - **Skipped:** each rule with its reason (strategy, status, unconfigured).
   - **Missing tenants.**
   - **Diagnostics:** also added to Problems, under `opentide deploy`.
   - **Payloads:** each `api_request` opens as a read-only JSON document (`opentide-payload:`), so search, folding and copy are the editor's.
-- **Footer:** the command line, and "Copy as CI step". No "Deploy" button (D6).
+- **Footer:** the command line, and "Copy as CI step": a GitHub Actions step whose `env` names every credential variable of the tenants the plan deploys to (from `info`'s tenants, set in the editor or not), plus any the plan's warnings name. No "Deploy" button (D6).
 
 ---
 
@@ -721,7 +724,8 @@ A test runs `opentide --json commands` for the pinned opentide and **fails when 
 ### Tasks, terminal and keybindings
 
 - **Tasks:** a task provider (`type: "opentide"`, `command`, `args`) for validate, lint, generate, dry-run deploy and query, for `tasks.json`, keybindings and pre-launch chains.
-  - The `$opentide` problem matcher reads the human code frames (`error[code]: message` / `╭─▶ path:line:column`), so a task run in the terminal also fills Problems.
+  - The `$opentide` problem matcher reads the human code frames (`error[code]: message` / `╭─▶ path:line:column`), so a task run in the terminal also fills Problems. Its owner (`opentide-task`) and source (`opentide task`) are its own: VS Code clears a matcher owner's markers when its task starts, so sharing the language server's `opentide` would wipe the server's problems.
+  - A task, and a command run in the terminal, gets the environment of a background run: `OPENTIDE_REPO_ROOT`, VS Code's `http.proxy` as `OPENTIDE_PROXY`, and credentials only when it contacts a tenant.
 - **Terminal `PATH`:** when the active runtime is the bundled one and no `opentide` is on `PATH`, the integrated terminal gets it prepended (`environmentVariableCollection`, `opentide.terminal.addToPath`, default on). `opentide …` then works in the terminal for people and for terminal agents.
 - **Terminal links:** object UUIDs open the object, and `error[<code>]` opens Explain.
 
@@ -737,6 +741,7 @@ Revises #6.
   - The label `opentide` deduplicates against workspace MCP files.
   - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when a workspace MCP file already defines `opentide` with a command VS Code can start (an absolute path that exists, a name on `PATH`, or one with `${…}` variables). An entry whose command is not found, such as `setup mcp --vscode`'s `opentide` for a user with only the bundled runtime, is skipped with a log line, and the extension provides its server.
   - Off in Restricted Mode.
+  - The server's tools are opentide's, unfiltered: `deploy_rule` with `dry_run: false` deploys for real when an agent calls it so (D6).
 - **Forks without the provider API** (Cursor, Windsurf): the Agents step of the wizard and the walkthrough offer "Add opentide to Cursor's MCP settings".
   - This is a **user-level** entry pointing at the resolved runtime's absolute path, because a committed `.cursor/mcp.json` with `command: opentide` fails for teammates without opentide on `PATH`.
   - The project file is still offered for teams that install opentide.

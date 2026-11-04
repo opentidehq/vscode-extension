@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import {
   cellText,
   clampFocus,
+  filterColumnAfter,
   filterRows,
   formatRows,
   neutraliseFormula,
@@ -11,8 +12,10 @@ import {
   toJsonl,
   toMarkdown,
 } from "../../../src/features/query/format";
+import type { QueryPanelState } from "../../../src/features/query/protocol";
 import {
   applyProgress,
+  choosingState,
   exportable,
   formatMs,
   keepable,
@@ -188,6 +191,18 @@ describe("query: the table's focus and view across tabs", () => {
     assert.deepEqual(clampFocus({ row: 3, column: 3 }, 0, 0), { row: 0, column: 0 });
   });
 
+  it("keeps Filter in column across a re-run, a pending tab or a failed one", () => {
+    // Re-run: the table empties (no columns) before the rows come back.
+    const emptied = filterColumnAfter("User", []);
+    assert.deepEqual(emptied, { value: "", pending: "User" });
+    assert.deepEqual(filterColumnAfter(emptied.pending ?? "", ["Time", "User"]), {
+      value: "User",
+      pending: undefined,
+    });
+    assert.deepEqual(filterColumnAfter("User", ["Time"]), { value: "", pending: undefined }, "as the sort");
+    assert.deepEqual(filterColumnAfter("", []), { value: "", pending: undefined });
+  });
+
   it("keeps the selected tab, filter and sort, and nothing it cannot read", () => {
     const state = {
       selected: "prod",
@@ -230,5 +245,34 @@ describe("query: CSV of attacker-controlled telemetry (CSV injection)", () => {
       false,
       "JSON untouched",
     );
+  });
+});
+
+describe("query: while the tenant picker is open (#47)", () => {
+  it("stops showing a run in progress once opentide asks which tenants", () => {
+    const running: QueryPanelState = {
+      title: "Suspicious LSASS Access · Microsoft Sentinel",
+      platform: "Microsoft Sentinel",
+      windowLabel: "last 24 hours",
+      limit: 100,
+      maxLimit: 5000,
+      contacts: "the Microsoft Sentinel tenant",
+      phase: "running",
+      startedAt: 0,
+      durationMs: null,
+      argvDisplay: "opentide --json query --platform sentinel",
+      message: "",
+      failure: null,
+      tabs: pendingTabs([]),
+      writesPreviewAlerts: false,
+      cancelMayLeaveSearch: false,
+      query: null,
+    };
+    const choosing = choosingState(running, 1200);
+    assert.equal(choosing.phase, "choosing", "no Running…, timer or Cancel");
+    assert.equal(choosing.message, "Pick the Microsoft Sentinel tenants to query");
+    assert.equal(choosing.durationMs, 1200);
+    assert.deepEqual(choosing.tabs, []);
+    assert.equal(keepable(choosing), false, "a panel closed while picking is not kept");
   });
 });

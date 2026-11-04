@@ -146,18 +146,22 @@ const PLATFORMS = [
 const TENANT_VARIABLES = ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"];
 const isSet = (env, name) => typeof env[name] === "string" && env[name] !== "";
 
-/** `info`: platforms (sentinel and splunk enabled), and with FAKE_TENANTS=1 sentinel's `prod` tenant. */
-function infoDocument(env) {
+/**
+ * `info`: platforms (sentinel and splunk enabled), and with FAKE_TENANTS=1 sentinel's `prod` tenant. As
+ * opentide does, it reads the repository at OPENTIDE_REPO_ROOT: one that is not a folder enables nothing.
+ */
+function infoDocument(env, repo) {
+  const found = existsSync(repo) && statSync(repo).isDirectory();
   const platforms = PLATFORMS.map(([name, canValidate, canQuery]) => ({
     name,
-    enabled: name === "sentinel" || name === "splunk",
+    enabled: found && (name === "sentinel" || name === "splunk"),
     can_deploy: true,
     can_validate: canValidate,
     can_query: canQuery,
     ...(process.env.FAKE_TENANTS === "1"
       ? {
           tenants:
-            name === "sentinel"
+            found && name === "sentinel"
               ? [
                   {
                     name: "prod",
@@ -171,7 +175,7 @@ function infoDocument(env) {
         }
       : {}),
   }));
-  return envelope("info", { version, platforms, counts: { rules: 1, threats: 1, objectives: 1 } });
+  return envelope("info", { version, repo, platforms, counts: { rules: 1, threats: 1, objectives: 1 } });
 }
 
 /** `doctor`: a few checks, and sentinel/prod's `credentials` from the environment, as doctor reads it. */
@@ -681,7 +685,7 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
       ];
     case "info":
       if ((rest[0] === undefined || rest[0].startsWith("--")) && !process.env.FAKE_INFO_PLAIN) {
-        return [infoDocument(env), 0];
+        return [infoDocument(env, resolve(cwd, root)), 0];
       }
       if (
         rest[0] === "catalog" &&

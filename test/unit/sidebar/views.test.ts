@@ -4,7 +4,14 @@ import type { ActivityEntry } from "../../../src/core/activity";
 import { classify } from "../../../src/core/capabilities/classification";
 import { CommandTree } from "../../../src/core/capabilities/tree";
 import { newObjectHandover, ruleHandover } from "../../../src/features/sidebar/actions";
-import { activityNodes, ago, canRerun, duration, runningCount } from "../../../src/features/sidebar/activity";
+import {
+  activityNodes,
+  ago,
+  canRerun,
+  duration,
+  rerunPlan,
+  runningCount,
+} from "../../../src/features/sidebar/activity";
 import { folderViewModel } from "../../../src/features/sidebar/folderView";
 import {
   type DoctorCheck,
@@ -26,6 +33,7 @@ import {
   platformNodes,
   presenceEnv,
   tenantCheck,
+  tenantVariableNames,
   variableSource,
 } from "../../../src/features/sidebar/platforms";
 import { COMMANDS_FIXTURE, sleep, until } from "../helpers";
@@ -135,9 +143,42 @@ describe("sidebar: platforms & tenants", () => {
   });
 
   it("counts credentials for info and doctor --offline by name, never with their values", () => {
-    const env = presenceEnv({ AZURE_CLIENT_SECRET: "s3cr3t", SPLUNK_TOKEN: "tok" });
+    const env = presenceEnv({ AZURE_CLIENT_SECRET: "s3cr3t", SPLUNK_TOKEN: "tok" }, new Set());
     assert.deepEqual(env, { AZURE_CLIENT_SECRET: PRESENCE_PLACEHOLDER, SPLUNK_TOKEN: PRESENCE_PLACEHOLDER });
     assert.ok(!JSON.stringify(env).includes("s3cr3t"));
+  });
+
+  it("passes the env file's configuration to info and doctor --offline as it is", () => {
+    const configuration = {
+      OPENTIDE_REPO_ROOT: "/repo",
+      OPENTIDE_DATA_ROOT: "/data",
+      OPENTIDE_TIDE_WORKSPACE: "/repo/tide",
+      OPENTIDE_PROXY: "http://proxy:3128",
+      HTTPS_PROXY: "http://proxy:3128",
+      https_proxy: "http://proxy:3128",
+      NO_PROXY: "localhost",
+      PYTHONUTF8: "1",
+      SSL_CERT_FILE: "/ca.pem",
+      REQUESTS_CA_BUNDLE: "/ca.pem",
+    };
+    const credentials = {
+      AZURE_CLIENT_ID: "client-id",
+      OPENTIDE_REPO_TOKEN: "ghp_x",
+      OPENTIDE_PUSH_SSH_KEY: "-----BEGIN",
+      OPENTIDE_SENTINEL_TENANT: "tenant-guid",
+    };
+    const env = presenceEnv(
+      { ...configuration, ...credentials },
+      new Set(["OPENTIDE_SENTINEL_TENANT"]), // a stored or tenant-listed name, whatever its prefix
+    );
+    assert.deepEqual(env, {
+      ...configuration,
+      ...Object.fromEntries(Object.keys(credentials).map((name) => [name, PRESENCE_PLACEHOLDER])),
+    });
+  });
+
+  it("names every tenant's credential variables, for the placeholders", () => {
+    assert.deepEqual(tenantVariableNames(parsePlatforms(INFO)), ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"]);
   });
 
   it("gives two tenants of one name distinct ids (a copied [[tenants]] block)", () => {
@@ -373,6 +414,18 @@ describe("sidebar: activity", () => {
     assert.equal(runningCount([entry({ status: "running" }), entry({})]), 1);
   });
 
+  it("asks before running again a command that writes files or contacts a tenant", () => {
+    const argv = ["setup", "ci", "github", "--staging", "--yes"];
+    const setup = rerunPlan(classify(argv), `opentide --json ${argv.join(" ")}`);
+    assert.equal(setup.kind, "confirm");
+    assert.ok(setup.kind === "confirm" && setup.message.includes("writes files in the workspace"));
+    assert.ok(setup.kind === "confirm" && setup.message.endsWith("setup ci github --staging --yes"));
+    const live = rerunPlan(classify(["validate", "query", "--live", "--platform", "sentinel", "x"]), "q");
+    assert.ok(live.kind === "confirm" && live.message.includes("contacts a tenant"));
+    assert.deepEqual(rerunPlan(classify(["validate"]), "v"), { kind: "run" });
+    assert.deepEqual(rerunPlan(classify(["deploy"]), "d"), { kind: "refuse" });
+  });
+
   it("formats durations and ages", () => {
     assert.equal(duration(undefined), "");
     assert.equal(duration(340), "340 ms");
@@ -509,11 +562,11 @@ describe("sidebar: handovers", () => {
       ({ kind: "object", folder: "/r", uuid: "u1", type, name: "n", file: "/r/x.yaml" }) as const;
     assert.deepEqual(newObjectHandover(object("objective")), {
       command: "opentide.newObject.ruleForObjective",
-      uuid: "u1",
+      args: { uuid: "u1", folder: "/r" },
     });
     assert.deepEqual(newObjectHandover(object("threat")), {
       command: "opentide.newObject.objectiveForThreat",
-      uuid: "u1",
+      args: { uuid: "u1", folder: "/r" },
     });
     assert.deepEqual(newObjectHandover(object("rule")), { command: "opentide.newObject", folder: "/r" });
     // A coverage gap: the objective flow in the node's folder (an object, not a URI, which means --path).

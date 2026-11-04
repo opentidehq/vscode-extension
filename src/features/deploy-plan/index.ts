@@ -7,20 +7,28 @@ import { findByUuid, loadedObjects } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { displayArgv } from "../../core/runtime/env";
+import { ensureSaved } from "../../core/util/saved";
 import type { OpentidePanel } from "../../core/webview/panel";
+import { parsePlatforms } from "../sidebar/platforms";
 import {
   ciStep,
+  ciVariables,
   DeployPlanner,
   type DeployPlanOptions,
   type DeployScope,
   deployCommand,
   dryRunArgv,
   dryRunCommand,
-  neededVariables,
   type Strategy,
 } from "./argv";
 import { type PlanView, payloadDocuments, planView } from "./plan";
-import { type DeployPanelState, type DeployPlanProtocol, hostValidators, type ScopeKind } from "./protocol";
+import {
+  cancelledState,
+  type DeployPanelState,
+  type DeployPlanProtocol,
+  hostValidators,
+  type ScopeKind,
+} from "./protocol";
 
 const PAYLOAD_SCHEME = "opentide-payload";
 const PLATFORMS = [
@@ -93,6 +101,13 @@ export default defineFeature({
       }
       const target = changedOnly ? await changedTarget(ctx) : await resolveTarget(ctx, first, second);
       if (!target) return;
+      // `deploy --dry-run --file` compiles the rule files on disk: offer to save the edits first.
+      const files = new Set(target.files.map((file) => path.resolve(target.folder, file)));
+      const documents = vscode.workspace.textDocuments.filter(
+        (document) => document.uri.scheme === "file" && files.has(path.resolve(document.uri.fsPath)),
+      );
+      const preview = { verb: "previews", action: "Preview" };
+      if (!(await ensureSaved(documents, preview, warn))) return;
       if (panel) panel.show(target);
       else {
         panel = new DeployPanel(ctx, payloads, diagnostics, target, () => {
@@ -372,26 +387,29 @@ class DeployPanel implements vscode.Disposable {
         },
       });
       if (this.runId !== id) return;
-      const plan = planView(result.document);
-      this.plan = plan;
-      this.document = result.document;
-      this.payloads.replace(payloadDocuments(result.document));
-      this.publishDiagnostics(plan);
-      const unusable =
-        result.exitCode === 2 ||
-        (result.exitCode !== 0 && plan.platforms.length === 0 && plan.unmatched.length === 0);
-      this.state = {
-        ...this.state,
-        argvDisplay: result.argvDisplay,
-        phase: result.cancelled ? "cancelled" : unusable ? "failed" : "done",
-        plan: result.cancelled ? this.state.plan : plan,
-        failure: result.cancelled
-          ? null
-          : unusable
+      if (result.cancelled) {
+        // The cancelled envelope has no plan: the plan shown, its payloads and Problems stay.
+        this.state = cancelledState(this.state, result.durationMs);
+      } else {
+        const plan = planView(result.document);
+        this.plan = plan;
+        this.document = result.document;
+        this.payloads.replace(payloadDocuments(result.document));
+        this.publishDiagnostics(plan);
+        const unusable =
+          result.exitCode === 2 ||
+          (result.exitCode !== 0 && plan.platforms.length === 0 && plan.unmatched.length === 0);
+        this.state = {
+          ...this.state,
+          argvDisplay: result.argvDisplay,
+          phase: unusable ? "failed" : "done",
+          plan,
+          failure: unusable
             ? { code: result.document.failure?.code ?? "failed", message: result.document.message }
             : null,
-        durationMs: result.durationMs,
-      };
+          durationMs: result.durationMs,
+        };
+      }
     } catch (error) {
       if (this.runId !== id) return;
       this.state = {
@@ -485,7 +503,7 @@ class DeployPanel implements vscode.Disposable {
         ? dryRunCommand(options)
         : what === "deploy"
           ? deployCommand(options)
-          : ciStep(options, neededVariables(this.plan?.warnings ?? []));
+          : ciStep(options, await this.ciVariables(options));
     await vscode.env.clipboard.writeText(text);
     if (what === "dryRun") vscode.window.setStatusBarMessage("$(check) Copied the dry-run command", 2500);
     else
@@ -494,6 +512,20 @@ class DeployPanel implements vscode.Disposable {
           ? "Copied the deploy command. Run it in a terminal or in CI: the editor only previews."
           : "Copied a GitHub Actions step for the deploy. Add the secrets it names to the repository.",
       );
+  }
+
+  /** The CI step's secrets: the plan's tenants' variables from `info`, and what its warnings name. */
+  private async ciVariables(options: DeployPlanOptions): Promise<string[]> {
+    const folder = this.target.folder;
+    // `info` reports each tenant's variable names; it needs no credential to name them.
+    const info = await this.ctx.backend.run(folder, ["info"], { credentials: false }).then(
+      (result) => parsePlatforms(result.document),
+      (error: unknown) => {
+        this.ctx.log.warn(`opentide info for the CI step's secrets: ${String(error)}`);
+        return [];
+      },
+    );
+    return ciVariables(options, info, this.plan?.platforms ?? [], this.plan?.warnings ?? []);
   }
 
   private async openPlatformConfig(platform: string): Promise<void> {
@@ -566,4 +598,9 @@ class PayloadDocuments implements vscode.TextDocumentContentProvider, vscode.Dis
     this.emitter.dispose();
     this.entries.clear();
   }
+}
+
+/** A warning with buttons, as `ensureSaved` asks. */
+function warn(message: string, ...items: string[]): Thenable<string | undefined> {
+  return vscode.window.showWarningMessage(message, ...items);
 }

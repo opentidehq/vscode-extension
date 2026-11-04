@@ -55,18 +55,36 @@ export const SATELLITE_KINDS: readonly NodeKind[] = ["technique", "logsource", "
 /** Above this many laid-out nodes dagre ranks with `longest-path`, far cheaper than network simplex. */
 export const LARGE_LAYOUT = 600;
 
+/**
+ * Above this many laid-out nodes dagre is skipped: even with `longest-path`, its ordering takes 10–17 s
+ * at 5,000 objects, on the webview's thread. `layeredLayout` ranks and orders them in well under one.
+ */
+export const HUGE_LAYOUT = 1500;
+
 const RANK_SEP = 70;
+const NODE_SEP = 8;
+const MARGIN = 20;
 
 export function layout(nodes: readonly GraphNode[], edges: readonly GraphEdge[]): Map<string, Point> {
   const satellite = new Set<NodeKind>(SATELLITE_KINDS);
   const core = nodes.filter((node) => !satellite.has(node.kind));
+  const positions = core.length > HUGE_LAYOUT ? layeredLayout(core, edges) : dagreLayout(core, edges);
+  placeSatellites(
+    positions,
+    nodes.filter((node) => satellite.has(node.kind)),
+    edges,
+  );
+  return wrapRanks(positions);
+}
+
+function dagreLayout(core: readonly GraphNode[], edges: readonly GraphEdge[]): Map<string, Point> {
   const graph = new dagre.graphlib.Graph({ multigraph: true });
   graph.setGraph({
     rankdir: "LR",
-    nodesep: 8,
+    nodesep: NODE_SEP,
     ranksep: RANK_SEP,
-    marginx: 20,
-    marginy: 20,
+    marginx: MARGIN,
+    marginy: MARGIN,
     ...(core.length > LARGE_LAYOUT ? { ranker: "longest-path" } : {}),
   });
   graph.setDefaultEdgeLabel(() => ({}));
@@ -82,12 +100,80 @@ export function layout(nodes: readonly GraphNode[], edges: readonly GraphEdge[])
     if (node && typeof node.x === "number" && typeof node.y === "number")
       positions.set(id, { x: node.x, y: node.y });
   }
-  placeSatellites(
-    positions,
-    nodes.filter((node) => satellite.has(node.kind)),
-    edges,
-  );
-  return wrapRanks(positions);
+  return positions;
+}
+
+/**
+ * dagre's layering without dagre, for very large graphs: longest-path ranks along the layout direction
+ * (a cycle is broken where it is met), then each rank ordered by the barycentre of its predecessors, one
+ * sweep left to right. Linear in nodes and edges, apart from the sort per rank.
+ */
+export function layeredLayout(core: readonly GraphNode[], edges: readonly GraphEdge[]): Map<string, Point> {
+  const index = new Map(core.map((node, i) => [node.id, i]));
+  const successors: number[][] = core.map(() => []);
+  const predecessors: number[][] = core.map(() => []);
+  const seen = new Set<string>();
+  for (const edge of edges) {
+    const [from, to] = layoutDirection(edge);
+    const a = index.get(from);
+    const b = index.get(to);
+    if (a === undefined || b === undefined || a === b || seen.has(`${a}>${b}`)) continue;
+    seen.add(`${a}>${b}`);
+    successors[a]?.push(b);
+    predecessors[b]?.push(a);
+  }
+  // Kahn's algorithm; what a cycle leaves unranked starts from the lowest-index node left, as a source.
+  const rank = new Array<number>(core.length).fill(-1);
+  const waiting = predecessors.map((list) => list.length);
+  const queue: number[] = [];
+  for (let i = 0; i < core.length; i++) if (waiting[i] === 0) queue.push(i);
+  let ranked = 0;
+  let next = 0;
+  for (;;) {
+    for (let head = 0; head < queue.length; head++) {
+      const node = queue[head] as number;
+      if (rank[node] !== -1) continue;
+      let r = 0;
+      for (const p of predecessors[node] ?? []) {
+        const pr = rank[p] as number;
+        if (pr >= 0) r = Math.max(r, pr + 1);
+      }
+      rank[node] = r;
+      ranked++;
+      for (const s of successors[node] ?? []) {
+        waiting[s] = (waiting[s] as number) - 1;
+        if (waiting[s] === 0) queue.push(s);
+      }
+    }
+    if (ranked === core.length) break;
+    while (next < core.length && rank[next] !== -1) next++;
+    queue.length = 0;
+    queue.push(next);
+  }
+  const ranks: number[][] = [];
+  for (let i = 0; i < core.length; i++) {
+    const r = rank[i] as number;
+    const members = ranks[r];
+    if (members) members.push(i);
+    else ranks[r] = [i];
+  }
+  const order = new Array<number>(core.length).fill(0);
+  const positions = new Map<string, Point>();
+  const step = NODE_BOX.height + NODE_SEP;
+  ranks.forEach((members, r) => {
+    const keyed = members.map((node) => {
+      const ps = (predecessors[node] ?? []).filter((p) => (rank[p] as number) < r);
+      const centre = ps.length ? ps.reduce((sum, p) => sum + (order[p] as number), 0) / ps.length : node;
+      return { node, centre };
+    });
+    keyed.sort((a, b) => a.centre - b.centre || a.node - b.node);
+    const x = MARGIN + NODE_BOX.width / 2 + r * (NODE_BOX.width + RANK_SEP);
+    keyed.forEach(({ node }, i) => {
+      order[node] = i;
+      positions.set(core[node]?.id as string, { x, y: (i - (keyed.length - 1) / 2) * step });
+    });
+  });
+  return positions;
 }
 
 /**

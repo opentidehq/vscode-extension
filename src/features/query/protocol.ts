@@ -24,7 +24,8 @@ export interface TenantTab {
   readonly elapsedMs: number | null;
 }
 
-export type QueryPhase = "running" | "done" | "failed" | "cancelled";
+/** `choosing`: opentide asked which tenants (several, none named) and the tenant picker is open. */
+export type QueryPhase = "running" | "choosing" | "done" | "failed" | "cancelled";
 
 export interface QueryPanelState {
   readonly title: string;

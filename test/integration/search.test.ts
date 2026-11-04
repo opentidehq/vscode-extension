@@ -15,6 +15,19 @@ describe("search (#21)", () => {
 
   it("opens Find Detection with a query from the matrix", async () => {
     await activated();
-    await vscode.commands.executeCommand("opentide.search.open", { query: "t:T1003" });
+    const shown = await vscode.commands.executeCommand<{ title: string; value: string } | undefined>(
+      "opentide.search.open",
+      { query: "t:T1003" },
+    );
+    assert.deepEqual(
+      shown,
+      { title: "Find Detection", value: "t:T1003" },
+      "the matrix's query is in the box",
+    );
+    const typed = await vscode.commands.executeCommand<{ value: string } | undefined>(
+      "opentide.search.open",
+      "lsass",
+    );
+    assert.equal(typed?.value, "lsass", "a keybinding's string argument is the query too");
   });
 });

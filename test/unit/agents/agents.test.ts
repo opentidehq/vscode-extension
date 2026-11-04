@@ -1,12 +1,14 @@
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import type { CatalogDocument } from "../../../src/core/catalog/types";
+import { which } from "../../../src/core/runtime/process";
 import { forkTarget, mergeMcpEntry } from "../../../src/features/agents/forks";
 import { parseJsonc, stripJsonc } from "../../../src/features/agents/jsonc";
 import {
   decideMcp,
   definesOpentide,
   entryUsable,
+  McpDecisionLog,
   type McpInputs,
   opentideEntryCommand,
   provideMode,
@@ -38,6 +40,21 @@ describe("agents: MCP server", () => {
     folder: "/ws",
     workspaceDefines: false,
     ...overrides,
+  });
+
+  it("waits for the command tree after a trust grant instead of logging that there is no `mcp start`", () => {
+    const loading = decideMcp(inputs({ hasMcpStart: undefined }));
+    assert.deepEqual(loading, { provide: false, reason: "the command tree is loading", pending: true });
+    const log = new McpDecisionLog();
+    assert.equal(log.line(loading), undefined, "nothing while it is not known");
+    const provided = decideMcp(inputs());
+    assert.equal(log.line(provided), undefined, "provided at once: nothing to correct");
+    assert.equal(log.line(provided), undefined);
+    const never = decideMcp(inputs({ mode: "never" }));
+    assert.equal(log.line(never), "MCP server not provided: opentide.mcp.provide is never");
+    assert.equal(log.line(never), undefined, "once per change");
+    assert.ok(provided.provide);
+    assert.equal(log.line(provided), `MCP server provided: ${provided.server.command}`);
   });
 
   it("provides `opentide mcp start` with the resolved runtime, in the folder", () => {
@@ -122,6 +139,23 @@ describe("agents: MCP server", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: a VS Code variable, not a template
     assert.equal(entryUsable("${workspaceFolder}/.venv/bin/opentide", lookup([])), true);
     assert.equal(entryUsable(null, lookup([])), true);
+  });
+
+  it("finds an entry's `opentide.exe` on a Windows PATH, so the server is not provided twice", () => {
+    const exe = path.join("C:\\tools", "opentide.exe");
+    const lookup = {
+      isAbsolute: () => false,
+      exists: (file: string) => file === exe,
+      which: (name: string) =>
+        which(name, "C:\\tools", "win32", (file) => file === exe, ".COM;.EXE;.BAT;.CMD"),
+    };
+    assert.equal(lookup.which("opentide.exe"), exe);
+    assert.equal(entryUsable("opentide.exe", lookup), true);
+    assert.equal(lookup.which("opentide"), exe, "and the bare name with PATHEXT, as before");
+    assert.equal(
+      which("opentide.exe", "/usr/bin", "linux", () => false),
+      undefined,
+    );
   });
 
   it("reads the setting leniently", () => {

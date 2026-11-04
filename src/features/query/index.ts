@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 import { findByUuid } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { ensureSaved } from "../../core/util/saved";
 import {
   clampLimit,
   DEFAULT_LIMIT,
@@ -82,15 +83,7 @@ export default defineFeature({
       if (!folder) return undefined;
       let source: QuerySource;
       if (target.kind === "rule") {
-        if (document.isDirty) {
-          const answer = await vscode.window.showWarningMessage(
-            "opentide runs the saved rule. Save it first?",
-            "Save and Run",
-            "Run Saved Version",
-          );
-          if (!answer) return undefined;
-          if (answer === "Save and Run" && !(await document.save())) return undefined;
-        }
+        if (!(await ensureSaved([document], { verb: "runs", action: "Run" }, warn))) return undefined;
         const file = path.relative(folder.path, uri.fsPath).split(path.sep).join("/");
         source = {
           kind: "rule",
@@ -271,6 +264,10 @@ export default defineFeature({
           );
           return;
         }
+        // `validate query --live --file` reads the rule from disk, as `query` does.
+        const document = await vscode.workspace.openTextDocument(uri);
+        const validate = { verb: "validates", action: "Validate" };
+        if (!(await ensureSaved([document], validate, warn))) return;
         if (caps.tenants && !(await ensureCredentials(ctx, folder.path, caps.tenants))) return;
         const file = path.relative(folder.path, uri.fsPath).split(path.sep).join("/");
         await validateLive(ctx, folder, target, file);
@@ -450,9 +447,10 @@ async function validateLive(
       return;
     }
     const advice = typeof document.advice === "string" ? ` ${document.advice}` : "";
-    const show = await (result.exitCode === 0
-      ? vscode.window.showInformationMessage
-      : vscode.window.showWarningMessage)(`${document.message}${advice}`, "Show Output");
+    const show = await (result.exitCode === 0 ? vscode.window.showInformationMessage : warn)(
+      `${document.message}${advice}`,
+      "Show Output",
+    );
     if (show) ctx.log.show();
   } catch (error) {
     void vscode.window.showWarningMessage(error instanceof Error ? error.message : String(error));
@@ -490,4 +488,9 @@ class CompiledDocuments implements vscode.TextDocumentContentProvider, vscode.Di
     this.emitter.dispose();
     this.contents.clear();
   }
+}
+
+/** A warning with buttons, as `ensureSaved` asks. */
+function warn(message: string, ...items: string[]): Thenable<string | undefined> {
+  return vscode.window.showWarningMessage(message, ...items);
 }

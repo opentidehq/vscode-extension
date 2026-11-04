@@ -172,6 +172,20 @@ export interface TableViewState {
   readonly sort?: { readonly column: string; readonly descending: boolean };
 }
 
+/**
+ * The table's "in" column after new data: `wanted` (the column chosen, or one waiting from a restored
+ * view) if the data has it, else all columns (`""`). `pending` is what to keep waiting for: a table with no
+ * columns yet (a tab still running, a failed tab, a re-run's empty start) keeps the choice for the next
+ * data that has columns, as the sort does.
+ */
+export function filterColumnAfter(
+  wanted: string,
+  columns: readonly string[],
+): { readonly value: string; readonly pending: string | undefined } {
+  if (columns.includes(wanted)) return { value: wanted, pending: undefined };
+  return { value: "", pending: columns.length === 0 && wanted ? wanted : undefined };
+}
+
 /** A persisted TableViewState, or undefined when `value` is not one. */
 export function tableViewState(value: unknown): TableViewState | undefined {
   if (typeof value !== "object" || value === null) return undefined;

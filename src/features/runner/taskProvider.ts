@@ -3,6 +3,7 @@
 import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
 import { cliCommand, hasCli } from "../../core/runtime/types";
+import { httpProxy } from "../../core/services/settings";
 import { DRY_RUN } from "./safety";
 import {
   isTaskDefinition,
@@ -84,7 +85,7 @@ export class OpentideTaskProvider implements vscode.TaskProvider {
       "opentide",
       new vscode.ProcessExecution(command, args, {
         cwd: folder,
-        env: taskEnv(folder, runtime.env, credentials),
+        env: taskEnv(folder, runtime.env, httpProxy(), credentials),
       }),
       [PROBLEM_MATCHER],
     );

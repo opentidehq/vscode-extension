@@ -49,9 +49,16 @@ export class CredentialStore {
     await this.secrets.store(`${this.prefix(folder)}.index`, JSON.stringify([...new Set(names)].sort()));
   }
 
-  /** The variable names stored for a folder (never their values). */
-  names(folder: string): Promise<string[]> {
-    return this.index(folder);
+  /**
+   * The variable names stored for a folder (never their values). Before values had a namespace of their
+   * own, storing `$index` overwrote the index with its value and then the index over it, so an old index
+   * can list `index` with no value anywhere: that name is left out, so the UI asks for it again.
+   */
+  async names(folder: string): Promise<string[]> {
+    const names = await this.index(folder);
+    if (!names.includes("index") || (await this.secrets.get(this.key(folder, "index"))) !== undefined)
+      return names;
+    return names.filter((name) => name !== "index");
   }
 
   async has(folder: string, name: string): Promise<boolean> {
@@ -68,6 +75,8 @@ export class CredentialStore {
   async set(folder: string, name: string, value: string): Promise<void> {
     if (!NAME.test(name)) throw new Error(`not an environment variable name: ${name}`);
     await this.secrets.store(this.key(folder, name), value);
+    // The value's old-scheme key (`<prefix>.<name>`) goes: it is superseded. `<prefix>.index` is the index.
+    if (name !== "index") await this.secrets.delete(`${this.prefix(folder)}.${name}`);
     await this.writeIndex(folder, [...(await this.index(folder)), name]);
     this.emitter.fire({ folder, name });
   }

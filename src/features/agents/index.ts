@@ -11,7 +11,14 @@ import { which } from "../../core/runtime/process";
 import { cliCommand, hasCli } from "../../core/runtime/types";
 import { httpProxy, readRestricted } from "../../core/services/settings";
 import { forkTarget, mergeMcpEntry } from "./forks";
-import { decideMcp, entryUsable, MCP_PROVIDER_ID, opentideEntryCommand, provideMode } from "./mcp";
+import {
+  decideMcp,
+  entryUsable,
+  MCP_PROVIDER_ID,
+  McpDecisionLog,
+  opentideEntryCommand,
+  provideMode,
+} from "./mcp";
 import {
   ACTIVE_OBJECT_TOOL,
   activeObjectPayload,
@@ -108,30 +115,28 @@ function registerMcpProvider(ctx: FeatureContext): void {
   const changed = new vscode.EventEmitter<void>();
   const fire = () => changed.fire();
   const watcher = vscode.workspace.createFileSystemWatcher("**/.vscode/mcp.json");
-  let lastReason: string | undefined;
+  const log = new McpDecisionLog();
   const provider: McpProvider = {
     onDidChangeMcpServerDefinitions: changed.event,
     async provideMcpServerDefinitions() {
       // Restricted Mode: nothing, without reading a setting or a file.
       if (!ctx.trust.isTrusted) return [];
       const runtime = await ctx.runtime.ready();
-      await ctx.capabilities.ready();
+      const tree = (await ctx.capabilities.ready()) ?? ctx.capabilities.current;
       const mode = provideMode(readRestricted<string>("opentide.mcp.provide"));
       const decision = decideMcp({
         trusted: ctx.trust.isTrusted,
         mode,
         runtime: ctx.runtime.current ?? runtime,
-        hasMcpStart: ctx.capabilities.hasCommand("mcp start"),
+        // No tree yet for a runtime with commands: capabilities.onDidChange asks again once it loads.
+        hasMcpStart: tree ? tree.hasCommand("mcp start") : undefined,
         folder: ctx.folders.all[0]?.path ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
         workspaceDefines: mode === "auto" ? await workspaceDefinesOpentide(ctx.log) : false,
         proxy: httpProxy(),
       });
-      if (!decision.provide) {
-        if (decision.reason !== lastReason) ctx.log.info(`MCP server not provided: ${decision.reason}`);
-        lastReason = decision.reason;
-        return [];
-      }
-      lastReason = undefined;
+      const line = log.line(decision);
+      if (line) ctx.log.info(line);
+      if (!decision.provide) return [];
       const { server } = decision;
       const definition = new Definition(
         server.label,

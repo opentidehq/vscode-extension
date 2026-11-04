@@ -59,6 +59,16 @@ export function planRun(
   };
 }
 
+/**
+ * The confirmation's question for a `confirm` plan. A dry run (`deploy --dry-run`, `share … --dry-run`)
+ * plans and compiles locally and sends nothing, so it says so rather than that it reaches the tenants.
+ */
+export function confirmMessage(plan: Extract<RunPlan, { kind: "confirm" }>): string {
+  return plan.dryRunAdded
+    ? "Deploys and shares run in CI, not from the editor. Preview this one as a dry run?"
+    : "Run this dry run? It plans locally and sends nothing to the tenants it names.";
+}
+
 /** The values of a flag in an argv (`--platform sentinel` or `--platform=sentinel`), in order. */
 export function flagValues(argv: readonly string[], flag: string): string[] {
   const values: string[] = [];
