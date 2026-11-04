@@ -164,6 +164,16 @@ describe("backend", () => {
     assert.equal(next.via, "serve", "the next request starts a new backend");
   });
 
+  it("runs a writer that waited on a serve start overtaken by restart(): it never reached serve", async () => {
+    const { instance } = make({}, { FAKE_SERVE_INIT_DELAY_MS: "300" });
+    const writer = instance.run(REPO, ["echo", "--write"]);
+    await sleep(100);
+    await instance.restart();
+    const result = await writer;
+    assert.equal(result.exitCode, 0);
+    assert.ok(result.via === "serve" || result.via === "spawn");
+  });
+
   it("falls back to spawning when serve cannot start", async () => {
     const { instance, logs } = make({}, { FAKE_SERVE_BROKEN: "1" });
     const result = await instance.run(process.cwd(), ["echo"]);

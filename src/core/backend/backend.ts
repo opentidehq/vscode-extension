@@ -307,14 +307,26 @@ export class Backend {
     options: RunOptions,
   ): Promise<Omit<RunResult, "argvDisplay" | "folder" | "durationMs">> {
     let client: ServeClient;
+    const generation = this.generation;
     try {
       // Every caller, also one that arrived while another request was starting serve, waits on the
       // same start here, so a start that fails sends each of them to spawn.
       client = await this.ensureServe(runtime, folder);
     } catch (error) {
       if (this.serveBrokenFor === runtime) return this.viaSpawn(runtime, folder, argv, credentials, options);
+      // restart() stopped the serve this request was waiting for: it never reached a serve, so it runs
+      // on the current backend whatever its class (a writer included), not as a crash.
+      if (this.generation !== generation) return this.rerun(folder, argv, credentials, options, error);
       throw error;
     }
+    if (this.generation !== generation || !client.isRunning)
+      return this.rerun(
+        folder,
+        argv,
+        credentials,
+        options,
+        new BackendError("crashed", "opentide serve stopped"),
+      );
     const env: Record<string, string> = {
       OPENTIDE_REPO_ROOT: folder,
       ...credentials,
@@ -339,6 +351,22 @@ export class Backend {
       via: "serve",
       cancelled: options.cancellation?.isCancellationRequested === true && result.exit_code === 130,
     };
+  }
+
+  /** Run a request that never reached a serve on the backend there is now (after a restart). */
+  private async rerun(
+    folder: string,
+    argv: readonly string[],
+    credentials: Readonly<Record<string, string>>,
+    options: RunOptions,
+    error: unknown,
+  ): Promise<Omit<RunResult, "argvDisplay" | "folder" | "durationMs">> {
+    const runtime = this.deps.runtime();
+    if (this.disposed || !hasCli(runtime)) throw error;
+    this.deps.log("info", "opentide serve restarted before the request reached it: running it again");
+    return (await this.canServe(runtime))
+      ? this.viaServe(runtime, folder, argv, credentials, options)
+      : this.viaSpawn(runtime, folder, argv, credentials, options);
   }
 
   private async viaSpawn(
