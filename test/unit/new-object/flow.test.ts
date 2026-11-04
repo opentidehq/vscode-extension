@@ -169,7 +169,7 @@ describe("new-object: flow", () => {
       ROOT,
     );
     assert.deepEqual(created, {
-      file: "/ws/objects/rules/test-rule.yaml",
+      file: path.join(ROOT, "objects", "rules", "test-rule.yaml"),
       placeholders: 2,
       uuid: "623c",
       message: "Created objects/rules/test-rule.yaml · 2 placeholders to replace",

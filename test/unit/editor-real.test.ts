@@ -35,7 +35,10 @@ import { placeholderLines } from "../../src/features/new-object/placeholders";
 import { tideSnippets } from "../../src/features/new-object/snippets";
 
 const BIN = process.env.OPENTIDE_TEST_BIN;
-const WORKSPACE = process.env.OPENTIDE_TEST_WORKSPACE;
+// Resolved: CI's spelling on Windows mixes separators (D:\\a\\_temp/opentide-ws).
+const WORKSPACE = process.env.OPENTIDE_TEST_WORKSPACE
+  ? path.resolve(process.env.OPENTIDE_TEST_WORKSPACE)
+  : undefined;
 const available = Boolean(BIN && WORKSPACE && existsSync(BIN) && existsSync(WORKSPACE));
 
 describe("real opentide: diagnostics and new objects", function () {
