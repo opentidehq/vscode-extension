@@ -59,11 +59,15 @@ describe("panels (#17, #18, #20)", () => {
     );
     const compiled = lenses?.find((lens) => lens.command?.command === "opentide.query.showCompiled");
     if (!compiled?.command) this.skip();
+    const rule = await vscode.window.showTextDocument(uri);
     await vscode.commands.executeCommand(compiled.command.command, ...(compiled.command.arguments ?? []));
     const editor = await waitFor(() =>
       vscode.window.visibleTextEditors.find((e) => e.document.uri.scheme === "opentide-compiled"),
     );
     assert.match(editor.document.getText(), /DeviceProcessEvents/);
+    // Beside the rule, which keeps the focus.
+    assert.notEqual(editor.viewColumn, rule.viewColumn);
+    assert.equal(vscode.window.activeTextEditor?.document.uri.toString(), uri.toString());
   });
 
   it("opens the ATT&CK matrix, with the needs-a-newer-opentide state where info catalog is missing", async () => {
@@ -77,5 +81,66 @@ describe("panels (#17, #18, #20)", () => {
     await vscode.window.showTextDocument(fixture("objects", "rules", "suspicious-lsass-access.yaml"));
     await vscode.commands.executeCommand("opentide.deployPlan.open");
     await waitFor(() => panelOpen("opentide.deployPlan") || undefined);
+  });
+});
+
+const webviewTabs = (viewType: string) =>
+  vscode.window.tabGroups.all.flatMap((group) =>
+    group.tabs.filter(
+      (tab) => tab.input instanceof vscode.TabInputWebview && tab.input.viewType.endsWith(viewType),
+    ),
+  );
+
+describe("panels open beside the object and reuse their panel (SPEC §10)", () => {
+  before(() => activated());
+  afterEach(() => vscode.commands.executeCommand("workbench.action.closeAllEditors"));
+
+  it("deploy plan: beside the rule, keeping its focus; the next rule retargets the same panel", async () => {
+    const rule = fixture("objects", "rules", "suspicious-lsass-access.yaml");
+    const editor = await vscode.window.showTextDocument(rule);
+    await vscode.commands.executeCommand("opentide.deployPlan.open", rule);
+    const [tab] = await waitFor(() => {
+      const tabs = webviewTabs("opentide.deployPlan");
+      return tabs.length > 0 ? tabs : undefined;
+    });
+    assert.ok(tab);
+    assert.notEqual(tab.group.viewColumn, editor.viewColumn, "beside the rule, not over it");
+    assert.equal(
+      vscode.window.activeTextEditor?.document.uri.toString(),
+      rule.toString(),
+      "the rule keeps the focus",
+    );
+    // The title names the rule (the tab model hears of a new title a moment later).
+    const first = await waitFor(
+      () => webviewTabs("opentide.deployPlan").find((t) => t.label.startsWith("Deploy Plan · "))?.label,
+    );
+    await vscode.commands.executeCommand(
+      "opentide.deployPlan.open",
+      fixture("detections", "rules", "custom-folder-rule.yaml"),
+    );
+    const retargeted = await waitFor(() => {
+      const tabs = webviewTabs("opentide.deployPlan");
+      return tabs.length === 1 && tabs[0]?.label !== first ? tabs[0] : undefined;
+    });
+    assert.equal(webviewTabs("opentide.deployPlan").length, 1, "one plan panel, retargeted");
+    assert.equal(retargeted.group.viewColumn, tab.group.viewColumn);
+  });
+
+  it("ATT&CK matrix: one panel; asked for a technique from an editor, it opens beside", async () => {
+    const rule = fixture("objects", "rules", "suspicious-lsass-access.yaml");
+    const editor = await vscode.window.showTextDocument(rule);
+    await vscode.commands.executeCommand("opentide.matrix.open", { technique: "T1003" });
+    const tab = await waitFor(() => webviewTabs("opentide.matrix")[0]);
+    assert.notEqual(tab.group.viewColumn, editor.viewColumn, "beside the editor");
+    assert.equal(
+      vscode.window.activeTextEditor?.document.uri.toString(),
+      rule.toString(),
+      "the editor keeps the focus",
+    );
+    await vscode.commands.executeCommand("opentide.matrix.open");
+    await vscode.commands.executeCommand("opentide.matrix.open", { technique: "T1059" });
+    // Give a second panel the time to appear, if one were opened.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.equal(webviewTabs("opentide.matrix").length, 1, "reused, not a new tab");
   });
 });
