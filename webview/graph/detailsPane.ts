@@ -36,11 +36,10 @@ function group(details: NodeDetails, entry: DetailGroup, context: PaneContext): 
         title: item.missing
           ? `Missing: no object has the UUID ${item.label}`
           : `${item.label}. Click to select, double-click or Enter to open.`,
-        "aria-label": `${item.missing ? "missing reference " : ""}${item.label}${item.note ? `, ${item.note}` : ""}`,
+        "aria-label": `${item.missing ? "missing reference " : ""}${item.label}`,
       },
       coloured(visual.codicon, visual.themeColor),
       h("span", { class: "label", text: item.label }),
-      item.note ? h("span", { class: "note", text: item.note }) : undefined,
     );
     list.append(h("li", {}, link));
   }

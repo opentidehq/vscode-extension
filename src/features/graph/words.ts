@@ -11,6 +11,7 @@ import {
   RELATION_WORDS,
   type RelationKind,
   type RelationWords,
+  relationWords,
 } from "../../core/catalog/relations";
 import type { NodeKind } from "./model";
 
@@ -40,11 +41,26 @@ export function wordsOf(kind: string): RelationWords {
 }
 
 /**
- * `relationLabel` for every graph relation kind: "Implements →", "← Implemented by 3". The arrow sits
- * on the side the other object is read from.
+ * `relationWords` for every graph relation kind: a chain's words come from its relation ("Precedes",
+ * "← Preceded by"), the graph's own kinds from GRAPH_ONLY_WORDS.
  */
-export function graphRelationLabel(kind: string, direction: Direction, count?: number): string {
-  const words = wordsOf(kind)[direction];
+export function graphRelationWords(kind: string, direction: Direction, relation?: string | null): string {
+  if (isGraphRelationKind(kind) && kind !== "actor" && kind !== "platform")
+    return relationWords(kind, direction, relation);
+  return wordsOf(kind)[direction];
+}
+
+/**
+ * `relationLabel` for every graph relation kind: "Implements →", "← Implemented by 3", "Precedes 1 →".
+ * The arrow sits on the side the other object is read from.
+ */
+export function graphRelationLabel(
+  kind: string,
+  direction: Direction,
+  count?: number,
+  relation?: string | null,
+): string {
+  const words = graphRelationWords(kind, direction, relation);
   const counted = count === undefined ? words : `${words} ${count}`;
   return direction === "out" ? `${counted} ${ARROW.out}` : `${ARROW.in} ${counted}`;
 }

@@ -70,7 +70,7 @@ describe("graph export", () => {
       "a dangling edge is dotted",
     );
     assert.ok(lines.includes("classDef missing stroke-dasharray: 5 5"));
-    assert.ok(lines.some((line) => line.includes("preceeds|")));
+    assert.ok(lines.some((line) => line.includes("Precedes|")));
   });
 
   it("keeps Mermaid identifiers unique and labels free of syntax", () => {

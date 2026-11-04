@@ -37,10 +37,10 @@ export const KEY_SEPARATOR = "\u001f";
 export const listKey = {
   group: (kind: string): string => `group:${kind}`,
   node: (id: string): string => `node:${id}`,
-  relation: (id: string, group: Pick<DetailGroup, "direction" | "kind">): string =>
-    `rel:${[id, group.direction, group.kind].join(KEY_SEPARATOR)}`,
-  link: (id: string, group: Pick<DetailGroup, "direction" | "kind">, index: number): string =>
-    `link:${[id, group.direction, group.kind, String(index)].join(KEY_SEPARATOR)}`,
+  relation: (id: string, group: Pick<DetailGroup, "direction" | "kind" | "relation">): string =>
+    `rel:${[id, group.direction, group.kind, group.relation ?? ""].join(KEY_SEPARATOR)}`,
+  link: (id: string, group: Pick<DetailGroup, "direction" | "kind" | "relation">, index: number): string =>
+    `link:${[id, group.direction, group.kind, group.relation ?? "", String(index)].join(KEY_SEPARATOR)}`,
 };
 
 export function plural(count: number, one: string, many = `${one}s`): string {
@@ -108,7 +108,7 @@ export function keptFocus(
 export function parentKey(key: string, kindOf: (id: string) => string | undefined): string | undefined {
   if (key.startsWith("link:")) {
     const parts = key.slice(5).split(KEY_SEPARATOR);
-    return `rel:${parts.slice(0, 3).join(KEY_SEPARATOR)}`;
+    return `rel:${parts.slice(0, 4).join(KEY_SEPARATOR)}`;
   }
   if (key.startsWith("rel:")) return listKey.node(key.slice(4).split(KEY_SEPARATOR)[0] ?? "");
   if (key.startsWith("node:")) {

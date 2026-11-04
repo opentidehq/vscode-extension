@@ -12,6 +12,12 @@ describe("graph words and icons", () => {
       assert.equal(graphRelationLabel(kind, "in"), relationLabel(kind, "in"));
     }
     assert.equal(graphRelationLabel("actor", "out", 1), "Attributed to 1 →");
+    assert.equal(graphRelationLabel("chains", "out", 2, "sequence::preceeds"), "Precedes 2 →");
+    assert.equal(graphRelationLabel("chains", "in", 1, "sequence::preceeds"), "← Preceded by 1");
+    assert.equal(
+      graphRelationLabel("chains", "out", 1, "sequence::preceeds"),
+      relationLabel("chains", "out", 1, "sequence::preceeds"),
+    );
     assert.equal(graphRelationLabel("platform", "in", 3), "← Platform of 3");
   });
 

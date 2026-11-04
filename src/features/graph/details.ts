@@ -5,14 +5,7 @@
 
 import { type Direction, type Relation, RelationIndex } from "../../core/catalog/relations";
 import type { CatalogEdge, CatalogSignal } from "../../core/catalog/types";
-import {
-  type GraphEdge,
-  type GraphModel,
-  type GraphNode,
-  KIND_LABELS,
-  type NodeKind,
-  shortId,
-} from "./model";
+import { type GraphEdge, type GraphModel, type GraphNode, KIND_LABELS, type NodeKind } from "./model";
 import { GRAPH_RELATION_ORDER, graphRelationLabel, NODE_ICONS, wordsOf } from "./words";
 
 export interface DetailItem {
@@ -22,13 +15,13 @@ export interface DetailItem {
   readonly kind: NodeKind;
   /** A dangling reference: no object has this UUID. */
   readonly missing: boolean;
-  /** A chaining edge's relation (`preceeds`). */
-  readonly note?: string;
 }
 
 export interface DetailGroup {
   readonly kind: string;
   readonly direction: Direction;
+  /** A chain group's relation (`sequence::preceeds`): chains are grouped by it. */
+  readonly relation: string | null;
   /** `relationLabel(kind, direction, count)`: "Implements 1 →", "← Implemented by 3". */
   readonly header: string;
   /** The relation's codicon. */
@@ -132,7 +125,7 @@ export class DetailsIndex {
   }
 
   private groups(direction: Direction, indexed: readonly Relation[], extra: readonly Link[]): DetailGroup[] {
-    const byKind = new Map<string, DetailItem[]>();
+    const groups = new Map<string, { kind: string; relation: string | null; items: DetailItem[] }>();
     const add = (kind: string, other: string, relation: string | null): void => {
       const target = this.nodes.get(other);
       const item: DetailItem = {
@@ -140,33 +133,40 @@ export class DetailsIndex {
         label: target?.label ?? other,
         kind: target?.kind ?? "missing",
         missing: !target || target.kind === "missing",
-        ...(kind === "chains" && relation ? { note: shortId(relation) } : {}),
       };
-      const list = byKind.get(kind);
-      if (list) list.push(item);
-      else byKind.set(kind, [item]);
+      // Chains are grouped by their relation, so each group says which way it reads ("Precedes").
+      const chained = kind === "chains" ? relation : null;
+      const key = `${kind}\u0000${chained ?? ""}`;
+      const group = groups.get(key);
+      if (group) group.items.push(item);
+      else groups.set(key, { kind, relation: chained, items: [item] });
     };
     for (const relation of indexed) add(relation.kind, relation.other, relation.relation);
     for (const link of extra) add(link.kind, link.other, link.relation);
-    const kinds = [
-      ...GRAPH_RELATION_ORDER.filter((kind) => byKind.has(kind)),
-      ...[...byKind.keys()]
-        .filter((kind) => !(GRAPH_RELATION_ORDER as readonly string[]).includes(kind))
-        .sort(),
-    ];
-    return kinds.map((kind) => {
-      const items = [...(byKind.get(kind) ?? [])].sort(
+    const rank = (kind: string): number => {
+      const at = (GRAPH_RELATION_ORDER as readonly string[]).indexOf(kind);
+      return at < 0 ? GRAPH_RELATION_ORDER.length : at;
+    };
+    return [...groups.values()]
+      .sort(
         (a, b) =>
-          Number(a.missing) - Number(b.missing) || a.label.localeCompare(b.label) || (a.id < b.id ? -1 : 1),
-      );
-      return {
-        kind,
-        direction,
-        header: graphRelationLabel(kind, direction, items.length),
-        icon: wordsOf(kind).icon,
-        items,
-      };
-    });
+          rank(a.kind) - rank(b.kind) ||
+          (a.kind + (a.relation ?? "")).localeCompare(b.kind + (b.relation ?? "")),
+      )
+      .map(({ kind, relation, items }) => {
+        const sorted = [...items].sort(
+          (a, b) =>
+            Number(a.missing) - Number(b.missing) || a.label.localeCompare(b.label) || (a.id < b.id ? -1 : 1),
+        );
+        return {
+          kind,
+          direction,
+          relation,
+          header: graphRelationLabel(kind, direction, sorted.length, relation),
+          icon: wordsOf(kind).icon,
+          items: sorted,
+        };
+      });
   }
 }
 

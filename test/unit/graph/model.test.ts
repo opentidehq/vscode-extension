@@ -48,7 +48,11 @@ describe("graph model", () => {
     assert.equal(edgesOf("implements").length, 3);
     const chain = edgesOf("chains")[0];
     assert.equal(chain?.relation, "sequence::preceeds");
-    assert.equal(edgeLabel(chain ?? { kind: "chains", relation: null }), "Chains to · preceeds");
+    assert.equal(
+      edgeLabel(chain ?? { kind: "chains", relation: null }),
+      "Precedes",
+      "a chain reads as its relation",
+    );
     assert.equal(edgesOf("parent")[0]?.target, UUID.signal);
     assert.equal(edgesOf("logsource")[0]?.target, "logsource:DeviceProcessEvents");
   });
@@ -60,6 +64,7 @@ describe("graph model", () => {
     assert.equal(edgeLabel({ kind: "logsource", relation: null }), "Uses log source");
     assert.equal(edgeLabel({ kind: "technique", relation: null }), "Technique");
     assert.equal(edgeLabel({ kind: "chains", relation: null }), "Chains to");
+    assert.equal(edgeLabel({ kind: "chains", relation: "sequence::unknown" }), "Chains to");
     assert.equal(edgeLabel({ kind: "actor", relation: null }), "Attributed to");
     assert.equal(edgeLabel({ kind: "platform", relation: null }), "On platform");
     assert.equal(

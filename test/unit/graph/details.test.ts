@@ -31,12 +31,12 @@ describe("graph details pane", () => {
     assert.equal(signals?.icon, "pulse");
   });
 
-  it("lists a technique's users and a threat's chaining, with the relation as a note", () => {
+  it("lists a technique's users and a threat's chaining, worded by its relation both ways", () => {
     assert.deepEqual(headers(techniqueId("T1003.001"), "incoming"), ["← Used by 2"]);
     const chain = index.details(UUID.threat)?.outgoing.find((g) => g.kind === "chains");
-    assert.equal(chain?.header, "Chains to 1 →");
-    assert.equal(chain?.items[0]?.note, "preceeds");
-    assert.deepEqual(headers(UUID.lateral, "incoming"), ["← Chained from 1"]);
+    assert.equal(chain?.header, "Precedes 1 →");
+    assert.equal(chain?.relation, "sequence::preceeds");
+    assert.deepEqual(headers(UUID.lateral, "incoming"), ["← Preceded by 1"]);
   });
 
   it("marks a dangling reference missing, and lists who names a missing node", () => {

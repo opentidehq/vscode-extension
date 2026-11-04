@@ -906,7 +906,11 @@ function bringIntoView(ids: readonly string[]): void {
   const pan = cy.pan();
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
-  const visible = x1 * zoom + pan.x >= 0 && y1 * zoom + pan.y >= 0 && x2 * zoom + pan.x <= width && y2 * zoom + pan.y <= height;
+  const visible =
+    x1 * zoom + pan.x >= 0 &&
+    y1 * zoom + pan.y >= 0 &&
+    x2 * zoom + pan.x <= width &&
+    y2 * zoom + pan.y <= height;
   if (visible) return;
   const fits = Math.min(zoom, width / (x2 - x1), height / (y2 - y1));
   const next = {
@@ -1473,11 +1477,7 @@ function renderList(): void {
                             h("span", { class: item.missing ? "missing" : "", text: item.label }),
                           ],
                           item.label,
-                          [
-                            item.note,
-                            item.missing ? "missing" : "",
-                            nodesById.has(item.id) ? "" : "not drawn",
-                          ]
+                          [item.missing ? "missing" : "", nodesById.has(item.id) ? "" : "not drawn"]
                             .filter(Boolean)
                             .join(" · "),
                           undefined,

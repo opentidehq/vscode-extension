@@ -80,7 +80,7 @@ describe("graph list: the node menu by keyboard", () => {
 describe("graph list: the focus across a redraw", () => {
   const kinds: Record<string, string> = { r1: "rule", o1: "objective", "technique:T1": "technique" };
   const kindOf = (id: string) => kinds[id];
-  const out = { direction: "out", kind: "implements" } as const;
+  const out = { direction: "out", kind: "implements", relation: null } as const;
 
   it("keeps the focused item, else the closest one still listed", () => {
     const keys = [
@@ -98,7 +98,7 @@ describe("graph list: the focus across a redraw", () => {
       "a link that went: its relation group",
     );
     assert.equal(
-      keptFocus(listKey.relation("o1", { direction: "in", kind: "covers" }), keys, kindOf),
+      keptFocus(listKey.relation("o1", { direction: "in", kind: "covers", relation: null }), keys, kindOf),
       "node:o1",
       "a group that went: its node",
     );
