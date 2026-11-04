@@ -73,6 +73,8 @@ pre-releases odd ones.
 
 #### Sidebar and setup
 
+- The opentide wave mark (from opentidehq/.github's brand assets) in the activity bar and as the
+  Marketplace icon, on a Reflex Blue (`#001489`) gallery banner.
 - The opentide sidebar, five views in the opentide activity bar:
   - **Catalogue:** threats → objectives → signals → rules, plus groups for orphans and files that
     failed to load. Group by threat chain, type, platform, status or technique; filter by name, UUID,
@@ -87,6 +89,8 @@ pre-releases odd ones.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
   - **Activity:** the last 50 commands, with Run Again (which asks first for a command that writes
     files or contacts a tenant) and Copy Command Line.
+  - In a folder that is not a repository yet, each view offers to set one up; in Restricted Mode it
+    offers Manage Workspace Trust instead, since the wizard needs a trusted folder.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
   create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
   as Script reproduces it in a terminal. The window takes up the new repository without a reload. It also adds platforms, CI and agents to an existing
@@ -198,7 +202,12 @@ pre-releases odd ones.
   - an "opentide" terminal profile;
   - links: UUIDs open the object, `error[code]` opens Explain.
 - The opentide MCP server for VS Code's agents, working on install with the bundled runtime
-  (`opentide.mcp.provide`: auto|always|never); there is none in Restricted Mode. "Add opentide to This
+  (`opentide.mcp.provide`: auto|always|never); there is none in Restricted Mode. It reads the root
+  `.mcp.json` as well as `.vscode/mcp.json` (and `.cursor/mcp.json` when VS Code discovers it), and the
+  `mcp.servers` of a `.code-workspace` and of the user's mcp.json. When the
+  `opentide` server there runs a command that is not found, the extension's server is named
+  `opentide (VS Code)`: VS Code keeps one server per name, and it disabled the working one in favour of
+  the file's. "Add opentide to This
   Editor's MCP Settings" for Cursor and Windsurf. Language-model tools `opentide_open_file_diagnostics`
   and `opentide_active_object`.
 

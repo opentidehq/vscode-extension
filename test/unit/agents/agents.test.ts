@@ -5,13 +5,23 @@ import { which } from "../../../src/core/runtime/process";
 import { forkTarget, mergeMcpEntry } from "../../../src/features/agents/forks";
 import { parseJsonc, stripJsonc } from "../../../src/features/agents/jsonc";
 import {
+  cursorWorkspaceDiscovered,
   decideMcp,
   definesOpentide,
   entryUsable,
+  environmentLookup,
+  expandEnvironment,
+  MCP_LABEL,
+  MCP_SEPARATE_LABEL,
   McpDecisionLog,
   type McpInputs,
   opentideEntryCommand,
+  opentideServerCommand,
   provideMode,
+  USER_CONFIG_ORDER,
+  WORKSPACE_CONFIG_ORDER,
+  type WorkspaceEntry,
+  workspaceMcpFiles,
 } from "../../../src/features/agents/mcp";
 import { activeObjectPayload, diagnosticsPayload } from "../../../src/features/agents/tools";
 import { fakeRuntime } from "../helpers";
@@ -38,7 +48,7 @@ describe("agents: MCP server", () => {
     runtime: fakeRuntime({ env: { UV_X: "1" } }),
     hasMcpStart: true,
     folder: "/ws",
-    workspaceDefines: false,
+    workspaceEntries: [],
     ...overrides,
   });
 
@@ -102,12 +112,196 @@ describe("agents: MCP server", () => {
     assert.equal(decideMcp(inputs({ folder: undefined })).provide, false);
   });
 
+  /** A workspace entry; its order is VS Code's for that file: 0 for `.vscode/mcp.json`, else 1. */
+  const entry = (file: string, usable: boolean, command: string | null = "opentide"): WorkspaceEntry => ({
+    file,
+    command,
+    usable,
+    order: file.endsWith(".vscode/mcp.json") ? 0 : 1,
+  });
+
   it("leaves a workspace's own opentide server alone in auto, and provides anyway with always", () => {
-    assert.deepEqual(decideMcp(inputs({ workspaceDefines: true })), {
+    assert.deepEqual(decideMcp(inputs({ workspaceEntries: [entry("ws/.vscode/mcp.json", true)] })), {
       provide: false,
-      reason: ".vscode/mcp.json already defines opentide",
+      reason: "ws/.vscode/mcp.json already defines opentide",
     });
-    assert.ok(decideMcp(inputs({ workspaceDefines: true, mode: "always" })).provide);
+    const always = decideMcp(
+      inputs({ workspaceEntries: [entry("ws/.vscode/mcp.json", true)], mode: "always" }),
+    );
+    assert.ok(always.provide);
+    assert.equal(always.server.label, MCP_LABEL, "one opentide: VS Code keeps the file's");
+    assert.equal(always.note, undefined);
+  });
+
+  it("defers to the root .mcp.json setup mcp --claude-code writes when VS Code can start it", () => {
+    assert.deepEqual(decideMcp(inputs({ workspaceEntries: [entry("ws/.mcp.json", true)] })), {
+      provide: false,
+      reason: "ws/.mcp.json already defines opentide",
+    });
+  });
+
+  it("provides its server under a label VS Code does not dedupe when the file's opentide cannot start", () => {
+    for (const file of ["ws/.mcp.json", "ws/.vscode/mcp.json"])
+      for (const mode of ["auto", "always"] as const) {
+        const decision = decideMcp(inputs({ mode, workspaceEntries: [entry(file, false)] }));
+        assert.ok(decision.provide, `${file} ${mode}`);
+        assert.equal(decision.server.label, MCP_SEPARATE_LABEL);
+        assert.notEqual(MCP_SEPARATE_LABEL.toLowerCase(), MCP_LABEL, "VS Code compares labels without case");
+        assert.equal(
+          decision.note,
+          `${file}'s opentide server runs \`opentide\`, which is not found, and VS Code keeps one server named opentide`,
+        );
+      }
+    const plain = decideMcp(inputs());
+    assert.ok(plain.provide);
+    assert.equal(plain.server.label, MCP_LABEL, "no workspace entry: the shared label");
+  });
+
+  it("follows the entry VS Code keeps: .vscode/mcp.json before .mcp.json", () => {
+    const usableFirst = [entry("ws/.vscode/mcp.json", true), entry("ws/.mcp.json", false)];
+    assert.equal(decideMcp(inputs({ workspaceEntries: usableFirst })).provide, false);
+    const brokenFirst = [entry("ws/.vscode/mcp.json", false), entry("ws/.mcp.json", true)];
+    const decision = decideMcp(inputs({ workspaceEntries: brokenFirst }));
+    assert.ok(decision.provide, "VS Code keeps the broken one, so deferring would leave no server");
+    assert.equal(decision.server.label, MCP_SEPARATE_LABEL);
+    const reversed = decideMcp(inputs({ workspaceEntries: [entry("ws/.mcp.json", true), ...usableFirst] }));
+    assert.equal(reversed.provide, false, "the order VS Code gives each file counts, not the list's");
+  });
+
+  it("takes the separate label when VS Code may keep any of several equal-order entries that cannot start", () => {
+    // `.mcp.json` and `.cursor/mcp.json` (and every folder's `.mcp.json`) share order 1: VS Code keeps
+    // whichever registered first, which a file created during the session changes.
+    for (const entries of [
+      [entry("a/.mcp.json", true), entry("a/.cursor/mcp.json", false)],
+      [entry("a/.cursor/mcp.json", true), entry("a/.mcp.json", false)],
+      [entry("a/.mcp.json", true), entry("b/.mcp.json", false)],
+    ]) {
+      const decision = decideMcp(inputs({ workspaceEntries: entries }));
+      assert.ok(decision.provide, entries.map((e) => e.file).join(", "));
+      assert.equal(decision.server.label, MCP_SEPARATE_LABEL);
+      assert.match(decision.note ?? "", new RegExp(`^${entries[1]?.file}'s opentide server`));
+    }
+    const allUsable = [entry("a/.mcp.json", true), entry("b/.mcp.json", true)];
+    assert.deepEqual(decideMcp(inputs({ workspaceEntries: allUsable })), {
+      provide: false,
+      reason: "a/.mcp.json already defines opentide",
+    });
+    const shadowed = [
+      entry("a/.vscode/mcp.json", true),
+      entry("a/.mcp.json", false),
+      entry("b/.mcp.json", true),
+    ];
+    assert.equal(decideMcp(inputs({ workspaceEntries: shadowed })).provide, false, "order 0 wins outright");
+  });
+
+  it("counts a .code-workspace's and the user's mcp.servers, which also outrank the extension", () => {
+    const configured = (file: string, usable: boolean, order: number): WorkspaceEntry => ({
+      file,
+      command: "opentide",
+      usable,
+      order,
+    });
+    const user = configured("the user's mcp.json", false, USER_CONFIG_ORDER);
+    const workspace = configured("team.code-workspace", true, WORKSPACE_CONFIG_ORDER);
+    const onlyUser = decideMcp(inputs({ workspaceEntries: [user] }));
+    assert.ok(onlyUser.provide);
+    assert.equal(onlyUser.server.label, MCP_SEPARATE_LABEL, "the user's broken opentide would win");
+    assert.match(onlyUser.note ?? "", /^the user's mcp\.json's opentide server/);
+    assert.deepEqual(decideMcp(inputs({ workspaceEntries: [user, workspace] })), {
+      provide: false,
+      reason: "team.code-workspace already defines opentide",
+    });
+    const brokenWorkspace = decideMcp(
+      inputs({ workspaceEntries: [configured("team.code-workspace", false, WORKSPACE_CONFIG_ORDER)] }),
+    );
+    assert.ok(brokenWorkspace.provide);
+    assert.equal(brokenWorkspace.server.label, MCP_SEPARATE_LABEL);
+    assert.equal(
+      decideMcp(inputs({ workspaceEntries: [user, entry("ws/.mcp.json", true)] })).provide,
+      false,
+      "a folder file comes first",
+    );
+    assert.ok(
+      WORKSPACE_CONFIG_ORDER > 1 && USER_CONFIG_ORDER < 300,
+      "between the folder files and the extension",
+    );
+  });
+
+  it("reads the opentide server of a configuration's mcp.servers", () => {
+    assert.equal(
+      opentideServerCommand({ opentide: { command: " /venv/bin/opentide " } }),
+      "/venv/bin/opentide",
+    );
+    assert.equal(opentideServerCommand({ OpenTide: { url: "http://x" } }), null);
+    assert.equal(opentideServerCommand({ other: { command: "x" } }), undefined);
+    assert.equal(opentideServerCommand(undefined), undefined);
+    assert.equal(opentideServerCommand([]), undefined);
+  });
+
+  it("logs once why it provides the server under the other label", () => {
+    const log = new McpDecisionLog();
+    const broken = decideMcp(inputs({ workspaceEntries: [entry("ws/.mcp.json", false)] }));
+    assert.equal(
+      log.line(broken),
+      'MCP server provided as "opentide (VS Code)": ws/.mcp.json\'s opentide server runs `opentide`, which is not found, and VS Code keeps one server named opentide',
+    );
+    assert.equal(log.line(broken), undefined, "once");
+    const plain = decideMcp(inputs());
+    assert.ok(plain.provide);
+    assert.equal(log.line(plain), `MCP server provided: ${plain.server.command}`);
+  });
+
+  it("reads the files VS Code 1.145 reads: .vscode/mcp.json, .mcp.json, and .cursor/mcp.json when discovered", () => {
+    assert.deepEqual(
+      workspaceMcpFiles(undefined).map((file) => file.segments.join("/")),
+      [".vscode/mcp.json", ".mcp.json"],
+    );
+    assert.deepEqual(
+      workspaceMcpFiles({ "cursor-workspace": true }).map((file) => file.kind),
+      ["vscode", "root", "cursor"],
+    );
+    assert.equal(cursorWorkspaceDiscovered(true), true, "the legacy boolean applies to every source");
+    assert.equal(cursorWorkspaceDiscovered(false), false);
+    assert.equal(cursorWorkspaceDiscovered({ "cursor-global": true }), false);
+    assert.equal(cursorWorkspaceDiscovered({ "cursor-workspace": "yes" }), false);
+  });
+
+  it("reads the root .mcp.json as setup mcp --claude-code writes it, and its unwrapped form", () => {
+    const written = JSON.stringify({
+      mcpServers: {
+        opentide: {
+          command: "opentide",
+          args: ["mcp", "start"],
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: Claude Code expands it, not JavaScript
+          env: { OPENTIDE_REPO_ROOT: "${CLAUDE_PROJECT_DIR}" },
+        },
+      },
+    });
+    assert.equal(opentideEntryCommand(written, "root"), "opentide");
+    assert.equal(
+      opentideEntryCommand('{ "opentide": { "command": "/venv/bin/opentide" } }', "root"),
+      "/venv/bin/opentide",
+    );
+    assert.equal(opentideEntryCommand('{ "OpenTide": { "url": "http://x" } }', "root"), null);
+    assert.equal(
+      opentideEntryCommand('{ "mcpServers": { "other": {} }, "opentide": {} }', "root"),
+      undefined,
+    );
+    assert.equal(opentideEntryCommand('{ "servers": { "opentide": {} } }', "root"), undefined);
+    assert.equal(opentideEntryCommand('{ "mcpServers": [] }', "root"), undefined);
+    assert.equal(opentideEntryCommand('{ "opentide": "nope" }', "root"), undefined);
+    assert.ok(definesOpentide(written, "root"));
+    assert.equal(opentideEntryCommand('{ "mcpServers": { "opentide": { "command": "x" } } }', "cursor"), "x");
+    assert.equal(
+      opentideEntryCommand('{ "servers": { "opentide": { "command": "x" } } }', "cursor"),
+      undefined,
+    );
+  });
+
+  it("reads .cursor/mcp.json as strictly as VS Code, which ignores a file with comments or trailing commas", () => {
+    const lenient = '{ // mine\n "mcpServers": { "opentide": { "command": "x" }, } }';
+    assert.equal(opentideEntryCommand(lenient, "cursor"), undefined, "VS Code reads no server from it");
+    assert.equal(opentideEntryCommand(lenient, "root"), "x", ".mcp.json allows both");
   });
 
   it("reads .vscode/mcp.json as setup mcp writes it, comments included", () => {
@@ -139,6 +333,50 @@ describe("agents: MCP server", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: a VS Code variable, not a template
     assert.equal(entryUsable("${workspaceFolder}/.venv/bin/opentide", lookup([])), true);
     assert.equal(entryUsable(null, lookup([])), true);
+  });
+
+  it("expands only what VS Code expands in each file before checking the command", () => {
+    const lookup = (env: Record<string, string>, files: string[] = []) => ({
+      isAbsolute: (file: string) => file.startsWith("/"),
+      exists: (file: string) => files.includes(file),
+      which: () => undefined,
+      env: environmentLookup(env, "linux"),
+    });
+    const project = ["$", "{CLAUDE_PROJECT_DIR}/.venv/bin/opentide"].join("");
+    const folder = ["$", "{workspaceFolder}/.venv/bin/opentide"].join("");
+    // .vscode/mcp.json: VS Code's variable resolver handles both.
+    assert.equal(entryUsable(folder, lookup({}), "variables"), true);
+    // .mcp.json: only `${VAR}` from VS Code's environment; CLAUDE_PROJECT_DIR is Claude Code's, unset here.
+    assert.equal(entryUsable(project, lookup({}), "environment"), false);
+    assert.equal(entryUsable(folder, lookup({}), "environment"), false, "no workspaceFolder variable");
+    const venv = "/p/.venv/bin/opentide";
+    assert.equal(entryUsable(project, lookup({ CLAUDE_PROJECT_DIR: "/p" }, [venv]), "environment"), true);
+    assert.equal(entryUsable(project, lookup({ CLAUDE_PROJECT_DIR: "/p" }), "environment"), false);
+    // .cursor/mcp.json: nothing is expanded.
+    assert.equal(entryUsable(folder, lookup({}), "none"), false);
+    assert.equal(entryUsable(project, lookup({ CLAUDE_PROJECT_DIR: "/p" }, [venv]), "none"), false);
+    assert.equal(entryUsable(null, lookup({}), "none"), true, "a URL server");
+  });
+
+  it("expands VAR and VAR-with-a-default references as VS Code's root .mcp.json does", () => {
+    const ref = (body: string) => ["$", "{", body, "}"].join("");
+    const env = environmentLookup({ HOME: "/h", EMPTY: "" }, "linux");
+    assert.equal(expandEnvironment(`${ref("HOME")}/bin`, env), "/h/bin");
+    assert.equal(expandEnvironment(`${ref("NOPE")}/bin`, env), `${ref("NOPE")}/bin`, "unset: as written");
+    assert.equal(expandEnvironment(ref("NOPE:-/opt/x"), env), "/opt/x");
+    assert.equal(expandEnvironment(ref("EMPTY:-/opt/x"), env), "", "set but empty: empty, not the default");
+    assert.equal(
+      expandEnvironment(ref(`NOPE:-${ref("HOME")}`), env),
+      ref("HOME"),
+      "a default is not expanded",
+    );
+    assert.equal(expandEnvironment("$HOME/bin", env), "$HOME/bin", "bare $VAR stays literal");
+    assert.equal(expandEnvironment(ref("env:HOME"), env), ref("env:HOME"));
+    assert.equal(expandEnvironment(`${ref("HOME")}${ref("HOME")}`, env), "/h/h");
+    const windows = environmentLookup({ Path: "C:\\bin", CLAUDE_PROJECT_DIR: "C:\\p" }, "win32");
+    assert.equal(windows("PATH"), "C:\\bin", "without case on Windows");
+    assert.equal(windows("claude_project_dir"), "C:\\p");
+    assert.equal(environmentLookup({ Path: "x" }, "linux")("PATH"), undefined);
   });
 
   it("finds an entry's `opentide.exe` on a Windows PATH, so the server is not provided twice", () => {

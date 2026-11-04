@@ -6,6 +6,7 @@ import {
   RelationIndex,
   relationLabel,
 } from "../../../src/core/catalog/relations";
+import type { CatalogEdge } from "../../../src/core/catalog/types";
 import { sampleCatalog, UUID } from "../catalogFixture";
 
 describe("catalog relations", () => {
@@ -90,7 +91,7 @@ describe("catalog relations", () => {
     }
   });
 
-  it("indexes 5,000 objects in well under a frame per lookup", () => {
+  it("indexes 5,000 edges in well under a frame per lookup", () => {
     const edges = [];
     for (let i = 0; i < 5000; i += 1)
       edges.push({
@@ -110,5 +111,64 @@ describe("catalog relations", () => {
     assert.equal(big.of("o-1").incoming.length, 10);
     assert.ok(built < 500, `built in ${built} ms`);
     assert.ok(perLookup < 1, `${perLookup} ms per lookup`);
+  });
+
+  it("says a signal at either end of an edge is a signal, not an object", () => {
+    const child = index.of(UUID.childSignal).outgoing.find((r) => r.kind === "parent");
+    assert.deepEqual([child?.otherKind, relationLabel("parent", "out")], ["signal", "Child of →"]);
+    const parent = index.of(UUID.signal).incoming.find((r) => r.kind === "parent");
+    assert.equal(parent?.otherKind, "signal");
+    const implemented = index.of(UUID.comsvcs).outgoing.find((r) => r.kind === "implements");
+    assert.equal(implemented?.otherKind, "signal");
+    const implementer = index.of(UUID.signal).incoming.find((r) => r.kind === "implements");
+    assert.equal(implementer?.otherKind, "object");
+  });
+
+  it("words a chain by its relation, reversed on the threat it names", () => {
+    const chain = index.of(UUID.threat).outgoing.find((r) => r.kind === "chains");
+    assert.equal(relationLabel("chains", "out", undefined, chain?.relation), "Precedes →");
+    const back = index.of(UUID.lateral).incoming.find((r) => r.kind === "chains");
+    assert.equal(relationLabel("chains", "in", 1, back?.relation), "← Preceded by 1");
+    assert.equal(relationLabel("chains", "out", undefined, "sequence::succeeds"), "Succeeds →");
+    assert.equal(relationLabel("chains", "in", undefined, "support::enabling"), "← Enables");
+    assert.equal(relationLabel("chains", "out", undefined, "support::synergize"), "Synergizes with →");
+    assert.equal(relationLabel("chains", "out", undefined, "sequence::unknown"), "Chains to →");
+    assert.equal(relationLabel("chains", "in"), "← Chained from");
+    // The relation only words chains.
+    assert.equal(relationLabel("implements", "out", undefined, "sequence::preceeds"), "Implements →");
+  });
+
+  it("drops unknown kinds and owner-less signals, lists a reference once, and keeps self-references", () => {
+    const edge = (from: string, to: string, kind: string, missing = false): CatalogEdge => ({
+      from,
+      to,
+      kind,
+      field_path: "detection_model",
+      relation: null,
+      missing,
+    });
+    const small = new RelationIndex({
+      edges: [
+        edge("r", "o", "implements"),
+        edge("r", "o", "implements"),
+        edge("r", "x", "mystery"),
+        edge("r", "gone", "implements", true),
+        edge("r", "a-gone", "implements", true),
+        edge("t", "t", "chains"),
+      ],
+      signals: [{ uuid: "s", name: "Orphan signal", objective: null, parent: null }],
+    });
+    assert.deepEqual(
+      small.of("r").outgoing.map((r) => [r.other, r.missing]),
+      [
+        ["o", false],
+        ["a-gone", true],
+        ["gone", true],
+      ],
+    );
+    assert.equal(small.of("o").incoming.length, 1);
+    assert.deepEqual(small.of("x"), { outgoing: [], incoming: [] });
+    assert.deepEqual(small.of("s"), { outgoing: [], incoming: [] });
+    assert.deepEqual([small.of("t").outgoing.length, small.of("t").incoming.length], [1, 1]);
   });
 });
