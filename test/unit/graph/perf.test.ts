@@ -22,16 +22,24 @@ const catalogue: ViewOptions = {
   problemsOnly: false,
 };
 
-/** The slowest of `runs` calls, in ms. */
-function worst(runs: number, run: (index: number) => void): number {
-  let slowest = 0;
+/**
+ * The 95th percentile and the slowest of `runs` calls, in ms. The budget holds for the p95: one GC
+ * pause or preemption on a shared CI runner may make a single call slow, so the max only has a ceiling.
+ */
+function timings(runs: number, run: (index: number) => void): { p95: number; max: number } {
+  const times: number[] = [];
   for (let i = 0; i < runs; i += 1) {
     const started = performance.now();
     run(i);
-    slowest = Math.max(slowest, performance.now() - started);
+    times.push(performance.now() - started);
   }
-  return slowest;
+  times.sort((a, b) => a - b);
+  return { p95: times[Math.floor(times.length * 0.95)] ?? 0, max: times[times.length - 1] ?? 0 };
 }
+
+/** A frame (16 ms) for the p95, about three frames for the slowest call. */
+const FRAME = 16;
+const CEILING = 50;
 
 for (const size of [2000, 5000]) {
   describe(`graph at ${size.toLocaleString("en")} objects`, () => {
@@ -54,19 +62,21 @@ for (const size of [2000, 5000]) {
       let previous = emphasisOf(viewIndex, undefined);
       // Objectives and threats have the most edges: the worst case for a hover.
       const busiest = [...ids].sort((a, b) => viewIndex.neighbours(b).size - viewIndex.neighbours(a).size);
-      const slowest = worst(200, (i) => {
+      const hover = timings(200, (i) => {
         const next = emphasisOf(viewIndex, busiest[i % 20]);
         planEmphasis(previous, next);
         previous = next;
       });
-      assert.ok(slowest < 16, `the slowest hover took ${slowest.toFixed(2)} ms`);
+      assert.ok(hover.p95 < FRAME, `hover p95 ${hover.p95.toFixed(2)} ms`);
+      assert.ok(hover.max < CEILING, `the slowest hover took ${hover.max.toFixed(2)} ms`);
     });
 
     it("builds the selected node's details pane in well under a frame", () => {
-      const slowest = worst(200, (i) => {
+      const pane = timings(200, (i) => {
         details.details(ids[(i * 37) % ids.length] as string);
       });
-      assert.ok(slowest < 16, `the slowest details took ${slowest.toFixed(2)} ms`);
+      assert.ok(pane.p95 < FRAME, `details p95 ${pane.p95.toFixed(2)} ms`);
+      assert.ok(pane.max < CEILING, `the slowest details took ${pane.max.toFixed(2)} ms`);
     });
 
     it("indexes the model's relations once per catalogue in under 300 ms", () => {
