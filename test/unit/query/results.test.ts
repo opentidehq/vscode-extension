@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import {
   cellText,
   clampFocus,
+  filterColumnAfter,
   filterRows,
   formatRows,
   neutraliseFormula,
@@ -186,6 +187,18 @@ describe("query: the table's focus and view across tabs", () => {
     assert.deepEqual(clampFocus({ row: 4, column: 8 }, 10, 3), { row: 4, column: 2 });
     assert.deepEqual(clampFocus({ row: 40, column: 1 }, 10, 3), { row: 9, column: 1 });
     assert.deepEqual(clampFocus({ row: 3, column: 3 }, 0, 0), { row: 0, column: 0 });
+  });
+
+  it("keeps Filter in column across a re-run, a pending tab or a failed one", () => {
+    // Re-run: the table empties (no columns) before the rows come back.
+    const emptied = filterColumnAfter("User", []);
+    assert.deepEqual(emptied, { value: "", pending: "User" });
+    assert.deepEqual(filterColumnAfter(emptied.pending ?? "", ["Time", "User"]), {
+      value: "User",
+      pending: undefined,
+    });
+    assert.deepEqual(filterColumnAfter("User", ["Time"]), { value: "", pending: undefined }, "as the sort");
+    assert.deepEqual(filterColumnAfter("", []), { value: "", pending: undefined });
   });
 
   it("keeps the selected tab, filter and sort, and nothing it cannot read", () => {

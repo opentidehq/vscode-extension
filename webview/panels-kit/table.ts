@@ -4,6 +4,7 @@ import {
   type Column,
   cellText,
   clampFocus,
+  filterColumnAfter,
   filterRows,
   type Row,
   type SortKind,
@@ -119,8 +120,12 @@ export class VirtualTable {
       h("option", { text: "all columns", attrs: { value: "" } }),
       ...columns.map((c) => h("option", { text: c.name, attrs: { value: c.name } })),
     );
-    this.columnSelect.value = columns.some((c) => c.name === previous) ? previous : "";
-    if (this.columnSelect.value === previous) this.pendingColumn = undefined;
+    const { value, pending } = filterColumnAfter(
+      previous,
+      columns.map((c) => c.name),
+    );
+    this.columnSelect.value = value;
+    this.pendingColumn = pending;
     this.renderHeader();
     this.refresh();
   }
