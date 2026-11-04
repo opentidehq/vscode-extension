@@ -98,6 +98,14 @@ export function definesOpentide(text: string | undefined, kind: McpFileKind = "v
   return opentideEntryCommand(text, kind) !== undefined;
 }
 
+function parseStrict(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -113,13 +121,15 @@ function serverMaps(parsed: Record<string, unknown>, kind: McpFileKind): unknown
 /**
  * The `command` of an MCP file's `opentide` server: undefined when there is no such server, null when it
  * names no command (a URL server, say). An entry that is not an object is no server: VS Code drops it.
+ * `.cursor/mcp.json` is read with strict JSON, as VS Code reads it: a comment or a trailing comma there
+ * makes VS Code read no server, so there is none to defer to.
  */
 export function opentideEntryCommand(
   text: string | undefined,
   kind: McpFileKind = "vscode",
 ): string | null | undefined {
   if (text === undefined) return undefined;
-  const parsed = parseJsonc(text);
+  const parsed = kind === "cursor" ? parseStrict(text) : parseJsonc(text);
   if (!isObject(parsed)) return undefined;
   for (const servers of serverMaps(parsed, kind)) {
     if (!isObject(servers)) continue;

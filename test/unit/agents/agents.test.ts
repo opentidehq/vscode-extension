@@ -221,6 +221,12 @@ describe("agents: MCP server", () => {
     );
   });
 
+  it("reads .cursor/mcp.json as strictly as VS Code, which ignores a file with comments or trailing commas", () => {
+    const lenient = '{ // mine\n "mcpServers": { "opentide": { "command": "x" }, } }';
+    assert.equal(opentideEntryCommand(lenient, "cursor"), undefined, "VS Code reads no server from it");
+    assert.equal(opentideEntryCommand(lenient, "root"), "x", ".mcp.json allows both");
+  });
+
   it("reads .vscode/mcp.json as setup mcp writes it, comments included", () => {
     assert.ok(
       definesOpentide('{ "servers": { "opentide": { "command": "opentide", "args": ["mcp", "start"] } } }'),
