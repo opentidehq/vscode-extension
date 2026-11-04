@@ -28,6 +28,9 @@ pre-releases odd ones.
   `esql`, `eql`, `kuery`, `lucene` and `falco`, with grammars from the language-server highlights zip
   (ES|QL under `source.opentide.esql`), embedded query regions and language configurations.
 - Restricted Mode: only the bundled language server runs, with `PATH` limited to the runtime.
+- `opentide.envFile`: a `.env` file whose variables reach commands that contact a tenant. A line it
+  cannot read, a double quote never closed (that key is dropped, the lines after it still count) and a
+  missing file are reported in the opentide output.
 - Web mode (vscode.dev, github.dev and desktop virtual workspaces): languages, grammars and language
   configuration, a "Highlighting only" status item, and every command explaining that it needs
   opentide instead of failing.

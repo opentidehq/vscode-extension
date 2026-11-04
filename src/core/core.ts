@@ -8,9 +8,9 @@ import { spawnRun } from "./backend/spawn";
 import { Capabilities, type CommandsCache } from "./capabilities/capabilities";
 import { CatalogStore, INFO_CATALOG } from "./catalog/store";
 import { folderSymbols, type WorkspaceSymbol } from "./catalog/symbols";
-import type { FeatureContext, TrustService } from "./context";
+import type { FeatureContext, Logger, TrustService } from "./context";
 import { CredentialStore } from "./credentials";
-import { parseEnvFile } from "./envfile";
+import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
@@ -52,16 +52,21 @@ function commandsCache(storage: vscode.Uri): CommandsCache {
   };
 }
 
-/** `opentide.envFile` variables for a folder (trusted only). */
-function envFileVariables(folder: string): Record<string, string> {
+/** What was last said about each env file, so a problem is logged once, not on every command. */
+const envFileWarnings = new Map<string, string>();
+
+/** `opentide.envFile` variables for a folder (trusted only). Skipped lines and a missing file are logged. */
+function envFileVariables(folder: string, log: Logger): Record<string, string> {
   const setting = readRestricted<string>("opentide.envFile", vscode.Uri.file(folder));
   if (!setting?.trim()) return {};
   const file = path.isAbsolute(setting) ? setting : path.join(folder, setting);
-  try {
-    return parseEnvFile(fs.readFileSync(file, "utf8"));
-  } catch {
-    return {};
-  }
+  let said = "";
+  const variables = loadEnvFile(file, (message) => {
+    said = message;
+  });
+  if (said && envFileWarnings.get(file) !== said) log.warn(said);
+  envFileWarnings.set(file, said);
+  return variables;
 }
 
 export function createCore(context: vscode.ExtensionContext): Core {
@@ -105,7 +110,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     serveMode: () => (readSetting<string>("opentide.backend.serve") === "never" ? "never" : "auto"),
     baseEnv: () => process.env,
     proxy: () => httpProxy(),
-    credentials: async (folder) => ({ ...envFileVariables(folder), ...(await credentials.env(folder)) }),
+    credentials: async (folder) => ({ ...envFileVariables(folder, log), ...(await credentials.env(folder)) }),
     platform: process.platform,
     log: (level, message) => log[level](message),
   });
