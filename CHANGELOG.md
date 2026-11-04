@@ -165,7 +165,8 @@ pre-releases odd ones.
   as `OPENTIDE_PROXY`, as background runs do.
 - Terminal:
   - the bundled `opentide` goes on new terminals' PATH (`opentide.terminal.addToPath`), also when
-    the Windows user folder's name is not ASCII;
+    the Windows user folder's name is not ASCII (and Ctrl+C then leaves the console's code page as it
+    was);
   - an "opentide" terminal profile;
   - links: UUIDs open the object, `error[code]` opens Explain.
 - The opentide MCP server for VS Code's agents, working on install with the bundled runtime

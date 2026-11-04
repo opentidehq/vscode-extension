@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { classify } from "../../../src/core/capabilities/classification";
@@ -226,14 +226,46 @@ describe("runner launcher", () => {
         .some((line) => line.includes("('chcp')") && line.includes("OPENTIDE_LAUNCHER_CP")),
       "the console's code page is saved first",
     );
+    assert.equal(
+      lines[commandAt],
+      'set "OPENTIDE_LAUNCHER_RUN="C:\\Users\\Jörg\\.vscode\\ext\\runtime\\python.exe" "-I" "-m" "opentide""',
+      "the command line is read in UTF-8 into a variable",
+    );
+    // The code page is back before opentide runs: Ctrl+C at "Terminate batch job" cannot skip it.
     assert.deepEqual(lines.slice(commandAt + 1), [
-      'set "OPENTIDE_LAUNCHER_STATUS=%ERRORLEVEL%"',
       "if defined OPENTIDE_LAUNCHER_CP chcp %OPENTIDE_LAUNCHER_CP% >nul",
-      "exit /b %OPENTIDE_LAUNCHER_STATUS%",
+      'set "OPENTIDE_LAUNCHER_CP="',
+      'set "OPENTIDE_LAUNCHER_RUN=" & %OPENTIDE_LAUNCHER_RUN% %*',
       "",
     ]);
     const [ascii] = launcherFiles({ command: "C:\\Users\\me\\python.exe", args: [], env: {} }, "win32");
     assert.ok(!ascii?.content.includes("chcp"), "an ASCII launcher leaves the code page alone");
+  });
+
+  it("runs a non-ASCII launcher in cmd.exe with its arguments, variables and exit code", function () {
+    if (process.platform !== "win32") this.skip();
+    const dir = mkdtempSync(path.join(os.tmpdir(), "otl-"));
+    try {
+      const folder = path.join(dir, "Jörg");
+      mkdirSync(folder);
+      const probe = path.join(folder, "probe.js");
+      writeFileSync(
+        probe,
+        "process.stdout.write(JSON.stringify([process.env.A, process.argv.slice(2), Object.keys(process.env).filter((k) => k.startsWith('OPENTIDE_LAUNCHER'))])); process.exit(7);",
+      );
+      const [file] = launcherFiles({ command: process.execPath, args: [probe], env: { A: "Zoë" } }, "win32");
+      const launcher = path.join(dir, "opentide.cmd");
+      writeFileSync(launcher, file?.content ?? "");
+      const run = spawnSync("cmd.exe", ["/d", "/c", launcher, "x y"], { encoding: "utf8" });
+      assert.equal(run.status, 7, run.stderr);
+      assert.deepEqual(
+        JSON.parse(run.stdout),
+        ["Zoë", ["x y"], []],
+        "the launcher's own variables are cleared",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("leaves PATH and names that are not variables out of the script", () => {
