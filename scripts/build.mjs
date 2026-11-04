@@ -4,6 +4,8 @@
 //   src/web/extension.ts    -> dist/web/extension.js (browser, CommonJS, `vscode` external; package.json `browser`)
 //   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE)
 //   webview/shared/base.css -> dist/webview/base.css
+//   webview/panels-kit/kit.css -> dist/webview/kit.css
+//   @vscode/codicons' codicon.css and codicon.ttf -> dist/webview/codicons/ (no CDN: the page's CSP)
 //   the npm packages bundled in any of them -> dist/THIRD-PARTY-NOTICES.txt
 // Flags: --production (minify, no source maps), --watch.
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -12,7 +14,9 @@ import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import {
   bundledPackages,
+  COPIED_PACKAGES,
   commonOptions,
+  copiedAssets,
   mergeMetafiles,
   thirdPartyNotices,
   webExtensionOptions,
@@ -52,7 +56,10 @@ const webview = {
 
 if (!watch) rmSync(join(root, "dist"), { recursive: true, force: true });
 mkdirSync(join(root, "dist", "webview"), { recursive: true });
-copyFileSync(join(root, "webview", "shared", "base.css"), join(root, "dist", "webview", "base.css"));
+for (const [from, to] of copiedAssets(root)) {
+  mkdirSync(dirname(to), { recursive: true });
+  copyFileSync(from, to);
+}
 
 const configs = Object.keys(webviews).length > 0 ? [extension, web, webview] : [extension, web];
 if (watch) {
@@ -60,6 +67,7 @@ if (watch) {
 } else {
   const built = await Promise.all(configs.map((config) => esbuild.build(config)));
   const metafile = mergeMetafiles(built.map((result) => result.metafile));
-  const notices = thirdPartyNotices(bundledPackages(metafile, root), (file) => readFileSync(file, "utf8"));
+  const packages = bundledPackages(metafile, root, COPIED_PACKAGES);
+  const notices = thirdPartyNotices(packages, (file) => readFileSync(file, "utf8"));
   writeFileSync(join(root, "dist", "THIRD-PARTY-NOTICES.txt"), notices);
 }
