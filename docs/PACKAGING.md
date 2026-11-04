@@ -75,8 +75,9 @@ then the next.
 The layout the core runs (`bundledLayout` in `src/core/runtime/resolve.ts`): `runtime/bin/python3` on
 Linux and macOS, `runtime/python.exe` on Windows, as `python -I -X utf8 -X
 pycache_prefix=<globalStorage>/pycache -m opentide`. On first use of the bundled runtime the extension
-compiles its bytecode into that prefix in the background, once per `BUILD-INFO.json` `buildId`
-(`src/core/runtime/precompile.ts`).
+compiles its bytecode into that prefix in the background, once per `BUILD-INFO.json` `buildId` and
+runtime folder (with symbolic links resolved, as Python imports it), so an update that keeps the build
+in a new extension folder compiles again (`src/core/runtime/precompile.ts`).
 
 ### `npm run runtime:lock [-- --target <t>] [-- --upgrade] [-- --check]`
 

@@ -26,6 +26,8 @@ export interface PrecompileDeps {
   writeFile(file: string, text: string): Promise<void>;
   readdir(dir: string): Promise<string[]>;
   exists(file: string): boolean;
+  /** The path with symbolic links resolved, or the path itself when it cannot be resolved. */
+  realpath(file: string): Promise<string>;
   remove(dir: string): Promise<void>;
   spawn(command: string, args: readonly string[], runtime: Runtime): PrecompileProcess;
   lowerPriority(pid: number): void;
@@ -38,9 +40,21 @@ export function pycachePrefix(globalStoragePath: string): string {
   return path.join(globalStoragePath, "pycache");
 }
 
-/** Which builds have been compiled, and from where. */
+/**
+ * Which builds have been compiled, and from where: one entry per build and runtime folder (an update
+ * with the same build moves the runtime to a new folder, whose bytecode is a new tree). Older stamp
+ * files keyed an entry by its build id alone, without `buildId`.
+ */
 export interface PrecompileStamps {
-  readonly builds: Record<string, { readonly root: string; readonly compiledAt: string }>;
+  readonly builds: Record<
+    string,
+    { readonly buildId?: string; readonly root: string; readonly compiledAt: string }
+  >;
+}
+
+/** The key of a build's entry in the stamps. */
+export function stampKey(buildId: string, root: string): string {
+  return `${buildId}@${root}`;
 }
 
 export function stampFile(prefix: string): string {
@@ -162,14 +176,19 @@ export class Precompiler {
   ): Promise<PrecompileOutcome> {
     const { deps } = this;
     const p = deps.platform === "win32" ? path.win32 : path.posix;
-    const root = this.root;
+    // The resolved folder: Python imports from the real path of a symlinked extension folder, so
+    // bytecode compiled under the link's path would never be read, and its cleanup would miss.
+    const root = await deps.realpath(this.root);
     const prefix = pycachePrefix(deps.globalStoragePath);
     const buildId =
       parseBuildId(await deps.readFile(p.join(root, "BUILD-INFO.json"))) ??
       `opentide-${runtime.version}-${root.replace(/[^A-Za-z0-9]+/g, "_")}`;
     state.buildId = buildId;
     const stamps = parseStamps(await deps.readFile(stampFile(prefix)));
-    if (stamps.builds[buildId]) return "already-compiled";
+    const compiled = Object.entries(stamps.builds).some(
+      ([key, build]) => (build.buildId ?? key) === buildId && build.root === root,
+    );
+    if (compiled) return "already-compiled";
 
     const dir = stdlibDir(
       root,
@@ -204,16 +223,17 @@ export class Precompiler {
       deps.log("warn", `bytecode: compileall exited with ${code}`);
       return "failed";
     }
-    const builds: Record<string, { root: string; compiledAt: string }> = {
-      [buildId]: { root, compiledAt: new Date(deps.now()).toISOString() },
+    const builds: PrecompileStamps["builds"] = {
+      [stampKey(buildId, root)]: { buildId, root, compiledAt: new Date(deps.now()).toISOString() },
     };
-    // Drop the bytecode of builds whose runtime is gone (an older extension version).
-    for (const [id, build] of Object.entries(stamps.builds)) {
-      if (id === buildId) continue;
-      if (build.root !== root && !deps.exists(build.root)) {
+    // Drop the bytecode of builds whose runtime folder is gone (an older extension version, with this
+    // build id or another). An entry for this folder is superseded: its tree is the one just compiled.
+    for (const [key, build] of Object.entries(stamps.builds)) {
+      if (build.root === root) continue;
+      if (!deps.exists(build.root)) {
         await deps.remove(pycacheTree(prefix, build.root, deps.platform)).catch(() => undefined);
       } else {
-        builds[id] = build;
+        builds[key] = build;
       }
     }
     await deps.writeFile(stampFile(prefix), `${JSON.stringify({ builds }, null, 2)}\n`);
@@ -239,6 +259,7 @@ export function nodePrecompileDeps(
     },
     readdir: (dir) => fs.promises.readdir(dir).catch(() => []),
     exists: (file) => fs.existsSync(file),
+    realpath: (file) => fs.promises.realpath(file).catch(() => file),
     remove: (dir) => fs.promises.rm(dir, { recursive: true, force: true }),
     spawn: (command, args, runtime) => {
       let child: cp.ChildProcess | undefined;
