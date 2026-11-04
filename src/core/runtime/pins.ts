@@ -24,9 +24,28 @@ export function pinFromRequirement(requirement: string): string | undefined {
   return match[2];
 }
 
+/**
+ * The pin in a requirements file. A `\` at a line's end continues it on the next, and options after the
+ * requirement (`--hash=sha256:…`, as `pip-compile --generate-hashes` and `uv pip compile` write) are
+ * not part of it.
+ */
 export function pinFromRequirements(text: string): string | undefined {
+  const logical: string[] = [];
+  let pending = "";
   for (const raw of text.split(/\r?\n/)) {
-    const line = raw.replace(/\s+#.*$/, "").trim();
+    if (/(^|[^\\])\\\s*$/.test(raw) && !/^\s*#/.test(raw)) {
+      pending += `${raw.replace(/\\\s*$/, "")} `;
+      continue;
+    }
+    logical.push(pending + raw);
+    pending = "";
+  }
+  if (pending) logical.push(pending);
+  for (const raw of logical) {
+    const line = raw
+      .replace(/\s+#.*$/, "")
+      .replace(/\s+--[A-Za-z].*$/, "")
+      .trim();
     if (!line || line.startsWith("#") || line.startsWith("-")) continue;
     const pin = pinFromRequirement(line);
     if (pin) return pin;
