@@ -1,5 +1,6 @@
 // Creates and wires the core services, registers the core commands, and builds the FeatureContext.
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { ActivityLog } from "./activity";
@@ -8,13 +9,15 @@ import { spawnRun } from "./backend/spawn";
 import { Capabilities, type CommandsCache } from "./capabilities/capabilities";
 import { CatalogStore, INFO_CATALOG } from "./catalog/store";
 import { folderSymbols, type WorkspaceSymbol } from "./catalog/symbols";
-import type { FeatureContext, TrustService } from "./context";
+import type { FeatureContext, Logger, TrustService } from "./context";
 import { CredentialStore } from "./credentials";
-import { parseEnvFile } from "./envfile";
+import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
+import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
+import { uvExecutable } from "./runtime/resolve";
 import { cliCommand } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
 import { LanguageClientManager } from "./services/languageClient";
@@ -53,16 +56,21 @@ function commandsCache(storage: vscode.Uri): CommandsCache {
   };
 }
 
-/** `opentide.envFile` variables for a folder (trusted only). */
-function envFileVariables(folder: string): Record<string, string> {
+/** What was last said about each env file, so a problem is logged once, not on every command. */
+const envFileWarnings = new Map<string, string>();
+
+/** `opentide.envFile` variables for a folder (trusted only). Skipped lines and a missing file are logged. */
+function envFileVariables(folder: string, log: Logger): Record<string, string> {
   const setting = readRestricted<string>("opentide.envFile", vscode.Uri.file(folder));
   if (!setting?.trim()) return {};
   const file = path.isAbsolute(setting) ? setting : path.join(folder, setting);
-  try {
-    return parseEnvFile(fs.readFileSync(file, "utf8"));
-  } catch {
-    return {};
-  }
+  let said = "";
+  const variables = loadEnvFile(file, (message) => {
+    said = message;
+  });
+  if (said && envFileWarnings.get(file) !== said) log.warn(said);
+  envFileWarnings.set(file, said);
+  return variables;
 }
 
 export function createCore(context: vscode.ExtensionContext): Core {
@@ -106,7 +114,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     serveMode: () => (readSetting<string>("opentide.backend.serve") === "never" ? "never" : "auto"),
     baseEnv: () => process.env,
     proxy: () => httpProxy(),
-    credentials: async (folder) => ({ ...envFileVariables(folder), ...(await credentials.env(folder)) }),
+    credentials: async (folder) => ({ ...envFileVariables(folder, log), ...(await credentials.env(folder)) }),
     platform: process.platform,
     log: (level, message) => log[level](message),
   });
@@ -336,14 +344,12 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
     vscode.commands.registerCommand("opentide.switchRuntime", () => switchRuntime(ctx)),
     vscode.commands.registerCommand("opentide.usePinnedVersion", async () => {
       if (!ctx.trust.isTrusted) return;
-      await vscode.workspace
-        .getConfiguration("opentide")
-        .update("uv.usePin", true, vscode.ConfigurationTarget.Workspace);
-      await runtime.ready();
-      const uv = runtime.attempts.find((attempt) => attempt.source === "uv");
-      if (runtime.current?.source !== "uv" && uv) {
-        void vscode.window.showWarningMessage(`Could not use the pinned version with uv: ${uv.detail}`);
-      }
+      const warning = await usePinnedVersion(runtime, () =>
+        vscode.workspace
+          .getConfiguration("opentide")
+          .update("uv.usePin", true, vscode.ConfigurationTarget.Workspace),
+      );
+      if (warning) void vscode.window.showWarningMessage(warning);
     }),
     vscode.commands.registerCommand("opentide.createPinnedVenv", () => createPinnedVenv(ctx, runtime)),
   );
@@ -417,8 +423,12 @@ async function createPinnedVenv(ctx: FeatureContext, runtime: RuntimeManager): P
   const folder = ctx.folders.all[0];
   if (!ctx.trust.isTrusted || !pin || !folder) return;
   if (!/^[A-Za-z0-9.+!_-]+$/.test(pin.version)) return;
-  const uv =
-    readRestricted<string>("opentide.uv.path")?.trim() || which("uv", process.env.PATH, process.platform);
+  const uv = uvExecutable(
+    readRestricted<string>("opentide.uv.path", folder.folder.uri),
+    folder.path,
+    os.homedir(),
+    (name) => which(name, process.env.PATH, process.platform),
+  );
   if (!uv) {
     // No uv: the Python extension's create-environment command, when it is installed.
     if (vscode.extensions.getExtension("ms-python.python")) {

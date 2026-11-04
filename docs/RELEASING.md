@@ -77,6 +77,13 @@ exchanges the job's OIDC token for a Marketplace token.
 Renaming `publish.yml` or the `production` environment breaks both stores' trusted publishing: change
 the registrations first.
 
+The publish jobs run `vsce` and `ovsx` from [`tools/publish/package-lock.json`](../tools/publish/package-lock.json),
+installed with `npm ci --ignore-scripts`, never through `npx`: those jobs hold `id-token: write` (and
+the Open VSX job the `OVSX_PAT` secret, in its publish step only), so no unlocked package or install
+script runs there. To bump them, change `tools/publish/package.json` and run `npm install
+--package-lock-only --ignore-scripts` in that folder (Dependabot does both); check that `vsce publish
+--help` still lists `--oidc` and `ovsx publish --help` `--trusted-publishing`.
+
 ### 5. First-publish checklist
 
 - [ ] Environment `production` exists, limited to `main` (optionally with reviewers).

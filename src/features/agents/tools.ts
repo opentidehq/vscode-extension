@@ -1,5 +1,6 @@
 // The language-model tools (SPEC §12), for live editor state only: a file's diagnostics, and the active
 // object with its graph neighbourhood. Catalogue, validation and deployment stay on MCP. vscode-free.
+import { isLoaded, loadedObjects } from "../../core/catalog/rows";
 import type { CatalogDocument, CatalogObject } from "../../core/catalog/types";
 
 export const DIAGNOSTICS_TOOL = "opentide_open_file_diagnostics";
@@ -85,7 +86,17 @@ export type ActiveObjectPayload =
       readonly file: string;
       readonly object: Pick<
         CatalogObject,
-        "uuid" | "type" | "schema" | "name" | "path" | "line" | "tlp" | "platforms" | "techniques" | "tactics"
+        | "uuid"
+        | "type"
+        | "schema"
+        | "name"
+        | "path"
+        | "line"
+        | "tlp"
+        | "platforms"
+        | "techniques"
+        | "tactics"
+        | "load_error"
       >;
       readonly neighbours: readonly Neighbour[];
     }
@@ -105,13 +116,15 @@ export function activeObjectPayload(
 ): ActiveObjectPayload {
   if (!file) return { file: null, object: null, reason: "No file is open in the editor." };
   if (!catalog) return { file, object: null, reason: unavailable ?? "The catalogue is not loaded yet." };
-  const object = catalog.objects.find((o) => samePath(o.file_path, file, caseless));
+  const object = catalog.objects.find((o) => o.file_path !== null && samePath(o.file_path, file, caseless));
   if (!object) return { file, object: null, reason: "The active file is not an object in the catalogue." };
+  // Only loaded objects name edge ends: a file that did not load has no edges, and the UUID it carries
+  // may be a loaded object's (a copy that no longer parses), whose edges are not its own.
   const byUuid = new Map<string, { name: string; type: string }>();
-  for (const o of catalog.objects) byUuid.set(o.uuid, { name: o.name, type: o.type });
+  for (const o of loadedObjects(catalog.objects)) byUuid.set(o.uuid, { name: o.name, type: o.type });
   for (const s of catalog.signals ?? []) byUuid.set(s.uuid, { name: s.name, type: "signal" });
   const neighbours: Neighbour[] = [];
-  for (const edge of catalog.edges) {
+  for (const edge of isLoaded(object) ? catalog.edges : []) {
     const direction = edge.from === object.uuid ? "out" : edge.to === object.uuid ? "in" : undefined;
     if (!direction) continue;
     const id = direction === "out" ? edge.to : edge.from;
@@ -143,6 +156,7 @@ export function activeObjectPayload(
       platforms: object.platforms,
       techniques: object.techniques,
       tactics: object.tactics,
+      load_error: object.load_error ?? null,
     },
     neighbours,
   };

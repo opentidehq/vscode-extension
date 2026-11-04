@@ -1,6 +1,7 @@
 // The "New object" flow's logic (SPEC §7): what it asks, the `opentide new` argv it builds, the picker
 // items it shows and what each failure offers. vscode-free.
 import * as path from "node:path";
+import { loadedObjects } from "../../core/catalog/rows";
 import type { CatalogObject } from "../../core/catalog/types";
 import { folderSpelling } from "../../core/util/paths";
 
@@ -173,8 +174,8 @@ export interface ObjectChoice {
 
 /** The objects of a kind from the catalogue, by name. */
 export function choicesFromCatalog(objects: readonly CatalogObject[], kind: ObjectKind): ObjectChoice[] {
-  return objects
-    .filter((object) => object.type === kind && object.uuid && !object.load_error)
+  return loadedObjects(objects)
+    .filter((object) => object.type === kind)
     .map((object) => ({
       uuid: object.uuid,
       name: object.name,

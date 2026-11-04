@@ -16,7 +16,8 @@
 #   release      the v<version> tag and the GitHub Release with the notes and the assets, only now that
 #                every package built and passed its smoke test
 #   publish-*    the Marketplace (vsce --oidc) and Open VSX (ovsx, trusted publishing or OVSX_PAT), in
-#                the `production` environment, independent of each other
+#                the `production` environment, independent of each other; vsce and ovsx come from
+#                tools/publish/package-lock.json (npm ci --ignore-scripts), never npx
 #
 # Trusted publishing: the Marketplace policy and the Open VSX trusted publisher name this file,
 # .github/workflows/publish.yml, and the environment `production`. Renaming either breaks publishing.
@@ -41,9 +42,6 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
-  # vsce 4.1.0 is the first with --oidc; ovsx 1.3.0 has --trusted-publishing.
-  VSCE_VERSION: "4.1.0"
-  OVSX_VERSION: "1.3.0"
 
 jobs:
   prepare:
@@ -354,6 +352,14 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+      # The store CLIs come from tools/publish's lockfile, installed without install scripts: these
+      # jobs hold id-token: write (and the Open VSX token), so nothing unlocked runs in them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/publish
+      - name: Install the locked store CLIs
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/publish
       - name: Download the Release's packages
         env:
           GH_TOKEN: ${{ github.token }}
@@ -369,7 +375,7 @@ jobs:
           set -euo pipefail
           flags=(--oidc --skip-duplicate)
           if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
-          npx --yes "@vscode/vsce@${VSCE_VERSION}" publish "${flags[@]}" --packagePath release/*.vsix
+          tools/publish/node_modules/.bin/vsce publish "${flags[@]}" --packagePath release/*.vsix
 
   publish-openvsx:
     name: Publish to Open VSX
@@ -385,13 +391,18 @@ jobs:
       id-token: write
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
-      # Only for the first publish of the extension, which trusted publishing cannot do; remove the
-      # secret once the trusted publisher is registered (docs/RELEASING.md).
-      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+      # The store CLIs come from tools/publish's lockfile, installed without install scripts: these
+      # jobs hold id-token: write (and the Open VSX token), so nothing unlocked runs in them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/publish
+      - name: Install the locked store CLIs
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/publish
       - name: Download the Release's packages
         env:
           GH_TOKEN: ${{ github.token }}
@@ -401,12 +412,16 @@ jobs:
           (cd release && sha256sum --check --strict SHA256SUMS)
       # The pre-release flag is in each package (`vsce package --pre-release`); ovsx reads it from there.
       - name: ovsx publish
+        env:
+          # Only for the first publish of the extension, which trusted publishing cannot do; remove the
+          # secret once the trusted publisher is registered (docs/RELEASING.md). Only this step sees it.
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           set -euo pipefail
           if [[ -n "${OVSX_PAT}" ]]; then
             echo "::warning::Publishing to Open VSX with the OVSX_PAT secret. Once the trusted publisher is registered, delete the secret (docs/RELEASING.md)."
             # ovsx reads OVSX_PAT from the environment: the token never appears on a command line.
-            npx --yes "ovsx@${OVSX_VERSION}" publish --skip-duplicate --packagePath release/*.vsix
+            tools/publish/node_modules/.bin/ovsx publish --skip-duplicate --packagePath release/*.vsix
           else
-            npx --yes "ovsx@${OVSX_VERSION}" publish --trusted-publishing --skip-duplicate --packagePath release/*.vsix
+            tools/publish/node_modules/.bin/ovsx publish --trusted-publishing --skip-duplicate --packagePath release/*.vsix
           fi

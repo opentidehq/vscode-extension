@@ -47,7 +47,7 @@ The envelope's keys, plus:
       "techniques": { "own": ["T1003.001"], "inherited": ["T1003"] },
       "tactics": ["credential-access"],
       "actors": ["APT29"],
-      "load_error": null                        // or { "code": "yaml_parse", "message": "…", "line": 12 }
+      "load_error": null                        // or { "code": "yaml_parse", "message": "…", "line": 12 | null }
     }
   ],
   "edges": [
@@ -71,6 +71,13 @@ The envelope's keys, plus:
 }
 ```
 
+- **Nullable fields**, as opentide's `output_schema` has them: an object's `uuid`, `type`, `schema`, `path` and
+  `file_path`; `load_error.line`; a platform's `status` and `strategy`; a signal's `objective`; an ATT&CK
+  tactic's `id`. Every consumer copes with `null` in each.
+- **Files that did not load** (`load_error` set) carry what could be read of them: `uuid` is `null` when
+  there is none, and may equal a loaded object's (a broken copy of a file, or `duplicate_id`). They have no
+  edges. The extension keys them `file:<path>`, never by UUID, and keeps them out of every by-UUID map, so a
+  broken copy never replaces the object it was copied from (`src/core/catalog/rows.ts`).
 - **Signals** are objects that live inside objectives. They appear in `signals`, not in `objects`, and are edge endpoints.
 - **The `attack` skeleton** is the Enterprise matrix from the bundled `att&ck` vocabulary.
 

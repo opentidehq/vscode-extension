@@ -30,7 +30,11 @@ describe("graph model", () => {
     assert.equal(bad?.kind, "rule");
     assert.equal(bad?.label, "objects/rules/bad.yaml");
     assert.match(bad?.loadError ?? "", /mapping values/);
-    assert.equal(objectNodeId({ uuid: "", path: "x.yaml" }), "file:x.yaml");
+    const failed = { code: "yaml_parse", message: "bad", line: null };
+    assert.equal(
+      objectNodeId(object({ uuid: null, type: null, name: "", path: "x.yaml", load_error: failed })),
+      "file:x.yaml",
+    );
   });
 
   it("names technique nodes from the ATT&CK skeleton and merges own and inherited techniques", () => {

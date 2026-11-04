@@ -58,8 +58,17 @@ then the next.
    python-build-standalone, archive and lock SHA-256), `runtime/sbom.cdx.json` (CycloneDX 1.5: the
    interpreter and every distribution with its licence, purl, and the SHA-256 and URL of the wheel that
    was installed, found on PyPI by its tags and the lock's hashes) and `runtime/THIRD-PARTY-NOTICES.txt`
-   (CPython's licence, then each distribution's licence and every licence file it ships). opentide and
-   its engine are EUPL-1.2, CPython PSF-2.0, each with its own licence files; the extension is MIT.
+   (CPython's licence, the native libraries linked into it, then each distribution's licence and every
+   licence file it ships). opentide and its engine are EUPL-1.2, CPython PSF-2.0, each with its own
+   licence files; the extension is MIT.
+
+   The native libraries (OpenSSL, zlib, libffi, expat, bzip2, liblzma, sqlite, ncurses, …) come from
+   `runtime-licenses/<t>.json`: the build refuses to run without it, or with one for another CPython or
+   python-build-standalone. `install_only_stripped` carries neither their list nor their licences, so
+   `npm run runtime:licenses [-- --target <t>]` (`scripts/runtime-licenses.mjs`) reads them from the same
+   release's `full` archive (`python/PYTHON.json`, `python/licenses/`), streamed and SHA-256-checked
+   against `SHA256SUMS`, and commits only what it needs. They are a section each in the notices and
+   components nested under `cpython` in the SBOM.
 
 | Target | python-build-standalone | uv `--python-platform` |
 |--------|-------------------------|------------------------|
@@ -73,10 +82,11 @@ then the next.
 | darwin-arm64 | aarch64-apple-darwin | aarch64-apple-darwin, likewise |
 
 The layout the core runs (`bundledLayout` in `src/core/runtime/resolve.ts`): `runtime/bin/python3` on
-Linux and macOS, `runtime/python.exe` on Windows, as `python -I -X
+Linux and macOS, `runtime/python.exe` on Windows, as `python -I -X utf8 -X
 pycache_prefix=<globalStorage>/pycache -m opentide`. On first use of the bundled runtime the extension
-compiles its bytecode into that prefix in the background, once per `BUILD-INFO.json` `buildId`
-(`src/core/runtime/precompile.ts`).
+compiles its bytecode into that prefix in the background, once per `BUILD-INFO.json` `buildId` and
+runtime folder (with symbolic links resolved, as Python imports it), so an update that keeps the build
+in a new extension folder compiles again (`src/core/runtime/precompile.ts`).
 
 ### `npm run runtime:lock [-- --target <t>] [-- --upgrade] [-- --check]`
 
@@ -183,5 +193,6 @@ add it to `runtimeTargets`, drop it from `universalTargets`, and commit the new 
 1. Set `python.cpython` and/or `python.pythonBuildStandalone`.
 2. Set every `runtimeArchives.<t>` to `{ "sha256": null }`: a recorded hash of another archive fails the
    build on purpose.
-3. `npm run runtime:lock`, then `npm run runtime:build -- --target <t>` for each target (it records the
-   new hashes from the release's `SHA256SUMS`), and commit `pins.json` and the locks.
+3. `npm run runtime:lock` and `npm run runtime:licenses`, then `npm run runtime:build -- --target <t>`
+   for each target (it records the new hashes from the release's `SHA256SUMS`), and commit `pins.json`,
+   the locks and `runtime-licenses/`.

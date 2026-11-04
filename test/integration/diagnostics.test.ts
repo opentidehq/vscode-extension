@@ -23,18 +23,27 @@ describe("diagnostics (#13)", () => {
   it("shows one squiggle per finding: validate drops what the server reports", async function () {
     const api = await activated();
     if (!api.ctx.runtime.current || !api.ctx.backend.availability().available) this.skip();
-    const uri = fixture("objects", "rules", "suspicious-lsass-access.yaml");
-    await vscode.window.showTextDocument(uri);
+    // `tlp: ambr` in a paths.toml rule folder: validate and the language server both report vocab_unknown.
+    const uri = fixture("detections", "rules", "misspelled-tlp.yaml");
+    const line = 4;
+    const at = (d: vscode.Diagnostic) => codeOf(d) === "vocab_unknown" && d.range.start.line === line;
+    // Closed, only validate reports the file: its finding shows.
     await vscode.commands.executeCommand("opentide.diagnostics.validateWorkspace");
-    const all = await waitFor(() => {
-      const diagnostics = vscode.languages.getDiagnostics(uri);
-      return diagnostics.some((d) => d.source === "opentide") ? diagnostics : undefined;
-    });
-    const server = new Set(
-      all.filter((d) => d.source === "opentide").map((d) => `${codeOf(d)}:${d.range.start.line}`),
+    await waitFor(
+      () =>
+        vscode.languages.getDiagnostics(uri).some((d) => d.source === "opentide validate" && at(d)) ||
+        undefined,
     );
-    for (const d of all.filter((x) => x.source === "opentide validate"))
-      assert.ok(!server.has(`${codeOf(d)}:${d.range.start.line}`), `${codeOf(d)} shows twice`);
+    // Open, the language server reports the same code on the same line: validate's goes, one squiggle stays.
+    await vscode.window.showTextDocument(uri);
+    const all = await waitFor(() => {
+      const diagnostics = vscode.languages.getDiagnostics(uri).filter(at);
+      return diagnostics.some((d) => d.source === "opentide") &&
+        !diagnostics.some((d) => d.source === "opentide validate")
+        ? diagnostics
+        : undefined;
+    });
+    assert.equal(all.length, 1, all.map((d) => `${d.source} ${codeOf(d)}:${d.range.start.line}`).join(", "));
   });
 
   it("explains a code in a Markdown preview, offline", async function () {

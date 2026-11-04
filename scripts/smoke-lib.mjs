@@ -12,7 +12,7 @@ export function bundledPython(extensionDir, platform, join) {
 
 /** The arguments the extension runs the bundled opentide with. */
 export function opentideArgs(pycachePrefix, argv) {
-  return ["-I", "-X", `pycache_prefix=${pycachePrefix}`, "-m", "opentide", ...argv];
+  return ["-I", "-X", "utf8", "-X", `pycache_prefix=${pycachePrefix}`, "-m", "opentide", ...argv];
 }
 
 /** One LSP message on the wire. */

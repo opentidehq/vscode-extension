@@ -2,15 +2,16 @@
 // gaps first and sub-techniques under their parent (a parent counts its sub-techniques' rules, as
 // `info coverage` does). vscode-free.
 
+import { type LoadedObject, loadedObjects } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
-import type { CatalogDocument, CatalogObject } from "../../core/catalog/types";
+import type { CatalogDocument } from "../../core/catalog/types";
 import { branch, filterNodes, messageNode, type TreeNode, type ViewModel } from "./node";
 
 export interface TechniqueCount {
   readonly id: string;
   readonly name: string;
   /** Rules naming it or inheriting it (a parent: or one of its sub-techniques). */
-  readonly rules: readonly CatalogObject[];
+  readonly rules: readonly LoadedObject[];
   readonly subtechniques: readonly TechniqueCount[];
 }
 
@@ -30,7 +31,7 @@ export interface Coverage {
   readonly summary: CoverageSummary;
 }
 
-const ruleTechniques = (rule: CatalogObject): Set<string> =>
+const ruleTechniques = (rule: LoadedObject): Set<string> =>
   new Set([...rule.techniques.own, ...rule.techniques.inherited]);
 
 const parentOf = (doc: CatalogDocument, id: string): string | null =>
@@ -41,7 +42,7 @@ const order = (a: TechniqueCount, b: TechniqueCount): number =>
   (a.rules.length === 0 ? 0 : 1) - (b.rules.length === 0 ? 0 : 1) || a.id.localeCompare(b.id);
 
 export function computeCoverage(doc: CatalogDocument): Coverage {
-  const loaded = doc.objects.filter((o) => !o.load_error);
+  const loaded = loadedObjects(doc.objects);
   const rules = loaded.filter((o) => o.type === "rule");
   const named = new Set<string>();
   for (const object of loaded) for (const id of object.techniques.own) named.add(id);
@@ -80,7 +81,7 @@ export function computeCoverage(doc: CatalogDocument): Coverage {
         return count(id);
       })
       .sort(order);
-    if (techniques.length) tactics.push({ id: tactic.id, name: tactic.name, techniques });
+    if (techniques.length) tactics.push({ id: tactic.id ?? tactic.shortname, name: tactic.name, techniques });
   }
   const other = roots
     .filter((id) => !placed.has(id))

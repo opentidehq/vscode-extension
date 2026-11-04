@@ -2,6 +2,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { findByUuid } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import {
@@ -358,10 +359,8 @@ async function resolveTarget(
     platform = (arg as { platform?: string }).platform;
     const folders = folder ? ctx.folders.all.filter((f) => f.path === folder) : ctx.folders.all;
     for (const f of folders) {
-      const object = ctx.catalog
-        .get(f.path)
-        .catalog?.objects.find((o) => o.uuid.toLowerCase() === uuid.toLowerCase());
-      if (object) uri = vscode.Uri.file(object.file_path);
+      const object = findByUuid(ctx.catalog.get(f.path).catalog?.objects ?? [], uuid);
+      if (object?.file_path) uri = vscode.Uri.file(object.file_path);
     }
     if (!uri) {
       void vscode.window.showWarningMessage(`No rule with UUID ${uuid} in the catalogue.`);

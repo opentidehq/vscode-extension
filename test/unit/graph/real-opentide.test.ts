@@ -2,11 +2,13 @@
 // executable) and OPENTIDE_TEST_WORKSPACE (a workspace with objects/rules). Skipped otherwise. On an
 // opentide with `info catalog` the graph is built from its real output; without it (0.21.0), the graph
 // says what it needs and `unreviewed:` still works through `rules unreviewed`.
+
 import * as assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import * as path from "node:path";
 import { spawnRun } from "../../../src/core/backend/spawn";
 import { CommandTree } from "../../../src/core/capabilities/tree";
+import { loadedObjects } from "../../../src/core/catalog/rows";
 import { CatalogStore, INFO_CATALOG } from "../../../src/core/catalog/store";
 import { isCatalogDocument } from "../../../src/core/catalog/types";
 import { processEnv } from "../../../src/core/runtime/env";
@@ -82,7 +84,7 @@ describe("graph and search with a real opentide (OPENTIDE_TEST_BIN)", function (
     const model = buildModel(catalog);
     const ids = new Set(model.nodes.map((node) => node.id));
     for (const edge of model.edges) assert.ok(ids.has(edge.source) && ids.has(edge.target), edge.id);
-    const rule = catalog.objects.find((object) => object.type === "rule" && object.uuid);
+    const rule = loadedObjects(catalog.objects).find((object) => object.type === "rule");
     if (rule) {
       assert.equal(objectAtPath(catalog, rule.file_path, process.platform), rule.uuid);
       const started = performance.now();

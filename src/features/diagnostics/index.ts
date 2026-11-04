@@ -8,6 +8,7 @@ import type { RunResult } from "../../core/backend/backend";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { isFamilyFile } from "../../core/folders";
 import { DOCUMENT_SELECTOR } from "../../core/lsp";
 import { cliRange, type LineSource, linesOf } from "../../core/positions";
 import { dryRunFixes, explainCodes, explainMarkdown, isCode } from "./explain";
@@ -29,11 +30,13 @@ import {
   codeText,
   countSeverities,
   dedupeKey,
+  droppedFixFor,
   itemSignature,
   lintArgv,
   nonOverlapping,
   type OnSave,
-  planSave,
+  planSaveBatch,
+  serverKeys,
   summaryText,
   validateArgv,
   withoutDuplicates,
@@ -68,6 +71,8 @@ interface Rendered {
   readonly diagnostic: vscode.Diagnostic;
   readonly finding: Finding;
   readonly key: string;
+  /** The server diagnostics that would report it (`serverKeys`). */
+  readonly alternatives: string[][];
 }
 
 interface Outcome {
@@ -238,7 +243,9 @@ class Diagnostics implements vscode.Disposable {
     if (!folder) return;
     const relative = path.relative(folder.path, document.uri.fsPath).split(path.sep).join("/");
     const isConfiguration = relative.startsWith(".opentide/configurations/");
-    const isObject = this.ctx.folders.isObjectFile(document.uri);
+    // Only a file directly in a family folder: `validate --file` and `lint --file` accept no other, and
+    // a failed lint of one file in a batch would otherwise clear the others' problems.
+    const isObject = isFamilyFile(folder.path, document.uri.fsPath, folder.objectFolders);
     if (!isObject && !isConfiguration) return;
     // Saving several files at once (Save All) gives one run per folder; serve forgets the saved file first.
     this.saves.add(folder.path, folder, document.uri.fsPath, isObject ? "object" : "configuration");
@@ -258,18 +265,7 @@ class Diagnostics implements vscode.Disposable {
         lintWithValidate: setting<boolean>("lint.withValidate", scope, false),
       };
       const targets = [...files];
-      const forObjects = planSave(
-        { isObject: targets.length > 0, isConfiguration: false },
-        settings,
-        features,
-      );
-      // A configuration file affects every object: it validates the workspace, which covers the files.
-      const plan = configuration
-        ? {
-            ...planSave({ isObject: false, isConfiguration: true }, settings, features),
-            lint: forObjects.lint,
-          }
-        : forObjects;
+      const plan = planSaveBatch({ objects: targets.length, configuration }, settings, features);
       if (plan.validate) this.background("validate", folder, plan.validate === "file" ? targets : undefined);
       if (plan.lint) this.background("lint", folder, plan.lint === "file" ? targets : undefined);
     }
@@ -602,7 +598,12 @@ class Diagnostics implements vscode.Disposable {
     diagnostic.code = { value: finding.code, target: vscode.Uri.parse(docsUrl(finding.code)) };
     if (isDeprecationCode(finding.code)) diagnostic.tags = [vscode.DiagnosticTag.Deprecated];
     if (finding.related.length > 0) diagnostic.relatedInformation = await this.relatedInformation(finding);
-    return { diagnostic, finding, key: dedupeKey(finding.code, range.start.line) };
+    return {
+      diagnostic,
+      finding,
+      key: dedupeKey(finding.code, range.start.line),
+      alternatives: serverKeys(finding.code, range.start.line, finding.message),
+    };
   }
 
   /** Rebuild the diagnostics of these files from the model, then show them. */
@@ -637,7 +638,7 @@ class Diagnostics implements vscode.Disposable {
     };
     let changed = false;
     for (const source of SOURCES) {
-      const items = withoutDuplicates(entry[source], (item) => item.key, server);
+      const items = withoutDuplicates(entry[source], (item) => item.alternatives, server);
       const signature = items.map(itemSignature).join("\u0002");
       if (previous?.[source].signature === signature && previous[source].items.length === items.length)
         continue;
@@ -742,6 +743,23 @@ class Diagnostics implements vscode.Disposable {
           action.isPreferred = fix.safe;
           actions.push(action);
           if (fix.safe) safeHere = true;
+        }
+      }
+      if (source === SERVER_SOURCE && code) {
+        // A validate or lint finding the dedupe dropped in favour of this one still offers its fix here.
+        const rendered = this.rendered.get(document.uri.toString());
+        const key = dedupeKey(code, diagnostic.range.start.line);
+        for (const ourSource of SOURCES) {
+          const dropped = rendered
+            ? droppedFixFor(rendered[ourSource], entry?.[ourSource].items ?? [], key)
+            : undefined;
+          if (!dropped?.finding.fix) continue;
+          const action = new vscode.CodeAction(fixTitle(dropped.finding), vscode.CodeActionKind.QuickFix);
+          action.edit = this.editFor(document, [dropped.finding]);
+          action.diagnostics = [diagnostic];
+          action.isPreferred = dropped.finding.fix.safe;
+          actions.push(action);
+          break;
         }
       }
       if ((ours || source === SERVER_SOURCE) && isCode(code) && !explained.has(code)) {

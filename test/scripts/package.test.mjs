@@ -111,9 +111,13 @@ describe("package: the size gate", () => {
     assert.throws(() => budgetFor({ opentide: pins.opentide }), PackageError);
   });
 
-  it("the committed budget is SPEC §3's 100 MB", () => {
+  it("the committed budget and target are SPEC §3's 100 MiB and 70 MiB", () => {
     const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
-    assert.equal(committed.vsix.budgetBytes, 104857600);
+    assert.equal(committed.vsix.budgetBytes, 100 * 1024 * 1024);
+    assert.equal(committed.vsix.targetBytes, 70 * 1024 * 1024);
+    const spec = readFileSync(join(root, "docs", "SPEC.md"), "utf8");
+    assert.match(spec, /100 MiB \(104,857,600 bytes\) per VSIX/);
+    assert.doesNotMatch(spec, /\b(?:100|70) MB\b/, "SPEC says MiB, as pins.json and PACKAGING.md count");
   });
 
   it("counts bytes per distribution under site-packages, else per folder", () => {
@@ -199,6 +203,8 @@ describe("smoke: checks", () => {
     assert.equal(bundledPython("/x/extension", "win32", join), join("/x/extension", "runtime", "python.exe"));
     assert.deepEqual(opentideArgs("/p", ["--version"]), [
       "-I",
+      "-X",
+      "utf8",
       "-X",
       "pycache_prefix=/p",
       "-m",

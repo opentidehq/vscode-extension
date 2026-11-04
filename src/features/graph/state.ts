@@ -1,5 +1,7 @@
 // The host side of the graph, without vscode: what the webview is told for a catalogue state, which
 // object a file holds, and problem counts per node. Unit-tested in plain node.
+
+import { isLoaded } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument } from "../../core/catalog/types";
 import { buildModel, type GraphModel, type NodeProblems, objectNodeId } from "./model";
@@ -77,7 +79,9 @@ export function objectAtPath(
   platform: NodeJS.Platform,
 ): string | undefined {
   const key = pathKey(file, platform);
-  const object = catalog.objects.find((o) => pathKey(o.file_path, platform) === key);
+  // A loaded object before a file that did not load, should both somehow name the same path.
+  const at = catalog.objects.filter((o) => o.file_path && pathKey(o.file_path, platform) === key);
+  const object = at.find(isLoaded) ?? at[0];
   return object ? objectNodeId(object) : undefined;
 }
 
@@ -112,7 +116,8 @@ export function problemMap(
   platform: NodeJS.Platform,
 ): Record<string, NodeProblems> {
   const byPath = new Map<string, string>();
-  for (const object of catalog.objects) byPath.set(pathKey(object.file_path, platform), objectNodeId(object));
+  for (const object of catalog.objects)
+    if (object.file_path) byPath.set(pathKey(object.file_path, platform), objectNodeId(object));
   const map: Record<string, NodeProblems> = {};
   for (const file of files) {
     const id = byPath.get(pathKey(file.file, platform));

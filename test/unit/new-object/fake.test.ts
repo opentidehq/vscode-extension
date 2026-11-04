@@ -57,8 +57,16 @@ describe("new-object against the fake opentide", function () {
     assert.deepEqual([...visited], marked);
     assert.ok(lines.includes("detection_model: u-1"), "--objective prefilled detection_model");
 
+    // As the real CLI: the same name again gets the new UUID's first 8 characters, never overwrites.
     const again = await b.run(root, argv);
-    const action = failureAction(again.document.failure?.code, again.document.failure?.message ?? "", root);
+    const second = createdOf(again.document, root);
+    assert.ok(second, JSON.stringify(again.document));
+    assert.match(path.basename(second.file), /^suspicious-lsass-access-[0-9a-f]{8}\.yaml$/);
+    assert.notEqual(second.uuid, created.uuid);
+
+    // Only a file named with --path is refused.
+    const named = await b.run(root, [...argv, "--path", path.relative(root, created.file)]);
+    const action = failureAction(named.document.failure?.code, named.document.failure?.message ?? "", root);
     assert.deepEqual(action, { kind: "exists", file: created.file });
     await b.dispose();
   });

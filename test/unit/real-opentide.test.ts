@@ -130,6 +130,24 @@ describe("real opentide (OPENTIDE_TEST_BIN)", function () {
     assert.equal(result.document.failure?.code, "usage_invalid_choice");
   });
 
+  it("decodes non-ASCII output where Python's pipes are not UTF-8 (Windows' ANSI code page)", async () => {
+    // PYTHONIOENCODING=cp1252 makes Python write pipes as Windows does by default.
+    const file = "objects/rules/détection-josé-missing.yaml";
+    const result = await spawnRun({
+      command: runtime.command,
+      args: [...runtime.args, "--json", "validate", "--file", file],
+      commandName: "validate",
+      env: processEnv({ ...process.env, PYTHONIOENCODING: "cp1252" }, runtime, process.platform, {
+        NO_COLOR: "1",
+      }),
+      cwd: WORKSPACE,
+      platform: process.platform,
+    });
+    const text = JSON.stringify(result.document);
+    assert.ok(text.includes("détection-josé"), text.slice(0, 400));
+    assert.ok(!text.includes("\uFFFD") && !text.includes("\ufffd") && !text.includes("�"));
+  });
+
   it("gates the catalogue on `info catalog` in the tree", async () => {
     const capabilities = new Capabilities({
       fetch: async () => tree.document,

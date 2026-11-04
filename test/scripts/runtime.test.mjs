@@ -1,14 +1,20 @@
 import * as assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import {
   archiveName,
   archiveUrl,
   buildId,
   buildInfo,
+  checkNativeLicenses,
   cyclonedx,
   expectedArchiveSha,
+  fullArchive,
   hostTarget,
   installArgs,
   installedTags,
@@ -17,6 +23,9 @@ import {
   licenseFiles,
   licenseOf,
   lockArgs,
+  nativeComponents,
+  nativeLicensesPath,
+  nativeSections,
   noWheelsError,
   packagesWithoutWheels,
   parseLock,
@@ -36,6 +45,7 @@ import {
   uvVersion,
   wheelTags,
 } from "../../scripts/runtime-lib.mjs";
+import { TarReader } from "../../scripts/tar-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pinsText = readFileSync(join(root, "pins.json"), "utf8");
@@ -468,6 +478,152 @@ describe("runtime build: metadata, SBOM and notices", () => {
     assert.match(text, /opentide and its analysis engine are EUPL-1.2, CPython is PSF-2.0/);
     assert.match(text, /CPython 3\.13\.14 \(PSF-2\.0\)[\s\S]*PSF LICENSE AGREEMENT/);
     assert.match(text, /solrq 1\.1\.2 \(BSD\)[\s\S]*ships no licence file/);
+  });
+});
+
+describe("runtime build: the native libraries inside CPython", () => {
+  const pythonJson = {
+    build_info: {
+      extensions: {
+        _ssl: [
+          {
+            variant: "default",
+            licenses: ["Apache-2.0", "OpenSSL"],
+            license_paths: ["licenses/LICENSE.openssl-3.txt"],
+          },
+        ],
+        _curses: [{ variant: "default", licenses: ["X11"], license_paths: ["licenses/LICENSE.ncurses.txt"] }],
+        readline: [
+          {
+            variant: "default",
+            licenses: ["BSD-3-Clause", "X11"],
+            license_paths: ["licenses/LICENSE.libedit.txt", "licenses/LICENSE.ncurses.txt"],
+          },
+        ],
+        _sqlite3: [
+          {
+            variant: "default",
+            licenses: [],
+            license_public_domain: true,
+            license_paths: ["licenses/LICENSE.sqlite.txt"],
+          },
+        ],
+        _tkinter: [{ variant: "default", licenses: ["TCL"], license_paths: ["licenses/LICENSE.tcl.txt"] }],
+        math: [{ variant: "default", links: [{ name: "m" }] }],
+      },
+    },
+  };
+
+  it("lists one component per licence file, with the modules linking it and the licences they share", () => {
+    const components = nativeComponents(pythonJson);
+    assert.deepEqual(
+      components.map((c) => [c.name, c.modules, c.licenses]),
+      [
+        ["libedit", ["readline"], ["BSD-3-Clause", "X11"]],
+        ["ncurses", ["_curses", "readline"], ["X11"]],
+        ["openssl-3", ["_ssl"], ["Apache-2.0", "OpenSSL"]],
+        ["sqlite", ["_sqlite3"], ["LicenseRef-Public-Domain"]],
+      ],
+      "Tk is removed by the build, so Tcl's licence is not listed",
+    );
+  });
+
+  it("finds the release's full archive, optimised and not free-threaded", () => {
+    const sums = new Map([
+      ["cpython-3.13.14+20260718-x86_64-unknown-linux-gnu-debug-full.tar.zst", "a".repeat(64)],
+      ["cpython-3.13.14+20260718-x86_64-unknown-linux-gnu-freethreaded+pgo+lto-full.tar.zst", "b".repeat(64)],
+      ["cpython-3.13.14+20260718-x86_64-unknown-linux-gnu-pgo+lto-full.tar.zst", "c".repeat(64)],
+      ["cpython-3.13.14+20260718-x86_64-pc-windows-msvc-pgo-full.tar.zst", "d".repeat(64)],
+    ]);
+    assert.equal(fullArchive(testPins, "linux-x64", sums).sha256, "c".repeat(64));
+    assert.match(fullArchive(testPins, "win32-x64", sums).url, /x86_64-pc-windows-msvc-pgo-full\.tar\.zst$/);
+    assert.throws(() => fullArchive(testPins, "darwin-arm64", sums), RuntimeError);
+  });
+
+  it("puts them in the notices and nests them under cpython in the SBOM", () => {
+    const record = {
+      pythonBuildStandalone: "20260718",
+      cpython: "3.13.14",
+      components: nativeComponents(pythonJson),
+      texts: {
+        "LICENSE.openssl-3.txt": "Apache License 2.0",
+        "LICENSE.ncurses.txt": "ncurses",
+        "LICENSE.libedit.txt": "libedit",
+        "LICENSE.sqlite.txt": null,
+      },
+    };
+    assert.equal(checkNativeLicenses(testPins, "linux-x64", record), record);
+    const info = buildInfo({ pins: testPins, name: "linux-x64", archiveSha256: "a", lockSha256: "b" });
+    const notices = runtimeNotices(info, nativeSections(record));
+    assert.match(
+      notices,
+      /openssl-3, linked into CPython \(_ssl\) \(Apache-2\.0 AND OpenSSL\)[\s\S]*Apache License 2\.0/,
+    );
+    assert.match(notices, /sqlite, linked into CPython[\s\S]*ships no licence file/);
+    const sbom = cyclonedx({ info, dists: [], extensionVersion: "0.2.0", native: record.components });
+    const [cpython] = sbom.components;
+    assert.deepEqual(
+      cpython.components.map((c) => [c.name, c.licenses]),
+      [
+        ["libedit", [{ license: { id: "BSD-3-Clause" } }, { license: { id: "X11" } }]],
+        ["ncurses", [{ license: { id: "X11" } }]],
+        ["openssl-3", [{ license: { id: "Apache-2.0" } }, { license: { id: "OpenSSL" } }]],
+        ["sqlite", [{ license: { name: "LicenseRef-Public-Domain" } }]],
+      ],
+    );
+  });
+
+  it("refuses licences recorded for another CPython or python-build-standalone, or none", () => {
+    const record = { pythonBuildStandalone: "20250101", cpython: "3.13.14", components: [], texts: {} };
+    assert.throws(() => checkNativeLicenses(testPins, "linux-x64", record), /npm run runtime:licenses/);
+    assert.throws(() => checkNativeLicenses(testPins, "linux-x64", undefined), /is missing/);
+  });
+
+  it("every runtime target has its committed native licences, for the pinned CPython", () => {
+    for (const name of runtimeTargets(pins)) {
+      const file = join(root, nativeLicensesPath(name));
+      assert.ok(existsSync(file), `${nativeLicensesPath(name)}: run npm run runtime:licenses`);
+      const record = checkNativeLicenses(pins, name, JSON.parse(readFileSync(file, "utf8")));
+      assert.ok(
+        record.components.some((c) => c.name.startsWith("openssl")),
+        `${name} links OpenSSL`,
+      );
+    }
+  });
+
+  it("reads only the wanted files of a tar stream, long names included", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "opentide-tar-"));
+    try {
+      const deep = join("python", "licenses", "x".repeat(120));
+      mkdirSync(join(dir, "src", "python", "licenses"), { recursive: true });
+      writeFileSync(join(dir, "src", "python", "PYTHON.json"), '{"ok":true}');
+      writeFileSync(join(dir, "src", "python", "big.bin"), Buffer.alloc(70_000, 7));
+      writeFileSync(join(dir, "src", deep), "long name");
+      const tar = spawnSync(tarCommand(process.platform, process.env), [
+        "-cf",
+        join(dir, "a.tar"),
+        "-C",
+        join(dir, "src"),
+        "python",
+      ]);
+      assert.equal(tar.status, 0, String(tar.stderr));
+      const reader = new TarReader(
+        (path) => path === "python/PYTHON.json" || path.startsWith("python/licenses/x"),
+      );
+      const bytes = readFileSync(join(dir, "a.tar"));
+      // Odd chunk sizes, so headers and bodies straddle writes.
+      const chunks = [];
+      for (let at = 0; at < bytes.length; at += 777) chunks.push(bytes.subarray(at, at + 777));
+      await pipeline(Readable.from(chunks), reader);
+      assert.deepEqual([...reader.files.keys()].sort(), [
+        "python/PYTHON.json",
+        `python/licenses/${"x".repeat(120)}`,
+      ]);
+      assert.equal(reader.files.get("python/PYTHON.json")?.toString(), '{"ok":true}');
+      assert.equal(reader.files.get(`python/licenses/${"x".repeat(120)}`)?.toString(), "long name");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

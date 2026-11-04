@@ -1,5 +1,6 @@
 // The ATT&CK matrix (SPEC §10.2) from `info catalog`: the `attack` skeleton's tactics and techniques,
 // and which objects name each technique. vscode-free.
+import { type LoadedObject, loadedObjects } from "../../core/catalog/rows";
 import type { CatalogDocument, CatalogObject } from "../../core/catalog/types";
 
 export type Layer = "rules" | "planned" | "unaddressed";
@@ -127,7 +128,7 @@ function index(catalog: CatalogDocument, filters: MatrixFilters): Index {
   const signalObjective = new Map(catalog.signals.map((s) => [s.uuid, s.objective]));
   const implemented = new Set<string>();
   const covered = new Set<string>();
-  const byUuid = new Map(catalog.objects.map((o) => [o.uuid, o]));
+  const byUuid = new Map<string, LoadedObject>(loadedObjects(catalog.objects).map((o) => [o.uuid, o]));
   for (const edge of catalog.edges) {
     if (edge.missing) continue;
     if (edge.kind === "implements" && byUuid.get(edge.from)?.type === "rule") {
@@ -137,8 +138,7 @@ function index(catalog: CatalogDocument, filters: MatrixFilters): Index {
     }
     if (edge.kind === "covers") covered.add(edge.to);
   }
-  for (const object of catalog.objects) {
-    if (object.load_error) continue;
+  for (const object of loadedObjects(catalog.objects)) {
     const techniques = techniquesOf(object, filters.inherited);
     if (object.type === "rule") {
       if (!ruleMatches(object, filters)) continue;
@@ -198,7 +198,7 @@ export function buildMatrix(catalog: CatalogDocument, filters: MatrixFilters = D
       if (c.rules > 0) coveredParents.add(c.id);
     }
     return {
-      id: tactic.id,
+      id: tactic.id ?? "",
       shortname: tactic.shortname,
       name: tactic.name,
       cells,
@@ -211,7 +211,7 @@ export function buildMatrix(catalog: CatalogDocument, filters: MatrixFilters = D
   const platforms = new Set<string>();
   const tenants = new Set<string>();
   let rules = 0;
-  for (const object of catalog.objects) {
+  for (const object of loadedObjects(catalog.objects)) {
     if (object.type !== "rule") continue;
     rules++;
     for (const p of object.platforms) platforms.add(p.id);
@@ -243,7 +243,7 @@ export function cellDetail(
   filters: MatrixFilters = DEFAULT_FILTERS,
 ): CellDetail {
   const idx = index(catalog, filters);
-  const byUuid = new Map(catalog.objects.map((o) => [o.uuid, o]));
+  const byUuid = new Map<string, LoadedObject>(loadedObjects(catalog.objects).map((o) => [o.uuid, o]));
   const refs = (map: Map<string, Map<string, "own" | "inherited">>): ObjectRef[] =>
     [...matching(map, technique)]
       .flatMap(([uuid, via]) => {
@@ -256,7 +256,7 @@ export function cellDetail(
                 type: object.type,
                 path: object.path,
                 via,
-                statuses: object.platforms.map((p) => `${p.id}: ${p.status}`),
+                statuses: object.platforms.map((p) => (p.status ? `${p.id}: ${p.status}` : p.id)),
               },
             ]
           : [];

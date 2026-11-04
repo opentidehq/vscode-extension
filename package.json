@@ -1550,7 +1550,7 @@
         "canBeReferencedInPrompt": true,
         "icon": "$(symbol-class)",
         "userDescription": "The Tide object in the active editor, its UUID and what it connects to.",
-        "modelDescription": "Returns the opentide object (threat, objective or rule) open in the active editor: its UUID, type, schema, name, TLP, platforms, techniques and tactics, and its graph neighbourhood one hop away (the objects, signals, ATT&CK techniques and log sources it points to or that point to it, with the edge kind and field path). Use it to learn what the user is looking at. For the whole catalogue, search or validation, use the opentide MCP server's tools instead.",
+        "modelDescription": "Returns the opentide object (threat, objective or rule) open in the active editor: its UUID, type, schema, name, TLP, platforms, techniques and tactics, why its file did not load (load_error) when it did not, and its graph neighbourhood one hop away (the objects, signals, ATT&CK techniques and log sources it points to or that point to it, with the edge kind and field path). Use it to learn what the user is looking at. For the whole catalogue, search or validation, use the opentide MCP server's tools instead.",
         "tags": [
           "opentide",
           "catalog"
@@ -2026,6 +2026,7 @@
     "vscode:prepublish": "npm run build:production",
     "runtime:lock": "node scripts/runtime-lock.mjs",
     "runtime:build": "node scripts/runtime-build.mjs",
+    "runtime:licenses": "node scripts/runtime-licenses.mjs",
     "package": "node scripts/package.mjs",
     "smoke": "node scripts/smoke.mjs"
   },
