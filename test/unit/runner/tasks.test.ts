@@ -62,13 +62,23 @@ describe("runner tasks", () => {
   });
 
   it("gives tasks whole code frames and the folder, plus credentials when given", () => {
-    assert.deepEqual(taskEnv("/ws", { UV_X: "1" }, { SECRET: "s" }), {
+    assert.deepEqual(taskEnv("/ws", { UV_X: "1" }, undefined, { SECRET: "s" }), {
       UV_X: "1",
       OPENTIDE_REPO_ROOT: "/ws",
       OPENTIDE_LINKS: "none",
       COLUMNS: "4096",
       SECRET: "s",
     });
+  });
+
+  it("passes VS Code's http.proxy to tasks and terminal runs as OPENTIDE_PROXY", () => {
+    assert.equal(taskEnv("/ws", {}, "http://proxy:3128").OPENTIDE_PROXY, "http://proxy:3128");
+    assert.equal(
+      taskEnv("/ws", {}, "http://proxy:3128", { OPENTIDE_PROXY: "http://env-file:8080" }).OPENTIDE_PROXY,
+      "http://env-file:8080",
+      "the env file's own OPENTIDE_PROXY wins, as in the backend",
+    );
+    assert.ok(!("OPENTIDE_PROXY" in taskEnv("/ws", {}, undefined)));
   });
 
   it("$opentide reads opentide's code frames, notes and the ASCII fallback included", () => {

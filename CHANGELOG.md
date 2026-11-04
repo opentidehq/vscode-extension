@@ -137,7 +137,8 @@ pre-releases odd ones.
   Preview Sharing (also in the Explorer menu), Show Sharing Status, Show Sharing Targets, Open TUI in
   Terminal, Show Last Command Result.
 - `opentide` tasks (validate, lint, generate, deploy --dry-run, validate query, or any command in
-  tasks.json) with the `$opentide` problem matcher.
+  tasks.json) with the `$opentide` problem matcher. Tasks and terminal runs get VS Code's `http.proxy`
+  as `OPENTIDE_PROXY`, as background runs do.
 - Terminal:
   - the bundled `opentide` goes on new terminals' PATH (`opentide.terminal.addToPath`), also when
     the Windows user folder's name is not ASCII;

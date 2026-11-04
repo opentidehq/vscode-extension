@@ -81,15 +81,18 @@ export function taskPlan(
 /**
  * The environment of a task (human output in a terminal). `COLUMNS` keeps code frames whole (opentide wraps
  * messages and shortens paths to the terminal's width, which `$opentide` could not read), and
- * `OPENTIDE_LINKS=none` leaves out OSC 8 links, which the terminal finds itself.
+ * `OPENTIDE_LINKS=none` leaves out OSC 8 links, which the terminal finds itself. VS Code's `http.proxy` is
+ * `OPENTIDE_PROXY`, as for background runs and the MCP server; `extra` (credentials) comes last.
  */
 export function taskEnv(
   folder: string,
   runtimeEnv: Readonly<Record<string, string>>,
+  proxy: string | undefined,
   extra: Readonly<Record<string, string>> = {},
 ): Record<string, string> {
   return {
     ...runtimeEnv,
+    ...(proxy ? { OPENTIDE_PROXY: proxy } : {}),
     OPENTIDE_REPO_ROOT: folder,
     OPENTIDE_LINKS: "none",
     COLUMNS: "4096",

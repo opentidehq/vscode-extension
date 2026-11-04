@@ -9,6 +9,7 @@ import type { Classification } from "../../core/capabilities/classification";
 import type { FeatureContext } from "../../core/context";
 import { displayArgv } from "../../core/runtime/env";
 import { cliCommand, hasCli } from "../../core/runtime/types";
+import { httpProxy } from "../../core/services/settings";
 import { ProgressModel } from "./progress";
 import {
   changedFiles,
@@ -362,7 +363,7 @@ export class Runner implements vscode.Disposable {
       "opentide",
       new vscode.ProcessExecution(command, args, {
         cwd: folder,
-        env: taskEnv(folder, runtime.env, credentials),
+        env: taskEnv(folder, runtime.env, httpProxy(), credentials),
       }),
       [PROBLEM_MATCHER],
     );

@@ -152,7 +152,7 @@ describe("runner against a real opentide (OPENTIDE_TEST_BIN)", function () {
       [...runtime.args, "validate", "--file", path.join(rules, file)],
       {
         cwd: workspace,
-        env: { ...process.env, ...taskEnv(workspace, runtime.env) },
+        env: { ...process.env, ...taskEnv(workspace, runtime.env, undefined) },
         encoding: "utf8",
       },
     );
