@@ -186,9 +186,7 @@ export class RelationIndex {
 }
 
 /** `relations` grouped by kind, in RELATION_ORDER, empty groups left out. */
-export function groupByKind(
-  relations: readonly Relation[],
-): { kind: RelationKind; relations: Relation[] }[] {
+export function groupByKind(relations: readonly Relation[]): { kind: RelationKind; relations: Relation[] }[] {
   const groups = new Map<RelationKind, Relation[]>();
   for (const relation of relations) {
     const list = groups.get(relation.kind) ?? [];
