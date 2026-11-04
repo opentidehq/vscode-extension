@@ -46,6 +46,8 @@ export interface ResolveAttempt {
   readonly version?: string;
   /** For `too-old`: the command that upgrades it. */
   readonly upgrade?: string;
+  /** For `ok`: something the output channel should say (an untagged dev build used as is). */
+  readonly note?: string;
 }
 
 export interface ResolveResult {

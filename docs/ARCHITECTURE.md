@@ -134,7 +134,9 @@ opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier 2); 4 t
 core compiles the runtime's bytecode into that prefix in the background (`src/core/runtime/precompile.ts`:
 `compileall -q`, low priority, cancelled on deactivation, once per `runtime/BUILD-INFO.json` `buildId`;
 the bytecode of builds whose runtime folder is gone is deleted). A tier older
-than `MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command. In
+than `MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command, except
+an untagged dev build (`0.1.devN+g<sha>`, what hatch-vcs reports for a checkout with no release tag), which
+cannot be ordered and is used with a note in the output channel. In
 Restricted Mode only tier 4 resolves, `restricted: true`, and its processes get `PATH` = the runtime's
 `bin` only.
 

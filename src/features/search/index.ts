@@ -4,13 +4,22 @@ import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { type ItemProblems, search } from "./match";
-import { countProblems, graphSelection, insertHint, parseSearchArgs, present, type Row } from "./present";
+import {
+  catalogueFilterOf,
+  countProblems,
+  graphSelection,
+  insertHint,
+  parseSearchArgs,
+  present,
+  type Row,
+  type SearchArgs,
+} from "./present";
 import { parseQuery } from "./query";
 import { IndexCache, type SearchItem } from "./searchIndex";
 import { UnreviewedCache } from "./unreviewed";
 
-/** The Catalogue view's filter command, when the sidebar provides it (`{query: string}`). */
-export const CATALOGUE_FILTER_COMMAND = "opentide.catalogue.filter";
+/** The sidebar's Catalogue filter; it takes `{query: string}` (a substring, see `catalogueFilterOf`). */
+export const CATALOGUE_FILTER_COMMAND = "opentide.sidebar.filter";
 
 type Item = vscode.QuickPickItem & { readonly row?: Row; readonly action?: () => Thenable<unknown> };
 
@@ -57,7 +66,7 @@ function openSearch(
   ctx: FeatureContext,
   indexCache: IndexCache,
   unreviewed: UnreviewedCache,
-  initial?: string,
+  args: SearchArgs,
 ): void {
   const pick = vscode.window.createQuickPick<Item>();
   pick.title = "Find Detection";
@@ -65,14 +74,19 @@ function openSearch(
   pick.matchOnDescription = false;
   pick.matchOnDetail = false;
   pick.buttons = [REFRESH_BUTTON];
-  pick.value = initial ?? "";
+  pick.value = args.query ?? "";
 
-  const folders = () => ctx.folders.all.map((folder) => folder.path);
+  // `{folder}` (the matrix, the graph) searches that folder only, when it is one of the window's.
+  const scoped = () => {
+    const only = ctx.folders.all.filter((folder) => folder.path === args.folder);
+    return only.length > 0 ? only : ctx.folders.all;
+  };
+  const folders = () => scoped().map((folder) => folder.path);
   const folderNames = new Map(
-    ctx.folders.all.length > 1
-      ? ctx.folders.all.map((folder) => [folder.path, folder.folder.name] as const)
-      : [],
+    scoped().length > 1 ? scoped().map((folder) => [folder.path, folder.folder.name] as const) : [],
   );
+  if (args.folder && scoped().length === 1 && ctx.folders.all.length > 1)
+    pick.title = `Find Detection in ${scoped()[0]?.folder.name ?? args.folder}`;
   let problems = problemCounts();
   const problemsOf = (item: SearchItem): ItemProblems | undefined =>
     item.filePath ? problems.get(vscode.Uri.file(item.filePath).fsPath) : undefined;
@@ -113,8 +127,8 @@ function openSearch(
             }),
         });
       }
-      if (catalogueFilter) {
-        const value = pick.value.trim();
+      const value = catalogueFilterOf(query);
+      if (catalogueFilter && value) {
         items.push({
           label: "$(list-filter) Filter the Catalogue",
           description: value,
@@ -274,14 +288,14 @@ export default defineFeature({
       },
       { dispose: ctx.runtime.onDidChange(() => unreviewed.clear()).dispose },
       vscode.commands.registerCommand("opentide.search.open", (args?: unknown) => {
-        const query = parseSearchArgs(args);
+        const parsed = parseSearchArgs(args);
         if (ctx.folders.all.length === 0) {
           void vscode.window.showInformationMessage(
             "Open a folder with an opentide workspace to find detections.",
           );
           return;
         }
-        openSearch(ctx, indexCache, unreviewed, query);
+        openSearch(ctx, indexCache, unreviewed, parsed);
       }),
     );
   },

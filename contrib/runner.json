@@ -80,7 +80,8 @@
         { "command": "opentide.runner.sharePreview", "when": "opentide.hasWorkspace" },
         { "command": "opentide.runner.shareStatus", "when": "opentide.hasWorkspace" },
         { "command": "opentide.runner.shareTargets", "when": "opentide.hasWorkspace" },
-        { "command": "opentide.runner.openTui", "when": "opentide.hasWorkspace" }
+        { "command": "opentide.runner.openTui", "when": "opentide.hasWorkspace" },
+        { "command": "opentide.runner.explain", "when": "false" }
       ],
       "explorer/context": [
         {

@@ -210,3 +210,22 @@ describe("package.json", () => {
     assert.ok(pkg.activationEvents.includes("onLanguage:opentide-yaml"));
   });
 });
+
+describe("README settings table", () => {
+  it("lists every contributed setting, and only those", () => {
+    const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    const declared = [manifest.contributes.configuration]
+      .flat()
+      .flatMap((c) => Object.keys(c.properties ?? {}))
+      .sort();
+    const readme = readFileSync(join(root, "README.md"), "utf8");
+    const start = readme.indexOf("## Settings");
+    const section = readme.slice(start, readme.indexOf("\n## ", start + 1));
+    const listed = [...section.matchAll(/^\| `(opentide\.[A-Za-z0-9_.]+)` \|/gm)].map((m) => m[1]).sort();
+    assert.deepEqual(listed, declared);
+  });
+
+  it("keeps the anchor the web mode links to", () => {
+    assert.match(readFileSync(join(root, "README.md"), "utf8"), /^### Web and virtual workspaces$/m);
+  });
+});

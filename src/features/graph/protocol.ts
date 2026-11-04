@@ -1,5 +1,6 @@
 // The messages between the graph panel and its webview (webview/graph/main.ts). No vscode, no DOM.
 import { is, type Protocol, type Validators } from "../../core/webview/protocol";
+import { isNodeAction, type NodeAction } from "./actions";
 import type { GraphModel, ProblemMap } from "./model";
 import type { GraphMode } from "./view";
 
@@ -39,11 +40,19 @@ export interface ExportRequest {
 export const GRAPH_ACTIONS = ["refresh", "switchRuntime", "showOutput", "manageTrust", "search"] as const;
 export type GraphAction = (typeof GRAPH_ACTIONS)[number];
 
+/** A node context-menu action (another feature's command) on the node with this id. */
+export interface NodeActionRequest {
+  readonly action: NodeAction;
+  readonly id: string;
+}
+
 export interface GraphProtocol extends Protocol {
   toWebview: {
     data: GraphData;
     problems: ProblemMap;
     focus: FocusRequest;
+    /** The node actions whose commands this window has. */
+    actions: readonly NodeAction[];
   };
   toHost: {
     ready: undefined;
@@ -52,6 +61,7 @@ export interface GraphProtocol extends Protocol {
     copy: string;
     export: ExportRequest;
     action: GraphAction;
+    nodeAction: NodeActionRequest;
     /** A timing or note for the output channel. */
     log: string;
   };
@@ -73,6 +83,8 @@ export const hostValidators: Validators<GraphProtocol["toHost"]> = {
     value.data.length <= MAX_EXPORT,
   action: (value): value is GraphAction =>
     typeof value === "string" && (GRAPH_ACTIONS as readonly string[]).includes(value),
+  nodeAction: (value): value is NodeActionRequest =>
+    is.object(value) && isNodeAction(value.action) && is.string(value.id) && value.id.length <= 1000,
   log: (value): value is string => is.string(value) && value.length <= 2000,
 };
 
@@ -89,4 +101,5 @@ export const webviewValidators: Validators<GraphProtocol["toWebview"]> = {
   problems: (value): value is ProblemMap => is.object(value),
   focus: (value): value is FocusRequest =>
     is.object(value) && is.stringArray(value.ids) && typeof value.explicit === "boolean",
+  actions: (value): value is readonly NodeAction[] => Array.isArray(value) && value.every(isNodeAction),
 };

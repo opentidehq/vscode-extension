@@ -6,7 +6,14 @@ import type { CatalogState } from "../../core/catalog/store";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import type { OpentidePanel } from "../../core/webview/panel";
-import { type ExportRequest, type GraphAction, type GraphProtocol, hostValidators } from "./protocol";
+import { NODE_ACTION_COMMANDS, NODE_ACTIONS, type NodeAction, nodeCommand } from "./actions";
+import {
+  type ExportRequest,
+  type GraphAction,
+  type GraphProtocol,
+  hostValidators,
+  type NodeActionRequest,
+} from "./protocol";
 import {
   EXPORT_FILTERS,
   exportBytes,
@@ -91,7 +98,9 @@ class GraphPanel implements vscode.Disposable {
         this.postData();
         this.postProblems();
         this.flushFocus();
+        void this.postActions(opened);
       }),
+      channel.on("nodeAction", (request) => this.nodeAction(request)),
       channel.on("open", (id) => this.open(id)),
       channel.on("copy", async (text) => {
         await vscode.env.clipboard.writeText(text);
@@ -213,6 +222,23 @@ class GraphPanel implements vscode.Disposable {
     });
   }
 
+  /** Which node actions the window has (another feature that failed to start registers nothing). */
+  private async postActions(opened: OpentidePanel<GraphProtocol>): Promise<void> {
+    const commands = new Set(await vscode.commands.getCommands(true));
+    const available = NODE_ACTIONS.filter((action: NodeAction) => commands.has(NODE_ACTION_COMMANDS[action]));
+    void opened.channel.post("actions", available);
+  }
+
+  private async nodeAction(request: NodeActionRequest): Promise<void> {
+    const catalog = this.state()?.catalog;
+    if (!catalog || !this.folder) return;
+    const node = this.cache.get(catalog).nodes.find((candidate) => candidate.id === request.id);
+    const run = node ? nodeCommand(request.action, node, this.folder.path) : undefined;
+    if (!run) return;
+    const args = run.file ? [vscode.Uri.file(run.file)] : run.args;
+    await vscode.commands.executeCommand(run.command, ...args);
+  }
+
   private async export(request: ExportRequest): Promise<void> {
     const filter = EXPORT_FILTERS[request.format];
     const base = this.folder?.folder.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -251,7 +277,10 @@ class GraphPanel implements vscode.Disposable {
         await vscode.commands.executeCommand("workbench.trust.manage");
         return;
       case "search":
-        await vscode.commands.executeCommand("opentide.search.open");
+        await vscode.commands.executeCommand(
+          "opentide.search.open",
+          this.folder ? { folder: this.folder.path } : undefined,
+        );
         return;
     }
   }

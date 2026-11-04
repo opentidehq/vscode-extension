@@ -11,8 +11,22 @@ import { hostValidators, isFilters, type MatrixProtocol, type MatrixState } from
 
 /** Owned by other features; used only when the window has them. */
 export const SEARCH_COMMAND = "opentide.search.open";
-export const NEW_OBJECTIVE_COMMAND = "opentide.new.objective";
+/** The new-object feature's objective flow. `opentide new objective` takes no technique, so only the folder. */
+export const NEW_OBJECTIVE_COMMAND = "opentide.newObject.objective";
 const FILTERS_KEY = "opentide.matrix.filters";
+
+/** Find Detection on one technique, in the matrix's folder (search's `t:` filter). */
+export function searchArgs(
+  technique: string,
+  folder: string | undefined,
+): { query: string; folder?: string } {
+  return { query: `t:${technique}`, ...(folder ? { folder } : {}) };
+}
+
+/** What the new-object flow accepts (`NewObjectArgs`): the folder to create the objective in. */
+export function newObjectiveArgs(folder: string | undefined): { kind: "objective"; folder?: string } {
+  return { kind: "objective", ...(folder ? { folder } : {}) };
+}
 
 export interface OpenArgs {
   readonly folder?: string;
@@ -92,13 +106,10 @@ class MatrixPanel implements vscode.Disposable {
       channel.on("select", (technique) => this.select(technique)),
       channel.on("open", (uuid) => this.openObject(uuid)),
       channel.on("search", async (technique) => {
-        await vscode.commands.executeCommand(SEARCH_COMMAND, {
-          query: `technique:${technique}`,
-          folder: this.folder?.path,
-        });
+        await vscode.commands.executeCommand(SEARCH_COMMAND, searchArgs(technique, this.folder?.path));
       }),
-      channel.on("newObjective", async (technique) => {
-        await vscode.commands.executeCommand(NEW_OBJECTIVE_COMMAND, { technique, folder: this.folder?.path });
+      channel.on("newObjective", async () => {
+        await vscode.commands.executeCommand(NEW_OBJECTIVE_COMMAND, newObjectiveArgs(this.folder?.path));
       }),
       channel.on("exportNavigator", () => this.exportNavigator()),
       channel.on("folder", (folder) => {

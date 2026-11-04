@@ -78,6 +78,10 @@ gh attestation verify /tmp/vsx/opentide-linux-x64-x.y.z.vsix --repo opentidehq/v
 npx ovsx@1.3.0 show opentidehq.opentide@x.y.z
 ```
 
+`gh attestation verify` fails on a release from a private repository: the `attest` job skipped the
+attestations with a "No build provenance" warning (docs/RELEASING.md, one-time setup). That is expected
+until the repository is public.
+
 The Marketplace page (`https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide`) can
 take a few minutes to show a new version.
 

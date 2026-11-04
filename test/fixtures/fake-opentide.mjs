@@ -115,22 +115,6 @@ function commandsDocument() {
       );
     }
   }
-  if (!fixture.commands.some((c) => c.path === "migrate objects")) {
-    fixture.commands.push({
-      path: "migrate objects",
-      name: "objects",
-      summary: "Move a legacy layout into objects/ and .opentide/",
-      group: false,
-      subcommands: [],
-      deprecated: false,
-      arguments: [],
-      options: [
-        { name: "apply", flags: ["--apply"], secondary_flags: [], type: "boolean", is_flag: true },
-        { name: "copy", flags: ["--copy"], secondary_flags: [], type: "boolean", is_flag: true },
-      ],
-      output_schema: null,
-    });
-  }
   return envelope("commands", fixture);
 }
 
@@ -579,35 +563,6 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
       return [doctorDocument(env, rest.includes("--offline")), 0];
     case "setup":
       return setupDocument(rest);
-    case "migrate":
-      if (rest[0] !== "objects")
-        return [
-          envelope("migrate", {}, 2, {
-            code: "usage_unknown_command",
-            message: `No such command '${rest[0]}'.`,
-          }),
-          2,
-        ];
-      return [
-        envelope("migrate objects", {
-          dry_run: !rest.includes("--apply"),
-          copy: rest.includes("--copy"),
-          operations: [
-            { from: "Configurations", to: ".opentide/configurations", action: "move" },
-            { from: "Objects/Detection Rules", to: "objects/rules", action: "move" },
-            {
-              from: "Objects/Detection Objectives",
-              to: "objects/objectives",
-              action: "skip",
-              reason: "source missing",
-            },
-          ],
-          planned: 2,
-          skipped: 1,
-          applied: rest.includes("--apply"),
-        }),
-        0,
-      ];
     case "query":
       return runQuery(rest, { emit, cancelled });
     case "deploy":

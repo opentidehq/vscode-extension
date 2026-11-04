@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import { search } from "../../../src/features/search/match";
 import {
+  catalogueFilterOf,
   countProblems,
   describeItem,
   graphSelection,
@@ -150,10 +151,36 @@ describe("search rows", () => {
 
 describe("search glue helpers", () => {
   it("reads opentide.search.open arguments", () => {
-    assert.equal(parseSearchArgs({ query: "t:T1003" }), "t:T1003");
-    assert.equal(parseSearchArgs("lsass"), "lsass");
-    assert.equal(parseSearchArgs({ query: 3 }), undefined);
-    assert.equal(parseSearchArgs(undefined), undefined);
+    assert.deepEqual(parseSearchArgs({ query: "t:T1003" }), { query: "t:T1003" });
+    assert.deepEqual(parseSearchArgs("lsass"), { query: "lsass" });
+    assert.deepEqual(parseSearchArgs({ query: 3 }), {});
+    assert.deepEqual(parseSearchArgs(undefined), {});
+    // The matrix passes its folder: search only that folder.
+    assert.deepEqual(parseSearchArgs({ query: "t:T1003", folder: "/ws/a" }), {
+      query: "t:T1003",
+      folder: "/ws/a",
+    });
+    assert.deepEqual(parseSearchArgs({ folder: "" }), {});
+  });
+
+  it("hands the Catalogue view only a query its substring filter can express", () => {
+    assert.equal(catalogueFilterOf(parseQuery("lsass access")), "lsass access");
+    assert.equal(catalogueFilterOf(parseQuery("t:T1003")), "t1003");
+    assert.equal(catalogueFilterOf(parseQuery("technique:T1003.001")), "t1003.001");
+    assert.equal(catalogueFilterOf(parseQuery("path:rules/")), "rules/");
+    assert.equal(catalogueFilterOf(parseQuery("lsass t:T1003")), undefined);
+    assert.equal(catalogueFilterOf(parseQuery("p:sentinel")), undefined);
+    assert.equal(catalogueFilterOf(parseQuery("-t:T1003")), undefined);
+    assert.equal(catalogueFilterOf(parseQuery("lsass -mimikatz")), undefined);
+    assert.equal(catalogueFilterOf(parseQuery("")), undefined);
+  });
+
+  it("reads technique: and t: as the same filter", () => {
+    for (const text of ["t:T1003", "technique:T1003"]) {
+      const [filter] = parseQuery(text).filters;
+      assert.equal(filter?.key, "technique", text);
+      assert.equal(filter?.value, "t1003", text);
+    }
   });
 
   it("counts errors, warnings and placeholders as the Problems panel shows them", () => {

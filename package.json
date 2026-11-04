@@ -80,9 +80,7 @@
     "onLanguage:falco",
     "onMcpCollection:opentide",
     "onTaskType:opentide",
-    "onTerminalProfile:opentide.terminal",
-    "workspaceContains:Objects/Detection Rules/**",
-    "workspaceContains:Objects/Threat Vectors/**"
+    "onTerminalProfile:opentide.terminal"
   ],
   "contributes": {
     "languages": [
@@ -532,7 +530,7 @@
       },
       {
         "command": "opentide.diagnostics.explain",
-        "title": "Explain a Diagnostic Code…",
+        "title": "Explain a Code…",
         "category": "opentide",
         "icon": "$(question)"
       },
@@ -737,11 +735,6 @@
         "icon": "$(add)"
       },
       {
-        "command": "opentide.setup.migrate",
-        "title": "Migrate a Legacy Layout…",
-        "category": "opentide"
-      },
-      {
         "command": "opentide.setup.agents",
         "title": "Bring Your Agent…",
         "category": "opentide"
@@ -849,6 +842,18 @@
         "title": "Preview Sharing",
         "category": "opentide",
         "icon": "$(eye)"
+      },
+      {
+        "command": "opentide.sidebar.runQuery",
+        "title": "Run Query on Tenants…",
+        "category": "opentide",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "opentide.sidebar.previewDeploy",
+        "title": "Preview Deploy",
+        "category": "opentide",
+        "icon": "$(rocket)"
       },
       {
         "command": "opentide.sidebar.openMatrix",
@@ -1101,16 +1106,16 @@
           "when": "opentide.hasWorkspace"
         },
         {
+          "command": "opentide.runner.explain",
+          "when": "false"
+        },
+        {
           "command": "opentide.search.open",
           "when": "opentide.hasWorkspace"
         },
         {
           "command": "opentide.setup.open",
           "when": "isWorkspaceTrusted"
-        },
-        {
-          "command": "opentide.setup.migrate",
-          "when": "isWorkspaceTrusted && opentide.setup.legacyLayout"
         },
         {
           "command": "opentide.setup.agents",
@@ -1122,6 +1127,14 @@
         },
         {
           "command": "opentide.sidebar.sharePreview",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.runQuery",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.previewDeploy",
           "when": "false"
         },
         {
@@ -1380,6 +1393,16 @@
           "group": "2_show@2"
         },
         {
+          "command": "opentide.sidebar.runQuery",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "group": "4_rule@1"
+        },
+        {
+          "command": "opentide.sidebar.previewDeploy",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "group": "4_rule@2"
+        },
+        {
           "command": "opentide.sidebar.newRuleForObjective",
           "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.objective && isWorkspaceTrusted && opentide.hasCli",
           "group": "3_new@1"
@@ -1596,19 +1619,19 @@
         "command": "opentide.placeholder.next",
         "key": "ctrl+alt+.",
         "mac": "ctrl+alt+.",
-        "when": "editorTextFocus && opentide.hasPlaceholders"
+        "when": "editorTextFocus && editorLangId == opentide-yaml && opentide.hasPlaceholders"
       },
       {
         "command": "opentide.placeholder.previous",
         "key": "ctrl+alt+,",
         "mac": "ctrl+alt+,",
-        "when": "editorTextFocus && opentide.hasPlaceholders"
+        "when": "editorTextFocus && editorLangId == opentide-yaml && opentide.hasPlaceholders"
       },
       {
         "command": "opentide.search.open",
-        "key": "ctrl+alt+d",
-        "mac": "cmd+alt+d",
-        "when": "opentide.hasWorkspace"
+        "key": "ctrl+shift+alt+f",
+        "mac": "cmd+shift+alt+f",
+        "when": "opentide.hasWorkspace && !inQuickOpen"
       }
     ],
     "colors": [
@@ -1692,18 +1715,13 @@
     "viewsWelcome": [
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount == 0",
-        "contents": "[Create a Detection Repository…](command:opentide.setup.open)"
-      },
-      {
-        "view": "opentide.sidebar.catalogue",
         "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted",
         "contents": "This folder is not an opentide repository yet.\n[Create a Detection Repository Here](command:opentide.setup.open)\n[Open an Existing Repository](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && opentide.setup.legacyLayout",
-        "contents": "It has a legacy layout (Configurations/ and Objects/), which opentide can move into objects/ and .opentide/.\n[Migrate a Legacy Layout](command:opentide.setup.migrate)"
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && opentide.setup.legacyLayout",
+        "contents": "It has a CoreTIDE layout (Objects/, Configurations/ or global.toml), which opentide does not support: it does not read CoreTIDE content, and there is no migration.\n[What opentide 0.21.0 removed](https://github.com/opentidehq/opentide/releases/tag/v0.21.0)"
       },
       {
         "view": "opentide.sidebar.catalogue",
@@ -1713,7 +1731,7 @@
       {
         "view": "opentide.sidebar.catalogue",
         "when": "workspaceFolderCount == 0",
-        "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
+        "contents": "Open a folder with a detection repository, or create one.\n[Open Folder](command:vscode.openFolder)\n[Create a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.catalogue",

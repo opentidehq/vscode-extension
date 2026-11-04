@@ -47,6 +47,26 @@ export function atLeast(version: string, minimum: string): boolean {
   return compareVersions(version, minimum) >= 0;
 }
 
+/**
+ * A dev build whose version says nothing about its age: hatch-vcs and setuptools-scm report
+ * `0.1.devN+g<sha>` for a checkout with no release tag in its history (a fork, a shallow clone). It
+ * cannot be ordered against a release, so the minimum does not apply. `0.21.1.dev3+g…`, from a tagged
+ * history, orders normally.
+ */
+export function isUntaggedDevBuild(version: string): boolean {
+  const parsed = parseVersion(version);
+  if (!parsed || parsed.phase !== PHASES.dev) return false;
+  const release = [...parsed.release];
+  while (release.length > 1 && release[release.length - 1] === 0) release.pop();
+  return release.length <= 2 && release[0] === 0 && (release[1] ?? 0) <= 1;
+}
+
+/** Whether a version may run with `minimum`: `ok`, `untagged` (accepted, with a note), or `too-old`. */
+export function checkMinimum(version: string, minimum: string): "ok" | "untagged" | "too-old" {
+  if (atLeast(version, minimum)) return "ok";
+  return isUntaggedDevBuild(version) ? "untagged" : "too-old";
+}
+
 /** The version from `opentide --version` output (`opentide 0.20.1`). */
 export function parseOpentideVersionOutput(stdout: string): string | undefined {
   const match = /\bopentide\s+v?(\d+(?:\.\d+)+\S*)/i.exec(stdout);

@@ -114,6 +114,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     for (const attempt of result.attempts) {
       if (attempt.outcome === "too-old" || (attempt.outcome === "failed" && attempt.tier === 1))
         this.warn(attempt);
+      if (attempt.note) this.log.info(`runtime: ${attempt.note}`);
     }
     this.runtime = result.runtime;
     if (result.runtime) {

@@ -15,7 +15,13 @@ import {
   setupSupport,
   validateAnswers,
 } from "../../../src/features/setup/answers";
-import { folderKind, isGitRepository, walkthroughKeys } from "../../../src/features/setup/detect";
+import {
+  folderKind,
+  isGitRepository,
+  WALKTHROUGH_COMMANDS,
+  walkthroughCommand,
+  walkthroughKeys,
+} from "../../../src/features/setup/detect";
 import { apply, commandLine, NO_PLAN_NOTE, type RunOutcome, review } from "../../../src/features/setup/flow";
 import {
   appliedSteps,
@@ -419,6 +425,10 @@ describe("setup: folders, walkthrough and messages", () => {
     assert.equal(folderKind([dir(".opentide")]), "opentide");
     assert.equal(folderKind([dir("objects"), file("x")]), "opentide");
     assert.equal(folderKind([dir("Configurations"), dir("Objects")]), "legacy");
+    // CoreTIDE is not supported (0.21.0): any of its markers is enough to say so.
+    assert.equal(folderKind([dir("Objects")]), "legacy");
+    assert.equal(folderKind([file("global.toml")]), "legacy");
+    assert.equal(folderKind([dir("objects"), dir("Objects")]), "opentide");
     assert.equal(folderKind([dir(".git"), file("README.md"), file(".DS_Store")]), "empty");
     assert.equal(folderKind([]), "empty");
     assert.equal(folderKind([dir("src")]), "other");
@@ -501,10 +511,38 @@ describe("setup: manifest", () => {
     }
   });
 
+  it("runs each walkthrough button's real command (no guessed ids)", () => {
+    for (const command of Object.values(WALKTHROUGH_COMMANDS)) assert.ok(declared.has(command), command);
+    assert.equal(walkthroughCommand("deploy"), "opentide.deployPlan.open");
+    assert.equal(walkthroughCommand("graph"), "opentide.graph.open");
+    assert.equal(walkthroughCommand("toString"), undefined);
+    const walkthrough = pkg.contributes.walkthroughs.find((w) => w.id === "opentide.gettingStarted");
+    for (const step of walkthrough?.steps ?? [])
+      for (const m of step.description.matchAll(/command:opentide\.setup\.step\?([^)]+)\)/g)) {
+        const [id] = JSON.parse(decodeURIComponent(m[1] ?? "")) as string[];
+        assert.ok(walkthroughCommand(id ?? ""), `${step.id}: ${id}`);
+      }
+  });
+
   it("links welcome views only to commands that exist", () => {
     for (const welcome of pkg.contributes.viewsWelcome)
       for (const command of links(welcome.contents))
         assert.ok(declared.has(command) || builtIn.has(command), `${welcome.view}: ${command}`);
+  });
+
+  it("offers no migration: opentide 0.21.0 removed migrate objects", () => {
+    assert.ok(!declared.has("opentide.setup.migrate"));
+    const manifest = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")) as {
+      activationEvents: string[];
+    };
+    assert.deepEqual(
+      manifest.activationEvents.filter((event) => event.includes("Objects/")),
+      [],
+    );
+    for (const welcome of pkg.contributes.viewsWelcome)
+      assert.doesNotMatch(welcome.contents, /migrat(e|ion)\]/i);
+    const legacy = pkg.contributes.viewsWelcome.find((w) => w.contents.includes("CoreTIDE"));
+    assert.ok(legacy?.contents.includes("does not support"));
   });
 
   it("ships the walkthrough media in the VSIX", () => {

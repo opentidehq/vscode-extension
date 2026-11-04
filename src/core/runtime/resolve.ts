@@ -5,6 +5,7 @@ import type { RepoPin } from "./pins";
 import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier } from "./types";
 import {
   atLeast,
+  checkMinimum,
   MIN_ENGINE_VERSION,
   MIN_OPENTIDE_VERSION,
   parseEngineVersionOutput,
@@ -152,7 +153,15 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       return undefined;
     }
     const minimum = lsp ? MIN_ENGINE_VERSION : MIN_OPENTIDE_VERSION;
-    if (candidate.tier !== 4 && !atLeast(version, minimum)) {
+    const gate =
+      candidate.tier === 4
+        ? "ok"
+        : lsp
+          ? atLeast(version, minimum)
+            ? "ok"
+            : "too-old"
+          : checkMinimum(version, minimum);
+    if (gate === "too-old") {
       attempts.push({
         ...base,
         version,
@@ -164,7 +173,17 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       });
       return undefined;
     }
-    attempts.push({ ...base, version, outcome: "ok", detail: `${candidate.command} ${version}` });
+    attempts.push({
+      ...base,
+      version,
+      outcome: "ok",
+      detail: `${candidate.command} ${version}`,
+      ...(gate === "untagged"
+        ? {
+            note: `opentide ${version} at ${candidate.command} is a dev build from a checkout with no release tag; its version cannot be compared with ${minimum}, so it is used as is.`,
+          }
+        : {}),
+    });
     return {
       tier: candidate.tier,
       source: candidate.source,

@@ -455,10 +455,13 @@ New rule ───────────────────────�
 
 ### Triggers
 
-- **The opentide sidebar's welcome view**, for a folder with no `.opentide/` and no `objects/`. It offers three choices:
+- **The opentide sidebar's welcome view**, for a folder with no `.opentide/` and no `objects/`. It offers two choices:
   - **Create a detection repository here**: opens the wizard.
   - **Open an existing repository**: opens a folder.
-  - **Migrate a legacy layout**: shown when the folder has `Configurations/` and `Objects/`.
+
+  A CoreTIDE layout (`Objects/`, `Configurations/` or `global.toml`) gets a plain statement that opentide
+  does not support it, with a link to the 0.21.0 release notes: opentide 0.21.0 removed `migrate objects`,
+  and there is no migration.
 - **The palette:** "opentide: Set Up Repository…".
 - **Step 2 of the walkthrough.**
 
@@ -493,7 +496,7 @@ A webview stepper. It is a form over `opentide setup` flags (D3), so it writes n
 - **Apply** runs the commands in order with `--yes --json` and shows each `steps[]` entry as it completes. On failure it stops and shows that step's `failure` with its fix.
 - **On success:** reveal the Catalogue, open the README, and mark walkthrough step 2 done.
 - **Existing workspace** (`.opentide/` present): the wizard opens on steps ②–⑤ to add platforms, CI or agents (`setup platforms`, `setup ci`, `setup mcp`, `setup skills`, `setup hooks`).
-- **Legacy layout:** run `opentide --json migrate objects` (a dry run), show the planned moves as a tree, then **Apply** (`--apply`), then offer the wizard for what is still missing.
+- **CoreTIDE layout:** not supported (opentide 0.21.0). The wizard says so before it opens, and sets up a new layout beside it only if asked to continue.
 
 ### Walkthrough
 
@@ -612,7 +615,7 @@ OPENTIDE
 Three levels, from fastest to richest:
 
 1. **Go to detection** (`Ctrl+T`, workspace symbols) comes free from the server: names, UUIDs and families.
-2. **Quick search** ("opentide: Find Detection…", `Ctrl+Alt+D`): a quick pick over the catalogue data. Query syntax: free text, plus `type:rule`, `platform:sentinel`, `status:release`, `technique:T1003`, `tactic:credential-access`, `actor:APT29`, `tlp:amber`, `author:me`, `has:errors`, `has:placeholders`, `unreviewed:>90d`.
+2. **Quick search** ("opentide: Find Detection…", `Ctrl+Shift+Alt+F`, `Cmd+Shift+Alt+F` on macOS; `Ctrl+Alt+D` was taken by macOS's Dock and Xfce's Show Desktop): a quick pick over the catalogue data. Query syntax: free text, plus `type:rule`, `platform:sentinel`, `status:release`, `technique:T1003`, `tactic:credential-access`, `actor:APT29`, `tlp:amber`, `author:me`, `has:errors`, `has:placeholders`, `unreviewed:>90d`.
 3. **Search panel:** the same query with facets and counts in a side list, results grouped by type, each with its techniques, platforms, status and problems.
    - Select many results, then act on them: validate them, show them in the graph, preview their deploy.
    - Saved searches are kept per workspace.
@@ -676,7 +679,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
 
 | CLI | Surface |
 |-----|---------|
-| `setup` (all subcommands), `migrate objects` | Wizard (§8); Platforms view; palette |
+| `setup` (all subcommands) | Wizard (§8); Platforms view; palette |
 | `new threat \| objective \| rule` | New object flow (§7) |
 | `validate`, `validate --file`, `validate --fix`, `validate --fix --dry-run` | Problems (§6); "Validate file / workspace"; "Fix all safe problems" shows the `--fix --dry-run` diff first, then applies |
 | `validate query` (offline, `--live`, `--changed`) | Query lens "Validate on tenant"; palette "Validate changed queries on tenants" |

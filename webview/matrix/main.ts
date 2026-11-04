@@ -535,7 +535,8 @@ function renderDetail(): void {
       state.features.newObjective
         ? h("button", {
             class: "secondary",
-            text: "New objective for this technique…",
+            text: "New objective…",
+            title: "opentide new objective: add this technique to it once it is written",
             on: { click: () => channel.post("newObjective", d.id) },
           })
         : null,

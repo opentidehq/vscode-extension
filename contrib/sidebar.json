@@ -42,7 +42,7 @@
       {
         "view": "opentide.sidebar.catalogue",
         "when": "workspaceFolderCount == 0",
-        "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
+        "contents": "Open a folder with a detection repository, or create one.\n[Open Folder](command:vscode.openFolder)\n[Create a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.catalogue",
@@ -235,6 +235,18 @@
         "icon": "$(eye)"
       },
       {
+        "command": "opentide.sidebar.runQuery",
+        "title": "Run Query on Tenants…",
+        "category": "opentide",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "opentide.sidebar.previewDeploy",
+        "title": "Preview Deploy",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      },
+      {
         "command": "opentide.sidebar.openMatrix",
         "title": "Open ATT&CK Matrix",
         "category": "opentide",
@@ -310,6 +322,14 @@
       "commandPalette": [
         {
           "command": "opentide.sidebar.sharePreview",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.runQuery",
+          "when": "false"
+        },
+        {
+          "command": "opentide.sidebar.previewDeploy",
           "when": "false"
         },
         {
@@ -503,6 +523,16 @@
           "command": "opentide.sidebar.sharePreview",
           "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem =~ /^object\\./ && isWorkspaceTrusted && opentide.hasCli",
           "group": "2_show@2"
+        },
+        {
+          "command": "opentide.sidebar.runQuery",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "group": "4_rule@1"
+        },
+        {
+          "command": "opentide.sidebar.previewDeploy",
+          "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage) && viewItem == object.rule && isWorkspaceTrusted && opentide.hasCli",
+          "group": "4_rule@2"
         },
         {
           "command": "opentide.sidebar.newRuleForObjective",
