@@ -1,11 +1,14 @@
 // The Catalogue view (SPEC §9): threats → objectives → signals → rules from `info catalog`, other
 // groupings, and names from `workspace/symbol` until (or instead of) the catalogue. vscode-free.
 
+import { objectIcon } from "../../core/catalog/objectIcons";
+import { type RelationIndex, relationIndexOf } from "../../core/catalog/relations";
 import { isLoaded, type LoadedObject, loadedObjects } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument, CatalogObject, CatalogSymbol } from "../../core/catalog/types";
 import { branch, filterNodes, messageNode, type TreeNode, type ViewModel } from "./node";
 import { platformName } from "./platformNames";
+import { objectTooltip } from "./relationsModel";
 
 export type GroupBy = "chain" | "type" | "platform" | "status" | "technique";
 
@@ -36,12 +39,10 @@ export interface CatalogueInput {
   readonly problems?: (file: string) => ProblemCount | undefined;
 }
 
-const ICONS: Readonly<Record<string, string>> = {
-  threat: "flame",
-  objective: "target",
-  signal: "pulse",
-  rule: "shield",
-};
+/** A folder's input with its relation index, for the tooltips. */
+interface ScopedInput extends CatalogueInput {
+  readonly index?: RelationIndex;
+}
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -125,7 +126,8 @@ function buildFolder(folder: CatalogueFolder, input: CatalogueInput, multi: bool
   const state = folder.state;
   const prefix = multi ? `${folder.path}|` : "";
   if (state.catalog) {
-    const nodes = fromCatalog(state.catalog, folder.path, input, prefix);
+    const scoped: ScopedInput = { ...input, index: relationIndexOf(state.catalog) };
+    const nodes = fromCatalog(state.catalog, folder.path, scoped, prefix);
     const loadErrors = state.catalog.objects.filter((o) => o.load_error).length;
     if (state.status === "error")
       return { nodes, loadErrors, message: `The last refresh failed (${state.error ?? "unknown error"}).` };
@@ -134,10 +136,24 @@ function buildFolder(folder: CatalogueFolder, input: CatalogueInput, multi: bool
   if (state.symbols && state.symbols.length > 0) {
     const reason =
       state.unavailable?.message ?? (state.error ? `The catalogue failed: ${state.error}` : undefined);
+    const needs = state.unavailable?.reason === "needs-command";
     return {
-      nodes: fromSymbols(state.symbols, prefix),
+      nodes: [
+        ...(needs
+          ? [
+              messageNode(`${prefix}names-only`, "Names only", "info", {
+                description: "Switch Runtime… for relations and coverage",
+                tooltip: state.unavailable?.message,
+                command: { command: "opentide.switchRuntime", title: "Switch Runtime…" },
+              }),
+            ]
+          : []),
+        ...fromSymbols(state.symbols, prefix),
+      ],
       loadErrors: 0,
-      message: `${reason ? `${reason} ` : ""}Showing names from the language server.`,
+      message: needs
+        ? "This opentide has no `info catalog`: names from the language server."
+        : `${reason ? `${reason} ` : ""}Showing names from the language server.`,
     };
   }
   if (state.status === "empty" || state.status === "loading")
@@ -178,7 +194,7 @@ function buildFolder(folder: CatalogueFolder, input: CatalogueInput, multi: bool
 function objectNode(
   object: LoadedObject,
   folder: string,
-  input: CatalogueInput,
+  input: ScopedInput,
   id: string,
   extra: { description?: string; children?: TreeNode[] } = {},
 ): TreeNode {
@@ -189,32 +205,31 @@ function objectNode(
     object.type === "rule"
       ? [platformsText(object), badge]
       : [extra.description ?? "", own.slice(0, 2).join(" ") + (own.length > 2 ? " …" : ""), badge];
-  const tooltip = [
-    `${object.name} (${object.type})`,
-    object.path,
-    object.uuid ? `UUID ${object.uuid}` : "",
+  const tooltip = objectTooltip(object, input.index, [
+    `UUID ${object.uuid}`,
     techniquesOf(object).length ? `Techniques: ${techniquesOf(object).join(", ")}` : "",
-    object.platforms.length
-      ? `Platforms: ${object.platforms.map((p) => `${p.id} ${p.status}${p.strategy ? `/${p.strategy}` : ""}`).join(", ")}`
-      : "",
     problems && (problems.errors || problems.warnings)
       ? `${plural(problems.errors, "error")}, ${plural(problems.warnings, "warning")}`
       : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ]);
+  const icon = objectIcon(object.type);
   const node: Omit<TreeNode, "children" | "collapsed"> = {
     id,
     label: object.name || object.path,
     description: descriptionParts.filter(Boolean).join("  "),
-    tooltip,
-    icon: ICONS[object.type] ?? "file",
-    ...(problems && problems.errors > 0 ? { iconColor: "problemsErrorIcon.foreground" } : {}),
-    ...(problems && problems.errors === 0 && problems.warnings > 0
-      ? { iconColor: "problemsWarningIcon.foreground" }
-      : {}),
+    tooltipMarkdown: tooltip,
+    icon: icon.codicon,
+    iconColor:
+      problems && problems.errors > 0
+        ? "problemsErrorIcon.foreground"
+        : problems && problems.warnings > 0
+          ? "problemsWarningIcon.foreground"
+          : icon.themeColor,
     contextValue: `object.${object.type}`,
     open: { path: object.file_path, line: Math.max(0, object.line - 1) },
+    // The description carries the problem counts as text; file decorations would repeat them and
+    // push the description out of a narrow sidebar.
+    decorate: false,
     ref: {
       kind: "object",
       folder,
@@ -265,12 +280,7 @@ function byName(a: CatalogObject, b: CatalogObject): number {
   return (a.name || a.path || "").localeCompare(b.name || b.path || "");
 }
 
-function fromCatalog(
-  doc: CatalogDocument,
-  folder: string,
-  input: CatalogueInput,
-  prefix: string,
-): TreeNode[] {
+function fromCatalog(doc: CatalogDocument, folder: string, input: ScopedInput, prefix: string): TreeNode[] {
   const loaded = loadedObjects(doc.objects);
   const failed = doc.objects.filter((o) => !isLoaded(o));
   const failedGroup = failed.length
@@ -288,13 +298,8 @@ function fromCatalog(
     objectNode(rule, folder, input, `${parentId}/${rule.uuid}`);
   if (input.groupBy === "chain") return [...chain(doc, loaded, folder, input, prefix), ...failedGroup];
   if (input.groupBy === "type") {
-    const families: [string, string, string][] = [
-      ["threat", "Threats", "flame"],
-      ["objective", "Objectives", "target"],
-      ["rule", "Rules", "shield"],
-    ];
     return [
-      ...families.map(([type, label, icon]) => {
+      ...FAMILIES.map(([type, label, icon]) => {
         const id = `${prefix}type:${type}`;
         return group(
           id,
@@ -330,7 +335,12 @@ function fromCatalog(
     }
     return key;
   };
-  const icon = input.groupBy === "platform" ? "server" : input.groupBy === "status" ? "tag" : "symbol-key";
+  const icon =
+    input.groupBy === "platform"
+      ? "server"
+      : input.groupBy === "status"
+        ? "tag"
+        : objectIcon("technique").codicon;
   const noneLabel =
     input.groupBy === "platform" ? "No platform" : input.groupBy === "status" ? "No status" : "No technique";
   return [
@@ -361,7 +371,7 @@ function chain(
   doc: CatalogDocument,
   loaded: readonly LoadedObject[],
   folder: string,
-  input: CatalogueInput,
+  input: ScopedInput,
   prefix: string,
 ): TreeNode[] {
   const byUuid = new Map(loaded.map((o) => [o.uuid, o]));
@@ -406,9 +416,11 @@ function chain(
             id: signalId,
             label: signal.name,
             description: plural(rules.length, "rule"),
-            icon: "pulse",
+            icon: objectIcon("signal").codicon,
+            iconColor: objectIcon("signal").themeColor,
             contextValue: "signal",
-            tooltip: `Signal ${signal.uuid}`,
+            tooltip: `Signal of ${objective.name}: ${signal.uuid}`,
+            ref: { kind: "signal", folder, uuid: signal.uuid, name: signal.name, objective: objective.uuid },
             search: `${signal.name}\n${signal.uuid}`.toLowerCase(),
           },
           rules.map((rule) => objectNode(rule, folder, input, `${signalId}/${rule.uuid}`)),
@@ -463,9 +475,9 @@ function chain(
 }
 
 const FAMILIES: readonly [string, string, string][] = [
-  ["threat", "Threats", "flame"],
-  ["objective", "Objectives", "target"],
-  ["rule", "Rules", "shield"],
+  ["threat", "Threats", objectIcon("threat").codicon],
+  ["objective", "Objectives", objectIcon("objective").codicon],
+  ["rule", "Rules", objectIcon("rule").codicon],
 ];
 
 /** Names and locations from `workspace/symbol`, by family. */
@@ -483,7 +495,8 @@ export function fromSymbols(symbols: readonly CatalogSymbol[], prefix = ""): Tre
           (s): TreeNode => ({
             id: `${id}/${s.uri}#${s.line}`,
             label: s.name,
-            icon: ICONS[s.family] ?? "symbol-misc",
+            icon: objectIcon(s.family).codicon,
+            iconColor: objectIcon(s.family).themeColor,
             contextValue: `symbol.${s.family || "other"}`,
             open: { uri: s.uri, line: s.line, character: s.character },
             tooltip: decodeURIComponent(s.uri.replace(/^file:\/\//, "")),

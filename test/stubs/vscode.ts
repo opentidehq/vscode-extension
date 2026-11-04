@@ -240,7 +240,67 @@ export const commands = {
   },
 };
 
+export enum TreeItemCollapsibleState {
+  None = 0,
+  Collapsed = 1,
+  Expanded = 2,
+}
+
+export class ThemeColor {
+  constructor(readonly id: string) {}
+}
+
+export class ThemeIcon {
+  constructor(
+    readonly id: string,
+    readonly color?: ThemeColor,
+  ) {}
+}
+
+export class MarkdownString {
+  constructor(
+    readonly value = "",
+    readonly supportThemeIcons = false,
+  ) {}
+}
+
+export class TreeItem {
+  id?: string;
+  description?: string;
+  tooltip?: string | MarkdownString;
+  iconPath?: ThemeIcon;
+  contextValue?: string;
+  resourceUri?: Uri;
+  command?: { command: string; title: string; arguments?: unknown[] };
+  accessibilityInformation?: { label: string };
+  constructor(
+    readonly label: string,
+    readonly collapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None,
+  ) {}
+}
+
+/** A tree view as an extension sees it; `treeDataProvider` is the one it was created with. */
+export class StubTreeView<T> {
+  message?: string;
+  description?: string;
+  badge?: { value: number; tooltip: string };
+  visible = true;
+  private readonly visibility = new EventEmitter<{ visible: boolean }>();
+  readonly onDidChangeVisibility = this.visibility.event;
+  constructor(
+    readonly id: string,
+    readonly treeDataProvider: T,
+  ) {}
+  async reveal(): Promise<void> {}
+  dispose(): void {
+    this.visibility.dispose();
+  }
+}
+
 export const window = {
+  createTreeView<T>(id: string, options: { treeDataProvider: T }): StubTreeView<T> {
+    return new StubTreeView(id, options.treeDataProvider);
+  },
   createOutputChannel(name: string) {
     const lines: string[] = [];
     const log = (message: unknown) => lines.push(String(message));

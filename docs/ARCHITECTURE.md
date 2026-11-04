@@ -213,7 +213,10 @@ The window's one `LanguageClient` (vscode-languageclient 10): `current`, `ready(
 diagnostics are on and the server's refresh requests are honoured by the client. **Add no middleware
 that handles `publishDiagnostics`**; the `opentide` diagnostic collection is the server's. Use
 `client.sendRequest` for server requests (`opentide/compiledKql`, `workspace/symbol`, …). The core
-registers `opentide.showReferences` for the reference lens.
+registers `opentide.showReferences` for the reference lens. `onCatalogChanged` fires `{ root }` on the
+server's `opentide/catalogChanged` (ask `opentide/catalog` again); subscribe to it rather than calling
+`client.onNotification` for that notification, since the client keeps one handler per notification and a
+second registration replaces the first.
 
 ### `ctx.catalog`
 

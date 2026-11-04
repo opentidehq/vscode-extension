@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import {
   convertShowReferencesArgs,
   DOCUMENT_SELECTOR,
+  forwardNotification,
   LANGUAGE_IDS,
   readServerInfo,
 } from "../../src/core/lsp";
@@ -14,6 +15,7 @@ import { RESTRICTED_SETTINGS, readSetting, runtimeSettings } from "../../src/cor
 import { FolderManager } from "../../src/core/services/workspace";
 import type { CancellationToken } from "../../src/core/util/cancellation";
 import type { Event } from "../../src/core/util/event";
+import { Emitter } from "../../src/core/util/event";
 import { contentSecurityPolicy, renderHtml } from "../../src/core/webview/html";
 import { acceptMessage, is } from "../../src/core/webview/protocol";
 import { stubState } from "../stubs/vscode";
@@ -40,6 +42,32 @@ describe("settings and trust", () => {
 });
 
 describe("language client pieces", () => {
+  it("hands opentide/catalogChanged to every subscriber from one client handler", () => {
+    // Like vscode-languageclient: one handler per method, a second registration replaces the first.
+    const handlers = new Map<string, (params: unknown) => void>();
+    let registered = 0;
+    const client = {
+      onNotification(method: string, handler: (params: unknown) => void) {
+        registered += 1;
+        handlers.set(method, handler);
+        return { dispose: () => handlers.delete(method) };
+      },
+    };
+    const changed = new Emitter<{ root: string | null }>();
+    forwardNotification(client, "opentide/catalogChanged", (params) => changed.fire(params));
+    const seen: (string | null)[][] = [[], []];
+    changed.event((e) => seen[0]?.push(e.root));
+    changed.event((e) => seen[1]?.push(e.root));
+    handlers.get("opentide/catalogChanged")?.({ root: "file:///w" });
+    handlers.get("opentide/catalogChanged")?.({ root: null });
+    handlers.get("opentide/catalogChanged")?.(undefined);
+    assert.equal(registered, 1);
+    assert.deepEqual(seen, [
+      ["file:///w", null, null],
+      ["file:///w", null, null],
+    ]);
+  });
+
   it("selects every server language by id and by pattern", () => {
     assert.deepEqual(LANGUAGE_IDS, [
       "opentide-yaml",

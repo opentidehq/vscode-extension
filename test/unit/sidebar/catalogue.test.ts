@@ -159,16 +159,21 @@ describe("sidebar: catalogue", () => {
       ],
     };
     const model = one(state);
-    assert.deepEqual(labels(model.nodes), ["Threats", "Rules"]);
-    assert.deepEqual(model.nodes[1]?.children?.[0]?.open, {
+    // One line with the one action first: names only, and how to get the rest.
+    assert.deepEqual(labels(model.nodes), ["Names only", "Threats", "Rules"]);
+    assert.deepEqual(model.nodes[0]?.command, {
+      command: "opentide.switchRuntime",
+      title: "Switch Runtime…",
+    });
+    assert.deepEqual(model.nodes[2]?.children?.[0]?.open, {
       uri: "file:///repo/objects/rules/b.yaml",
       line: 4,
       character: 6,
     });
-    assert.equal(
-      model.message,
-      "The catalogue needs a newer opentide. Showing names from the language server.",
-    );
+    assert.equal(model.message, "This opentide has no `info catalog`: names from the language server.");
+    const failed = one({ ...state, unavailable: undefined, status: "error", error: "boom" });
+    assert.deepEqual(labels(failed.nodes), ["Threats", "Rules"]);
+    assert.equal(failed.message, "The catalogue failed: boom Showing names from the language server.");
     assert.deepEqual(
       labels(fromSymbols([{ name: "x", family: "", uri: "file:///x", line: 0, character: 0 }])),
       ["Other"],
