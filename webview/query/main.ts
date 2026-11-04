@@ -8,6 +8,7 @@ import {
 } from "../../src/features/query/protocol";
 import {
   applyProgress,
+  canStartRun,
   exportable,
   formatMs,
   queryViewState,
@@ -111,6 +112,7 @@ function toolbar(s: QueryPanelState): HTMLElement {
           "button",
           {
             title: `Run again: contacts ${s.contacts}`,
+            attrs: { disabled: !canStartRun(s.phase) },
             on: { click: () => channel.post("rerun", undefined) },
           },
           [globeIcon(), " Re-run"],
@@ -118,7 +120,7 @@ function toolbar(s: QueryPanelState): HTMLElement {
     h("button", {
       class: "secondary",
       text: "Tenants and window…",
-      attrs: { disabled: running },
+      attrs: { disabled: !canStartRun(s.phase) },
       on: { click: () => channel.post("edit", undefined) },
     }),
     h("span", { id: "elapsed", class: "muted", attrs: { "aria-live": "off" } }, [elapsedText(s)]),

@@ -15,6 +15,7 @@ import {
 import type { QueryPanelState } from "../../../src/features/query/protocol";
 import {
   applyProgress,
+  canStartRun,
   choosingState,
   exportable,
   formatMs,
@@ -274,5 +275,8 @@ describe("query: while the tenant picker is open (#47)", () => {
     assert.equal(choosing.durationMs, 1200);
     assert.deepEqual(choosing.tabs, []);
     assert.equal(keepable(choosing), false, "a panel closed while picking is not kept");
+    assert.equal(canStartRun(choosing.phase), false, "no Re-run or Tenants while the picker is open");
+    assert.equal(canStartRun("running"), false);
+    for (const phase of ["done", "failed", "cancelled"]) assert.equal(canStartRun(phase), true, phase);
   });
 });

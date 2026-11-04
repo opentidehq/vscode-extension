@@ -126,7 +126,9 @@ pre-releases odd ones.
   platform) and **Compiled query** (from the language server). Sysdig gets no run lens, and Elastic
   Kuery says it writes preview alerts.
 - The query results panel: progress per tenant with Cancel and Re-run, then one tab per tenant (with
-  a failed tenant's error and the platform's detail). Each tab has a virtual table to sort, filter and
+  a failed tenant's error and the platform's detail). When the platform has several tenants it asks
+  which to query; Re-run and "Tenants and window…" wait for that picker, and a pick made after the
+  panel closed or a newer run started is dropped. Each tab has a virtual table to sort, filter and
   move through with the keyboard. Copy a cell, a row or the rows as CSV, JSON or Markdown, or export
   CSV or JSONL. Results stay in memory and are dropped when the panel closes
   (`opentide.query.retainResults`). In CSV, a cell a spreadsheet would read as a formula (`=`, `+`,
