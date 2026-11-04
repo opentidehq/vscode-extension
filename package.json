@@ -362,6 +362,59 @@
         }
       },
       {
+        "id": "opentide.diagnostics",
+        "title": "opentide: Diagnostics",
+        "order": 10,
+        "properties": {
+          "opentide.validate.onSave": {
+            "type": "string",
+            "enum": [
+              "file",
+              "workspace",
+              "off"
+            ],
+            "default": "file",
+            "scope": "resource",
+            "order": 0,
+            "enumDescriptions": [
+              "Validate the saved object file (`opentide validate --file`). Saving a configuration file validates the workspace.",
+              "Validate the whole workspace on every save.",
+              "Only when you run opentide: Validate Workspace."
+            ],
+            "markdownDescription": "When `opentide validate` runs on save, in the `opentide validate` problems. The language server checks open files as you type either way."
+          },
+          "opentide.validate.onStartup": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "order": 1,
+            "markdownDescription": "Validate the workspace in the background when the extension starts, so problems in files you have not opened show up too."
+          },
+          "opentide.lint.onSave": {
+            "type": "string",
+            "enum": [
+              "file",
+              "off"
+            ],
+            "default": "file",
+            "scope": "resource",
+            "order": 2,
+            "enumDescriptions": [
+              "Lint the saved object file (`opentide lint --file`), when the active opentide has that option.",
+              "Only when you run opentide: Lint Workspace."
+            ],
+            "markdownDescription": "When `opentide lint` (file names, recommended metadata, placeholders, query style) runs on save."
+          },
+          "opentide.lint.withValidate": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "order": 3,
+            "markdownDescription": "Lint the workspace whenever the workspace is validated (on startup, on Validate Workspace, and on save with `opentide.validate.onSave` set to `workspace`)."
+          }
+        }
+      },
+      {
         "id": "opentide-terminal",
         "title": "opentide: Terminal",
         "properties": {
@@ -416,6 +469,105 @@
         "title": "Add opentide to This Editor's MCP Settings",
         "category": "opentide",
         "icon": "$(plug)"
+      },
+      {
+        "command": "opentide.diagnostics.validateWorkspace",
+        "title": "Validate Workspace",
+        "category": "opentide",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "opentide.diagnostics.lintWorkspace",
+        "title": "Lint Workspace",
+        "category": "opentide",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "opentide.diagnostics.validateFile",
+        "title": "Validate File",
+        "category": "opentide",
+        "icon": "$(check)"
+      },
+      {
+        "command": "opentide.diagnostics.explain",
+        "title": "Explain a Diagnostic Code…",
+        "category": "opentide",
+        "icon": "$(question)"
+      },
+      {
+        "command": "opentide.diagnostics.fixAllSafe",
+        "title": "Fix All Safe Problems in the Workspace…",
+        "category": "opentide",
+        "icon": "$(lightbulb-autofix)"
+      },
+      {
+        "command": "opentide.diagnostics.clear",
+        "title": "Clear Validate and Lint Problems",
+        "category": "opentide",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "opentide.newObject",
+        "title": "New Detection Object…",
+        "category": "opentide",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opentide.newObject.threat",
+        "title": "New Threat…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.objective",
+        "title": "New Objective…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.rule",
+        "title": "New Rule…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.newFile.threat",
+        "title": "opentide Threat"
+      },
+      {
+        "command": "opentide.newObject.newFile.objective",
+        "title": "opentide Objective"
+      },
+      {
+        "command": "opentide.newObject.newFile.rule",
+        "title": "opentide Rule"
+      },
+      {
+        "command": "opentide.newObject.ruleForObjective",
+        "title": "New Rule for This Objective…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.objectiveForThreat",
+        "title": "New Objective for This Threat…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.regenerateTemplates",
+        "title": "Regenerate Templates, Schemas and Snippets",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.newObject.addPlatformBlock",
+        "title": "Add a Platform Block",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.placeholder.next",
+        "title": "Next Placeholder",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.placeholder.previous",
+        "title": "Previous Placeholder",
+        "category": "opentide"
       },
       {
         "command": "opentide.runner.run",
@@ -511,6 +663,82 @@
           "when": "isWorkspaceTrusted && opentide.agents.forkMcp"
         },
         {
+          "command": "opentide.diagnostics.validateWorkspace",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.diagnostics.lintWorkspace",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.diagnostics.validateFile",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml"
+        },
+        {
+          "command": "opentide.diagnostics.explain",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.diagnostics.fixAllSafe",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.diagnostics.clear",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.newObject",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.newObject.threat",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.newObject.objective",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.newObject.rule",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.newObject.newFile.threat",
+          "when": "false"
+        },
+        {
+          "command": "opentide.newObject.newFile.objective",
+          "when": "false"
+        },
+        {
+          "command": "opentide.newObject.newFile.rule",
+          "when": "false"
+        },
+        {
+          "command": "opentide.newObject.ruleForObjective",
+          "when": "false"
+        },
+        {
+          "command": "opentide.newObject.objectiveForThreat",
+          "when": "false"
+        },
+        {
+          "command": "opentide.newObject.addPlatformBlock",
+          "when": "false"
+        },
+        {
+          "command": "opentide.newObject.regenerateTemplates",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.placeholder.next",
+          "when": "editorIsOpen && opentide.hasPlaceholders"
+        },
+        {
+          "command": "opentide.placeholder.previous",
+          "when": "editorIsOpen && opentide.hasPlaceholders"
+        },
+        {
           "command": "opentide.runner.showLastResult",
           "when": "isWorkspaceTrusted"
         },
@@ -547,11 +775,40 @@
           "when": "opentide.hasWorkspace"
         }
       ],
+      "editor/title": [
+        {
+          "command": "opentide.diagnostics.validateFile",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
+          "group": "navigation@50"
+        }
+      ],
       "explorer/context": [
+        {
+          "command": "opentide.newObject",
+          "when": "explorerResourceIsFolder && isWorkspaceTrusted && opentide.hasCli && resourcePath in opentide.objectFolders",
+          "group": "navigation@9"
+        },
         {
           "command": "opentide.runner.sharePreview",
           "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml",
           "group": "opentide@1"
+        }
+      ],
+      "file/newFile": [
+        {
+          "command": "opentide.newObject.newFile.threat",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        },
+        {
+          "command": "opentide.newObject.newFile.objective",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        },
+        {
+          "command": "opentide.newObject.newFile.rule",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
         }
       ]
     },
@@ -653,6 +910,42 @@
         "language": "opentide-config",
         "scopeName": "source.opentide.toml",
         "path": "./syntaxes/opentide-config.tmLanguage.json"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "opentide.placeholder.next",
+        "key": "ctrl+alt+.",
+        "mac": "ctrl+alt+.",
+        "when": "editorTextFocus && opentide.hasPlaceholders"
+      },
+      {
+        "command": "opentide.placeholder.previous",
+        "key": "ctrl+alt+,",
+        "mac": "ctrl+alt+,",
+        "when": "editorTextFocus && opentide.hasPlaceholders"
+      }
+    ],
+    "colors": [
+      {
+        "id": "opentide.placeholderBackground",
+        "description": "Background of a line whose value is an `opentide new` placeholder (`# opentide:placeholder`).",
+        "defaults": {
+          "dark": "#cca70019",
+          "light": "#cca70024",
+          "highContrast": null,
+          "highContrastLight": null
+        }
+      },
+      {
+        "id": "opentide.placeholderOverviewRuler",
+        "description": "Overview ruler mark of a placeholder line.",
+        "defaults": {
+          "dark": "editorOverviewRuler.warningForeground",
+          "light": "editorOverviewRuler.warningForeground",
+          "highContrast": "editorOverviewRuler.warningForeground",
+          "highContrastLight": "editorOverviewRuler.warningForeground"
+        }
       }
     ],
     "taskDefinitions": [

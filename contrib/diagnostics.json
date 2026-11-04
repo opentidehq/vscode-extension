@@ -1,0 +1,113 @@
+{
+  "contributes": {
+    "configuration": [
+      {
+        "id": "opentide.diagnostics",
+        "title": "opentide: Diagnostics",
+        "order": 10,
+        "properties": {
+          "opentide.validate.onSave": {
+            "type": "string",
+            "enum": ["file", "workspace", "off"],
+            "default": "file",
+            "scope": "resource",
+            "order": 0,
+            "enumDescriptions": [
+              "Validate the saved object file (`opentide validate --file`). Saving a configuration file validates the workspace.",
+              "Validate the whole workspace on every save.",
+              "Only when you run opentide: Validate Workspace."
+            ],
+            "markdownDescription": "When `opentide validate` runs on save, in the `opentide validate` problems. The language server checks open files as you type either way."
+          },
+          "opentide.validate.onStartup": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "order": 1,
+            "markdownDescription": "Validate the workspace in the background when the extension starts, so problems in files you have not opened show up too."
+          },
+          "opentide.lint.onSave": {
+            "type": "string",
+            "enum": ["file", "off"],
+            "default": "file",
+            "scope": "resource",
+            "order": 2,
+            "enumDescriptions": [
+              "Lint the saved object file (`opentide lint --file`), when the active opentide has that option.",
+              "Only when you run opentide: Lint Workspace."
+            ],
+            "markdownDescription": "When `opentide lint` (file names, recommended metadata, placeholders, query style) runs on save."
+          },
+          "opentide.lint.withValidate": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "order": 3,
+            "markdownDescription": "Lint the workspace whenever the workspace is validated (on startup, on Validate Workspace, and on save with `opentide.validate.onSave` set to `workspace`)."
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "opentide.diagnostics.validateWorkspace",
+        "title": "Validate Workspace",
+        "category": "opentide",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "opentide.diagnostics.lintWorkspace",
+        "title": "Lint Workspace",
+        "category": "opentide",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "opentide.diagnostics.validateFile",
+        "title": "Validate File",
+        "category": "opentide",
+        "icon": "$(check)"
+      },
+      {
+        "command": "opentide.diagnostics.explain",
+        "title": "Explain a Diagnostic Code…",
+        "category": "opentide",
+        "icon": "$(question)"
+      },
+      {
+        "command": "opentide.diagnostics.fixAllSafe",
+        "title": "Fix All Safe Problems in the Workspace…",
+        "category": "opentide",
+        "icon": "$(lightbulb-autofix)"
+      },
+      {
+        "command": "opentide.diagnostics.clear",
+        "title": "Clear Validate and Lint Problems",
+        "category": "opentide",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "opentide.diagnostics.validateWorkspace",
+          "when": "isWorkspaceTrusted && opentide.hasCli"
+        },
+        { "command": "opentide.diagnostics.lintWorkspace", "when": "isWorkspaceTrusted && opentide.hasCli" },
+        {
+          "command": "opentide.diagnostics.validateFile",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml"
+        },
+        { "command": "opentide.diagnostics.explain", "when": "isWorkspaceTrusted && opentide.hasCli" },
+        { "command": "opentide.diagnostics.fixAllSafe", "when": "isWorkspaceTrusted && opentide.hasCli" },
+        { "command": "opentide.diagnostics.clear", "when": "opentide.hasWorkspace" }
+      ],
+      "editor/title": [
+        {
+          "command": "opentide.diagnostics.validateFile",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
+          "group": "navigation@50"
+        }
+      ]
+    }
+  }
+}
