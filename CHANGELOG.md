@@ -143,6 +143,34 @@ pre-releases odd ones.
   `opentide info catalog`. Gaps show without relying on colour, sub-techniques expand in place, and
   layers add planned objectives and unaddressed threats. Filter by platform, tenant, INERT status and
   inherited techniques. Each cell lists its rules, and **Export Navigator layer** writes the file.
+- Panels open beside the object: the query results, the deploy plan of a rule, the compiled query, a
+  payload and a setup file open in the next editor group without taking the focus, so the YAML stays in
+  view. Each kind keeps one panel and retargets it to the next object, with the object in its title
+  ("Query · LSASS handle… · Sentinel"); a lock button keeps a panel on its object, and the next one gets
+  a panel of its own. Rules opened from a panel go to the group beside it.
+- One look for every panel: codicons (bundled, no CDN), design tokens on VS Code's theme variables, a
+  toolbar with what the panel is about on the left and its actions on the right, a progress bar and
+  skeleton rows while loading (nothing moves when the data arrives), empty and error states with one
+  primary action and **Show output**, callouts, collapsible sections, and visible focus rings. Light,
+  dark and high-contrast themes, and reduced motion, are honoured.
+- Query results: chips for the platform, window, limit and the tenants it contacts; tenant tabs with
+  counts; the running time and what it waits for beside **Cancel**; columns to resize (drag, double-click
+  to fit, Alt+←/→), a cell menu (Shift+F10: copy, filter to this value, sort); copy and export in one
+  **Export** menu. A failed tenant says whether its credentials are unset or refused (**Set
+  Credential…**) or it could not be reached (**Re-run**). A 10,000-row table sorts and filters within a
+  frame (`test/unit/webview/table.test.ts`).
+- Deploy plan: the counts as cards, a collapsible section per platform with each tenant's changes (long
+  lists are virtualised), a missing tenant as a callout with **Open configuration**, Changed / All /
+  Only this rule and the strategy as segmented controls, and the commands folded into one section.
+- ATT&CK matrix: the grid scrolls in both directions under sticky tactic headers, a cell's hover card
+  names its top rules, a click lists them in the side panel, the shading has a legend and outlines in
+  high contrast, and every filter sits in one bar. A state update patches the cells in place.
+- Setup wizard: a stepper that marks done and invalid steps, inline messages under each field, file
+  badges in Review, a progress bar and status per command during Apply, and a finish screen with **Open
+  README**, **New Rule**, **Show Graph** and the Catalogue.
+- The status item shows the warm backend (`$(zap)` while `opentide serve` runs) next to the version and
+  problem counts; its tooltip says which runtime, which backend and how many problems, with links, and
+  its menu groups the actions and the runtime's commands.
 
 #### Commands, tasks and agents
 
