@@ -27,7 +27,7 @@ import {
   withOverrides,
 } from "../../src/features/graph/expand";
 import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg, truncate } from "../../src/features/graph/export";
-import { SelectionHistory } from "../../src/features/graph/history";
+import { SelectionHistory, withoutGone } from "../../src/features/graph/history";
 import { bounds, largeView, layout, NODE_BOX, type Point, stabilize } from "../../src/features/graph/layout";
 import {
   describe,
@@ -797,7 +797,12 @@ function render(options: RenderOptions = {}): void {
   lastKey = key;
   lastIds = ids;
   history.retain((id) => detailsIndex?.node(id) !== undefined);
-  if (selected && !detailsIndex?.node(selected)) selected = undefined;
+  // A patch may remove the selected or the hovered node (the hover would never get its mouseout).
+  ({ selected, hovered } = withoutGone(
+    { selected, hovered },
+    (id) => detailsIndex?.node(id) !== undefined,
+    (id) => nodesById.has(id),
+  ));
 
   updateToolbar();
   updateStatus();

@@ -61,3 +61,24 @@ export class SelectionHistory {
     this.index = -1;
   }
 }
+
+export interface Pointed {
+  readonly selected: string | undefined;
+  readonly hovered: string | undefined;
+}
+
+/**
+ * The selected and hovered nodes once a catalogue change has been applied: a selection the model no
+ * longer has, or a hover over a node no longer drawn, is gone, so its emphasis and details do not
+ * outlive it (a removed node never gets its mouseout).
+ */
+export function withoutGone(
+  pointed: Pointed,
+  inModel: (id: string) => boolean,
+  drawn: (id: string) => boolean,
+): Pointed {
+  return {
+    selected: pointed.selected !== undefined && inModel(pointed.selected) ? pointed.selected : undefined,
+    hovered: pointed.hovered !== undefined && drawn(pointed.hovered) ? pointed.hovered : undefined,
+  };
+}

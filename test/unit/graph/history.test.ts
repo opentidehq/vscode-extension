@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { SelectionHistory } from "../../../src/features/graph/history";
+import { SelectionHistory, withoutGone } from "../../../src/features/graph/history";
 
 describe("graph selection history", () => {
   it("goes back and forward, and a new selection drops what was ahead", () => {
@@ -40,5 +40,24 @@ describe("graph selection history", () => {
     assert.equal(history.current, undefined);
     history.visit("z");
     assert.equal(history.current, "z");
+  });
+});
+
+describe("graph: selected and hovered nodes across a catalogue change", () => {
+  it("forgets a selection the model lost and a hover over a node no longer drawn", () => {
+    const inModel = (id: string) => id !== "gone";
+    const drawn = (id: string) => id !== "gone" && id !== "filtered";
+    assert.deepEqual(withoutGone({ selected: "gone", hovered: "gone" }, inModel, drawn), {
+      selected: undefined,
+      hovered: undefined,
+    });
+    assert.deepEqual(withoutGone({ selected: "filtered", hovered: "filtered" }, inModel, drawn), {
+      selected: "filtered",
+      hovered: undefined,
+    });
+    assert.deepEqual(withoutGone({ selected: "a", hovered: "b" }, inModel, drawn), {
+      selected: "a",
+      hovered: "b",
+    });
   });
 });
