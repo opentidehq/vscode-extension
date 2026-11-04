@@ -643,6 +643,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - Pick the tenant(s). Several tenants with none named is the CLI's exit-2 case, so the picker uses its `choices`.
   - Pick the window (`--since`, or `--from`/`--to`) and the limit.
   - The run button shows a globe icon and names the tenants it will contact.
+  - A rule with unsaved edits asks first: the CLI reads the saved file, so the choice is Save and Run, Run Saved Version, or nothing. **Validate live** (`validate query --live --file`) asks the same.
 - **Running** `opentide --json query --rule <uuid> | --file <rule> | <text>`. Rows arrive at the end, so the panel shows progress per tenant and a Cancel button ([§4](#4-the-runtime-resolution-processes-status)).
 - **Results:**
   - one tab per tenant;
@@ -662,6 +663,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - strategy: `PREVIEW` or `RELEASE`;
   - scope: **changed rules** (the CLI's default, from the git diff) or **all** (`--all`). Per rule once opentide supports it ([§15](#15-what-this-needs-from-opentide-and-language-server)).
 - **Runs** `opentide --json deploy --dry-run --strategy … [--all] [--platform …]`. No credentials are needed.
+- **Unsaved rules:** a preview of rule files with unsaved edits asks first to save them or to preview the saved versions.
 - **Shows:**
   - **Changes:** platform → tenant → rule → action (`create`, `update`, `upsert`, `disable`, `delete`), with the status.
   - **Skipped:** each rule with its reason (strategy, status, unconfigured).
