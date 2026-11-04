@@ -240,7 +240,7 @@ export function objectTooltip(
   const icon = objectIcon(subject.type).codicon;
   const lines = [
     `$(${icon}) **${escapeMarkdown(subject.name || subject.path)}**`,
-    `${kindName(subject.type)} · \`${subject.path.replaceAll("`", "'")}\``,
+    `${escapeMarkdown(kindName(subject.type))} · \`${subject.path.replaceAll("`", "'")}\``,
   ];
   if (subject.platforms.length)
     lines.push(
@@ -265,6 +265,11 @@ const LENS_KINDS: readonly RelationKind[] = ["implements", "covers", "signal", "
 
 const short = (text: string, max = 40): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
+/** Text in a CodeLens title, where `$(name)` would draw an icon: a name shows as written. */
+export function escapeIcons(text: string): string {
+  return text.replace(/\$\(/g, "\\$(");
+}
+
 /** The family of the far ends of `relations`, when they share one. */
 function familyOf(graph: RelationGraph, relations: readonly Relation[]): string | undefined {
   const families = new Set(
@@ -287,7 +292,7 @@ export function lensText(graph: RelationGraph, uuid: string): string {
     const [only] = group.relations;
     if (group.relations.length === 1 && only) {
       const name = only.missing ? undefined : graph.nameOf(only.other);
-      parts.push(`${head} ${name ? short(name) : `$(${MISSING_ICON}) missing`}`);
+      parts.push(`${head} ${name ? escapeIcons(short(name)) : `$(${MISSING_ICON}) missing`}`);
     } else {
       const missing = group.relations.filter((r) => r.missing).length;
       const found = group.relations.filter((r) => !r.missing);

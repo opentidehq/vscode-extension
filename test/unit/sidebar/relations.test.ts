@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import { RELATION_WORDS, relationIndexOf } from "../../../src/core/catalog/relations";
 import { changedNodes, type TreeNode } from "../../../src/features/sidebar/node";
 import {
+  escapeIcons,
   escapeMarkdown,
   graphFromCatalog,
   graphFromServer,
@@ -268,6 +269,18 @@ describe("relations CodeLens", () => {
     assert.equal(lensText(graph(), UUID.orphan), "No relations");
   });
 
+  it("shows a name with $( as written, not as an icon", () => {
+    const doc = sampleCatalog();
+    const objects = doc.objects.map((o) =>
+      o.uuid === UUID.objective ? { ...o, name: "Detect $(flame) access" } : o,
+    );
+    assert.equal(
+      lensText(graphFromCatalog({ ...doc, objects }, ROOT, "linux"), UUID.rule),
+      "Implements → Detect \\$(flame) access",
+    );
+    assert.equal(escapeIcons("a $(x) $(y)"), "a \\$(x) \\$(y)");
+  });
+
   it("counts by family, and says 'objects' for a mix", () => {
     const doc = syntheticCatalog(200);
     const text = lensText(graphFromCatalog(doc, ROOT, "linux"), "o-0");
@@ -317,6 +330,11 @@ describe("relations tooltips", () => {
       relationIndexOf(doc),
     );
     assert.match(objective, /Covers 1 → · Has signal 2 → · Technique 1 → {2}\n← Implemented by 1$/);
+    // A type from the data is escaped like the name.
+    assert.match(
+      objectTooltip({ uuid: "x", type: "*new*", name: "x", path: "p", platforms: [] }, undefined),
+      /^\$\(file\) \*\*x\*\*\n\n\\\*new\\\* · `p`$/,
+    );
     assert.match(
       objectTooltip({ uuid: "x", type: "rule", name: "x", path: "p", platforms: [] }, relationIndexOf(doc)),
       /No relations$/,
