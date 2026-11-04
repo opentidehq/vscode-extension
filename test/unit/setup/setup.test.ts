@@ -16,6 +16,7 @@ import {
   validateAnswers,
 } from "../../../src/features/setup/answers";
 import {
+  fileInFolder,
   folderKind,
   isGitRepository,
   WALKTHROUGH_COMMANDS,
@@ -666,5 +667,17 @@ describe("setup wizard: stepper states and inline validation", () => {
       assert.equal(setupHostValidators.next(action), true, action);
     assert.equal(setupHostValidators.next("rm -rf"), false);
     assert.equal(setupHostValidators.next(undefined), false);
+  });
+});
+
+describe("setup wizard: file links stay in the folder", () => {
+  it("refuses a sibling folder that shares the folder's name as a prefix", () => {
+    assert.equal(fileInFolder("/work/repo", "README.md"), path.join("/work/repo", "README.md"));
+    assert.equal(fileInFolder("/work/repo", "docs/a.md"), path.join("/work/repo", "docs", "a.md"));
+    assert.equal(fileInFolder("/work/repo", "../repo-x/secret"), undefined, "a prefix is not inside");
+    assert.equal(fileInFolder("/work/repo", "../../etc/passwd"), undefined);
+    assert.equal(fileInFolder("/work/repo", ""), undefined, "the folder itself");
+    assert.equal(fileInFolder("C:\\work\\repo", "..\\repo-x\\a", path.win32), undefined);
+    assert.equal(fileInFolder("C:\\work\\repo", "a\\b.md", path.win32), "C:\\work\\repo\\a\\b.md");
   });
 });

@@ -20,6 +20,7 @@ import {
 } from "./answers";
 import {
   type Entry,
+  fileInFolder,
   folderKind,
   isGitRepository,
   LEGACY_LAYOUT_MESSAGE,
@@ -269,8 +270,8 @@ class WizardHost implements vscode.Disposable {
       await this.init(session, await entries(folder.path));
     });
     channel.on("openFile", async (relative) => {
-      const file = path.join(session.folder.path, relative);
-      if (!file.startsWith(session.folder.path)) return;
+      const file = fileInFolder(session.folder.path, relative);
+      if (!file) return;
       // Beside the wizard, which stays in view.
       await vscode.window.showTextDocument(vscode.Uri.file(file), {
         preview: true,
