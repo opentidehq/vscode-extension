@@ -153,6 +153,7 @@ export function menuButton(spec: {
 }
 
 let card: HTMLElement | undefined;
+let cardAnchor: HTMLElement | undefined;
 let cardTimer: ReturnType<typeof setTimeout> | undefined;
 let cardListeners = false;
 
@@ -185,6 +186,7 @@ export function hoverCard(
     card.style.left = `${left}px`;
     card.style.top = `${top}px`;
     anchor.setAttribute("aria-describedby", "ot-hovercard");
+    cardAnchor = anchor;
     card.id = "ot-hovercard";
   }, delayMs);
 }
@@ -193,4 +195,6 @@ export function hideHoverCard(): void {
   if (cardTimer) clearTimeout(cardTimer);
   cardTimer = undefined;
   card?.remove();
+  cardAnchor?.removeAttribute("aria-describedby");
+  cardAnchor = undefined;
 }
