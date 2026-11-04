@@ -3,7 +3,9 @@ import {
   buildModel,
   edgeLabel,
   facets,
+  isPlaceholderName,
   missingId,
+  nodeLabel,
   objectNodeId,
   shortId,
   techniqueId,
@@ -55,6 +57,36 @@ describe("graph model", () => {
     );
     assert.equal(edgesOf("parent")[0]?.target, UUID.signal);
     assert.equal(edgesOf("logsource")[0]?.target, "logsource:DeviceProcessEvents");
+  });
+
+  it("names a node whose name is a placeholder by its kind and UUID", () => {
+    for (const name of ["", "...", "…", "  ", undefined, null])
+      assert.ok(isPlaceholderName(name), String(name));
+    assert.ok(!isPlaceholderName("Detect LSASS access"));
+    assert.equal(
+      nodeLabel("...", "signal", "1b40396d-0000-4000-8000-000000000001", "x"),
+      "Unnamed signal · 1b40396d",
+    );
+    assert.equal(nodeLabel("", "rule", null, "objects/rules/a.yaml"), "objects/rules/a.yaml");
+    assert.equal(nodeLabel("Real name", "rule", "u", "x"), "Real name");
+    const unnamed = buildModel(
+      document(
+        [object({ uuid: "2b40396d-1111-4000-8000-000000000002", type: "objective", name: "..." })],
+        [],
+        [
+          {
+            uuid: "1b40396d-0000-4000-8000-000000000001",
+            name: "...",
+            objective: "2b40396d-1111-4000-8000-000000000002",
+            parent: null,
+          },
+        ],
+      ),
+    );
+    assert.deepEqual(unnamed.nodes.map((n) => n.label).sort(), [
+      "Unnamed objective · 2b40396d",
+      "Unnamed signal · 1b40396d",
+    ]);
   });
 
   it("labels edges with the words every surface uses, read from the source", () => {

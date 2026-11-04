@@ -129,6 +129,26 @@ export function shortId(value: string): string {
   return at >= 0 ? value.slice(at + 2) : value;
 }
 
+/** A name a template leaves to fill in: empty, or only dots (`...`, `…`). */
+export function isPlaceholderName(name: string | null | undefined): boolean {
+  return !name || /^[\s.…]*$/.test(name);
+}
+
+/**
+ * The label of an object or signal: its name, or for a placeholder name "Unnamed signal · 1b40396d"
+ * (the UUID's first 8 characters), or `fallback` (its path) when it has no UUID either.
+ */
+export function nodeLabel(
+  name: string | null | undefined,
+  kind: NodeKind,
+  uuid: string | null | undefined,
+  fallback: string,
+): string {
+  if (!isPlaceholderName(name)) return name as string;
+  if (!uuid) return fallback;
+  return `Unnamed ${KIND_LABELS[kind].toLowerCase()} · ${uuid.slice(0, 8)}`;
+}
+
 export function buildModel(catalog: CatalogDocument): GraphModel {
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
@@ -150,7 +170,7 @@ export function buildModel(catalog: CatalogDocument): GraphModel {
     nodes.set(id, {
       id,
       kind: objectKind(object),
-      label: object.name || object.path || object.file_path || id,
+      label: nodeLabel(object.name, objectKind(object), object.uuid, object.path || object.file_path || id),
       ...(object.uuid ? { uuid: object.uuid } : {}),
       ...(object.path ? { path: object.path } : {}),
       ...(object.file_path ? { filePath: object.file_path } : {}),
@@ -170,7 +190,7 @@ export function buildModel(catalog: CatalogDocument): GraphModel {
     nodes.set(signal.uuid, {
       id: signal.uuid,
       kind: "signal",
-      label: signal.name,
+      label: nodeLabel(signal.name, "signal", signal.uuid, signal.uuid),
       uuid: signal.uuid,
       ...(objective
         ? { path: objective.path, filePath: objective.file_path, line: objective.line || 1 }
