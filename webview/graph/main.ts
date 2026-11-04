@@ -1021,12 +1021,20 @@ function inViewport(id: string): boolean {
   return box.x1 >= 0 && box.y1 >= 0 && box.x2 <= canvas.clientWidth && box.y2 <= canvas.clientHeight;
 }
 
-function centreOn(id: string, always: boolean): void {
+/** Centre `id` (when off screen, or `always`); a jump (search) also zooms in until it is readable. */
+function centreOn(id: string, always: boolean, readable = false): void {
   if (!cy || settings.list) return;
   const node = cy.getElementById(id);
   if (node.empty() || (!always && inViewport(id))) return;
-  if (reducedMotion()) cy.center(node);
-  else cy.animate({ center: { eles: node } }, { duration: 160 });
+  const zoom = readable ? Math.max(cy.zoom(), 0.9) : cy.zoom();
+  const at = node.position();
+  const next = {
+    zoom,
+    pan: { x: canvas.clientWidth / 2 - at.x * zoom, y: canvas.clientHeight / 2 - at.y * zoom },
+  };
+  if (zoom !== cy.zoom()) autoFit = false;
+  if (reducedMotion()) cy.viewport(next);
+  else cy.animate(next, { duration: 160 });
 }
 
 /**
@@ -1836,15 +1844,11 @@ function updateTarget(): void {
   const id = focus[0];
   const node = id ? detailsIndex?.node(id) : undefined;
   const more = mode === "focus" && focus.length > 1 ? ` +${focus.length - 1}` : "";
-  const name = node
-    ? `${node.label}${more}`
-    : mode === "catalogue"
-      ? "Catalogue"
-      : mode === "chains"
-        ? "Threat chains"
-        : "—";
+  const name = node ? `${node.label}${more}` : "no object";
   targetName.textContent = name;
-  targetName.title = node ? `${node.label}${node.path ? `\n${node.path}` : ""}\nClick to select it.` : name;
+  targetName.title = node
+    ? `${node.label}${node.path ? `\n${node.path}` : ""}\nClick to select it.`
+    : "Open a Tide object in the editor to follow it.";
   const visual = node ? NODE_ICONS[node.kind] : undefined;
   targetIcon.className = `codicon codicon-${visual?.codicon ?? "type-hierarchy"}`;
   targetState.textContent = following ? "Following" : "Pinned";
@@ -1978,7 +1982,7 @@ searchBox.addEventListener("keydown", (event) => {
     const id = inView[matchCursor] as string;
     if (settings.list) revealInList(id);
     select(id, { center: true });
-    if (cy && !settings.list) centreOn(id, true);
+    if (cy && !settings.list) centreOn(id, true, true);
     return;
   }
   const first = model ? [...searchNodes(model.nodes, searchText)][0] : undefined;
