@@ -4,8 +4,10 @@
 import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("../..", import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows that is `/D:/…`, which join turns into `D:\\D:\\…`.
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const contributes = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).contributes;
 const settings = [contributes.configuration].flat().flatMap((c) => Object.keys(c?.properties ?? {}));
 const commands = (contributes.commands ?? []).map((c) => c.command);
