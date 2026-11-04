@@ -18,7 +18,8 @@ pre-releases odd ones.
   `0.1.dev216+g0a65c49` is used with a note), pin-mismatch detection, a status bar item and a language
   status item.
 - The first time the bundled runtime is used, its bytecode is compiled in the background at low
-  priority, into the extension's global storage, so the extension folder stays read-only.
+  priority, into the extension's global storage, so the extension folder stays read-only. An older
+  version's bytecode is deleted once VS Code has removed that version's folder.
 - The language server: one client per window with pulled diagnostics, the reference lens's
   `opentide.showReferences`, and fix-all on save off by default.
 - The backend: `opentide serve` when the runtime has it, spawning `opentide --json` otherwise, with

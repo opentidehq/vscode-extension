@@ -238,6 +238,38 @@ describe("bundled runtime bytecode precompile", () => {
     );
   });
 
+  it("drops the old folder's tree once VS Code removes it, after the update already compiled", async () => {
+    // VS Code keeps the previous version's folder until a later start: the update's compile keeps it.
+    const oldRoot = "/ext/opentidehq.opentide-0.1.0-linux-x64/runtime";
+    const existing = [oldRoot];
+    const f = fake(
+      {
+        [`${EXT}/runtime/BUILD-INFO.json`]: '{"buildId":"b1"}',
+        [stampFile(PREFIX)]: JSON.stringify({
+          builds: { [stampKey("b1", oldRoot)]: { buildId: "b1", root: oldRoot, compiledAt: "x" } },
+        }),
+      },
+      existing,
+    );
+    const first = new Precompiler(f.deps).ensure(bundled);
+    await settle();
+    f.finish(0);
+    assert.equal(await first, "compiled");
+    assert.deepEqual(f.removed, [], "the old folder is still on disk");
+    existing.splice(0); // a later start: VS Code deleted it
+    assert.equal(await new Precompiler(f.deps).ensure(bundled), "already-compiled");
+    assert.deepEqual(f.removed, [pycacheTree(PREFIX, oldRoot, "linux")]);
+    assert.deepEqual(Object.keys(parseStamps(f.files.get(stampFile(PREFIX))).builds), [
+      stampKey("b1", `${EXT}/runtime`),
+    ]);
+    // Nothing left to drop: the stamp file is not written again.
+    let writes = 0;
+    const counting = { ...f.deps, writeFile: async () => void writes++ };
+    assert.equal(await new Precompiler(counting).ensure(bundled), "already-compiled");
+    assert.equal(writes, 0);
+    assert.equal(f.removed.length, 1);
+  });
+
   it("compiles and stamps the resolved folder of a symlinked extension path", async () => {
     const link = "/home/u/.vscode/extensions/opentidehq.opentide-0.2.0-linux-x64";
     const real = "/data/vscode-ext/opentidehq.opentide-0.2.0-linux-x64";

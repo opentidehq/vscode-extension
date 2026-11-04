@@ -188,7 +188,13 @@ export class Precompiler {
     const compiled = Object.entries(stamps.builds).some(
       ([key, build]) => (build.buildId ?? key) === buildId && build.root === root,
     );
-    if (compiled) return "already-compiled";
+    if (compiled) {
+      // An update leaves the previous version's folder until VS Code deletes it at a later start, after
+      // this build was compiled and stamped: its tree goes once the folder is gone.
+      const kept = await this.prune(stamps, prefix, root);
+      if (kept) await deps.writeFile(stampFile(prefix), `${JSON.stringify({ builds: kept }, null, 2)}\n`);
+      return "already-compiled";
+    }
 
     const dir = stdlibDir(
       root,
@@ -223,22 +229,40 @@ export class Precompiler {
       deps.log("warn", `bytecode: compileall exited with ${code}`);
       return "failed";
     }
+    // An entry for this folder is superseded: its tree is the one just compiled.
+    const others = Object.fromEntries(
+      Object.entries(stamps.builds).filter(([, build]) => build.root !== root),
+    );
     const builds: PrecompileStamps["builds"] = {
       [stampKey(buildId, root)]: { buildId, root, compiledAt: new Date(deps.now()).toISOString() },
+      ...((await this.prune({ builds: others }, prefix, root)) ?? others),
     };
-    // Drop the bytecode of builds whose runtime folder is gone (an older extension version, with this
-    // build id or another). An entry for this folder is superseded: its tree is the one just compiled.
-    for (const [key, build] of Object.entries(stamps.builds)) {
-      if (build.root === root) continue;
-      if (!deps.exists(build.root)) {
-        await deps.remove(pycacheTree(prefix, build.root, deps.platform)).catch(() => undefined);
-      } else {
-        builds[key] = build;
-      }
-    }
     await deps.writeFile(stampFile(prefix), `${JSON.stringify({ builds }, null, 2)}\n`);
     deps.log("info", `bytecode: compiled in ${((deps.now() - started) / 1000).toFixed(1)} s`);
     return "compiled";
+  }
+
+  /**
+   * Drop the bytecode of builds whose runtime folder is gone (an older extension version, with this
+   * build id or another); `root`'s own are kept. The builds left, or undefined when none was dropped.
+   */
+  private async prune(
+    stamps: PrecompileStamps,
+    prefix: string,
+    root: string,
+  ): Promise<PrecompileStamps["builds"] | undefined> {
+    const { deps } = this;
+    const kept: PrecompileStamps["builds"] = {};
+    let dropped = false;
+    for (const [key, build] of Object.entries(stamps.builds)) {
+      if (build.root === root || deps.exists(build.root)) {
+        kept[key] = build;
+        continue;
+      }
+      dropped = true;
+      await deps.remove(pycacheTree(prefix, build.root, deps.platform)).catch(() => undefined);
+    }
+    return dropped ? kept : undefined;
   }
 }
 
