@@ -593,11 +593,11 @@ OPENTIDE
   - **Threat chains:** threats and their chaining only.
 - **Layout:** layered left to right, threat → objective → rule (Cytoscape.js and dagre, both MIT). Techniques, log sources and platforms go in one column per kind to the right, each beside the mean of what references it: laid out by dagre, their many edges made a 1,000-node Catalogue view take minutes. Above 600 laid-out nodes dagre ranks with `longest-path`; above 1,500 dagre is skipped (its ordering took 10–17 s on the webview's thread at 5,000 objects) for a linear layering of its own: longest-path ranks and one barycentre sweep. Positions stay stable across refreshes, so the graph does not jump while you work.
 - **Interaction:**
-  - click opens the object at its `name:` line;
+  - a click selects a node, a double-click (or Enter in View as list) opens the object at its `name:` line;
   - hover shows name, UUID, status, techniques and problems;
   - the context menu has the same actions as the catalogue (New rule for this objective, Validate, Run query, Preview deploy);
   - search highlights matches;
-  - filter by platform, status, technique and "has problems".
+  - filter by node kind (techniques, actors, log sources and platforms are kinds), platform, status and "has problems".
 - **Problems on the graph:** nodes with errors carry the error colour, and dangling references (`invalid_ref`) draw as dashed edges to a "missing" node.
 - **Export:** SVG, PNG and Mermaid (the same syntax opentide's generated docs use).
 - **Scale:** Catalogue mode handles 5,000 nodes. Above 1,000 nodes it opens in Focus mode and offers Catalogue.
