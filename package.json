@@ -1681,8 +1681,8 @@
       {
         "name": "opentide",
         "label": "opentide code frames",
-        "owner": "opentide",
-        "source": "opentide",
+        "owner": "opentide-task",
+        "source": "opentide task",
         "fileLocation": [
           "autoDetect",
           "${workspaceFolder}"

@@ -722,7 +722,7 @@ A test runs `opentide --json commands` for the pinned opentide and **fails when 
 ### Tasks, terminal and keybindings
 
 - **Tasks:** a task provider (`type: "opentide"`, `command`, `args`) for validate, lint, generate, dry-run deploy and query, for `tasks.json`, keybindings and pre-launch chains.
-  - The `$opentide` problem matcher reads the human code frames (`error[code]: message` / `╭─▶ path:line:column`), so a task run in the terminal also fills Problems.
+  - The `$opentide` problem matcher reads the human code frames (`error[code]: message` / `╭─▶ path:line:column`), so a task run in the terminal also fills Problems. Its owner (`opentide-task`) and source (`opentide task`) are its own: VS Code clears a matcher owner's markers when its task starts, so sharing the language server's `opentide` would wipe the server's problems.
   - A task, and a command run in the terminal, gets the environment of a background run: `OPENTIDE_REPO_ROOT`, VS Code's `http.proxy` as `OPENTIDE_PROXY`, and credentials only when it contacts a tenant.
 - **Terminal `PATH`:** when the active runtime is the bundled one and no `opentide` is on `PATH`, the integrated terminal gets it prepended (`environmentVariableCollection`, `opentide.terminal.addToPath`, default on). `opentide …` then works in the terminal for people and for terminal agents.
 - **Terminal links:** object UUIDs open the object, and `error[<code>]` opens Explain.
