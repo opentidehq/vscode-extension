@@ -161,7 +161,7 @@ So without a runtime the extension is a grammar pack and says so. That is the un
 **Capability gating.**
 - The extension reads `opentide --json commands` once per opentide version, cached by version.
 - It enables each feature only when the commands and options it needs exist. A feature the active opentide is too old for says which version it needs, instead of failing.
-- **TypeScript types** for every document are generated at build time from the `output_schema`s in that tree. A contract test validates real output from the pinned opentide against them.
+- **TypeScript types** for the documents the extension reads are written by hand from [CONTRACTS.md](CONTRACTS.md) and the `output_schema`s, and the tests against the pinned opentide (`OPENTIDE_TEST_BIN`) read its real output through them. Generating the types from the `output_schema`s at build time, and validating real output against those schemas, is open work.
 
 ### D3. The UI never writes workspace files itself
 
@@ -781,7 +781,7 @@ Revises #8 and #10.
 
 ### Performance budgets
 
-These are measured in CI on a 500-object fixture.
+The targets the design is held to. CI checks two of them: the quick search keystroke (50 ms at 5,000 objects, `test/unit/search/match.test.ts`) and the Catalogue-mode graph layout at scale (`test/unit/graph/layout.test.ts`, seconds rather than minutes). Measuring the rest in CI on a 500-object fixture is open work.
 
 | Moment | Budget |
 |--------|-------:|
@@ -807,14 +807,15 @@ These are measured in CI on a 500-object fixture.
 
 | Layer | Tool | Covers |
 |-------|------|--------|
-| Unit | `@vscode/test-cli` | Range conversion (code points → UTF-16), deduplication, severity mapping, command classification, search query parsing |
-| Contract | The pinned opentide | Every `--json` document the extension reads validates against its `output_schema`; `opentide --json commands` is fully classified |
-| Integration | `@vscode/test-electron` | Each tier with a fake executable; the bundled runtime end to end; the lens, fix-all, multi-root and refresh cases from #5; new → placeholder navigation; validate dedupe |
+| Unit and script | mocha in plain node, with a `vscode` stub (`npm test`) | The vscode-free modules: range conversion (code points → UTF-16), deduplication, severity mapping, command classification, search, graph and matrix models, panels' protocols, the runtime, backend and serve clients against a fake opentide (`test/fixtures/fake-opentide.mjs`); and the scripts: manifest, grammars, runtime lock, packaging, release |
+| Against opentide | The same tests with `OPENTIDE_TEST_BIN` and `OPENTIDE_TEST_WORKSPACE` (CI on Ubuntu and Windows) | The documents the extension reads, from the pinned opentide: the catalogue, graph, search, panels, runner, agents, `serve`, and `opentide --json commands` fully classified |
+| Integration | `@vscode/test-cli` and `@vscode/test-electron` | Activation, languages, the runtime tiers, diagnostics, new objects, sidebar, setup, graph, search, panels and the runner in a real VS Code |
 | Restricted Mode | `.vscode-test.mjs` label | Only the language server starts; no restricted setting is read; no subprocess is spawned |
-| Webviews | Playwright against the built webview bundles | Graph, matrix, results, wizard: rendering, keyboard paths, axe accessibility checks |
-| Packages | Smoke test per target (§3) | Install, `doctor --offline`, LSP `initialize` host and engine |
+| Packages | Smoke test (§3): linux-x64 in CI, every target in `publish.yml` | Install, `doctor --offline`, LSP `initialize` host and engine |
 
-CI runs {ubuntu, macos, windows} × {minimum engine, stable, insiders}, with Xvfb on Linux, as #2 says.
+CI runs the integration tests on {ubuntu, macos, windows} × {minimum engine, stable, insiders}, with Xvfb on Linux, as #2 says.
+
+**Open work:** contract tests that validate each document against its `output_schema` (and types generated from them); webview tests with Playwright against the built bundles, with axe accessibility checks; the performance budgets above, measured in CI.
 
 ---
 
