@@ -2,7 +2,16 @@
 // Read-only on the given workspace: `new` and `generate` run in a temporary copy of its objects and
 // .opentide/configurations and templates. Skipped when either variable is missing.
 import * as assert from "node:assert/strict";
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { Backend } from "../../src/core/backend/backend";
@@ -88,36 +97,46 @@ describe("real opentide: diagnostics and new objects", function () {
   });
 
   it("validate --file: findings land on the right characters and carry their fixes", async () => {
+    // The workspace's objects are valid (opentide new writes them): misspell the first rule's tlp in
+    // a copy, so validate has a finding with a fix to place.
     const rules = path.join(WORKSPACE as string, "objects", "rules");
-    const file = path.join(
-      rules,
-      readdirSync(rules)
-        .filter((n) => n.endsWith(".yaml"))
-        .sort()[0] as string,
-    );
-    const result = await backend.run(WORKSPACE as string, validateArgv([file]));
-    const parsed = validateFindings(result.document, WORKSPACE as string);
-    assert.ok(parsed.complete, JSON.stringify(result.document.failure));
-    const text = readFileSync(file, "utf8");
-    const source = linesOf(text);
-    const mine = parsed.findings.filter((f) => f.file === file);
-    for (const finding of mine) {
-      const range = cliRange(source, finding.span);
-      assert.ok(range.start.line < source.lineCount, `${finding.code} is inside the file`);
-      for (const edit of finding.fix?.edits ?? []) {
-        // The edit replaces the bad value: the text under it is what the finding is about.
-        const span = cliRange(source, edit);
-        const under = source.lineText(span.start.line).slice(span.start.character, span.end.character);
-        assert.ok(
-          under.length > 0 && under !== edit.replacement,
-          `${finding.code}: '${under}' → '${edit.replacement}'`,
-        );
+    const name = readdirSync(rules)
+      .filter((n) => n.endsWith(".yaml"))
+      .sort()[0] as string;
+    const original = readFileSync(path.join(rules, name), "utf8");
+    assert.match(original, /^[ \t]*tlp: amber\b/m, "the workspace's first rule has tlp: amber");
+    const file = path.join(scratch, "objects", "rules", name);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, original.replace(/^([ \t]*tlp: )amber\b/m, "$1ambr"));
+    try {
+      const result = await backend.run(scratch, validateArgv([file]));
+      const parsed = validateFindings(result.document, scratch);
+      assert.ok(parsed.complete, JSON.stringify(result.document.failure));
+      const source = linesOf(readFileSync(file, "utf8"));
+      const mine = parsed.findings.filter((f) => f.file === file);
+      for (const finding of mine) {
+        const range = cliRange(source, finding.span);
+        assert.ok(range.start.line < source.lineCount, `${finding.code} is inside the file`);
+        for (const edit of finding.fix?.edits ?? []) {
+          // The edit replaces the bad value: the text under it is what the finding is about.
+          const span = cliRange(source, edit);
+          const under = source.lineText(span.start.line).slice(span.start.character, span.end.character);
+          assert.ok(
+            under.length > 0 && under !== edit.replacement,
+            `${finding.code}: '${under}' → '${edit.replacement}'`,
+          );
+        }
       }
+      const tlp = mine.find((f) => f.fix?.edits.some((e) => e.replacement === "amber"));
+      assert.ok(tlp, `a fix for tlp: ambr in ${JSON.stringify(mine)}`);
+      const edit = tlp.fix?.edits.find((e) => e.replacement === "amber");
+      assert.ok(edit);
+      const span = cliRange(source, edit);
+      assert.equal(source.lineText(span.start.line).slice(span.start.character, span.end.character), "ambr");
+    } finally {
+      // The later tests create objects in the scratch copy: leave them only their own files.
+      rmSync(file, { force: true });
     }
-    assert.ok(
-      mine.some((f) => f.fix),
-      "the workspace's first rule has a fixable finding (tlp: ambr)",
-    );
   });
 
   it("lint (--file when the CLI has it) gives findings in the workspace's files", async () => {
