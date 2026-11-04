@@ -31,6 +31,7 @@ import { apply, type Runner, review } from "./flow";
 import { fileToOpen } from "./plan";
 import {
   hostValidators,
+  type NextAction,
   type PlatformChoice,
   type SetupAnswers,
   type SetupMode,
@@ -181,7 +182,13 @@ async function pickFolder(): Promise<{ path: string; name: string; inWorkspace: 
   return uri ? { path: uri.fsPath, name: path.basename(uri.fsPath), inWorkspace: false } : undefined;
 }
 
+/** Owned by other features; offered on the finish screen when the window has them. */
+const NEW_RULE_COMMAND = "opentide.newObject.rule";
+const GRAPH_COMMAND = "opentide.graph.open";
+
 interface Session {
+  /** The file the finish screen's "Open README" opens. */
+  readme?: string;
   readonly panel: OpentidePanel<WizardProtocol>;
   readonly folder: { path: string; name: string; inWorkspace: boolean };
   mode: SetupMode;
@@ -230,6 +237,7 @@ class WizardHost implements vscode.Disposable {
       title: mode === "new" ? "Set Up a Detection Repository" : "Set Up opentide",
       entry: "setup",
       validators: hostValidators,
+      kit: true,
       retainContextWhenHidden: true,
     });
     const session: Session = {
@@ -263,9 +271,30 @@ class WizardHost implements vscode.Disposable {
     channel.on("openFile", async (relative) => {
       const file = path.join(session.folder.path, relative);
       if (!file.startsWith(session.folder.path)) return;
-      await vscode.window.showTextDocument(vscode.Uri.file(file), { preview: true });
+      // Beside the wizard, which stays in view.
+      await vscode.window.showTextDocument(vscode.Uri.file(file), {
+        preview: true,
+        viewColumn: vscode.ViewColumn.Beside,
+        preserveFocus: true,
+      });
     });
     channel.on("close", () => panel.dispose());
+    channel.on("next", (action) => this.next(session, action));
+  }
+
+  /** A finish screen button. */
+  private async next(session: Session, action: NextAction): Promise<void> {
+    const beside = { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: false };
+    if (action === "readme" && session.readme)
+      await vscode.window.showTextDocument(
+        vscode.Uri.file(path.join(session.folder.path, session.readme)),
+        beside,
+      );
+    else if (action === "newRule") await vscode.commands.executeCommand(NEW_RULE_COMMAND);
+    else if (action === "graph") await vscode.commands.executeCommand(GRAPH_COMMAND);
+    else if (action === "catalogue") await vscode.commands.executeCommand("opentide.sidebar.catalogue.focus");
+    else if (action === "openFolder")
+      await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(session.folder.path));
   }
 
   private async init(session: Session, listing: readonly Entry[]): Promise<void> {
@@ -367,21 +396,22 @@ class WizardHost implements vscode.Disposable {
       setContext("opentide.setup.done", true);
       const steps = progress.commands.flatMap((c) => c.steps);
       const readme = fileToOpen(steps.map((s) => ({ ...s, warnings: [] })));
-      if (readme) {
+      if (readme) session.readme = readme;
+      const available = new Set(await vscode.commands.getCommands(true));
+      void session.panel.channel.post("finished", {
+        readme: readme ?? null,
+        inWorkspace: session.folder.inWorkspace,
+        newRule: available.has(NEW_RULE_COMMAND),
+        graph: available.has(GRAPH_COMMAND),
+      });
+      if (!session.folder.inWorkspace) return;
+      // The README opens beside the wizard, whose finish screen stays in view with what to do next.
+      if (readme)
         await vscode.window.showTextDocument(vscode.Uri.file(path.join(session.folder.path, readme)), {
-          preview: false,
-          viewColumn: vscode.ViewColumn.One,
+          preview: true,
+          viewColumn: vscode.ViewColumn.Beside,
+          preserveFocus: true,
         });
-      }
-      if (!session.folder.inWorkspace) {
-        const choice = await vscode.window.showInformationMessage(
-          `${session.folder.name} is ready. Open it to start writing detections.`,
-          "Open Folder",
-        );
-        if (choice)
-          await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(session.folder.path));
-        return;
-      }
       await vscode.commands.executeCommand("opentide.sidebar.catalogue.focus");
       void this.ctx.catalog.refresh(session.folder.path, { immediate: true });
     } finally {

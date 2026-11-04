@@ -106,37 +106,7 @@ export function defaultAnswers(folderName: string): SetupAnswers {
   };
 }
 
-/** Problems that stop Review, per step (1-based, as the stepper numbers them). */
-export function validateAnswers(
-  answers: SetupAnswers,
-  mode: SetupMode,
-  enabled: readonly string[] = [],
-): { step: number; message: string }[] {
-  const problems: { step: number; message: string }[] = [];
-  if (mode === "new" && !answers.name.trim())
-    problems.push({ step: 1, message: "Give the repository a name." });
-  if (mode === "new" && answers.platforms.length === 0)
-    problems.push({ step: 2, message: "Pick at least one platform." });
-  if (answers.pythonVersion.trim() && !/^3\.\d{1,2}$/.test(answers.pythonVersion.trim()))
-    problems.push({ step: 3, message: "The Python version looks like 3.12." });
-  if (answers.defaultBranch.trim() && /[\s~^:?*[\\]/.test(answers.defaultBranch.trim()))
-    problems.push({ step: 3, message: "That is not a valid branch name." });
-  if (mode === "existing" && nothingToDo(answers, enabled))
-    problems.push({ step: 2, message: "Pick something to add: a platform, CI, an agent or an extra." });
-  return problems;
-}
-
-function nothingToDo(answers: SetupAnswers, enabled: readonly string[]): boolean {
-  return (
-    answers.platforms.every((p) => enabled.includes(p)) &&
-    answers.ci === "none" &&
-    answers.mcp.length === 0 &&
-    answers.skills.length === 0 &&
-    !answers.plugin &&
-    !answers.hooks &&
-    !answers.env
-  );
-}
+export { validateAnswers } from "./validate";
 
 /** One `opentide setup …` command Apply runs, with `--yes`. */
 export interface SetupCommand {
