@@ -76,14 +76,57 @@ export type VariableSource = "stored" | "environment" | "unset";
 export const PRESENCE_PLACEHOLDER = "set-in-vscode";
 
 /**
- * Configuration rather than a credential: how opentide finds the repository and its data (`OPENTIDE_*`),
- * Python's own variables, proxies and CA bundles. `info` and `doctor` read their values.
+ * The `OPENTIDE_*` variables opentide reads as configuration: how it finds the repository and its data,
+ * its output and its proxy. Any other `OPENTIDE_` name may hold a secret (`OPENTIDE_PUSH_URL` carries
+ * the sharing remote's token, a tenant's `OPENTIDE_SPLUNK_PASS`), so it gets the placeholder.
+ */
+const OPENTIDE_CONFIGURATION = new Set(
+  [
+    "REPO_ROOT",
+    "DATA_ROOT",
+    "TIDE_WORKSPACE",
+    "CACHE_DIR",
+    "SPECIFICATIONS_ROOT",
+    "ATTACK_STIX_DIR",
+    "PROXY",
+    "DEBUG",
+    "PROGRESS",
+    "OUTPUT",
+    "LINKS",
+    "LOG_JSON",
+    "JSON_INDENT",
+    "VALIDATE_WORKERS",
+    "VALIDATE_PARALLEL_THRESHOLD",
+    "QUERY_CHECK_TIMEOUT",
+  ].map((name) => `OPENTIDE_${name}`),
+);
+
+/**
+ * Configuration rather than a credential: Python's own variables, uv's, proxies and CA bundles. `info`
+ * and `doctor` read their values.
  */
 const CONFIGURATION =
-  /^(?:OPENTIDE_\w+|PYTHON\w*|UV_\w+|\w*_PROXY|NO_PROXY|SSL_CERT_(?:FILE|DIR)|REQUESTS_CA_BUNDLE|CURL_CA_BUNDLE)$/i;
+  /^(?:PYTHON\w*|UV_\w+|\w*_PROXY|NO_PROXY|SSL_CERT_(?:FILE|DIR)|REQUESTS_CA_BUNDLE|CURL_CA_BUNDLE)$/i;
 
-/** A name that reads as a secret even under a configuration prefix (`OPENTIDE_REPO_TOKEN`, `…_SSH_KEY`). */
+/** A name that reads as a secret even under a configuration prefix (`UV_PUBLISH_TOKEN`, `…_PASSWORD`). */
 const SECRET_LIKE = /SECRET|TOKEN|PASSW|CREDENTIAL|PRIVATE|API_?KEY|_KEY(?:_|$)/i;
+
+/** A proxy variable: curl and Python also take one without a scheme (`user:pass@proxy:3128`). */
+const PROXY = /^\w*_PROXY$/i;
+
+/**
+ * A configuration value without the user and password of the URLs in it (`http://user:pass@proxy:3128`
+ * is `http://proxy:3128`, `UV_INDEX_URL`'s `__token__:…@` goes): the host is configuration, they are not.
+ */
+export function withoutUserinfo(name: string, value: string): string {
+  const stripped = value.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#]*@/gi, "$1");
+  return PROXY.test(name) && !stripped.includes("://") ? stripped.replace(/^[^\s/?#]*@/, "") : stripped;
+}
+
+function isConfiguration(name: string): boolean {
+  if (/^OPENTIDE_/i.test(name)) return OPENTIDE_CONFIGURATION.has(name.toUpperCase());
+  return CONFIGURATION.test(name) && !SECRET_LIKE.test(name);
+}
 
 /** The credential names a folder's platforms name (`info`'s tenants' variables). */
 export function tenantVariableNames(platforms: readonly PlatformInfo[]): string[] {
@@ -97,7 +140,7 @@ export function tenantVariableNames(platforms: readonly PlatformInfo[]): string[
  * A credential is a name in `credentials` (SecretStorage's, and the variables `info`'s tenants name),
  * one that reads as a secret, or any name that is not configuration. Configuration (`OPENTIDE_REPO_ROOT`
  * from `setup env`, `OPENTIDE_DATA_ROOT`, proxies, CA bundles, `PYTHON*`) keeps its value, or `info`
- * would read the repository at the placeholder.
+ * would read the repository at the placeholder; a URL in it loses its user and password.
  */
 export function presenceEnv(
   env: Readonly<Record<string, string>>,
@@ -105,8 +148,8 @@ export function presenceEnv(
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(env).map(([name, value]) => {
-      const configuration = CONFIGURATION.test(name) && !SECRET_LIKE.test(name) && !credentials.has(name);
-      return [name, configuration ? value : PRESENCE_PLACEHOLDER];
+      const configuration = isConfiguration(name) && !credentials.has(name);
+      return [name, configuration ? withoutUserinfo(name, value) : PRESENCE_PLACEHOLDER];
     }),
   );
 }

@@ -80,6 +80,9 @@ pre-releases odd ones.
   - **Coverage:** ATT&CK techniques by tactic, with rule counts, gaps first.
   - **Platforms & Tenants:** capabilities, tenants and where each credential comes from. Set a
     credential (in VS Code's secret storage, never a file), check it with doctor, or enable a platform.
+    The status commands behind it (`info`, `doctor --offline`) get each credential by name only, never
+    its value; an `OPENTIDE_` variable opentide does not read as configuration (`OPENTIDE_PUSH_URL`)
+    counts as a credential, and a proxy or index URL loses its user and password.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
   - **Activity:** the last 50 commands, with Run Again (which asks first for a command that writes
     files or contacts a tenant) and Copy Command Line.
