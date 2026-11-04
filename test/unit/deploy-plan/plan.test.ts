@@ -20,6 +20,7 @@ import {
   type DeployPanelState,
   hostValidators,
   noPlanBox,
+  withoutPlan,
 } from "../../../src/features/deploy-plan/protocol";
 import { parsePlatforms } from "../../../src/features/sidebar/platforms";
 import { ROOT } from "../helpers";
@@ -193,6 +194,11 @@ describe("deploy plan (#18)", () => {
       startedAt: 0,
       durationMs: null,
     };
+    // Retargeted to other rules, then cancelled: no plan of the previous rules under the new title.
+    const retargeted = cancelledState(withoutPlan(running), 300);
+    assert.equal(retargeted.plan, null);
+    assert.equal(noPlanBox(retargeted).title, "Cancelled");
+    assert.equal(withoutPlan({ ...running, failure: { code: "x", message: "y" } }).failure, null);
     const cancelled = cancelledState(running, 1200);
     assert.equal(cancelled.phase, "cancelled");
     assert.equal(cancelled.plan, plan, "the previous plan, not the cancelled envelope's empty one");

@@ -30,6 +30,7 @@ import {
   type DeployPlanProtocol,
   hostValidators,
   type ScopeKind,
+  withoutPlan,
 } from "./protocol";
 
 const PAYLOAD_SCHEME = "opentide-payload";
@@ -308,7 +309,9 @@ class DeployPanel implements vscode.Disposable {
   }
 
   show(target: DeployTarget): void {
+    const retargeted = targetKey(target) !== targetKey(this.rules);
     this.rules = target;
+    if (retargeted) this.forgetPlan();
     this.view.panel.title = deployPanelTitle(this.selectionLabel());
     // Forward where it is; the focus stays in the editor the preview came from.
     this.view.panel.reveal(undefined, true);
@@ -324,6 +327,15 @@ class DeployPanel implements vscode.Disposable {
       scope,
       platform: last?.platform ?? null,
     });
+  }
+
+  /** Retargeted to other rules: their plan, payloads and Problems entries are not these rules'. */
+  private forgetPlan(): void {
+    this.plan = null;
+    this.document = undefined;
+    this.payloads.clear(this.id);
+    if (diagnosticsOwner === this.id) this.diagnostics.clear();
+    if (this.state) this.state = withoutPlan(this.state);
   }
 
   /** The options for a scope; `selected` without `deploy --uuid` falls back to the changed rules. */
