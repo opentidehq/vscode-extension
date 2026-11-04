@@ -95,11 +95,13 @@ export function opentideForInterpreter(
   platform: NodeJS.Platform,
   exists: (file: string) => boolean,
 ): { command: string; args: string[] } {
-  const dir = path.dirname(python);
+  // The paths of `platform`, which is the host's except in tests.
+  const paths = platform === "win32" ? path.win32 : path.posix;
+  const dir = paths.dirname(python);
   const candidates =
     platform === "win32"
-      ? [path.join(dir, "opentide.exe"), path.join(dir, "Scripts", "opentide.exe")]
-      : [path.join(dir, "opentide")];
+      ? [paths.join(dir, "opentide.exe"), paths.join(dir, "Scripts", "opentide.exe")]
+      : [paths.join(dir, "opentide")];
   const script = candidates.find(exists);
   return script ? { command: script, args: [] } : { command: python, args: ["-m", "opentide"] };
 }
