@@ -23,10 +23,12 @@ import {
   keepable,
   pendingTabs,
   progressFromEvent,
+  queryIdentity,
   queryViewState,
   tabSummary,
   tabsFromDocument,
   tenantErrorKind,
+  viewApplies,
 } from "../../../src/features/query/results";
 
 // A Sentinel rule on two tenants, one answering 403 (the shape of `opentide --json query`).
@@ -319,5 +321,20 @@ describe("query: what a failed tenant offers next", () => {
     assert.deepEqual(ok?.variables, []);
     assert.equal(failed?.errorKind, "credentials");
     assert.deepEqual(failed?.variables, ["DEV_TOKEN"]);
+  });
+});
+
+describe("query: a retargeted panel's table view", () => {
+  it("keeps the filter and sort for the same query only", () => {
+    const a = { name: "LSASS handle", platformId: "sentinel" };
+    assert.equal(viewApplies(undefined, a), true, "a fresh page takes what was saved");
+    assert.equal(viewApplies(queryIdentity(a), a), true);
+    assert.equal(viewApplies(queryIdentity(a), { ...a, name: "Other rule" }), false);
+    assert.equal(viewApplies(queryIdentity(a), { ...a, platformId: "splunk" }), false);
+    assert.deepEqual(queryViewState({ query: queryIdentity(a), selected: "prod" }), {
+      selected: "prod",
+      query: queryIdentity(a),
+    });
+    assert.equal(queryViewState({ query: 3 }).query, undefined);
   });
 });

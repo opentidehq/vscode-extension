@@ -205,6 +205,21 @@ export function exportable(tab: TenantTab | undefined, phase: string): boolean {
 export interface QueryViewState {
   readonly selected?: string;
   readonly table?: TableViewState;
+  /** The query the view is for (`queryIdentity`): another query starts with a clear filter and sort. */
+  readonly query?: string;
+}
+
+/** Which query a panel shows: its rule or file, and the platform. */
+export function queryIdentity(state: Pick<QueryPanelState, "name" | "platformId">): string {
+  return `${state.platformId}\u0000${state.name}`;
+}
+
+/** Whether a saved view (tab, filter, sort) applies to the query `next` shows: only to the same query. */
+export function viewApplies(
+  view: string | undefined,
+  next: Pick<QueryPanelState, "name" | "platformId">,
+): boolean {
+  return view === undefined || view === queryIdentity(next);
 }
 
 export function queryViewState(value: unknown): QueryViewState {
@@ -214,5 +229,6 @@ export function queryViewState(value: unknown): QueryViewState {
   return {
     ...(typeof v.selected === "string" ? { selected: v.selected } : {}),
     ...(table ? { table } : {}),
+    ...(typeof v.query === "string" ? { query: v.query } : {}),
   };
 }

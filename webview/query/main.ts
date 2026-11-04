@@ -26,8 +26,10 @@ import {
   canStartRun,
   exportable,
   formatMs,
+  queryIdentity,
   queryViewState,
   tabSummary,
+  viewApplies,
 } from "../../src/features/query/results";
 import { addStyles, announce, h, patchKeyed, replace, setText } from "../panels-kit/dom";
 import { menuButton } from "../panels-kit/menu";
@@ -49,12 +51,20 @@ const table = new VirtualTable({
 const saved = queryViewState(vscodeApi().getState());
 const savedRaw = (vscodeApi().getState() ?? {}) as { details?: unknown; command?: unknown };
 let selected: string | undefined = saved.selected;
+/** The query the tab, filter and sort belong to: a retarget to another query clears them. */
+let viewFor: string | undefined = saved.query;
 let detailsOpen = savedRaw.details === true;
 let commandOpen = savedRaw.command === true;
 if (saved.table) table.restoreView(saved.table);
 
 function saveView(): void {
-  vscodeApi().setState({ selected, table: table.viewState(), details: detailsOpen, command: commandOpen });
+  vscodeApi().setState({
+    selected,
+    table: table.viewState(),
+    details: detailsOpen,
+    command: commandOpen,
+    ...(viewFor !== undefined ? { query: viewFor } : {}),
+  });
 }
 
 // The regions, built once.
@@ -80,6 +90,13 @@ renderLoading();
 channel.on("state", (next) => {
   const previous = state;
   state = next;
+  if (!viewApplies(viewFor, next)) {
+    // Retargeted to another query: its table starts unfiltered and unsorted, on its first tab.
+    table.restoreView({ filter: "", filterColumn: "" });
+    selected = undefined;
+  }
+  viewFor = queryIdentity(next);
+  saveView();
   if (!selected || !next.tabs.some((t) => t.key === selected)) {
     selected = (next.tabs.find((t) => t.status === "ok") ?? next.tabs[0])?.key;
   }

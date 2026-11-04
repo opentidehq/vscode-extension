@@ -171,6 +171,7 @@ export class VirtualTable {
   restoreView(state: TableViewState): void {
     this.filterInput.value = state.filter;
     this.pendingColumn = state.filterColumn || undefined;
+    if (!state.filterColumn) this.columnSelect.value = "";
     this.sort = state.sort;
   }
 
