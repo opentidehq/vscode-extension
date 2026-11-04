@@ -68,3 +68,48 @@ export class UnreviewedCache {
     this.running.clear();
   }
 }
+
+export interface Timers {
+  set(callback: () => void, ms: number): unknown;
+  clear(handle: unknown): void;
+}
+
+const NODE_TIMERS: Timers = {
+  set: (callback, ms) => setTimeout(callback, ms),
+  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
+
+/**
+ * Lets a `rules unreviewed` run start only for a window left alone for `delayMs`: typed key by key,
+ * `unreviewed:>180d` would otherwise run for 1d, 18d and 180d. `onSettle` asks again once it settles.
+ */
+export class SettledWindow {
+  private pending: { window: string; handle: unknown } | undefined;
+
+  constructor(
+    private settled: string | undefined,
+    private readonly delayMs: number,
+    private readonly onSettle: () => void,
+    private readonly timers: Timers = NODE_TIMERS,
+  ) {}
+
+  /** Whether a run for `window` may start now; if not, it may once `window` stays for `delayMs`. */
+  ready(window: string): boolean {
+    if (window === this.settled) return true;
+    if (this.pending?.window !== window) {
+      if (this.pending) this.timers.clear(this.pending.handle);
+      const handle = this.timers.set(() => {
+        this.pending = undefined;
+        this.settled = window;
+        this.onSettle();
+      }, this.delayMs);
+      this.pending = { window, handle };
+    }
+    return false;
+  }
+
+  dispose(): void {
+    if (this.pending) this.timers.clear(this.pending.handle);
+    this.pending = undefined;
+  }
+}

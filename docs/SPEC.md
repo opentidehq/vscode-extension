@@ -621,7 +621,7 @@ Three levels, from fastest to richest:
    - Select many results, then act on them: validate them, show them in the graph, preview their deploy.
    - Saved searches are kept per workspace.
 
-The search runs client-side on the cached catalogue (an in-memory index), so results appear as you type. `rules unreviewed` feeds `unreviewed:`.
+The search runs client-side on the cached catalogue (an in-memory index), so results appear as you type. `rules unreviewed` feeds `unreviewed:`, run once the window has stopped changing for 400 ms (typing `>180d` runs no `1d` or `18d`).
 
 ### 10.4 Query results
 

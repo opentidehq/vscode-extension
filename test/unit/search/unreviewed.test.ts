@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { UnreviewedCache } from "../../../src/features/search/unreviewed";
+import { SettledWindow, UnreviewedCache } from "../../../src/features/search/unreviewed";
 import { sleep } from "../helpers";
 
 describe("unreviewed cache", () => {
@@ -77,5 +77,33 @@ describe("unreviewed cache", () => {
     release();
     await sleep(5);
     assert.equal(ready, false);
+  });
+});
+
+describe("unreviewed: while typing", () => {
+  it("runs only the window typed and left, not each prefix (1d, 18d, 180d)", () => {
+    const timers: { callback: () => void; cleared: boolean }[] = [];
+    let asked = 0;
+    const settled = new SettledWindow(undefined, 400, () => asked++, {
+      set: (callback) => timers.push({ callback, cleared: false }) - 1,
+      clear: (handle) => {
+        const timer = timers[handle as number];
+        if (timer) timer.cleared = true;
+      },
+    });
+    assert.equal(settled.ready("1d"), false);
+    assert.equal(settled.ready("18d"), false);
+    assert.equal(settled.ready("180d"), false);
+    assert.equal(settled.ready("180d"), false, "the same window keeps its timer");
+    assert.deepEqual(
+      timers.map((t) => t.cleared),
+      [true, true, false],
+    );
+    timers[2]?.callback();
+    assert.equal(asked, 1);
+    assert.equal(settled.ready("180d"), true);
+    const opened = new SettledWindow("90d", 400, () => {});
+    assert.equal(opened.ready("90d"), true, "the window the pick opened with runs at once");
+    opened.dispose();
   });
 });

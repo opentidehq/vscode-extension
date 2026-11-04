@@ -16,7 +16,7 @@ import {
 } from "./present";
 import { parseQuery } from "./query";
 import { IndexCache, type SearchItem } from "./searchIndex";
-import { UnreviewedCache } from "./unreviewed";
+import { SettledWindow, UnreviewedCache } from "./unreviewed";
 
 /** The sidebar's Catalogue filter; it takes `{query: string}` (a substring, see `catalogueFilterOf`). */
 export const CATALOGUE_FILTER_COMMAND = "opentide.sidebar.filter";
@@ -104,14 +104,17 @@ function openSearch(
       void ctx.catalog.refresh(folder, { immediate: true });
   }
 
+  // The window the pick opened with runs at once; one being typed waits until it stops changing.
+  const settledWindow = new SettledWindow(parseQuery(pick.value).unreviewed, 400, () => update());
   const update = (): void => {
     const started = Date.now();
     const states = folders().map((folder) => ctx.catalog.get(folder));
     const index = indexCache.build(states);
     const query = parseQuery(pick.value);
-    const unreviewedPaths = query.unreviewed
-      ? unreviewed.get(query.unreviewed, folders(), update)
-      : undefined;
+    const unreviewedPaths =
+      query.unreviewed && settledWindow.ready(query.unreviewed)
+        ? unreviewed.get(query.unreviewed, folders(), update)
+        : undefined;
     const outcome = search(index, query, {
       now: Date.now(),
       problems: problemsOf,
@@ -249,6 +252,7 @@ function openSearch(
   ];
   pick.onDidHide(() => {
     if (diagnosticsTimer) clearTimeout(diagnosticsTimer);
+    settledWindow.dispose();
     for (const subscription of subscriptions) subscription.dispose();
     pick.dispose();
   });
