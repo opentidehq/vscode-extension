@@ -44,9 +44,9 @@ describe("runner flow (fake opentide)", () => {
       const { document } = await instance.run(process.cwd(), ["info"], { credentials: false });
       const reach = reachOf(document, platformsOf(argv));
       assert.equal(describeReach(reach), "sentinel (prod)");
-      assert.deepEqual(missingVariables(reach, new Set(), {}), ["FAKE_SECRET"]);
+      assert.deepEqual(missingVariables(reach, new Set(), {}), ["AZURE_CLIENT_SECRET"]);
       const stored = new Set(
-        Object.keys(await backend({}, { FAKE_SECRET: "s3cr3t" }).credentialEnv(process.cwd())),
+        Object.keys(await backend({}, { AZURE_CLIENT_SECRET: "s3cr3t" }).credentialEnv(process.cwd())),
       );
       assert.deepEqual(missingVariables(reach, stored, {}), []);
     } finally {
@@ -58,8 +58,11 @@ describe("runner flow (fake opentide)", () => {
     const instance = backend();
     try {
       const { document } = await instance.run(process.cwd(), ["info"]);
-      assert.deepEqual(reachOf(document), [{ platform: "sentinel", enabled: true }]);
-      assert.equal(describeReach(reachOf(document)), "sentinel");
+      assert.deepEqual(reachOf(document), [
+        { platform: "sentinel", enabled: true },
+        { platform: "splunk", enabled: true },
+      ]);
+      assert.equal(describeReach(reachOf(document, ["sentinel"])), "sentinel");
     } finally {
       await instance.dispose();
     }
