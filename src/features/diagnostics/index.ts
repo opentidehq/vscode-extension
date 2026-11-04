@@ -349,13 +349,18 @@ class Diagnostics implements vscode.Disposable {
     );
     const done = outcomes.filter((outcome): outcome is Outcome => outcome !== undefined);
     if (done.length === 0) return;
+    // The run is done: the command resolves now, not when the notification closes (a caller awaiting it,
+    // a keybinding or another command, would otherwise wait on the user).
     const failed = done.find((outcome) => !outcome.parsed.complete);
     if (failed) {
-      const choice = await vscode.window.showErrorMessage(
-        `${failed.result.argvDisplay} failed: ${failed.result.document.failure?.message ?? failed.result.document.message}`,
-        "Show output",
-      );
-      if (choice) this.ctx.log.show();
+      void vscode.window
+        .showErrorMessage(
+          `${failed.result.argvDisplay} failed: ${failed.result.document.failure?.message ?? failed.result.document.message}`,
+          "Show output",
+        )
+        .then((choice) => {
+          if (choice) this.ctx.log.show();
+        });
       return;
     }
     const findings = done.flatMap((outcome) => outcome.parsed.findings);
@@ -365,11 +370,11 @@ class Diagnostics implements vscode.Disposable {
       vscode.window.setStatusBarMessage(`$(check) opentide ${source}: no problems`, 5000);
       return;
     }
-    const choice = await vscode.window.showInformationMessage(
-      `opentide ${source}: ${summaryText(counts, files)}.`,
-      "Show Problems",
-    );
-    if (choice) await vscode.commands.executeCommand("workbench.actions.view.problems");
+    void vscode.window
+      .showInformationMessage(`opentide ${source}: ${summaryText(counts, files)}.`, "Show Problems")
+      .then((choice) => {
+        if (choice) void vscode.commands.executeCommand("workbench.actions.view.problems");
+      });
   }
 
   private async validateFileCommand(uri: vscode.Uri | undefined): Promise<void> {

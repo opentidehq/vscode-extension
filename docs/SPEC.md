@@ -808,7 +808,7 @@ These are measured in CI on a 500-object fixture.
 | Unit | `@vscode/test-cli` | Range conversion (code points → UTF-16), deduplication, severity mapping, command classification, search query parsing |
 | Contract | The pinned opentide | Every `--json` document the extension reads validates against its `output_schema`; `opentide --json commands` is fully classified |
 | Integration | `@vscode/test-electron` | Each tier with a fake executable; the bundled runtime end to end; the lens, fix-all, multi-root and refresh cases from #5; new → placeholder navigation; validate dedupe |
-| Restricted Mode | `.vscode-test.mjs` label | Only the language server starts; no restricted setting is read; no subprocess is spawned |
+| Restricted Mode | `scripts/test-restricted.mjs` (VS Code with workspace trust on, a fresh user-data-dir) | Only the language server starts; no restricted setting is read; no subprocess is spawned |
 | Webviews | Playwright against the built webview bundles | Graph, matrix, results, wizard: rendering, keyboard paths, axe accessibility checks |
 | Packages | Smoke test per target (§3) | Install, `doctor --offline`, LSP `initialize` host and engine |
 
