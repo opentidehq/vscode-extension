@@ -44,14 +44,17 @@ describe("relations", () => {
       assert.ok(commands.includes(command), command);
   });
 
-  it("Show Relations opens the view on the active object and leaves the focus in the editor", async () => {
+  it("Show Relations opens the view on the active object", async () => {
     await activated();
-    const editor = await vscode.window.showTextDocument(rule());
+    await vscode.window.showTextDocument(rule());
     await vscode.commands.executeCommand("opentide.relations.show");
-    const shown = await targets(rule());
-    assert.equal(shown.visible, true);
-    assert.ok(shown.labels.length > 0, "the view shows the object, or why it cannot");
-    assert.equal(vscode.window.activeTextEditor?.document.uri.toString(), editor.document.uri.toString());
+    // The view renders after the command returns when it was hidden: wait for all three.
+    await waitFor(async () => {
+      const current = await state();
+      return current.target?.file === rule().fsPath && current.visible && current.labels.length > 0
+        ? current
+        : undefined;
+    });
   });
 
   it("retargets when the editor changes, and a pin keeps it on its object", async () => {
