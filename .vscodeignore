@@ -10,7 +10,8 @@
 !dist/**
 !syntaxes/**
 !language-configuration/**
-!runtime/**
+!runtime/!(locks|requirements.in)
+!runtime/!(locks)/**
 dist/**/*.map
 !images/placeholder.svg
 !media/walkthrough/**

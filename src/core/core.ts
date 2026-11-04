@@ -13,6 +13,7 @@ import { CredentialStore } from "./credentials";
 import { parseEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
+import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
 import { cliCommand } from "./runtime/types";
 import { LanguageClientManager } from "./services/languageClient";
@@ -155,6 +156,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
   const status = new StatusManager();
   subscriptions.push(status);
 
+  // The bundled runtime's bytecode, compiled once per runtime build after the server is up.
+  const precompiler = new Precompiler(
+    nodePrecompileDeps(context.extensionUri.fsPath, context.globalStorageUri.fsPath, (level, message) =>
+      log[level](message),
+    ),
+  );
+  subscriptions.push(precompiler);
+
   const grant = new Emitter<void>();
   const trust: TrustService = {
     get isTrusted() {
@@ -181,6 +190,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
       await fs.promises.mkdir(context.globalStorageUri.fsPath, { recursive: true }).catch(() => undefined);
     await client.start(rt, cwd);
     status.setServer(client.serverInfo, client.current !== undefined);
+    void precompiler.ensure(rt);
     catalog.refreshAll({ immediate: true });
   };
   const restart = (reason: string): Promise<void> => {

@@ -1958,7 +1958,10 @@
     "test:integration": "npm run build && npm run compile-tests && vscode-test --label integration",
     "test:restricted": "npm run build && npm run compile-tests && vscode-test --label restricted",
     "vscode:prepublish": "npm run build:production",
-    "package": "vsce package"
+    "runtime:lock": "node scripts/runtime-lock.mjs",
+    "runtime:build": "node scripts/runtime-build.mjs",
+    "package": "node scripts/package.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
