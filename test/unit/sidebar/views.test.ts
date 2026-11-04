@@ -468,39 +468,78 @@ describe("sidebar: activity", () => {
 
 describe("sidebar: loader and folder views", () => {
   it("loads only when visible, debounced and one at a time, and reloads when shown after a change", async () => {
+    // Ordered by events, not by wall-clock windows: each load runs until the test finishes it, and
+    // `timersRan` waits for every timer the loader has due by now (Node runs timers of the same delay in
+    // the order they were set, and the loader's immediate timer is set first).
+    const timersRan = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
     let visible = false;
-    let loads = 0;
     let concurrent = 0;
     let max = 0;
+    const finishes: Array<() => void> = [];
     const loader = new Loader<number>({
       isVisible: () => visible,
       debounceMs: 20,
-      load: async () => {
-        loads++;
+      load: () => {
         concurrent++;
         max = Math.max(max, concurrent);
-        await sleep(30);
-        concurrent--;
-        return loads;
+        const load = finishes.length + 1;
+        return new Promise<number>((resolve) =>
+          finishes.push(() => {
+            concurrent--;
+            resolve(load);
+          }),
+        );
       },
     });
+    const loads = () => finishes.length;
+    /** Finish a load and let the loader settle (its follow-up load, if any, starts within the turn). */
+    const finish = async (load: number) => {
+      finishes[load - 1]?.();
+      await timersRan();
+    };
+
     loader.request();
     await sleep(40);
-    assert.equal(loads, 0, "hidden: nothing runs");
+    assert.equal(loads(), 0, "hidden: nothing runs, however long it waits");
     visible = true;
     loader.shown();
-    await until(() => loader.state.status === "ready");
-    assert.equal(loader.state.value, 1);
+    await until(() => loads() === 1);
+    await finish(1);
+    assert.deepEqual([loader.state.status, loader.state.value], ["ready", 1]);
+
     for (let i = 0; i < 5; i++) loader.request();
-    await sleep(25);
+    // Debounced: a zero-delay timer set now runs first even on a stalled loop (Node runs expired timers
+    // by expiry, and this test's continuation before the next one), so no load has started yet.
+    await timersRan();
+    assert.equal(loads(), 1, "debounced: no load starts before debounceMs");
+    await until(() => loads() === 2);
     loader.request({ immediate: true });
-    await sleep(5);
+    await timersRan();
     loader.request({ immediate: true });
-    await until(() => loads >= 3 && loader.state.status === "ready", 2000);
-    assert.equal(max, 1);
+    await timersRan();
+    assert.equal(loads(), 2, "five requests make one load; two more while it runs wait for it");
+    assert.equal(loader.state.status, "loading");
+    await finish(2);
+    assert.equal(loads(), 3, "the requests during load 2 make one more load, right after it");
+    assert.equal(loader.state.status, "loading");
+    await finish(3);
+    assert.deepEqual([loads(), loader.state.status, loader.state.value], [3, "ready", 3]);
+    assert.equal(max, 1, "one load at a time");
+
     loader.shown();
-    await sleep(30);
-    assert.ok(loads <= 3, "shown without a change does not reload");
+    await timersRan();
+    assert.equal(loads(), 3, "shown without a change does not reload");
+    assert.equal(loader.state.status, "ready");
+
+    visible = false;
+    loader.request();
+    await timersRan();
+    assert.equal(loads(), 3, "a change while hidden waits");
+    visible = true;
+    loader.shown();
+    await until(() => loads() === 4);
+    await finish(4);
+    assert.deepEqual([loader.state.status, loader.state.value], ["ready", 4]);
     loader.dispose();
   });
 

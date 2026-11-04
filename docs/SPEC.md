@@ -462,6 +462,9 @@ New rule ───────────────────────�
   - **Create a detection repository here**: opens the wizard.
   - **Open an existing repository**: opens a folder.
 
+  The Coverage, Platforms & Tenants and Health views offer the wizard too. In Restricted Mode every view
+  says to trust the folder to set one up here, with Manage Workspace Trust, and none offers the wizard.
+
   A CoreTIDE layout (`Objects/`, `Configurations/` or `global.toml`) gets a plain statement that opentide
   does not support it, with a link to the 0.21.0 release notes: opentide 0.21.0 removed `migrate objects`,
   and there is no migration.
@@ -738,8 +741,11 @@ Revises #6.
 - **MCP server provider:**
   - Registered with `vscode.lm.registerMcpServerDefinitionProvider` when the API exists and the runtime resolved: `McpStdioServerDefinition("opentide", <runtime>, ["mcp", "start"], { OPENTIDE_REPO_ROOT })`.
   - With the bundled runtime this works on install, so every VS Code agent gets opentide's tools with no `.vscode/mcp.json`.
-  - The label `opentide` deduplicates against workspace MCP files.
-  - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when a workspace MCP file already defines `opentide` with a command VS Code can start (an absolute path that exists, a name on `PATH`, or one with `${…}` variables). An entry whose command is not found, such as `setup mcp --vscode`'s `opentide` for a user with only the bundled runtime, is skipped with a log line, and the extension provides its server.
+  - The label `opentide` deduplicates against workspace MCP files. VS Code (1.145) groups the servers of all its MCP collections by label, without case, and with `chat.mcp.collisionBehavior` at its default (`disable`) keeps only the one from the collection with the lowest order enabled: `.vscode/mcp.json` (0), then the root `.mcp.json` and `.cursor/mcp.json` (1), a `.code-workspace` (100), extension providers (300).
+  - The workspace MCP files read are those VS Code reads in each folder: `.vscode/mcp.json`; the root `.mcp.json` (`mcpServers`, or the map itself), which VS Code reads whenever MCP is on and which `opentide setup mcp --claude-code` and the setup wizard write; and `.cursor/mcp.json` only when `chat.mcp.discovery.enabled` turns on `cursor-workspace` (strict JSON there, as VS Code reads it). All are watched. The `mcp.servers` of a `.code-workspace` (100) and of the user's mcp.json (200) also come before the extension, and count the same way.
+  - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when the workspace entry VS Code keeps defines `opentide` with a command VS Code can start (an absolute path that exists, a name on `PATH`, or, in `.vscode/mcp.json`, one with `${…}` variables VS Code resolves). In the root `.mcp.json` VS Code only expands `${VAR}` and `${VAR:-default}` from its own environment, leaving an unset one as written, and in `.cursor/mcp.json` nothing: the extension checks the command as VS Code will spawn it, so `${CLAUDE_PROJECT_DIR}/.venv/bin/opentide` there does not count when that variable is not set.
+  - Several entries can share the lowest order (`.mcp.json` and `.cursor/mcp.json`, or two folders' `.mcp.json`), and VS Code then keeps the one registered first, which changes when a file is created during the session. `auto` defers only when all of them can start.
+  - When that entry's command is not found (or that of any entry sharing its order), such as `setup mcp`'s `opentide` for a user with only the bundled runtime, the extension provides its server as `opentide (VS Code)`, a label VS Code does not group with `opentide`, so it is not disabled in favour of the file's, and says why once in the output.
   - Off in Restricted Mode.
   - The server's tools are opentide's, unfiltered: `deploy_rule` with `dry_run: false` deploys for real when an agent calls it so (D6).
 - **Forks without the provider API** (Cursor, Windsurf): the Agents step of the wizard and the walkthrough offer "Add opentide to Cursor's MCP settings".

@@ -202,8 +202,11 @@ deploy command or a ready-made CI step instead.
 ### Agents
 
 - VS Code's agents get opentide's MCP tools with no `.vscode/mcp.json`: the extension provides `opentide
-  mcp start` with the runtime it uses. `opentide.mcp.provide`: `auto` (skipped when `.vscode/mcp.json`
-  already defines `opentide`), `always` or `never`. No server in Restricted Mode.
+  mcp start` with the runtime it uses. `opentide.mcp.provide`: `auto` (skipped when a workspace MCP file,
+  `.vscode/mcp.json` or the root `.mcp.json` `opentide setup mcp --claude-code` writes, already defines an
+  `opentide` server VS Code can start), `always` or `never`. VS Code keeps one server per name, so when
+  that file's `opentide` command is not found (only the bundled runtime), the extension's server is
+  named `opentide (VS Code)` and stays enabled. No server in Restricted Mode.
 - In Cursor and Windsurf, run **opentide: Add opentide to This Editor's MCP Settings**.
 - Tools `#opentideDiagnostics` (a file's problems) and `#opentideActiveObject` (the open object and what
   it connects to). Skills: install the opentidehq/skills Agent Plugin; the extension does not embed it.
