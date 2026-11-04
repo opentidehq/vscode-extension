@@ -43,7 +43,9 @@ describe("graph (#19)", () => {
 
   it("opens Show in Graph beside the editor, leaves the focus there, and follows the active editor", async () => {
     await activated();
-    const rule = fixture("objects", "rules", "suspicious-lsass-access.yaml");
+    // A catalogued rule: the fixture's rule folder is detections/rules/ (paths.toml), and with `info
+    // catalog` Show in Graph on a file outside the catalogue has no object to show.
+    const rule = fixture("detections", "rules", "custom-folder-rule.yaml");
     const objective = fixture("objects", "objectives", "detect-lsass-access.yaml");
     // The graph is on an object: its UUID once the catalogue has loaded, its file before (or without).
     const on = async (target: string | undefined, uri: vscode.Uri): Promise<boolean> => {
