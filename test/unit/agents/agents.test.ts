@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import type { CatalogDocument } from "../../../src/core/catalog/types";
+import { which } from "../../../src/core/runtime/process";
 import { forkTarget, mergeMcpEntry } from "../../../src/features/agents/forks";
 import { parseJsonc, stripJsonc } from "../../../src/features/agents/jsonc";
 import {
@@ -122,6 +123,23 @@ describe("agents: MCP server", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: a VS Code variable, not a template
     assert.equal(entryUsable("${workspaceFolder}/.venv/bin/opentide", lookup([])), true);
     assert.equal(entryUsable(null, lookup([])), true);
+  });
+
+  it("finds an entry's `opentide.exe` on a Windows PATH, so the server is not provided twice", () => {
+    const exe = path.join("C:\\tools", "opentide.exe");
+    const lookup = {
+      isAbsolute: () => false,
+      exists: (file: string) => file === exe,
+      which: (name: string) =>
+        which(name, "C:\\tools", "win32", (file) => file === exe, ".COM;.EXE;.BAT;.CMD"),
+    };
+    assert.equal(lookup.which("opentide.exe"), exe);
+    assert.equal(entryUsable("opentide.exe", lookup), true);
+    assert.equal(lookup.which("opentide"), exe, "and the bare name with PATHEXT, as before");
+    assert.equal(
+      which("opentide.exe", "/usr/bin", "linux", () => false),
+      undefined,
+    );
   });
 
   it("reads the setting leniently", () => {
