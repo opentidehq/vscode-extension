@@ -74,11 +74,11 @@ Each per-platform VSIX therefore carries a CPython runtime and the opentide clos
 
 On disk it unpacks to two to three times that.
 
-**Measured** on linux-x64, 2026-11-03: python-build-standalone CPython 3.13.14 (`install_only_stripped`) and opentide 0.20.1 from PyPI. Each bundle was zipped as a VSIX is (per-file deflate, level 9), and the trimmed bundle ran `opentide validate` on a test workspace.
+**Measured first** on linux-x64, 2026-11-03, before the runtime build existed: python-build-standalone CPython 3.13.14 (`install_only_stripped`) and opentide 0.20.1 from PyPI. Each bundle was zipped as a VSIX is (per-file deflate, level 9), and the trimmed bundle ran `opentide validate` on a test workspace.
 
 | Bundle | VSIX (zipped) | Installed |
 |--------|--------------:|----------:|
-| Runtime + opentide closure, as published today | 136 MB | 333 MB |
+| Runtime + opentide closure, untrimmed | 136 MB | 333 MB |
 | Trimmed runtime (no duplicate shared `libpython`, Tk, headers, `pip`, `idlelib`, `ensurepip`) + closure without pandas, numpy and openpyxl | 83 MB | 181 MB |
 | …and without boto3 and botocore | 67 MB | 150 MB |
 
@@ -90,11 +90,13 @@ What is behind those numbers:
   - the analysis engine (`opentide._native`), 16 MB;
   - cryptography, 15 MB;
   - the platform SDKs, pydantic-core, dulwich and pygments, a few MB each.
-- **Other targets:** the compressed runtime alone is 33 MB on Linux, 24 MB on macOS arm64 and 21 MB on Windows x64 (`tar.gz` downloads). The other targets' full bundles are not measured yet.
+- **Other targets:** the compressed runtime alone is 33 MB on Linux, 24 MB on macOS arm64 and 21 MB on Windows x64 (`tar.gz` downloads).
+
+**The real packages** (opentide 0.21.0, which still requires pandas and numpy, on the trimmed CPython 3.13.14; [PACKAGING.md](PACKAGING.md#the-gates) has the full table): linux-x64 80.1 MiB (223 MiB installed), darwin-arm64 67.9 MiB, win32-x64 74.0 MiB. The trimming, not dropping pandas, is what brought the 136 MB down.
 
 **Size budget:**
 - 100 MB per VSIX, enforced in CI; the target is 70 MB.
-- Today's closure (136 MB) does not fit. Removing pandas and numpy from opentide's required dependencies is a prerequisite of M0 ([§15](#15-what-this-needs-from-opentide-and-language-server), O1).
+- Every package fits the budget with opentide 0.21.0 as it is; only darwin-arm64 meets the target. Moving pandas and numpy out of opentide's required dependencies ([§15](#15-what-this-needs-from-opentide-and-language-server), O1) and dropping botocore are what would bring the rest under 70 MB.
 
 **Store limits:**
 - The Marketplace documents no hard cap. Microsoft's publishing guidance says to optimise a package over 50 MB ([Microsoft Learn](https://learn.microsoft.com/azure/devops/extend/publish/overview)).
@@ -824,7 +826,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
-| O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | The bundle is 136 MB with them and 83 MB without pandas and numpy (67 MB without boto3 too); the budget is 100 MB (D1) | **M0** |
+| O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | pandas and numpy are about 15 MiB of each compressed package and botocore another 15 MiB; without them the packages approach the 70 MB target. Every package already fits the 100 MB budget with them (D1) | M0 *nice* (the target, not the budget) |
 | O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package | M0 *nice* (universal package until then) |
 | O3 [opentide#749](https://github.com/opentidehq/opentide/issues/749) | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
 | O4 [opentide#751](https://github.com/opentidehq/opentide/issues/751) | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
@@ -854,7 +856,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 | Milestone | Delivers | Issues |
 |-----------|----------|--------|
-| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #11, #9; opentide#747 |
+| **M0 Foundation** | Skeleton, CI matrix, test harness; the per-target runtime build with size gate, SBOM and smoke tests; a first pre-release to both stores over OIDC | #2, #11, #9; opentide#747 (*nice*: the size target) |
 | **M1 Editor** | Languages and grammars; resolution with the bundled tier; the server's features; Restricted Mode; the backend client (`opentide serve`, with spawning as the fallback) and capability gating; diagnostics from three sources with dedupe and Explain; new-object flow with placeholders; status items; output channel | #3, #12, #4, #5, #13, #14, #8 (Restricted Mode); opentide#750 |
 | **M2 Workbench** | The sidebar views; setup wizard and walkthrough; generic runner with classification; tasks, problem matcher, terminal `PATH` and links; MCP provider; query lenses and results panel; deploy plan; credentials in SecretStorage | #15, #16, #7, #6, #17, #18, #8 (the rest); opentide#749, #751, #754 |
 | **M3 Visual** | Graph; ATT&CK matrix; search (quick and panel) | #19, #20, #21 |
@@ -880,7 +882,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 
 These need a decision before the milestone named.
 
-1. **Bundling (M0).** Confirm D1: a 67–83 MB download per platform package once O1 lands (136 MB today), 150–181 MB on disk, downloaded again on every update.
+1. **Bundling (M0).** Confirm D1: a 68–80 MiB download per platform package with opentide 0.21.0 (less once O1 lands), 180–225 MiB on disk, downloaded again on every update.
 2. **Real deploys from the editor (M4).** Never, with CI only (the recommendation for 1.0), or later behind a setting, for tenants marked non-production, one rule at a time, with a modal confirmation? The latter needs O7 and a confirmation contract in `opentide deploy`.
 3. **Publisher identity (M0).** The Marketplace publisher id and Open VSX namespace (`opentide`?). Marketplace publisher verification for `opentide.org` becomes possible after six months.
 4. **The VS Code floor and forks (M0).** Check the VS Code version Cursor and Windsurf are based on today, and set `engines.vscode` so they install the extension. Everything newer is feature-detected.
