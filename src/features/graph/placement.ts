@@ -85,3 +85,85 @@ export class Debounced<T> {
 
 /** The editor-follow delay: an editor switch storm (Ctrl+Tab held) posts once. */
 export const FOLLOW_DELAY_MS = 150;
+
+/** A file whose object the graph goes to once the catalogue arrives (asked for before it loaded). */
+export interface AwaitedFile {
+  readonly path: string;
+  /** Asked for explicitly (Show in Graph), not by following the editor. */
+  readonly explicit: boolean;
+}
+
+/**
+ * "Follow editor" and the pin, without vscode: which editor to follow and when (debounced), the last
+ * text editor seen (a webview with the focus makes the active editor undefined), and the file awaited
+ * before the catalogue loads, which a pin drops unless it was asked for explicitly.
+ */
+export class EditorFollow<E> {
+  private on = true;
+  private last: E | undefined;
+  private awaited: AwaitedFile | undefined;
+  private readonly debounced: Debounced<E>;
+
+  constructor(delay: number, run: (editor: E) => void, timers?: Timers) {
+    this.debounced = new Debounced<E>(delay, run, timers);
+  }
+
+  get following(): boolean {
+    return this.on;
+  }
+
+  /** The text editor last active (it may have closed since). */
+  get lastEditor(): E | undefined {
+    return this.last;
+  }
+
+  get awaiting(): AwaitedFile | undefined {
+    return this.awaited;
+  }
+
+  /** The active editor changed; undefined when a webview (the graph itself) or nothing has the focus. */
+  editorChanged(editor: E | undefined, panelOpen: boolean): void {
+    if (editor === undefined) return;
+    this.last = editor;
+    if (panelOpen && this.on) this.debounced.push(editor);
+  }
+
+  /**
+   * Pin (false) or unpin (true). A pin cancels a pending follow and drops a followed file still awaited;
+   * an unpin returns the editor to catch up with.
+   */
+  setFollowing(following: boolean): E | undefined {
+    this.on = following;
+    if (following) return this.last;
+    this.debounced.cancel();
+    if (this.awaited && !this.awaited.explicit) this.awaited = undefined;
+    return undefined;
+  }
+
+  /** An explicit request (Show in Graph, a reveal) wins over a follow still waiting for its delay. */
+  explicitRequest(): void {
+    this.debounced.cancel();
+  }
+
+  awaitFile(file: AwaitedFile | undefined): void {
+    this.awaited = file;
+  }
+
+  /** The awaited file, once: the catalogue has arrived. */
+  takeAwaited(): AwaitedFile | undefined {
+    const file = this.awaited;
+    this.awaited = undefined;
+    return file;
+  }
+
+  /** The panel closed: following again, nothing pending. */
+  reset(): void {
+    this.on = true;
+    this.awaited = undefined;
+    this.debounced.cancel();
+  }
+
+  dispose(): void {
+    this.debounced.cancel();
+  }
+}

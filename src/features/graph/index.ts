@@ -9,7 +9,7 @@ import { defineFeature } from "../../core/feature";
 import type { OpentidePanel } from "../../core/webview/panel";
 import { NODE_ACTION_COMMANDS, NODE_ACTIONS, type NodeAction, nodeCommand } from "./actions";
 import { ModelSender } from "./diff";
-import { Debounced, FOLLOW_DELAY_MS, openColumn, showPlan } from "./placement";
+import { EditorFollow, FOLLOW_DELAY_MS, openColumn, showPlan } from "./placement";
 import {
   type ExportRequest,
   type GraphAction,
@@ -41,18 +41,15 @@ class GraphPanel implements vscode.Disposable {
   private readonly cache = new ModelCache();
   private ready = false;
   private pendingFocus: GraphProtocol["toWebview"]["focus"] | undefined;
-  /** A file whose object to focus once the catalogue arrives (Show in Graph before it loaded). */
-  private awaitingFile: { path: string; explicit: boolean } | undefined;
   private problemsTimer: NodeJS.Timeout | undefined;
   /** The problem map last posted to this webview, so an unchanged one is not posted again. */
   private readonly problemsSent = new ChangedOnly();
   /** The model last posted to this webview, so a catalogue change posts only what changed. */
   private readonly modelSent = new ModelSender();
-  /** Follow the active editor; false: pinned to the object shown. */
-  private following = true;
   /** The node (or, before the catalogue loads, the file) the graph is on. */
   private target: string | undefined;
-  private readonly followEditor = new Debounced<vscode.TextEditor>(FOLLOW_DELAY_MS, (editor) =>
+  /** Follow the active editor, or pinned; the file awaited before the catalogue loads. */
+  private readonly follower = new EditorFollow<vscode.TextEditor>(FOLLOW_DELAY_MS, (editor) =>
     this.follow(editor),
   );
   private readonly disposables: vscode.Disposable[] = [];
@@ -60,9 +57,9 @@ class GraphPanel implements vscode.Disposable {
   constructor(private readonly ctx: FeatureContext) {
     this.disposables.push(
       { dispose: ctx.catalog.onDidChange((state) => this.onCatalog(state)).dispose },
-      vscode.window.onDidChangeActiveTextEditor((editor) => {
-        if (editor && this.opened && this.following) this.followEditor.push(editor);
-      }),
+      vscode.window.onDidChangeActiveTextEditor((editor) =>
+        this.follower.editorChanged(editor, this.opened !== undefined),
+      ),
       vscode.languages.onDidChangeDiagnostics(() => this.scheduleProblems()),
     );
   }
@@ -72,7 +69,7 @@ class GraphPanel implements vscode.Disposable {
     return {
       open: this.opened !== undefined,
       ...(this.opened?.panel.viewColumn !== undefined ? { viewColumn: this.opened.panel.viewColumn } : {}),
-      following: this.following,
+      following: this.follower.following,
       ...(this.target ? { target: this.target } : {}),
     };
   }
@@ -112,18 +109,22 @@ class GraphPanel implements vscode.Disposable {
       this.opened.panel.title = this.title();
       this.opened.panel.reveal(plan.column, plan.preserveFocus);
     }
-    // An explicit request retargets the graph even when it is pinned; the pin then holds the new object.
+    // An explicit request retargets the graph even when it is pinned; the pin then holds the new object,
+    // and a follow still waiting for its delay must not move it on.
+    if (focus) this.follower.explicitRequest();
     if (focus?.ids[0]) this.target = focus.ids[0];
     if (focus) this.pendingFocus = focus;
-    else if (!this.pendingFocus && this.following)
+    else if (!this.pendingFocus && this.follower.following)
       this.pendingFocus = this.editorFocus(vscode.window.activeTextEditor, false);
     const editorFile = vscode.window.activeTextEditor?.document.uri;
     const wanted = file ?? (editorFile?.scheme === "file" ? editorFile.fsPath : undefined);
-    this.awaitingFile =
+    this.follower.awaitFile(
       !this.pendingFocus && !this.state()?.catalog && wanted
         ? { path: wanted, explicit: file !== undefined }
-        : undefined;
-    if (this.awaitingFile) this.target = this.awaitingFile.path;
+        : undefined,
+    );
+    const awaited = this.follower.awaiting;
+    if (awaited) this.target = awaited.path;
     else if (this.pendingFocus?.ids[0]) this.target = this.pendingFocus.ids[0];
     if (this.ready) {
       if (switched) {
@@ -151,7 +152,7 @@ class GraphPanel implements vscode.Disposable {
         this.modelSent.reset();
         this.postData();
         this.postProblems();
-        void opened.channel.post("follow", { following: this.following });
+        void opened.channel.post("follow", { following: this.follower.following });
         this.flushFocus();
         void this.postActions(opened);
       }),
@@ -160,11 +161,14 @@ class GraphPanel implements vscode.Disposable {
         this.postData();
       }),
       channel.on("follow", (following) => {
-        this.following = following;
-        if (!following) this.followEditor.cancel();
+        const last = this.follower.setFollowing(following);
         void opened.channel.post("follow", { following });
-        // Unpinned: catch up with the editor now.
-        if (following && vscode.window.activeTextEditor) this.follow(vscode.window.activeTextEditor);
+        // Unpinned: catch up with the editor now. The graph has the focus, so the active editor is
+        // undefined: the last one seen, if it is still open.
+        const editor =
+          vscode.window.activeTextEditor ??
+          (last && vscode.window.visibleTextEditors.includes(last) ? last : undefined);
+        if (following && editor) this.follow(editor);
       }),
       channel.on("nodeAction", (request) => this.nodeAction(request)),
       channel.on("open", (id) => this.open(id)),
@@ -178,13 +182,11 @@ class GraphPanel implements vscode.Disposable {
     ];
     panel.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
-      this.followEditor.cancel();
+      this.follower.reset();
       this.opened = undefined;
       this.ready = false;
       this.pendingFocus = undefined;
-      this.awaitingFile = undefined;
       this.target = undefined;
-      this.following = true;
     });
   }
 
@@ -221,9 +223,9 @@ class GraphPanel implements vscode.Disposable {
     if (!this.opened || state.folder !== this.folder?.path) return;
     this.postData();
     this.postProblems();
-    if (this.awaitingFile && state.catalog) {
-      const { path, explicit } = this.awaitingFile;
-      this.awaitingFile = undefined;
+    const awaited = state.catalog ? this.follower.takeAwaited() : undefined;
+    if (awaited && state.catalog) {
+      const { path, explicit } = awaited;
       const id = objectAtPath(state.catalog, path, process.platform);
       if (id) {
         this.pendingFocus = { ids: [id], explicit };
@@ -244,7 +246,7 @@ class GraphPanel implements vscode.Disposable {
   }
 
   private follow(editor: vscode.TextEditor | undefined): void {
-    if (!this.opened || !editor || !this.folder || !this.following) return;
+    if (!this.opened || !editor || !this.folder || !this.follower.following) return;
     const folder = this.ctx.folders.folderOf(editor.document.uri);
     if (folder?.path !== this.folder.path) return;
     const focus = this.editorFocus(editor, false);
@@ -254,7 +256,7 @@ class GraphPanel implements vscode.Disposable {
       this.flushFocus();
     } else if (!this.state()?.catalog && editor.document.uri.scheme === "file") {
       // Before the catalogue loads: the file, focused once it arrives.
-      this.awaitingFile = { path: editor.document.uri.fsPath, explicit: false };
+      this.follower.awaitFile({ path: editor.document.uri.fsPath, explicit: false });
       this.target = editor.document.uri.fsPath;
     }
   }
@@ -368,7 +370,7 @@ class GraphPanel implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.followEditor.cancel();
+    this.follower.dispose();
     if (this.problemsTimer) clearTimeout(this.problemsTimer);
     for (const disposable of this.disposables) disposable.dispose();
     this.opened?.dispose();
