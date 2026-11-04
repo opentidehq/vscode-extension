@@ -42,6 +42,8 @@ export interface Cell {
   readonly unaddressed: number;
   /** 0 = gap; 1 = one rule; 2 = 2–3; 3 = 4–9; 4 = 10 or more. */
   readonly level: 0 | 1 | 2 | 3 | 4;
+  /** The first rules by name (up to TOP_RULES), for the cell's hover card. */
+  readonly top: readonly string[];
   readonly subtechniques: readonly Cell[];
 }
 
@@ -173,16 +175,26 @@ export function level(count: number): Cell["level"] {
   return 4;
 }
 
+/** How many rule names a cell carries for its hover card. */
+export const TOP_RULES = 3;
+
 export function buildMatrix(catalog: CatalogDocument, filters: MatrixFilters = DEFAULT_FILTERS): MatrixView {
   const idx = index(catalog, filters);
   const { tactics, techniques } = catalog.attack;
+  const names = new Map(loadedObjects(catalog.objects).map((o) => [o.uuid, o.name]));
   const cell = (id: string): Cell => {
     const technique = techniques[id];
-    const rules = matching(idx.rules, id).size;
+    const matched = matching(idx.rules, id);
+    const rules = matched.size;
+    const top = [...matched.keys()]
+      .map((uuid) => names.get(uuid) ?? uuid)
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, TOP_RULES);
     return {
       id,
       name: technique?.name ?? id,
       rules,
+      top,
       planned: matching(idx.planned, id).size,
       unaddressed: matching(idx.unaddressed, id).size,
       level: level(rules),

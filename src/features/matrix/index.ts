@@ -8,6 +8,7 @@ import type { CatalogDocument } from "../../core/catalog/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import type { OpentidePanel } from "../../core/webview/panel";
+import { fileColumnFrom, panelTitle } from "../../core/webview/placement";
 import {
   buildMatrix,
   cellDetail,
@@ -97,9 +98,13 @@ class MatrixPanel implements vscode.Disposable {
     this.pendingFocus = args.technique;
     this.view = ctx.webview.createPanel<MatrixProtocol>({
       viewType: "opentide.matrix",
-      title: "ATT&CK Coverage",
+      title: matrixTitle(this.folder?.folder.name, ctx.folders.all.length),
       entry: "matrix",
       validators: hostValidators,
+      // Opened on a technique from an editor (a hover, a lens), it goes beside it; otherwise it is a
+      // page of its own in the active group.
+      beside: args.technique !== undefined,
+      kit: true,
       retainContextWhenHidden: true,
     });
     const { channel, panel } = this.view;
@@ -160,6 +165,7 @@ class MatrixPanel implements vscode.Disposable {
       void this.view.channel.post("detail", null);
     }
     this.folder = folder;
+    this.view.panel.title = matrixTitle(folder?.folder.name, this.ctx.folders.all.length);
   }
 
   /** The saved filters, less a platform or tenant the catalogue does not have. */
@@ -183,7 +189,11 @@ class MatrixPanel implements vscode.Disposable {
       this.setFolder(this.chooseFolder(args.folder));
       this.post();
     }
-    this.view.panel.reveal(undefined, false);
+    // Asked for a technique from an editor: forward where it is, the focus stays in the editor.
+    this.view.panel.reveal(
+      undefined,
+      args.technique !== undefined && vscode.window.activeTextEditor !== undefined,
+    );
     if (args.technique) this.focus(args.technique);
   }
 
@@ -308,9 +318,10 @@ class MatrixPanel implements vscode.Disposable {
       return;
     }
     const line = Math.max(0, object.line - 1);
+    // Beside the matrix (or in the group left of it), in preview: the matrix stays in view.
     await vscode.window.showTextDocument(vscode.Uri.file(object.file_path), {
       selection: new vscode.Range(line, 0, line, 0),
-      viewColumn: vscode.ViewColumn.Beside,
+      viewColumn: fileColumnFrom(this.view.panel.viewColumn) ?? vscode.ViewColumn.Beside,
       preview: true,
     });
   }
@@ -353,6 +364,11 @@ class MatrixPanel implements vscode.Disposable {
   dispose(): void {
     this.view.dispose();
   }
+}
+
+/** The matrix's tab title: the folder's name in a multi-root window. */
+export function matrixTitle(folder: string | undefined, folders: number): string {
+  return panelTitle("ATT&CK Coverage", folders > 1 ? folder : null);
 }
 
 /** The layer file `generate exports navigator` wrote: a step's `where`, else the documented path. */
