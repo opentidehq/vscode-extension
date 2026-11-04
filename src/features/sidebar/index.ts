@@ -39,7 +39,14 @@ import {
 import { debounce, Loader } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
 import { platformFlag, platformName, platformToml } from "./platformNames";
-import { type PlatformInfo, parsePlatforms, platformNodes, presenceEnv, tenantCheck } from "./platforms";
+import {
+  type PlatformInfo,
+  parsePlatforms,
+  platformNodes,
+  presenceEnv,
+  tenantCheck,
+  tenantVariableNames,
+} from "./platforms";
 import { NodeTree, openTargetUri } from "./tree";
 
 export const VIEWS = {
@@ -516,9 +523,21 @@ class Sidebar implements vscode.Disposable {
     this.renderCatalogue();
   }
 
-  /** Run options for a status command: every credential by name, with a placeholder, no value. */
+  /**
+   * Run options for a status command: every credential by name, with a placeholder, no value; the env
+   * file's configuration (`OPENTIDE_REPO_ROOT`, proxies) as it is.
+   */
   private async presence(folder: string): Promise<{ credentials: false; env: Record<string, string> }> {
-    return { credentials: false, env: presenceEnv(await this.ctx.backend.credentialEnv(folder)) };
+    // The variables the last `info` listed under the folder's tenants are credentials too.
+    const last = this.platformsLoader.state.value?.find((r) => r.folder === folder)?.value;
+    const credentials = new Set([
+      ...(await this.ctx.credentials.names(folder)),
+      ...tenantVariableNames(last?.platforms ?? []),
+    ]);
+    return {
+      credentials: false,
+      env: presenceEnv(await this.ctx.backend.credentialEnv(folder), credentials),
+    };
   }
 
   private async run(

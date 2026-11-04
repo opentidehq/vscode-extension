@@ -26,6 +26,7 @@ import {
   platformNodes,
   presenceEnv,
   tenantCheck,
+  tenantVariableNames,
   variableSource,
 } from "../../../src/features/sidebar/platforms";
 import { COMMANDS_FIXTURE, sleep, until } from "../helpers";
@@ -135,9 +136,42 @@ describe("sidebar: platforms & tenants", () => {
   });
 
   it("counts credentials for info and doctor --offline by name, never with their values", () => {
-    const env = presenceEnv({ AZURE_CLIENT_SECRET: "s3cr3t", SPLUNK_TOKEN: "tok" });
+    const env = presenceEnv({ AZURE_CLIENT_SECRET: "s3cr3t", SPLUNK_TOKEN: "tok" }, new Set());
     assert.deepEqual(env, { AZURE_CLIENT_SECRET: PRESENCE_PLACEHOLDER, SPLUNK_TOKEN: PRESENCE_PLACEHOLDER });
     assert.ok(!JSON.stringify(env).includes("s3cr3t"));
+  });
+
+  it("passes the env file's configuration to info and doctor --offline as it is", () => {
+    const configuration = {
+      OPENTIDE_REPO_ROOT: "/repo",
+      OPENTIDE_DATA_ROOT: "/data",
+      OPENTIDE_TIDE_WORKSPACE: "/repo/tide",
+      OPENTIDE_PROXY: "http://proxy:3128",
+      HTTPS_PROXY: "http://proxy:3128",
+      https_proxy: "http://proxy:3128",
+      NO_PROXY: "localhost",
+      PYTHONUTF8: "1",
+      SSL_CERT_FILE: "/ca.pem",
+      REQUESTS_CA_BUNDLE: "/ca.pem",
+    };
+    const credentials = {
+      AZURE_CLIENT_ID: "client-id",
+      OPENTIDE_REPO_TOKEN: "ghp_x",
+      OPENTIDE_PUSH_SSH_KEY: "-----BEGIN",
+      OPENTIDE_SENTINEL_TENANT: "tenant-guid",
+    };
+    const env = presenceEnv(
+      { ...configuration, ...credentials },
+      new Set(["OPENTIDE_SENTINEL_TENANT"]), // a stored or tenant-listed name, whatever its prefix
+    );
+    assert.deepEqual(env, {
+      ...configuration,
+      ...Object.fromEntries(Object.keys(credentials).map((name) => [name, PRESENCE_PLACEHOLDER])),
+    });
+  });
+
+  it("names every tenant's credential variables, for the placeholders", () => {
+    assert.deepEqual(tenantVariableNames(parsePlatforms(INFO)), ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"]);
   });
 
   it("gives two tenants of one name distinct ids (a copied [[tenants]] block)", () => {

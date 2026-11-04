@@ -76,13 +76,39 @@ export type VariableSource = "stored" | "environment" | "unset";
 export const PRESENCE_PLACEHOLDER = "set-in-vscode";
 
 /**
- * The names of `env` (stored credentials and `opentide.envFile` variables), each with a placeholder.
- * `info` and `doctor --offline` only report whether a variable is set; they contact no tenant, so they
- * get no value (SPEC §9: credentials go only to commands that contact a tenant), and `info` runs under
- * the warm `opentide serve`.
+ * Configuration rather than a credential: how opentide finds the repository and its data (`OPENTIDE_*`),
+ * Python's own variables, proxies and CA bundles. `info` and `doctor` read their values.
  */
-export function presenceEnv(env: Readonly<Record<string, string>>): Record<string, string> {
-  return Object.fromEntries(Object.keys(env).map((name) => [name, PRESENCE_PLACEHOLDER]));
+const CONFIGURATION =
+  /^(?:OPENTIDE_\w+|PYTHON\w*|UV_\w+|\w*_PROXY|NO_PROXY|SSL_CERT_(?:FILE|DIR)|REQUESTS_CA_BUNDLE|CURL_CA_BUNDLE)$/i;
+
+/** A name that reads as a secret even under a configuration prefix (`OPENTIDE_REPO_TOKEN`, `…_SSH_KEY`). */
+const SECRET_LIKE = /SECRET|TOKEN|PASSW|CREDENTIAL|PRIVATE|API_?KEY|_KEY(?:_|$)/i;
+
+/** The credential names a folder's platforms name (`info`'s tenants' variables). */
+export function tenantVariableNames(platforms: readonly PlatformInfo[]): string[] {
+  return platforms.flatMap((p) => (p.tenants ?? []).flatMap((t) => t.variables.map((v) => v.name)));
+}
+
+/**
+ * What `info` and `doctor --offline` get from `env` (stored credentials and `opentide.envFile`
+ * variables). They contact no tenant, so a credential gets a placeholder, never its value (SPEC §9:
+ * credentials go only to commands that contact a tenant); `info` runs under the warm `opentide serve`.
+ * A credential is a name in `credentials` (SecretStorage's, and the variables `info`'s tenants name),
+ * one that reads as a secret, or any name that is not configuration. Configuration (`OPENTIDE_REPO_ROOT`
+ * from `setup env`, `OPENTIDE_DATA_ROOT`, proxies, CA bundles, `PYTHON*`) keeps its value, or `info`
+ * would read the repository at the placeholder.
+ */
+export function presenceEnv(
+  env: Readonly<Record<string, string>>,
+  credentials: ReadonlySet<string>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(env).map(([name, value]) => {
+      const configuration = CONFIGURATION.test(name) && !SECRET_LIKE.test(name) && !credentials.has(name);
+      return [name, configuration ? value : PRESENCE_PLACEHOLDER];
+    }),
+  );
 }
 
 export function variableSource(variable: TenantVariable, stored: ReadonlySet<string>): VariableSource {
