@@ -1,7 +1,7 @@
 {
   "$comment": "What this extension builds from and bundles. A bump is a PR. The highlights zip version follows the engine inside the bundled opentide; runtimeArchives are filled by the packaging stage.",
   "opentide": {
-    "version": "0.20.1"
+    "version": "0.21.0"
   },
   "python": {
     "pythonBuildStandalone": "20260718",
@@ -9,9 +9,9 @@
     "flavor": "install_only_stripped"
   },
   "highlights": {
-    "version": "0.9.0",
-    "url": "https://github.com/opentidehq/language-server/releases/download/v0.9.0/highlights-v0.9.0.zip",
-    "sha256": "1f730c6537e192daf9542a3ac6a285099b058556076580bb9d917af2602a25ef"
+    "version": "0.9.1",
+    "url": "https://github.com/opentidehq/language-server/releases/download/v0.9.1/highlights-v0.9.1.zip",
+    "sha256": "515d17058357c4dfe1eaaded20f8802cc232664888cc016301fe80d67d6454ee"
   },
   "tomlGrammar": {
     "source": "tamasfe/taplo, editors/vscode/toml.tmLanguage.json (Even Better TOML), MIT",

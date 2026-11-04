@@ -1,0 +1,112 @@
+/* Base styles for every opentide webview: VS Code theme variables only, so light, dark and
+   high-contrast themes work without per-theme rules. */
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  padding: 0 12px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  font-weight: var(--vscode-font-weight);
+  line-height: 1.4;
+}
+
+a {
+  color: var(--vscode-textLink-foreground);
+}
+
+a:hover {
+  color: var(--vscode-textLink-activeForeground);
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+
+button {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 2px;
+  padding: 4px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+button.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+
+button.secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+select,
+textarea {
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  font: inherit;
+  padding: 3px 6px;
+}
+
+:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  padding: 2px 8px;
+  text-align: left;
+}
+
+.error {
+  color: var(--vscode-errorForeground);
+}
+
+.warning {
+  color: var(--vscode-editorWarning-foreground);
+}
+
+.muted {
+  color: var(--vscode-descriptionForeground);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  button {
+    border: 1px solid ButtonText;
+  }
+}
