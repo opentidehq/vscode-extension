@@ -520,7 +520,7 @@ A webview stepper. It is a form over `opentide setup` flags (D3), so it writes n
 
 ## 9. The opentide sidebar
 
-**Requirements 3 and 4.** An activity bar container, `opentide`, with five views. In a multi-root window each view groups by folder.
+**Requirements 3 and 4.** An activity bar container, `opentide`, with six views. In a multi-root window each view groups by folder.
 
 ```text
 OPENTIDE
@@ -533,6 +533,12 @@ OPENTIDE
   ▸ Objectives without a threat (1)
   ▸ Rules without an objective (3)
   ▸ Files that failed to load (1)
+▾ RELATIONS          Following: Suspicious LSASS Access  [←] [→] [pin]
+    ◆ Rule · Suspicious LSASS Access          objects/rules/suspicious-lsass.yaml
+  ▾ Implements 1 →
+      ◎ Detect LSASS access                   objects/objectives/detect-lsass.yaml
+  ▾ Technique 1 →
+      T1003.001                               LSASS Memory
 ▸ COVERAGE                     212 techniques · 37 covered
 ▸ PLATFORMS & TENANTS
 ▸ HEALTH                       ✓ 15  ! 2  ✗ 1
@@ -542,6 +548,7 @@ OPENTIDE
 | View | Content | Actions |
 |------|---------|---------|
 | **Catalogue** | Threats → objectives → (signals) → rules, as in `opentide tui`, plus groups for objectives without a threat, rules without an objective and files that failed to load. Each rule shows its platforms (icon per block, dimmed when the status is `INERT`) and its problem badge. Group by threat chain (default), type, platform, status or technique; by folder is not in 0.1 ([#41](https://github.com/opentidehq/vscode-extension/issues/41)) | Open; New…; Validate; Show in graph; Run query; Preview deploy; Copy UUID; Reveal in Explorer. The tree find widget filters by name, UUID or technique |
+| **Relations** | The active editor's object (followed, debounced 150 ms; or pinned), then its relations in groups: outgoing (`Implements 1 →`) before incoming (`← Implemented by 3`), each kind in `RELATION_ORDER` with the words, arrow and codicon of `RELATION_WORDS` (`src/core/catalog/relations.ts`). Rows are objects (type icon, name, workspace path; tooltip with platforms and counts both ways), signals, ATT&CK techniques (with their name) and log sources; a reference no object carries is a `missing` row with the warning icon | Click: open beside the followed editor's group (`preview`), at the `name:` line, a signal in its objective at the signal; Open to the Side; Show Relations (retarget); Show in Graph; Copy UUID; Back and Forward; Pin and Unpin |
 | **Coverage** | ATT&CK techniques named by any object: rule count, gaps (`0`) first, sub-techniques under their parent (a parent counts its sub-techniques' rules, as `info coverage` does) | Open the matrix; show the rules; "New objective for this technique" |
 | **Platforms & tenants** | The nine platforms: enabled, `can_deploy`, `can_validate`, `can_query`; tenants per platform and their credential state from `doctor`'s `credentials` check | Enable a platform (`setup platforms`); open its TOML; **Set credential…**: SecretStorage, injected as the `$VAR` the TOML names (D3: never written to a file); Test connection (`doctor`) |
 | **Health** | `opentide doctor` checks, pass/warn/fail/skip, each with its `fix` | Run the fix; re-run; "Copy report" (redacted) for bug reports |
@@ -551,6 +558,10 @@ OPENTIDE
 - The Catalogue, Coverage and search all come from **one** `info catalog` document per folder ([§15](#15-what-this-needs-from-opentide-and-language-server), O3), answered by `opentide serve` from its warm registry and cached in memory.
 - **Refresh triggers:** activation; create, delete or rename under an object folder; save of an object or configuration file; after any command that writes. Refreshes are debounced by 1 s and run one at a time.
 - **Until the first run returns,** the tree shows names from the server's `workspace/symbol`, so it is never empty for long.
+- **Relations:** one `RelationIndex` per catalogue document (`relationIndexOf`, memoised on the document the store hands out), never per render; following the editor reads it and runs nothing. Without `info catalog`, the Relations view asks the language server for `opentide/catalog` once per index version (`opentide/catalogChanged`), turns each object's reference fields into edges (`detection_model` implements, `objective.threats.<i>` covers, `threat.chaining.<i>.vector` chains, a signal's `parent`) and inverts them for the incoming side, and says that its source is the language server's index, which has no techniques or log sources. A server without the request (MethodNotFound, the bundled opentide 0.21.0) gets one line, "Relations need a newer opentide", with Switch Runtime….
+- **Editor entry points:** **opentide: Show Relations** (palette, editor title and context menu of Tide YAML; no default key) reveals the view on the active object without taking the focus. A CodeLens on the object's `name:` line sums up its object relations both ways in the same words (`Implements → Detect LSASS access · ← Implemented by 3 rules`) and shows the view; it needs `info catalog` and `opentide.relations.codeLens` turns it off. The language server's reference lens on `metadata.uuid` (`3 rules use this objective`) stays, and still peeks the references.
+- **Icons:** one codicon and theme colour per kind (`src/core/catalog/objectIcons.ts`: threat `flame` red, objective `target` blue, rule `shield` green, signal `pulse` purple, technique `symbol-event` orange, log source `database` cyan), the graph's colours, in every tree. A row with errors or warnings takes the problem colour instead.
+- **Refreshes:** a tree refreshes only the rows whose content or children changed (`onDidChangeTreeData` with those elements); a whole-tree refresh only when its top level changed.
 
 ---
 

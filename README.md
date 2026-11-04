@@ -78,15 +78,19 @@ The workspace's `tide-*` snippets (`opentide generate snippets`) complete in Tid
 
 ### The opentide sidebar
 
-The opentide activity bar has five views. In a multi-root window each view groups by folder.
+The opentide activity bar has six views. In a multi-root window each view groups by folder.
 
 - **Catalogue**: threats → objectives → signals → rules, with objectives without a threat, rules without
   an objective, and files that failed to load. Group by threat chain, type, platform, status or technique
   (the group button). Filter by name, UUID, path or technique, or use the tree's find widget. Click an
-  object to open it at its name. Its menu validates it, shows it in the graph, previews sharing, runs a
+  object to open it at its name. Hover an object for its type, path, platforms with their status and its
+  relations both ways (`Implements 1 →`, `← Implemented by 3`). Each object row has **Open to the Side**,
+  **Show Relations** and **Show in Graph** buttons; its menu also validates it, previews sharing, runs a
   rule's query or previews its deploy, creates a rule for an objective or an objective for a threat, copies
   its UUID, or reveals the file. Until opentide answers, or when it has no `info catalog`, the tree shows
-  names from the language server.
+  names from the language server, with one **Switch Runtime…** line.
+- **Relations**: the object in the active editor, what it points to (→) and what points to it (←). See
+  [Relations](#relations).
 - **Coverage**: the ATT&CK techniques your objects name, by tactic, with how many rules cover each. Gaps
   come first, and sub-techniques sit under their parent. Opens the ATT&CK matrix.
 - **Platforms & Tenants**: the nine platforms, which are enabled, and what each can deploy, validate and
@@ -98,6 +102,48 @@ The opentide activity bar has five views. In a multi-root window each view group
   network checks, or **Copy Doctor Report**, with paths and stored secrets redacted, for a bug report.
 - **Activity**: every opentide command the extension ran, with its status, its duration and the exact
   command line to copy into a terminal or CI.
+
+### Relations
+
+The **Relations** view, under the Catalogue, follows the active threat, objective or rule (its title says
+`Following: <name>`) and lists its relations in groups, outgoing first, each with its count:
+
+```text
+RELATIONS              Following: LSASS handle opened by unsigned process   [Back] [Forward] [Pin]
+  ◆ Rule · LSASS handle opened by unsigned process      objects/rules/lsass-handle-opened-….yaml
+  ▾ Implements 1 →
+      ◎ Detect LSASS memory access                      objects/objectives/detect-lsass-memory-access.yaml
+  ▾ Technique 1 →
+      T1003.001                                         LSASS Memory
+```
+
+The same words, arrows and icons are used everywhere: `Implements →` / `← Implemented by`, `Covers →` /
+`← Covered by`, `Has signal →` / `← Signal of`, `Child of →` / `← Parent of`, `Technique →`, `Uses log
+source →`; a threat chain reads as its relation, `Precedes →` / `← Preceded by`, `Enables →` / `← Enabled
+by` and so on (`Chains to →` / `← Chained from` when it has none), one group per relation. A reference to a UUID no object carries shows as **missing**,
+with a warning icon.
+
+- Click an object to open it in the editor group beside the one you are reading, at its `name:` line; the
+  view stays on its object and keeps the focus, so the arrow keys move on to the next relation (**Open to
+  the Side** moves the focus to the editor). A signal opens in its objective,
+  at the signal. A technique opens the ATT&CK matrix.
+- Each object row has **Open to the Side**, **Show Relations** (the view moves to that object) and **Show
+  in Graph**; **Back** and **Forward** in the view's title go through the objects it showed.
+- **Pin** keeps the view on its object while you move between editors; **Unpin** follows the editor again.
+- **opentide: Show Relations** (Command Palette, the editor title, the editor's context menu) shows the
+  view on the active object without taking the focus from the editor. It has no default key; bind
+  `opentide.relations.show` in Keyboard Shortcuts, for example to `Ctrl+Shift+Alt+R`
+  (`Cmd+Shift+Alt+R` on macOS) with `when` `editorLangId == opentide-yaml`.
+- A CodeLens on each object's `name:` line sums up its relations both ways, for example `Implements →
+  Detect LSASS memory access · ← Implemented by 3 rules`; click it to show the view. It needs `info
+  catalog`, and `opentide.relations.codeLens` turns it off. The language server's own lens on
+  `metadata.uuid` (`3 rules use this objective`) still opens the references in place.
+
+The view reads the cached catalogue, so following the editor runs no opentide command. With an opentide
+that has no `info catalog` (the bundled 0.21.0), it reads the language server's `opentide/catalog` index
+instead, inverting every object's references to find what points to it, and says so in its message:
+references between objects only, without techniques and log sources. A language server without that
+request shows one line, **Relations need a newer opentide**, with **Switch Runtime…**.
 
 ### Set up a repository
 
@@ -260,6 +306,7 @@ workspace's executables. Commands, tasks, panels and MCP need a trusted folder.
 | `opentide.query.defaultWindow` | `24h` | The look-back a query run offers first (`--since`) |
 | `opentide.query.defaultLimit` | `100` | Rows per tenant (`--limit`, at most 5,000) |
 | `opentide.query.retainResults` | `false` | Keep a query's last results in memory after its panel closes, for this window |
+| `opentide.relations.codeLens` | `true` | The relations CodeLens on each object's `name:` line (needs `info catalog`) |
 | `opentide.mcp.provide` | `auto` | Give VS Code's agents the opentide MCP server: `auto`, `always` or `never` |
 | `opentide.terminal.addToPath` | `true` | Put the bundled `opentide` on new integrated terminals' `PATH` |
 

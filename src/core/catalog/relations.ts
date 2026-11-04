@@ -31,13 +31,13 @@ export interface RelationWords {
 /** The words and icon of each kind, the same in every surface. */
 export const RELATION_WORDS: Readonly<Record<RelationKind, RelationWords>> = {
   implements: { out: "Implements", in: "Implemented by", icon: "symbol-interface" },
-  covers: { out: "Covers", in: "Covered by", icon: "shield" },
+  covers: { out: "Covers", in: "Covered by", icon: "layers" },
   signal: { out: "Has signal", in: "Signal of", icon: "pulse" },
   parent: { out: "Child of", in: "Parent of", icon: "type-hierarchy-sub" },
   chains: { out: "Chains to", in: "Chained from", icon: "arrow-swap" },
   // The index lists techniques and log sources from the object's side only, so their `in` words are
   // reserved for a surface that lists a technique's or log source's objects.
-  technique: { out: "Technique", in: "Used by", icon: "target" },
+  technique: { out: "Technique", in: "Used by", icon: "symbol-event" },
   logsource: { out: "Uses log source", in: "Read by", icon: "database" },
 };
 
@@ -210,6 +210,21 @@ export class RelationIndex {
       count: list.filter((r) => r.kind === kind).length,
     })).filter((c) => c.count > 0);
   }
+}
+
+const indexes = new WeakMap<object, RelationIndex>();
+
+/**
+ * The index of `catalog`, built once per document: the store hands out a new document per refresh, so
+ * this is one index per catalogue version, shared by every view that asks.
+ */
+export function relationIndexOf(catalog: Pick<CatalogDocument, "edges" | "signals">): RelationIndex {
+  let index = indexes.get(catalog);
+  if (!index) {
+    index = new RelationIndex(catalog);
+    indexes.set(catalog, index);
+  }
+  return index;
 }
 
 /** `relations` grouped by kind, in RELATION_ORDER, empty groups left out. */

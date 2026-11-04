@@ -9,8 +9,15 @@ import {
   type LanguageClientOptions,
   RevealOutputChannelOn,
 } from "vscode-languageclient/node";
+import { SERVER_CATALOG_CHANGED } from "../catalog/serverCatalog";
 import type { LanguageClientService, Logger, OpentideServerInfo } from "../context";
-import { convertShowReferencesArgs, DOCUMENT_SELECTOR, readServerInfo } from "../lsp";
+import {
+  type CatalogChanged,
+  convertShowReferencesArgs,
+  DOCUMENT_SELECTOR,
+  forwardNotification,
+  readServerInfo,
+} from "../lsp";
 import { processEnv } from "../runtime/env";
 import { languageServerCommand, type Runtime } from "../runtime/types";
 import { Emitter } from "../util/event";
@@ -52,6 +59,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private fileEvents: vscode.FileSystemWatcher | undefined;
 
   readonly onDidChange = this.emitter.event;
+  private readonly catalogChanged = new Emitter<CatalogChanged>();
+  readonly onCatalogChanged = this.catalogChanged.event;
 
   constructor(private readonly log: Logger) {
     this.disposables.push(
@@ -118,6 +127,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       return undefined;
     }
     this.client = client;
+    // The client's one handler for it, for every feature; disposed with the client.
+    forwardNotification(client, SERVER_CATALOG_CHANGED, (params) => this.catalogChanged.fire(params));
     this.info = readServerInfo(client.initializeResult?.capabilities.experimental);
     this.log.info(
       this.info
@@ -163,5 +174,6 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     this.outputChannel.dispose();
     this.traceChannel.dispose();
     this.emitter.dispose();
+    this.catalogChanged.dispose();
   }
 }

@@ -47,10 +47,12 @@ import {
   tenantCheck,
   tenantVariableNames,
 } from "./platforms";
+import { RELATIONS_VIEW, RelationsView } from "./relationsView";
 import { NodeTree, openTargetUri } from "./tree";
 
 export const VIEWS = {
   catalogue: "opentide.sidebar.catalogue",
+  relations: RELATIONS_VIEW,
   coverage: "opentide.sidebar.coverage",
   platforms: "opentide.sidebar.platforms",
   health: "opentide.sidebar.health",
@@ -125,6 +127,7 @@ class Sidebar implements vscode.Disposable {
       load: () => this.forEachFolder((folder) => this.loadHealth(folder)),
     });
     this.disposables.push(
+      new RelationsView(ctx),
       this.catalogue,
       this.coverage,
       this.platforms,
@@ -405,7 +408,7 @@ class Sidebar implements vscode.Disposable {
     command("opentide.sidebar.validate", (arg) => this.validate(refOf(arg)));
     command("opentide.sidebar.copyUuid", async (arg) => {
       const ref = refOf(arg);
-      if (ref?.kind !== "object" || !ref.uuid) return;
+      if ((ref?.kind !== "object" && ref?.kind !== "signal") || !ref.uuid) return;
       await vscode.env.clipboard.writeText(ref.uuid);
       void vscode.window.setStatusBarMessage(`Copied ${ref.uuid}`, 3000);
     });
@@ -414,9 +417,14 @@ class Sidebar implements vscode.Disposable {
       if (ref?.kind === "object")
         void vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(ref.file));
     });
+    // The object's own folder's graph, focused on it (a multi-root window may have the UUID twice).
     command("opentide.sidebar.showInGraph", (arg) => {
       const ref = refOf(arg);
-      if (ref?.kind === "object") return vscode.commands.executeCommand("opentide.graph.reveal", ref.uuid);
+      if (ref?.kind === "object" || ref?.kind === "signal")
+        return vscode.commands.executeCommand("opentide.graph.open", {
+          uuids: [ref.uuid],
+          folder: ref.folder,
+        });
       return undefined;
     });
     command("opentide.sidebar.newObject", (arg) => this.newObject(refOf(arg)));

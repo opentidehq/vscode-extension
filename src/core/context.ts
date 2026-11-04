@@ -6,6 +6,7 @@ import type { Backend } from "./backend/backend";
 import type { Capabilities } from "./capabilities/capabilities";
 import type { CatalogStore } from "./catalog/store";
 import type { CredentialStore } from "./credentials";
+import type { CatalogChanged } from "./lsp";
 import type { CliSpan } from "./positions";
 import type { RepoPin } from "./runtime/pins";
 import type { ResolveAttempt, Runtime } from "./runtime/types";
@@ -49,6 +50,11 @@ export interface LanguageClientService {
   readonly onDidChange: Event<LanguageClient | undefined>;
   /** The running client, waiting for a start in progress; undefined when none will run. */
   ready(): Promise<LanguageClient | undefined>;
+  /**
+   * The server's `opentide/catalogChanged` (a root's index changed; ask `opentide/catalog` again). Use
+   * this, never `client.onNotification` for it: the client keeps one handler per notification.
+   */
+  readonly onCatalogChanged: Event<CatalogChanged>;
 }
 
 /** `capabilities.experimental.opentide` (language-server docs/EDITORS.md). */
