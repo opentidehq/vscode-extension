@@ -87,6 +87,8 @@ pre-releases odd ones.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
   - **Activity:** the last 50 commands, with Run Again (which asks first for a command that writes
     files or contacts a tenant) and Copy Command Line.
+  - In a folder that is not a repository yet, each view offers to set one up; in Restricted Mode it
+    offers Manage Workspace Trust instead, since the wizard needs a trusted folder.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
   create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
   as Script reproduces it in a terminal. The window takes up the new repository without a reload. It also adds platforms, CI and agents to an existing

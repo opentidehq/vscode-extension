@@ -462,6 +462,9 @@ New rule ───────────────────────�
   - **Create a detection repository here**: opens the wizard.
   - **Open an existing repository**: opens a folder.
 
+  The Coverage, Platforms & Tenants and Health views offer the wizard too. In Restricted Mode every view
+  says to trust the folder to set one up here, with Manage Workspace Trust, and none offers the wizard.
+
   A CoreTIDE layout (`Objects/`, `Configurations/` or `global.toml`) gets a plain statement that opentide
   does not support it, with a link to the 0.21.0 release notes: opentide 0.21.0 removed `migrate objects`,
   and there is no migration.
