@@ -26,7 +26,11 @@ describe("diagnostics (#13)", () => {
     // `tlp: ambr` in a paths.toml rule folder: validate and the language server both report vocab_unknown.
     const uri = fixture("detections", "rules", "misspelled-tlp.yaml");
     const line = 4;
-    const at = (d: vscode.Diagnostic) => codeOf(d) === "vocab_unknown" && d.range.start.line === line;
+    // The sources the dedupe decides between. A task's `$opentide` problems (`opentide task`, left by the
+    // runner tests' validate task) are VS Code's own, next to these: a task run is the user's to clear.
+    const deduped = new Set(["opentide", "opentide validate", "opentide lint"]);
+    const at = (d: vscode.Diagnostic) =>
+      deduped.has(d.source ?? "") && codeOf(d) === "vocab_unknown" && d.range.start.line === line;
     // Closed, only validate reports the file: its finding shows.
     await vscode.commands.executeCommand("opentide.diagnostics.validateWorkspace");
     await waitFor(
