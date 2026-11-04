@@ -77,7 +77,7 @@ interface FakePanel {
   dispose(): void;
 }
 
-function harness(runs: Promise<RunResult>[]) {
+function harness(runs: Promise<RunResult>[], overrides: Partial<PanelHooks> = {}) {
   const panels: FakePanel[] = [];
   const posted: QueryPanelState[] = [];
   const argvs: string[][] = [];
@@ -138,6 +138,7 @@ function harness(runs: Promise<RunResult>[]) {
     },
     edit: async () => undefined,
     action: async () => undefined,
+    ...overrides,
   };
   const pool = new QueryPanels(ctx, hooks);
   return {
@@ -310,5 +311,21 @@ describe("query panel", () => {
       assert.equal(h.created.length, 2);
       h.panels.dispose();
     });
+  });
+
+  it("drops what Tenants and window… picked when the panel was retargeted meanwhile", async () => {
+    const edited = deferred<RunSpec | undefined>();
+    const h = harness([Promise.resolve(ROWS), Promise.resolve(ROWS)], { edit: () => edited.promise });
+    h.panels.run(spec("First rule"));
+    await flush();
+    const editing = h.send("edit");
+    h.panels.run(spec("Second rule"));
+    await flush();
+    edited.resolve({ ...spec("First rule"), options: { ...spec("First rule").options, limit: 500 } });
+    await editing;
+    await flush();
+    assert.equal(h.argvs.length, 2, "the first rule's edit does not run in the second rule's panel");
+    assert.equal(h.last()?.name, "Second rule");
+    h.panels.dispose();
   });
 });

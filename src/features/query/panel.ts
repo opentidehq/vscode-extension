@@ -182,8 +182,10 @@ class QueryPanel implements vscode.Disposable {
         this.execute(payload?.limit ? withLimit(this.spec, payload.limit) : this.spec),
       ),
       channel.on("edit", async () => {
+        const asked = keyOf(this.spec);
         const next = await this.hooks.edit(this.spec);
-        if (next) await this.execute(next);
+        // Retargeted to another query while the pickers were open: their answer was for the old one.
+        if (next && !this.disposed && keyOf(this.spec) === asked) await this.execute(next);
       }),
       channel.on("copy", async ({ format, text }) => {
         await vscode.env.clipboard.writeText(text);
