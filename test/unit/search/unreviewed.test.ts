@@ -24,13 +24,27 @@ describe("unreviewed cache", () => {
       "a second ask joins the run",
     );
     await sleep(5);
-    assert.equal(ready, 1);
+    assert.equal(ready, 2, "both asks are told: a second pick window for the window is not left spinning");
     const answer = cache.get("90d", ["/a", "/b"], () => ready++);
     assert.deepEqual([...(answer?.get("/a") ?? [])], ["objects/rules/a.yaml"]);
     assert.deepEqual(runs, ["/a 90d", "/b 90d"]);
     cache.get("30d", ["/a"], () => {});
     await sleep(5);
     assert.deepEqual(runs.at(-1), "/a 30d");
+  });
+
+  it("tells one window once, however often it asks while the run is under way", async () => {
+    const cache = new UnreviewedCache({
+      hasCommand: () => true,
+      run: async () => ({ rules: [] }),
+      log: () => {},
+    });
+    let ready = 0;
+    const onReady = () => ready++;
+    cache.get("90d", ["/a"], onReady);
+    cache.get("90d", ["/a"], onReady);
+    await sleep(5);
+    assert.equal(ready, 1);
   });
 
   it("lists nothing for a folder whose run fails, or without the command", async () => {

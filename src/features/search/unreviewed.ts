@@ -12,14 +12,16 @@ export interface UnreviewedDeps {
 
 export class UnreviewedCache {
   private readonly answers = new Map<string, Map<string, ReadonlySet<string>>>();
-  private readonly running = new Map<string, Promise<void>>();
+  /** Per running folder set and window, everyone waiting for it: each pick window that asked. */
+  private readonly running = new Map<string, Set<() => void>>();
   private generation = 0;
 
   constructor(private readonly deps: UnreviewedDeps) {}
 
   /**
    * The paths per folder for `window`, or undefined while a run is under way; `onReady` is called once
-   * the answer arrives. A folder whose run failed (or an opentide without the command) lists nothing.
+   * the answer arrives, also when the run was started by an earlier ask (another Find Detection window).
+   * A folder whose run failed (or an opentide without the command) lists nothing.
    */
   get(
     window: string,
@@ -34,9 +36,13 @@ export class UnreviewedCache {
       return empty;
     }
     const key = `${window}\n${folders.join("\n")}`;
-    if (!this.running.has(key)) {
+    const waiting = this.running.get(key);
+    if (waiting) waiting.add(onReady);
+    else {
+      const callbacks = new Set([onReady]);
+      this.running.set(key, callbacks);
       const generation = this.generation;
-      const run = Promise.all(
+      void Promise.all(
         folders.map(async (folder): Promise<[string, ReadonlySet<string>]> => {
           try {
             return [folder, unreviewedPaths(await this.deps.run(folder, window)) ?? new Set()];
@@ -46,12 +52,11 @@ export class UnreviewedCache {
           }
         }),
       ).then((entries) => {
-        this.running.delete(key);
         if (generation !== this.generation) return;
+        this.running.delete(key);
         this.answers.set(window, new Map([...(this.answers.get(window) ?? []), ...entries]));
-        onReady();
+        for (const callback of callbacks) callback();
       });
-      this.running.set(key, run);
     }
     return undefined;
   }
