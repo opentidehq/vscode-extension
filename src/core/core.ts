@@ -13,6 +13,7 @@ import { CredentialStore } from "./credentials";
 import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
+import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
 import { cliCommand } from "./runtime/types";
@@ -355,14 +356,12 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
     vscode.commands.registerCommand("opentide.switchRuntime", () => switchRuntime(ctx)),
     vscode.commands.registerCommand("opentide.usePinnedVersion", async () => {
       if (!ctx.trust.isTrusted) return;
-      await vscode.workspace
-        .getConfiguration("opentide")
-        .update("uv.usePin", true, vscode.ConfigurationTarget.Workspace);
-      await runtime.ready();
-      const uv = runtime.attempts.find((attempt) => attempt.source === "uv");
-      if (runtime.current?.source !== "uv" && uv) {
-        void vscode.window.showWarningMessage(`Could not use the pinned version with uv: ${uv.detail}`);
-      }
+      const warning = await usePinnedVersion(runtime, () =>
+        vscode.workspace
+          .getConfiguration("opentide")
+          .update("uv.usePin", true, vscode.ConfigurationTarget.Workspace),
+      );
+      if (warning) void vscode.window.showWarningMessage(warning);
     }),
     vscode.commands.registerCommand("opentide.createPinnedVenv", () => createPinnedVenv(ctx, runtime)),
   );
