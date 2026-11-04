@@ -1,5 +1,6 @@
 // Creates and wires the core services, registers the core commands, and builds the FeatureContext.
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { ActivityLog } from "./activity";
@@ -16,6 +17,7 @@ import { processEnv } from "./runtime/env";
 import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
+import { uvExecutable } from "./runtime/resolve";
 import { cliCommand } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
 import { LanguageClientManager } from "./services/languageClient";
@@ -435,8 +437,12 @@ async function createPinnedVenv(ctx: FeatureContext, runtime: RuntimeManager): P
   const folder = ctx.folders.all[0];
   if (!ctx.trust.isTrusted || !pin || !folder) return;
   if (!/^[A-Za-z0-9.+!_-]+$/.test(pin.version)) return;
-  const uv =
-    readRestricted<string>("opentide.uv.path")?.trim() || which("uv", process.env.PATH, process.platform);
+  const uv = uvExecutable(
+    readRestricted<string>("opentide.uv.path", folder.folder.uri),
+    folder.path,
+    os.homedir(),
+    (name) => which(name, process.env.PATH, process.platform),
+  );
   if (!uv) {
     // No uv: the Python extension's create-environment command, when it is installed.
     if (vscode.extensions.getExtension("ms-python.python")) {

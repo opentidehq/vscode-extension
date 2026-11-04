@@ -108,6 +108,20 @@ export function expandPath(value: string, folder: string | undefined, homeDir: s
   return out;
 }
 
+/**
+ * The uv to run: `opentide.uv.path` (with `~` and `${workspaceFolder}` expanded, relative to the folder),
+ * else `uv` on PATH. Tier 3 and "Create .venv with the pinned version" both use it.
+ */
+export function uvExecutable(
+  setting: string | undefined,
+  folder: string | undefined,
+  homeDir: string,
+  which: (name: string) => string | undefined,
+): string | undefined {
+  const value = setting?.trim();
+  return value ? expandPath(value, folder, homeDir) : which("uv");
+}
+
 /** The opentide executable next to an interpreter, else `python -m opentide`. */
 export function opentideForInterpreter(
   python: string,
@@ -252,8 +266,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
         missing(3, "uv", "the repository pins no opentide version");
         return undefined;
       }
-      const uvSetting = input.settings.uvPath()?.trim();
-      const uv = uvSetting ? expandPath(uvSetting, input.folder, input.homeDir) : input.which("uv");
+      const uv = uvExecutable(input.settings.uvPath(), input.folder, input.homeDir, input.which);
       if (!uv) {
         missing(3, "uv", "uv is not on PATH");
         return undefined;
