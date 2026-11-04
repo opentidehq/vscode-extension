@@ -86,6 +86,13 @@ describe("Relations view bookkeeping", () => {
   });
 
   describe("renders", () => {
+    it("draws nothing once the view is disposed", () => {
+      const turns = new RenderTurns();
+      const pending = turns.begin();
+      turns.dispose();
+      assert.equal(turns.current(pending.turn), false);
+    });
+
     it("lets the latest render win", () => {
       const turns = new RenderTurns();
       const first = turns.begin();

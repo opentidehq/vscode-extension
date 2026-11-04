@@ -96,11 +96,12 @@ export class RelationsView implements vscode.Disposable {
     this.registerLens();
     setContext("opentide.relations.pinned", false);
     // No I/O on activation: the first render reads in-memory state on the next tick.
-    setTimeout(() => {
+    const first = setTimeout(() => {
       const editor = vscode.window.activeTextEditor;
       if (editor) this.retargetFromEditor(editor);
       else void this.render();
     }, 0);
+    this.disposables.push({ dispose: () => clearTimeout(first) }, { dispose: () => this.renders.dispose() });
   }
 
   // ── following ───────────────────────────────────────────────────────────────────────────────────────

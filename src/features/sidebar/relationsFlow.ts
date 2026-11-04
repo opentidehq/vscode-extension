@@ -77,6 +77,7 @@ export class FollowGuard {
 export class RenderTurns {
   private turn = 0;
   private navigating = false;
+  private disposed = false;
 
   /** The next render goes back or forward. */
   navigate(): void {
@@ -91,9 +92,14 @@ export class RenderTurns {
     return { turn: this.turn, navigating };
   }
 
-  /** Whether the render of `turn` is still the latest. */
+  /** Whether the render of `turn` is still the latest, and the view still there. */
   current(turn: number): boolean {
-    return turn === this.turn;
+    return !this.disposed && turn === this.turn;
+  }
+
+  /** The view is gone: a render that was waiting draws nothing. */
+  dispose(): void {
+    this.disposed = true;
   }
 }
 
