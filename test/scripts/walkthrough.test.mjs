@@ -42,7 +42,7 @@ describe("welcome views in virtual and web workspaces", () => {
   });
 });
 
-describe("what the bundled opentide cannot do", () => {
+describe("an opentide without info catalog (an older one of the repository's, or opentide.path)", () => {
   it("gates the graph's and the matrix's entry points on opentide.hasInfoCatalog, as the sidebar does", () => {
     const menus = pkg.contributes.menus;
     const entries = Object.values(menus).flat();

@@ -101,6 +101,8 @@ describe("relations", () => {
   });
 
   it("puts the relations lens on the name: line when the catalogue has the object", async () => {
+    // The fixture's rule folder is detections/rules/ (paths.toml): objects/rules/ holds no catalogued rule.
+    const catalogued = fixture("detections", "rules", "custom-folder-rule.yaml");
     const api = await activated();
     const folder = api.ctx.folders.all[0];
     assert.ok(folder);
@@ -108,9 +110,13 @@ describe("relations", () => {
       const current = api.ctx.catalog.get(folder.path);
       return current.status === "loading" || current.status === "empty" ? undefined : current;
     });
+    const document = await vscode.workspace.openTextDocument(catalogued);
+    await vscode.window.showTextDocument(document);
     const lenses =
-      (await vscode.commands.executeCommand<vscode.CodeLens[]>("vscode.executeCodeLensProvider", rule())) ??
-      [];
+      (await vscode.commands.executeCommand<vscode.CodeLens[]>(
+        "vscode.executeCodeLensProvider",
+        catalogued,
+      )) ?? [];
     const relations = lenses.filter((lens) => lens.command?.command === "opentide.relations.show");
     if (!catalog.catalog) {
       // Without `info catalog` the language server's lens is the only one.
@@ -118,7 +124,6 @@ describe("relations", () => {
       return;
     }
     assert.equal(relations.length, 1);
-    const document = await vscode.workspace.openTextDocument(rule());
     const line = relations[0]?.range.start.line ?? -1;
     assert.match(document.lineAt(line).text, /^name\s*:/);
     assert.match(relations[0]?.command?.title ?? "", /→|←|No relations/);

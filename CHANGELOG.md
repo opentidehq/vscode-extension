@@ -11,7 +11,7 @@ pre-releases odd ones.
 #### Runtime and core
 
 - Per-platform packages for win32-x64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64
-  and darwin-arm64 bundle opentide 0.21.0 on CPython 3.13, with a CycloneDX SBOM and third-party
+  and darwin-arm64 bundle opentide 0.22.0 on CPython 3.13, with a CycloneDX SBOM and third-party
   notices that include the native libraries linked into CPython (OpenSSL, zlib, libffi, sqlite, …). For Berkeley DB (Sleepycat licence, in the Linux and Alpine runtimes) the notices and SBOM say where its exact source, and CPython's, can be obtained. Every other platform, including win32-arm64 for now, gets the universal package.
 - Runtime resolution in four tiers: `opentide.path`, the workspace's environment, uv with the
   repository's pin (opt-in), and the bundled runtime; a version check (an untagged dev build such as
@@ -109,7 +109,7 @@ pre-releases odd ones.
   create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
   as Script reproduces it in a terminal. The window takes up the new repository without a reload. It also adds platforms, CI and agents to an existing
   repository. A CoreTIDE layout (`Objects/`, `Configurations/`, `global.toml`) is reported as not
-  supported: opentide 0.21.0 has no migration.
+  supported: opentide removed its migration in 0.21.0.
 - "Get started with opentide": a seven-step walkthrough from runtime to agents, each step completing
   when you do it.
 
@@ -150,8 +150,8 @@ pre-releases odd ones.
     `has:errors`, `has:placeholders`, `uuid:`, `path:`, `created:`/`modified:`/`reviewed:` and
     `unreviewed:>90d` (from `opentide rules unreviewed`).
   - Results open at their name line, to the side, or in the graph, all together if you choose.
-  - With opentide 0.21.0 it searches names, types and paths, and says which filters need a newer
-    opentide.
+  - With an opentide that has no `info catalog` (0.21.0 and earlier) it searches names, types and
+    paths, and says which filters need a newer opentide.
 
 #### Panels
 
@@ -245,3 +245,15 @@ pre-releases odd ones.
 - Releases to the Visual Studio Marketplace and Open VSX from one workflow, with trusted publishing
   (no long-lived token), plus a `SHA256SUMS` for every release and a build-provenance attestation for
   every VSIX once the repository is public.
+
+### Changed
+
+- Bundles opentide 0.22.0 (was 0.21.0). The graph, the ATT&CK matrix, Relations and the Catalogue
+  work out of the box with the bundled runtime, which now has `info catalog` and `opentide serve`, as
+  do tenants in the Platforms view and the setup wizard's Review (`setup --plan`): no "needs a newer
+  opentide" until you switch to an older one. The packages are smaller, since opentide no longer
+  requires pandas or numpy: linux-x64 is 57.7 MiB instead of 80.5 MiB (151 MiB installed instead of
+  225 MiB).
+- The language server is language-server 0.10.0, the engine inside opentide 0.22.0: a query `opentide
+  new` left as a placeholder is no longer a parse error in Problems, and a folder created, deleted or
+  moved under `objects/` is read again. The grammars come from its highlights (unchanged).

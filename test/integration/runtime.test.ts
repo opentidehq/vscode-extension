@@ -32,7 +32,11 @@ describe("runtime, backend and language server (#3, #5, #12)", () => {
     assert.ok(folder);
     const result = await api.ctx.backend.run(folder.path, ["explain", "vocab_unknown"]);
     assert.equal(result.exitCode, 0);
-    assert.equal(api.ctx.activity.list()[0]?.argvDisplay, "opentide --json explain vocab_unknown");
+    // Not necessarily the newest entry: with `info catalog` a catalogue refresh can start meanwhile.
+    const entry = api.ctx.activity
+      .list()
+      .find((e) => e.argvDisplay === "opentide --json explain vocab_unknown");
+    assert.equal(entry?.status, "ok");
   });
 
   it("shows each diagnostic of an open rule once (pulled diagnostics)", async () => {

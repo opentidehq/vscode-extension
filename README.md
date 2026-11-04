@@ -10,19 +10,18 @@ and others through Open VSX).
 - An MCP server for agents.
 
 It works on install: the platform packages bundle an opentide runtime, so a machine without Python
-gets live checks, templates, the catalogue, queries and deploy previews, offline. The graph and the
-ATT&CK matrix need a newer opentide than the bundled 0.21.0 (one with `info catalog`). When the repository has its own opentide (a `.venv`, the Python
-extension's interpreter, `opentide` on `PATH`, or `opentide.path`), the extension uses it, so the
-editor checks what CI checks.
+gets live checks, templates, the catalogue, the graph, the ATT&CK matrix, queries and deploy previews,
+offline. When the repository has its own opentide (a `.venv`, the Python extension's interpreter,
+`opentide` on `PATH`, or `opentide.path`), the extension uses it, so the editor checks what CI checks.
 
 ## Features
 
 ### Works on install
 
-The extension for your platform ships with its own opentide (0.21.0 on CPython 3.13), so it works
-offline on a machine with no Python; the features that need a newer opentide say so and offer
-Switch Runtime. The first time the bundled opentide runs, it
-prepares itself in the background. Each package includes an SBOM (`runtime/sbom.cdx.json`) and the
+The extension for your platform ships with its own opentide (0.22.0 on CPython 3.13), so it works
+offline on a machine with no Python, the graph, the ATT&CK matrix and Relations included. An older
+opentide of your own may have no `info catalog`; the features that need it say so and offer Switch
+Runtime. The first time the bundled opentide runs, it prepares itself in the background. Each package includes an SBOM (`runtime/sbom.cdx.json`) and the
 licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). On Windows on Arm, and on
 platforms without a dedicated package, the extension needs an opentide of your own ([Runtime](#runtime)).
 
@@ -140,7 +139,7 @@ with a warning icon.
   `metadata.uuid` (`3 rules use this objective`) still opens the references in place.
 
 The view reads the cached catalogue, so following the editor runs no opentide command. With an opentide
-that has no `info catalog` (the bundled 0.21.0), it reads the language server's `opentide/catalog` index
+that has no `info catalog` (0.21.0 and earlier), it reads the language server's `opentide/catalog` index
 instead, inverting every object's references to find what points to it, and says so in its message:
 references between objects only, without techniques and log sources. A language server without that
 request shows one line, **Relations need a newer opentide**, with **Switch Runtime…**.
@@ -215,8 +214,8 @@ The graph needs an opentide with `info catalog`; with an older one it says so an
 Repeating a filter means "or"; `-` excludes. A `word:` that is not a filter, such as `lsadump::dcsync`,
 is searched as text. Each result opens at its name line, to the side, or in
 the graph, and **Show all in the graph** focuses the graph on every result. A single word, or one `t:`,
-`uuid:` or `path:` filter, can also **Filter the Catalogue**. With opentide 0.21.0, search matches names,
-types and paths only.
+`uuid:` or `path:` filter, can also **Filter the Catalogue**. With an opentide that has no `info catalog`
+(0.21.0 and earlier), search matches names, types and paths only.
 
 ### ATT&CK coverage
 
