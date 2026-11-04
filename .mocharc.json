@@ -1,0 +1,6 @@
+{
+  "spec": ["out/test/unit/**/*.test.js", "test/scripts/**/*.test.mjs"],
+  "require": ["out/test/stubs/register.js"],
+  "timeout": 20000,
+  "reporter": "dot"
+}

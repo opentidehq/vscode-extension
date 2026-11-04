@@ -1,0 +1,483 @@
+{
+  "name": "opentide",
+  "displayName": "opentide",
+  "description": "The opentide workbench for detection engineering: live checks for Tide objects and their KQL, SPL, ES|QL, EQL, Kibana KQL, Lucene and Falco queries, templates, catalogue, ATT&CK coverage, query results and deploy previews.",
+  "version": "0.1.0",
+  "publisher": "opentidehq",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "homepage": "https://github.com/opentidehq/vscode-extension#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opentidehq/vscode-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/opentidehq/vscode-extension/issues"
+  },
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets",
+    "AI"
+  ],
+  "keywords": [
+    "detection engineering",
+    "detection as code",
+    "KQL",
+    "SPL",
+    "ES|QL",
+    "Sentinel",
+    "Defender",
+    "Splunk",
+    "Elastic",
+    "Falco",
+    "MITRE ATT&CK"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode only the language server runs, from the bundled runtime. Commands, tasks, panels, MCP and the workspace's own opentide need a trusted folder.",
+      "restrictedConfigurations": [
+        "opentide.path",
+        "opentide.interpreter",
+        "opentide.uv.usePin",
+        "opentide.uv.path",
+        "opentide.mcp.provide",
+        "opentide.envFile",
+        "opentide.terminal.addToPath"
+      ]
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "opentide reads the workspace from disk."
+    }
+  },
+  "activationEvents": [
+    "workspaceContains:.opentide/**",
+    "workspaceContains:objects/**",
+    "onLanguage:opentide-yaml",
+    "onLanguage:opentide-config",
+    "onLanguage:kql",
+    "onLanguage:spl",
+    "onLanguage:esql",
+    "onLanguage:eql",
+    "onLanguage:kuery",
+    "onLanguage:lucene",
+    "onLanguage:falco"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "opentide-yaml",
+        "aliases": [
+          "Tide YAML",
+          "opentide-yaml"
+        ],
+        "filenamePatterns": [
+          "**/objects/**/*.yaml",
+          "**/objects/**/*.yml"
+        ],
+        "configuration": "./language-configuration/opentide-yaml.json"
+      },
+      {
+        "id": "opentide-config",
+        "aliases": [
+          "opentide configuration",
+          "opentide-config"
+        ],
+        "filenamePatterns": [
+          "**/.opentide/configurations/**/*.toml"
+        ],
+        "configuration": "./language-configuration/opentide-config.json"
+      },
+      {
+        "id": "kql",
+        "aliases": [
+          "KQL (Microsoft)",
+          "kql"
+        ],
+        "extensions": [
+          ".kql"
+        ],
+        "configuration": "./language-configuration/kql.json"
+      },
+      {
+        "id": "spl",
+        "aliases": [
+          "SPL",
+          "spl"
+        ],
+        "extensions": [
+          ".spl"
+        ],
+        "configuration": "./language-configuration/spl.json"
+      },
+      {
+        "id": "esql",
+        "aliases": [
+          "ES|QL",
+          "esql"
+        ],
+        "extensions": [
+          ".esql"
+        ],
+        "configuration": "./language-configuration/esql.json"
+      },
+      {
+        "id": "eql",
+        "aliases": [
+          "EQL",
+          "eql"
+        ],
+        "extensions": [
+          ".eql"
+        ],
+        "configuration": "./language-configuration/eql.json"
+      },
+      {
+        "id": "kuery",
+        "aliases": [
+          "Kibana KQL",
+          "kuery"
+        ],
+        "extensions": [
+          ".kuery"
+        ],
+        "configuration": "./language-configuration/kuery.json"
+      },
+      {
+        "id": "lucene",
+        "aliases": [
+          "Lucene",
+          "lucene"
+        ],
+        "extensions": [
+          ".lucene"
+        ],
+        "configuration": "./language-configuration/lucene.json"
+      },
+      {
+        "id": "falco",
+        "aliases": [
+          "Falco",
+          "falco"
+        ],
+        "extensions": [
+          ".falco"
+        ],
+        "configuration": "./language-configuration/falco.json"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "opentide",
+          "title": "opentide",
+          "icon": "images/activity.svg"
+        }
+      ]
+    },
+    "configurationDefaults": {
+      "[opentide-yaml]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        },
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+      },
+      "[opentide-config]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+      },
+      "[kql]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        }
+      },
+      "[spl]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        }
+      },
+      "[esql]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        }
+      },
+      "[eql]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        }
+      },
+      "[kuery]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        }
+      },
+      "[lucene]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        }
+      },
+      "[falco]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        }
+      }
+    },
+    "configuration": [
+      {
+        "id": "opentide",
+        "title": "opentide",
+        "order": 0,
+        "properties": {
+          "opentide.path": {
+            "type": "string",
+            "default": "",
+            "scope": "machine-overridable",
+            "ignoreSync": true,
+            "order": 0,
+            "markdownDescription": "An `opentide` executable (run with `lsp start`, every feature) or an `opentide-lsp` executable (run with `--stdio`, editor features only). Used before any other runtime. Ignored in Restricted Mode."
+          },
+          "opentide.interpreter": {
+            "type": "string",
+            "default": "",
+            "scope": "machine-overridable",
+            "ignoreSync": true,
+            "order": 1,
+            "markdownDescription": "A Python interpreter with opentide installed. When set, it replaces the Python extensions, `.venv` and `PATH` lookup for the workspace runtime. Ignored in Restricted Mode."
+          },
+          "opentide.runtime": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "bundled"
+            ],
+            "default": "auto",
+            "scope": "window",
+            "order": 2,
+            "enumDescriptions": [
+              "The first runtime that answers: `opentide.path`, the workspace's environment, uv with the repository's pin (when `opentide.uv.usePin` is on), then the bundled runtime.",
+              "Always the runtime bundled with the extension."
+            ],
+            "markdownDescription": "Which opentide runtime the extension uses."
+          },
+          "opentide.uv.usePin": {
+            "type": "boolean",
+            "default": false,
+            "scope": "window",
+            "order": 3,
+            "markdownDescription": "Run the opentide version the repository pins (`pyproject.toml`, `requirements*.txt`, `uv.lock`) with `uv tool run --from opentide==<pin>`. Tried before the workspace's environment. Ignored in Restricted Mode."
+          },
+          "opentide.uv.path": {
+            "type": "string",
+            "default": "",
+            "scope": "machine-overridable",
+            "ignoreSync": true,
+            "order": 4,
+            "markdownDescription": "The `uv` executable for `opentide.uv.usePin`. Default: `uv` on `PATH`. Ignored in Restricted Mode."
+          },
+          "opentide.envFile": {
+            "type": "string",
+            "default": "",
+            "scope": "resource",
+            "order": 5,
+            "markdownDescription": "A `.env` file, relative to the workspace folder, whose variables are passed to commands that contact a tenant (opentide reads credentials only from the environment). Ignored in Restricted Mode."
+          },
+          "opentide.backend.serve": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "never"
+            ],
+            "default": "auto",
+            "scope": "window",
+            "order": 6,
+            "enumDescriptions": [
+              "Use one warm `opentide serve` process when the runtime has it.",
+              "Always spawn `opentide --json <command>`."
+            ],
+            "markdownDescription": "How the extension runs opentide commands."
+          },
+          "opentide.trace.server": {
+            "type": "string",
+            "enum": [
+              "off",
+              "messages",
+              "verbose"
+            ],
+            "default": "off",
+            "scope": "window",
+            "order": 7,
+            "markdownDescription": "Traces the communication between VS Code and the opentide language server, in the `opentide Language Server Trace` output."
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "opentide.restartServer",
+        "title": "Restart Server",
+        "category": "opentide",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "opentide.showOutput",
+        "title": "Show Output",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.switchRuntime",
+        "title": "Switch Runtime…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.statusMenu",
+        "title": "Show Status Menu",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.usePinnedVersion",
+        "title": "Use the Repository's Pinned Version",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.createPinnedVenv",
+        "title": "Create .venv with the Pinned Version",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.showReferences",
+        "title": "Show References",
+        "category": "opentide"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "opentide.statusMenu",
+          "when": "false"
+        },
+        {
+          "command": "opentide.showReferences",
+          "when": "false"
+        },
+        {
+          "command": "opentide.switchRuntime",
+          "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "opentide.usePinnedVersion",
+          "when": "isWorkspaceTrusted && opentide.pinMismatch"
+        },
+        {
+          "command": "opentide.createPinnedVenv",
+          "when": "isWorkspaceTrusted && opentide.pinMismatch"
+        }
+      ]
+    },
+    "grammars": [
+      {
+        "language": "eql",
+        "scopeName": "source.eql",
+        "path": "./syntaxes/eql.tmLanguage.json"
+      },
+      {
+        "language": "esql",
+        "scopeName": "source.opentide.esql",
+        "path": "./syntaxes/esql.tmLanguage.json"
+      },
+      {
+        "language": "falco",
+        "scopeName": "source.falco",
+        "path": "./syntaxes/falco.tmLanguage.json"
+      },
+      {
+        "language": "kql",
+        "scopeName": "source.kql",
+        "path": "./syntaxes/kql.tmLanguage.json"
+      },
+      {
+        "language": "kuery",
+        "scopeName": "source.kuery",
+        "path": "./syntaxes/kuery.tmLanguage.json"
+      },
+      {
+        "language": "lucene",
+        "scopeName": "source.lucene",
+        "path": "./syntaxes/lucene.tmLanguage.json"
+      },
+      {
+        "language": "spl",
+        "scopeName": "source.spl",
+        "path": "./syntaxes/spl.tmLanguage.json"
+      },
+      {
+        "language": "opentide-yaml",
+        "scopeName": "source.opentide-yaml",
+        "path": "./syntaxes/tide.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.falco": "falco",
+          "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.lucene": "lucene",
+          "meta.embedded.block.spl": "spl"
+        }
+      },
+      {
+        "language": "opentide-config",
+        "scopeName": "source.opentide.toml",
+        "path": "./syntaxes/opentide-config.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "features": "node scripts/features-index.mjs",
+    "manifest": "node scripts/manifest.mjs",
+    "manifest:check": "node scripts/manifest.mjs --check",
+    "grammars": "node scripts/grammars.mjs",
+    "grammars:check": "node scripts/grammars.mjs --check",
+    "build": "npm run features && node scripts/build.mjs",
+    "build:production": "npm run features && node scripts/build.mjs --production",
+    "watch": "npm run features && node scripts/build.mjs --watch",
+    "typecheck": "npm run features && tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "compile-tests": "npm run features && tsc -p tsconfig.json",
+    "test": "npm run compile-tests && mocha",
+    "test:integration": "npm run build && npm run compile-tests && vscode-test --label integration",
+    "test:restricted": "npm run build && npm run compile-tests && vscode-test --label restricted",
+    "vscode:prepublish": "npm run build:production",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.91.0",
+    "@vscode/test-cli": "0.0.15",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "mocha": "12.0.3",
+    "typescript": "6.0.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "10.1.2"
+  }
+}
