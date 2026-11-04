@@ -73,11 +73,25 @@ pre-releases odd ones.
 
 #### Sidebar and setup
 
-- The opentide sidebar, five views in the opentide activity bar:
+- The opentide sidebar, six views in the opentide activity bar:
   - **Catalogue:** threats → objectives → signals → rules, plus groups for orphans and files that
     failed to load. Group by threat chain, type, platform, status or technique; filter by name, UUID,
     path or technique. Each rule shows its platforms and problem counts, and its menu runs its query
-    or previews its deploy.
+    or previews its deploy. A tooltip gives an object's type, path, platforms with their status and its
+    relation counts both ways; Open to the Side, Show Relations and Show in Graph are buttons on each
+    object row. Without `info catalog` the names from the language server come with one Switch
+    Runtime… line.
+  - **Relations:** the active object (followed with a 150 ms debounce, or pinned) and what it points to
+    and what points to it, in groups such as `Implements 1 →` and `← Implemented by 3`, with missing
+    references marked. Rows open beside the editor, signals in their objective at the signal; Back and
+    Forward go through the objects it showed. Without `info catalog` it reads the language server's
+    `opentide/catalog` and inverts the references, and says so; a server without that request gets one
+    "needs a newer opentide" line with Switch Runtime….
+  - **opentide: Show Relations** (palette, editor title, editor context menu) and a CodeLens on each
+    object's `name:` line, `Implements → Detect LSASS memory access · ← Implemented by 3 rules`, which
+    `opentide.relations.codeLens` turns off.
+  - One set of words, arrows and icons for relations, and one icon and colour per object type, in every
+    view. The trees refresh only the rows that changed.
   - **Coverage:** ATT&CK techniques by tactic, with rule counts, gaps first.
   - **Platforms & Tenants:** capabilities, tenants and where each credential comes from. Set a
     credential (in VS Code's secret storage, never a file), check it with doctor, or enable a platform.
