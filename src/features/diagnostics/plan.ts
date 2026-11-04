@@ -89,13 +89,43 @@ export function dedupeKey(code: string, line0: number): string {
   return `${code}\u0000${line0}`;
 }
 
-/** Drop the items the language server already reports (same code, same start line). */
+/**
+ * The server diagnostics that report the same finding as a validate or lint one on `line0`: a list of
+ * alternatives, each a set of dedupe keys that must all be there. The first is the finding's own code;
+ * the others are the codes the language server gives the same check (engine 0.9.1 against opentide
+ * 0.21.0's lint, #46): `filename_mismatch` is `filename_slug`, and `metadata_recommended` ("Recommended
+ * metadata missing: author, organisation") is one `missing_<key>` per key it names.
+ */
+export function serverKeys(code: string, line0: number, message = ""): string[][] {
+  const out = [[dedupeKey(code, line0)]];
+  if (code === "filename_mismatch") out.push([dedupeKey("filename_slug", line0)]);
+  if (code === "metadata_recommended") {
+    const keys = /missing:\s*(.+?)\s*$/i
+      .exec(message.split("\n")[0] ?? "")?.[1]
+      ?.split(",")
+      .map((key) => key.trim())
+      .filter((key) => /^[a-z_]+$/.test(key));
+    if (keys?.length) out.push(keys.map((key) => dedupeKey(`missing_${key}`, line0)));
+  }
+  return out;
+}
+
+/** Whether the server reports it: one alternative of `serverKeys` is there in full. */
+export function reportedByServer(
+  alternatives: string | readonly (readonly string[])[],
+  server: ReadonlySet<string>,
+): boolean {
+  const sets = typeof alternatives === "string" ? [[alternatives]] : alternatives;
+  return sets.some((keys) => keys.length > 0 && keys.every((key) => server.has(key)));
+}
+
+/** Drop the items the language server already reports (same code, or its alias, on the same start line). */
 export function withoutDuplicates<T>(
   items: readonly T[],
-  keyOf: (item: T) => string,
+  keyOf: (item: T) => string | readonly (readonly string[])[],
   serverKeys: ReadonlySet<string>,
 ): T[] {
-  return items.filter((item) => !serverKeys.has(keyOf(item)));
+  return items.filter((item) => !reportedByServer(keyOf(item), serverKeys));
 }
 
 export interface Counts {

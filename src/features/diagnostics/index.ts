@@ -35,6 +35,7 @@ import {
   nonOverlapping,
   type OnSave,
   planSaveBatch,
+  serverKeys,
   summaryText,
   validateArgv,
   withoutDuplicates,
@@ -69,6 +70,8 @@ interface Rendered {
   readonly diagnostic: vscode.Diagnostic;
   readonly finding: Finding;
   readonly key: string;
+  /** The server diagnostics that would report it (`serverKeys`). */
+  readonly alternatives: string[][];
 }
 
 interface Outcome {
@@ -589,7 +592,12 @@ class Diagnostics implements vscode.Disposable {
     diagnostic.code = { value: finding.code, target: vscode.Uri.parse(docsUrl(finding.code)) };
     if (isDeprecationCode(finding.code)) diagnostic.tags = [vscode.DiagnosticTag.Deprecated];
     if (finding.related.length > 0) diagnostic.relatedInformation = await this.relatedInformation(finding);
-    return { diagnostic, finding, key: dedupeKey(finding.code, range.start.line) };
+    return {
+      diagnostic,
+      finding,
+      key: dedupeKey(finding.code, range.start.line),
+      alternatives: serverKeys(finding.code, range.start.line, finding.message),
+    };
   }
 
   /** Rebuild the diagnostics of these files from the model, then show them. */
@@ -624,7 +632,7 @@ class Diagnostics implements vscode.Disposable {
     };
     let changed = false;
     for (const source of SOURCES) {
-      const items = withoutDuplicates(entry[source], (item) => item.key, server);
+      const items = withoutDuplicates(entry[source], (item) => item.alternatives, server);
       const signature = items.map(itemSignature).join("\u0002");
       if (previous?.[source].signature === signature && previous[source].items.length === items.length)
         continue;

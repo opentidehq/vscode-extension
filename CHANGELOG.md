@@ -42,7 +42,8 @@ pre-releases odd ones.
 #### Problems
 
 - Problems from `opentide validate` and `opentide lint` next to the language server's, one squiggle
-  per finding.
+  per finding, also where lint and the language server name the same check differently
+  (`filename_mismatch`/`filename_slug`, `metadata_recommended`/`missing_<key>`).
   - Saving an object file validates it (`validate --file`) and lints it (`lint --file`, when your
     opentide has it); saving a configuration file validates the workspace. Only files directly in an
     object folder are checked this way (opentide accepts no other), and a run that fails keeps the

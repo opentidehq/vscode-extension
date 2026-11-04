@@ -14,6 +14,7 @@ import {
   nonOverlapping,
   planSave,
   planSaveBatch,
+  serverKeys,
   summaryText,
   validateArgv,
   withoutDuplicates,
@@ -95,6 +96,35 @@ describe("diagnostics: plan", () => {
     ];
     const kept = withoutDuplicates(validate, (item) => dedupeKey(item.code, item.line), server);
     assert.deepEqual(kept, [{ code: "kql_parse_error", line: 60 }]);
+  });
+
+  it("drops lint findings the server reports under its own codes (#46): five problems become two", () => {
+    // Engine 0.9.1 and opentide 0.21.0's lint name the same checks differently.
+    const server = new Set([
+      dedupeKey("filename_slug", 0),
+      dedupeKey("missing_author", 2),
+      dedupeKey("missing_organisation", 2),
+    ]);
+    const lint = [
+      {
+        code: "filename_mismatch",
+        line: 0,
+        message: "Filename 'broken-rule.yaml' does not match slugify(name)",
+      },
+      {
+        code: "metadata_recommended",
+        line: 2,
+        message: "Recommended metadata missing: author, organisation",
+      },
+      { code: "metadata_recommended", line: 2, message: "Recommended metadata missing: author, version" },
+    ];
+    const kept = withoutDuplicates(lint, (item) => serverKeys(item.code, item.line, item.message), server);
+    assert.deepEqual(
+      kept.map((item) => item.message),
+      ["Recommended metadata missing: author, version"],
+      "a key the server does not report keeps the lint finding",
+    );
+    assert.deepEqual(serverKeys("vocab_unknown", 3), [[dedupeKey("vocab_unknown", 3)]]);
   });
 
   it("reads codes as the language client gives them", () => {
