@@ -2,7 +2,8 @@
 // Bundles the extension host code and every webview entry.
 //   src/extension.ts        -> dist/extension.js     (node, CommonJS, `vscode` external)
 //   src/web/extension.ts    -> dist/web/extension.js (browser, CommonJS, `vscode` external; package.json `browser`)
-//   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE)
+//   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE), and <name>.css with the fonts it
+//                              uses (codicons) when it imports CSS
 //   webview/shared/base.css -> dist/webview/base.css
 //   the npm packages bundled in any of them -> dist/THIRD-PARTY-NOTICES.txt
 // Flags: --production (minify, no source maps), --watch.
@@ -48,6 +49,10 @@ const webview = {
   format: "iife",
   target: "es2022",
   metafile: true,
+  // @vscode/codicons: its stylesheet and font (served from dist/webview, under the CSP's font-src),
+  // and single icons as SVG text for canvas drawings.
+  loader: { ".ttf": "file", ".svg": "text" },
+  assetNames: "[name]-[hash]",
 };
 
 if (!watch) rmSync(join(root, "dist"), { recursive: true, force: true });

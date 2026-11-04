@@ -58,9 +58,13 @@ export function thirdPartyNotices(packages, readFile) {
   ];
   for (const [name, dir] of packages) {
     const pkg = JSON.parse(readFile(join(dir, "package.json")));
-    const licenseFile = readdirSync(dir).find((file) => /^(licen[cs]e|copying)(\.md|\.txt)?$/i.test(file));
+    // Every licence file: @vscode/codicons has LICENSE (the icons, CC-BY-4.0) and LICENSE-CODE (MIT).
+    const licenseFiles = readdirSync(dir)
+      .filter((file) => /^(licen[cs]e|copying)(-[a-z]+)?(\.md|\.txt)?$/i.test(file))
+      .sort();
     sections.push(`${name} ${pkg.version} (${pkg.license ?? "see licence"})`, "-".repeat(40));
-    sections.push(licenseFile ? readFile(join(dir, licenseFile)).trim() : `Licence: ${pkg.license}`, "");
+    if (licenseFiles.length === 0) sections.push(`Licence: ${pkg.license}`, "");
+    for (const file of licenseFiles) sections.push(readFile(join(dir, file)).trim(), "");
   }
   return `${sections.join("\n")}\n`;
 }

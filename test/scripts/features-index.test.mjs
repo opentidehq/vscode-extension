@@ -60,6 +60,21 @@ describe("third-party notices", () => {
     assert.match(text, /@scope\/pkg 1\.2\.3 \(MIT\)\n-+\nMIT text/);
   });
 
+  it("carries every licence file of a package (codicons: the icons' and the code's)", async () => {
+    const { thirdPartyNotices } = await import("../../scripts/build-lib.mjs");
+    const dir = mkdtempSync(join(tmpdir(), "otide-notices-"));
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ version: "0.0.45", license: "CC-BY-4.0" }));
+    writeFileSync(join(dir, "LICENSE"), "CC-BY text");
+    writeFileSync(join(dir, "LICENSE-CODE"), "MIT text");
+    writeFileSync(join(dir, "README.md"), "not a licence");
+    const { readFileSync } = await import("node:fs");
+    const text = thirdPartyNotices(new Map([["@vscode/codicons", dir]]), (file) =>
+      readFileSync(file, "utf8"),
+    );
+    assert.match(text, /CC-BY text\n\nMIT text/);
+    assert.doesNotMatch(text, /not a licence/);
+  });
+
   it("covers the webview bundles too", async () => {
     const { mergeMetafiles } = await import("../../scripts/build-lib.mjs");
     const merged = mergeMetafiles([
