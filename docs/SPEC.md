@@ -668,7 +668,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - **Missing tenants.**
   - **Diagnostics:** also added to Problems, under `opentide deploy`.
   - **Payloads:** each `api_request` opens as a read-only JSON document (`opentide-payload:`), so search, folding and copy are the editor's.
-- **Footer:** the command line, and "Copy as CI step". No "Deploy" button (D6).
+- **Footer:** the command line, and "Copy as CI step": a GitHub Actions step whose `env` names every credential variable of the tenants the plan deploys to (from `info`'s tenants, set in the editor or not), plus any the plan's warnings name. No "Deploy" button (D6).
 
 ---
 

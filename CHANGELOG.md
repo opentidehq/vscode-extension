@@ -116,7 +116,8 @@ pre-releases odd ones.
 - The deploy plan ("opentide: Preview Deploy"): `opentide deploy --dry-run` for the current, selected
   or changed rules. It shows each rule's action per platform and tenant, compile failures (also in
   Problems), skipped rules and missing tenants. API payloads open as read-only JSON, and you can copy
-  the deploy command or a CI step. The editor never deploys.
+  the deploy command or a CI step that names the secrets of every tenant it deploys to. The editor never
+  deploys.
 - The ATT&CK matrix ("opentide: Open ATT&CK Matrix"): coverage per tactic and technique from
   `opentide info catalog`. Gaps show without relying on colour, sub-techniques expand in place, and
   layers add planned objectives and unaddressed threats. Filter by platform, tenant, INERT status and
