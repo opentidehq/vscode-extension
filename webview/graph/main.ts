@@ -28,7 +28,14 @@ import {
 } from "../../src/features/graph/expand";
 import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg } from "../../src/features/graph/export";
 import { SelectionHistory } from "../../src/features/graph/history";
-import { HUGE_LAYOUT, layout, NODE_BOX, type Point, stabilize } from "../../src/features/graph/layout";
+import {
+  bounds,
+  HUGE_LAYOUT,
+  layout,
+  NODE_BOX,
+  type Point,
+  stabilize,
+} from "../../src/features/graph/layout";
 import {
   describe,
   keptFocus,
@@ -928,12 +935,27 @@ let autoFit = false;
 function fitView(): void {
   if (!cy) return;
   autoFit = true;
-  cy.fit(undefined, 30);
-  // A small graph would be drawn huge: cap the zoom and keep it centred.
-  if (cy.zoom() > 1.25) {
-    cy.zoom(1.25);
-    cy.center();
-  }
+  // From the laid-out positions, not Cytoscape's bounding box: that measures every label (a second at
+  // 2,000 nodes). The box is padded for the labels under the nodes.
+  const box = bounds(
+    [...nodesById.keys()].map((id) => positions.get(id)).filter((p): p is Point => p !== undefined),
+  );
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (box.width === 0 || width === 0 || height === 0) return;
+  const padding = 30;
+  // A small graph would be drawn huge: cap the zoom.
+  const zoom = Math.max(
+    cy.minZoom(),
+    Math.min(1.25, (width - 2 * padding) / box.width, (height - 2 * padding) / (box.height + 16)),
+  );
+  cy.viewport({
+    zoom,
+    pan: {
+      x: width / 2 - (box.x + box.width / 2) * zoom,
+      y: height / 2 - (box.y + box.height / 2 + 8) * zoom,
+    },
+  });
 }
 
 let matches = new Set<string>();
