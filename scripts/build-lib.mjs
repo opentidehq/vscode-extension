@@ -2,6 +2,23 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+/**
+ * The esbuild options every bundle shares. `legalComments: "eof"` keeps each bundled file's `/*!` and
+ * `@license` comments, gathered at the end of the bundle: Cytoscape.js inlines code under MIT notices of
+ * its own (Engelschall's Thenable, jQuery's event object, bezier-easing, Framer.js's spring), which the
+ * MIT licence requires to ship with it and which THIRD-PARTY-NOTICES, built from package licence files,
+ * does not carry.
+ */
+export function commonOptions(production) {
+  return {
+    bundle: true,
+    sourcemap: !production,
+    minify: production,
+    logLevel: "info",
+    legalComments: "eof",
+  };
+}
+
 /** webview/<name>/main.ts entries, by name. */
 export function webviewEntries(dir) {
   if (!existsSync(dir)) return {};

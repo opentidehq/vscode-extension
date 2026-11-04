@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateRawSync } from "node:zlib";
+import { commonOptions } from "../../scripts/build-lib.mjs";
 import {
   budgetFor,
   formatReport,
@@ -269,7 +270,11 @@ describe("the packaged bundles are minified", () => {
     assert.equal(scripts["vscode:prepublish"], "npm run build:production");
     assert.match(scripts["build:production"], /node scripts\/build\.mjs --production$/);
     const build = readFileSync(join(root, "scripts", "build.mjs"), "utf8");
-    assert.match(build, /sourcemap: !production,\n\s+minify: production,/);
+    assert.match(build, /const common = commonOptions\(production\);/);
+    assert.deepEqual(
+      [commonOptions(true).minify, commonOptions(true).sourcemap, commonOptions(false).sourcemap],
+      [true, false, true],
+    );
     assert.match(readFileSync(join(root, ".vscodeignore"), "utf8"), /^dist\/\*\*\/\*\.map$/m);
   });
 });
