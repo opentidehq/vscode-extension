@@ -12,7 +12,12 @@
       ],
       "licenses": [
         "Sleepycat"
-      ]
+      ],
+      "source": {
+        "version": "6.0.19",
+        "url": "https://ftp.osuosl.org/pub/blfs/conglomeration/db/db-6.0.19.tar.gz",
+        "sha256": "2917c28f60903908c2ca4587ded1363b812c4e830a5326aaa77c9879d13ae18e"
+      }
     },
     {
       "name": "bzip2",

@@ -183,6 +183,32 @@ export function nativeComponents(pythonJson) {
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
+/**
+ * Licences whose binary redistribution must say how to obtain the library's complete source: Sleepycat
+ * (Berkeley DB, clause 3). Such a component records its `source` from python-build-standalone.
+ */
+const SOURCE_OFFER_LICENSES = new Set(["Sleepycat"]);
+
+export function needsSourceOffer(component) {
+  return component.licenses.some((license) => SOURCE_OFFER_LICENSES.has(license));
+}
+
+/** python-build-standalone's `downloads.py` at a release: the version, URL and SHA-256 of each source. */
+export function pbsDownloadsUrl(pythonBuildStandalone) {
+  return `https://raw.githubusercontent.com/astral-sh/python-build-standalone/${pythonBuildStandalone}/pythonbuild/downloads.py`;
+}
+
+/** The `{ version, url, sha256 }` of `downloads.py`'s entry for `key` (a component name, `bdb`). */
+export function downloadEntry(text, key) {
+  const start = text.indexOf(`\n    "${key}": {`);
+  if (start < 0) return undefined;
+  const end = text.indexOf("\n    },", start);
+  const block = text.slice(start, end < 0 ? undefined : end);
+  const field = (name) => new RegExp(`\n\\s*"${name}":\\s*"([^"]+)"`).exec(block)?.[1];
+  const [version, url, sha256] = [field("version"), field("url"), field("sha256")];
+  return version && url && sha256 ? { version, url, sha256 } : undefined;
+}
+
 /** Where `npm run runtime:licenses` writes a target's native components and licence texts. */
 export function nativeLicensesPath(name) {
   return `runtime-licenses/${name}.json`;
@@ -207,8 +233,27 @@ export function checkNativeLicenses(pins, name, record) {
     const text = record.texts?.[component.file];
     if (typeof text !== "string" && text !== null)
       throw new RuntimeError(`${nativeLicensesPath(name)} has no entry for ${component.file}`);
+    if (needsSourceOffer(component) && !(component.source?.url && component.source?.version))
+      throw new RuntimeError(
+        `${nativeLicensesPath(name)} has no source for ${component.name}, whose ${component.licenses.join(" AND ")} ` +
+          `licence asks the notices to say where it is: run npm run runtime:licenses -- --target ${name}`,
+      );
   }
   return record;
+}
+
+/** Where the complete source of a component under a source-offer licence, and of CPython, is. */
+function sourceOffer(record, component) {
+  const { source } = component;
+  if (!source) return [];
+  const pbs = record.pythonBuildStandalone;
+  return [
+    `Source: the complete source of ${component.name} ${source.version}, as linked here, is available at ` +
+      `no charge from ${source.url} (SHA-256 ${source.sha256}). python-build-standalone ${pbs} builds it ` +
+      `and links it into CPython with the scripts at https://github.com/astral-sh/python-build-standalone/tree/${pbs}; ` +
+      `the source of CPython ${record.cpython}, including the modules that use it (${component.modules.join(", ")}), ` +
+      `is at https://www.python.org/ftp/python/${record.cpython}/Python-${record.cpython}.tar.xz.`,
+  ];
 }
 
 /** The THIRD-PARTY-NOTICES sections of the native components (see `runtimeNotices`). */
@@ -216,6 +261,7 @@ export function nativeSections(record) {
   return (record.components ?? []).map((component) => ({
     title: `${component.name}, linked into CPython (${component.modules.join(", ")})`,
     license: component.licenses.join(" AND ") || "see the licence text",
+    notes: sourceOffer(record, component),
     texts:
       typeof record.texts[component.file] === "string"
         ? [{ file: component.file, text: record.texts[component.file] }]
@@ -679,6 +725,19 @@ export function cyclonedx({ info, dists, extensionVersion, native = [] }) {
                   id.startsWith("LicenseRef-") ? { license: { name: id } } : { license: { id } },
                 )
               : [{ license: { name: `see ${component.file}` } }],
+            ...(component.source
+              ? {
+                  version: component.source.version,
+                  // The hash is the source tarball's, not the library's as linked: on the reference.
+                  externalReferences: [
+                    {
+                      type: "source-distribution",
+                      url: component.source.url,
+                      hashes: [{ alg: "SHA-256", content: component.source.sha256 }],
+                    },
+                  ],
+                }
+              : {}),
             properties: [{ name: "opentide:cpythonModules", value: component.modules.join(",") }],
           })),
         }
@@ -745,6 +804,7 @@ export function runtimeNotices(info, sections) {
   ];
   for (const section of sections) {
     out.push("=".repeat(78), `${section.title} (${section.license})`, "=".repeat(78));
+    for (const note of section.notes ?? []) out.push("", note);
     if (section.texts.length === 0)
       out.push("", `Licence: ${section.license}. The distribution ships no licence file.`);
     for (const { file, text } of section.texts) out.push("", `--- ${file}`, "", text.trim());

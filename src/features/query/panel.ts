@@ -225,9 +225,10 @@ class QueryPanel implements vscode.Disposable {
         this.state = choosingState(this.state, result.durationMs);
         this.post();
         const picked = await this.hooks.pickTenants(spec, choices);
-        if (picked && this.cts === cts)
-          return this.execute({ ...spec, options: { ...options, tenants: picked } });
-        if (this.disposed || !this.state) return;
+        // While the picker was open the panel may have closed, or a Re-run or a new spec started a
+        // newer run: this one is over, and neither runs again nor overwrites that run's state.
+        if (this.disposed || this.cts !== cts || !this.state) return;
+        if (picked) return this.execute({ ...spec, options: { ...options, tenants: picked } });
       }
       const tabs = tabsFromDocument(document);
       const failed = result.exitCode !== 0 && tabs.length === 0;

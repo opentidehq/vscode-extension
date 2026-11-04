@@ -12,13 +12,14 @@ pre-releases odd ones.
 
 - Per-platform packages for win32-x64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64
   and darwin-arm64 bundle opentide 0.21.0 on CPython 3.13, with a CycloneDX SBOM and third-party
-  notices that include the native libraries linked into CPython (OpenSSL, zlib, libffi, sqlite, …). Every other platform, including win32-arm64 for now, gets the universal package.
+  notices that include the native libraries linked into CPython (OpenSSL, zlib, libffi, sqlite, …). For Berkeley DB (Sleepycat licence, in the Linux and Alpine runtimes) the notices and SBOM say where its exact source, and CPython's, can be obtained. Every other platform, including win32-arm64 for now, gets the universal package.
 - Runtime resolution in four tiers: `opentide.path`, the workspace's environment, uv with the
   repository's pin (opt-in), and the bundled runtime; a version check (an untagged dev build such as
   `0.1.dev216+g0a65c49` is used with a note), pin-mismatch detection, a status bar item and a language
   status item.
 - The first time the bundled runtime is used, its bytecode is compiled in the background at low
-  priority, into the extension's global storage, so the extension folder stays read-only.
+  priority, into the extension's global storage, so the extension folder stays read-only. An older
+  version's bytecode is deleted once VS Code has removed that version's folder.
 - The language server: one client per window with pulled diagnostics, the reference lens's
   `opentide.showReferences`, and fix-all on save off by default.
 - The backend: `opentide serve` when the runtime has it, spawning `opentide --json` otherwise, with
@@ -80,6 +81,9 @@ pre-releases odd ones.
   - **Coverage:** ATT&CK techniques by tactic, with rule counts, gaps first.
   - **Platforms & Tenants:** capabilities, tenants and where each credential comes from. Set a
     credential (in VS Code's secret storage, never a file), check it with doctor, or enable a platform.
+    The status commands behind it (`info`, `doctor --offline`) get each credential by name only, never
+    its value; an `OPENTIDE_` variable opentide does not read as configuration (`OPENTIDE_PUSH_URL`)
+    counts as a credential, and a proxy or index URL loses its user and password.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
   - **Activity:** the last 50 commands, with Run Again (which asks first for a command that writes
     files or contacts a tenant) and Copy Command Line.
@@ -123,7 +127,9 @@ pre-releases odd ones.
   platform) and **Compiled query** (from the language server). Sysdig gets no run lens, and Elastic
   Kuery says it writes preview alerts.
 - The query results panel: progress per tenant with Cancel and Re-run, then one tab per tenant (with
-  a failed tenant's error and the platform's detail). Each tab has a virtual table to sort, filter and
+  a failed tenant's error and the platform's detail). When the platform has several tenants it asks
+  which to query; Re-run and "Tenants and window…" wait for that picker, and a pick made after the
+  panel closed or a newer run started is dropped. Each tab has a virtual table to sort, filter and
   move through with the keyboard. Copy a cell, a row or the rows as CSV, JSON or Markdown, or export
   CSV or JSONL. Results stay in memory and are dropped when the panel closes
   (`opentide.query.retainResults`). In CSV, a cell a spreadsheet would read as a formula (`=`, `+`,
@@ -159,7 +165,8 @@ pre-releases odd ones.
   as `OPENTIDE_PROXY`, as background runs do.
 - Terminal:
   - the bundled `opentide` goes on new terminals' PATH (`opentide.terminal.addToPath`), also when
-    the Windows user folder's name is not ASCII;
+    the Windows user folder's name is not ASCII (and Ctrl+C then leaves the console's code page as it
+    was);
   - an "opentide" terminal profile;
   - links: UUIDs open the object, `error[code]` opens Explain.
 - The opentide MCP server for VS Code's agents, working on install with the bundled runtime

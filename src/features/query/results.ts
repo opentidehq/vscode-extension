@@ -151,6 +151,14 @@ export function keepable<T extends { readonly phase: string }>(state: T | undefi
 }
 
 /**
+ * Whether Re-run and "Tenants and window…" are on: not while a run is going (Cancel stands in for
+ * Re-run) nor while its tenant picker is open, whose run would be abandoned.
+ */
+export function canStartRun(phase: string): boolean {
+  return phase !== "running" && phase !== "choosing";
+}
+
+/**
  * Whether the selected tab has rows to copy or export. A failed, empty or pending tab has none of its
  * own, and the table may still hold the previous tab's rows: exporting them under this tenant's name
  * wrote one tenant's data as another's.

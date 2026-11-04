@@ -93,6 +93,22 @@ export class EventEmitter<T> {
   }
 }
 
+export class CancellationTokenSource {
+  private readonly cancelled = new EventEmitter<void>();
+  readonly token = {
+    isCancellationRequested: false,
+    onCancellationRequested: this.cancelled.event,
+  };
+  cancel(): void {
+    if (this.token.isCancellationRequested) return;
+    this.token.isCancellationRequested = true;
+    this.cancelled.fire();
+  }
+  dispose(): void {
+    this.cancelled.dispose();
+  }
+}
+
 export class Uri {
   private constructor(
     readonly scheme: string,

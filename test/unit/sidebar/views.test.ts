@@ -177,6 +177,36 @@ describe("sidebar: platforms & tenants", () => {
     });
   });
 
+  it("gives info and doctor --offline no secret under a configuration name or in a URL", () => {
+    const env = presenceEnv(
+      {
+        OPENTIDE_PUSH_URL: "https://gitlab-ci-token:glpat-SECRET1@gitlab.example.com/d/c.git",
+        HTTPS_PROXY: "http://alice:SECRET2@p:3128",
+        https_proxy: "alice:SECRET3@p:3128",
+        OPENTIDE_PROXY: "http://alice:SECRET4@p:3128",
+        UV_INDEX_URL: "https://__token__:SECRET5@pypi.example.com/simple",
+        UV_EXTRA_INDEX_URL: "https://a.example/simple https://u:SECRET6@b.example/simple",
+        OPENTIDE_SPLUNK_PASS: "SECRET7",
+        OPENTIDE_SENTINEL_CLIENT: "SECRET8",
+        AZURE_CLIENT_SECRET: "SECRET9",
+      },
+      new Set(),
+    );
+    assert.ok(!Object.values(env).some((v) => v.includes("SECRET")), JSON.stringify(env));
+    assert.equal(env.HTTPS_PROXY, "http://p:3128", "a proxy keeps its host, without its user and password");
+    assert.equal(env.https_proxy, "p:3128");
+    assert.equal(env.OPENTIDE_PROXY, "http://p:3128");
+    assert.equal(env.UV_INDEX_URL, "https://pypi.example.com/simple");
+    assert.equal(env.UV_EXTRA_INDEX_URL, "https://a.example/simple https://b.example/simple");
+    assert.equal(env.OPENTIDE_PUSH_URL, PRESENCE_PLACEHOLDER, "the sharing remote is a credential");
+    assert.equal(env.OPENTIDE_SPLUNK_PASS, PRESENCE_PLACEHOLDER);
+    assert.equal(
+      env.OPENTIDE_SENTINEL_CLIENT,
+      PRESENCE_PLACEHOLDER,
+      "an OPENTIDE_ name opentide does not read",
+    );
+  });
+
   it("names every tenant's credential variables, for the placeholders", () => {
     assert.deepEqual(tenantVariableNames(parsePlatforms(INFO)), ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"]);
   });
