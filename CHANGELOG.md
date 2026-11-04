@@ -173,7 +173,8 @@ pre-releases odd ones.
   - links: UUIDs open the object, `error[code]` opens Explain.
 - The opentide MCP server for VS Code's agents, working on install with the bundled runtime
   (`opentide.mcp.provide`: auto|always|never); there is none in Restricted Mode. It reads the root
-  `.mcp.json` as well as `.vscode/mcp.json` (and `.cursor/mcp.json` when VS Code discovers it). When the
+  `.mcp.json` as well as `.vscode/mcp.json` (and `.cursor/mcp.json` when VS Code discovers it), and the
+  `mcp.servers` of a `.code-workspace` and of the user's mcp.json. When the
   `opentide` server there runs a command that is not found, the extension's server is named
   `opentide (VS Code)`: VS Code keeps one server per name, and it disabled the working one in favour of
   the file's. "Add opentide to This

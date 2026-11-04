@@ -16,7 +16,10 @@ import {
   McpDecisionLog,
   type McpInputs,
   opentideEntryCommand,
+  opentideServerCommand,
   provideMode,
+  USER_CONFIG_ORDER,
+  WORKSPACE_CONFIG_ORDER,
   type WorkspaceEntry,
   workspaceMcpFiles,
 } from "../../../src/features/agents/mcp";
@@ -189,6 +192,50 @@ describe("agents: MCP server", () => {
       entry("b/.mcp.json", true),
     ];
     assert.equal(decideMcp(inputs({ workspaceEntries: shadowed })).provide, false, "order 0 wins outright");
+  });
+
+  it("counts a .code-workspace's and the user's mcp.servers, which also outrank the extension", () => {
+    const configured = (file: string, usable: boolean, order: number): WorkspaceEntry => ({
+      file,
+      command: "opentide",
+      usable,
+      order,
+    });
+    const user = configured("the user's mcp.json", false, USER_CONFIG_ORDER);
+    const workspace = configured("team.code-workspace", true, WORKSPACE_CONFIG_ORDER);
+    const onlyUser = decideMcp(inputs({ workspaceEntries: [user] }));
+    assert.ok(onlyUser.provide);
+    assert.equal(onlyUser.server.label, MCP_SEPARATE_LABEL, "the user's broken opentide would win");
+    assert.match(onlyUser.note ?? "", /^the user's mcp\.json's opentide server/);
+    assert.deepEqual(decideMcp(inputs({ workspaceEntries: [user, workspace] })), {
+      provide: false,
+      reason: "team.code-workspace already defines opentide",
+    });
+    const brokenWorkspace = decideMcp(
+      inputs({ workspaceEntries: [configured("team.code-workspace", false, WORKSPACE_CONFIG_ORDER)] }),
+    );
+    assert.ok(brokenWorkspace.provide);
+    assert.equal(brokenWorkspace.server.label, MCP_SEPARATE_LABEL);
+    assert.equal(
+      decideMcp(inputs({ workspaceEntries: [user, entry("ws/.mcp.json", true)] })).provide,
+      false,
+      "a folder file comes first",
+    );
+    assert.ok(
+      WORKSPACE_CONFIG_ORDER > 1 && USER_CONFIG_ORDER < 300,
+      "between the folder files and the extension",
+    );
+  });
+
+  it("reads the opentide server of a configuration's mcp.servers", () => {
+    assert.equal(
+      opentideServerCommand({ opentide: { command: " /venv/bin/opentide " } }),
+      "/venv/bin/opentide",
+    );
+    assert.equal(opentideServerCommand({ OpenTide: { url: "http://x" } }), null);
+    assert.equal(opentideServerCommand({ other: { command: "x" } }), undefined);
+    assert.equal(opentideServerCommand(undefined), undefined);
+    assert.equal(opentideServerCommand([]), undefined);
   });
 
   it("logs once why it provides the server under the other label", () => {

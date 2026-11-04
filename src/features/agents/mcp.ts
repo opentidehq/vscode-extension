@@ -10,8 +10,8 @@ import { parseJsonc } from "./jsonc";
  * groups the servers of every MCP collection by label, compared without case. With
  * `chat.mcp.collisionBehavior` at its default, `disable`, only the server of the collection with the
  * lowest `order` stays enabled by default, and enabling another disables the rest. Workspace files come
- * first (`.vscode/mcp.json` 0, `.mcp.json` and `.cursor/mcp.json` 1, a `.code-workspace` 100) and
- * extension providers at 300, so a workspace file's `opentide` wins over this label: `auto` defers to it
+ * first (`.vscode/mcp.json` 0, `.mcp.json` and `.cursor/mcp.json` 1, a `.code-workspace` 100, the
+ * user's mcp.json 200) and extension providers at 300, so a workspace file's `opentide` wins over this label: `auto` defers to it
  * only when VS Code can start it, and otherwise the extension's server takes {@link MCP_SEPARATE_LABEL}.
  */
 export const MCP_LABEL = "opentide";
@@ -85,6 +85,13 @@ export const MCP_FILES: readonly McpFile[] = [
 ];
 
 /**
+ * VS Code's order for the `mcp.servers` of a `.code-workspace` and of the user's mcp.json, which also
+ * come before the extension's provider (300). Both go through VS Code's variable resolver.
+ */
+export const WORKSPACE_CONFIG_ORDER = 100;
+export const USER_CONFIG_ORDER = 200;
+
+/**
  * Whether `chat.mcp.discovery.enabled` makes VS Code read `.cursor/mcp.json`, as its
  * `isDiscoverySourceEnabled`: a boolean applies to every source, an object names each (off by default).
  */
@@ -119,6 +126,20 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * The `command` of the `opentide` server in a server map (`mcp.servers` of a configuration, or a file's):
+ * undefined when there is none, null when it names no command.
+ */
+export function opentideServerCommand(servers: unknown): string | null | undefined {
+  if (!isObject(servers)) return undefined;
+  for (const [name, entry] of Object.entries(servers)) {
+    if (name.toLowerCase() !== MCP_LABEL || !isObject(entry)) continue;
+    const command = entry.command;
+    return typeof command === "string" && command.trim() ? command.trim() : null;
+  }
+  return undefined;
+}
+
 /** The server maps of a file's parsed text, as VS Code reads that kind of file. */
 function serverMaps(parsed: Record<string, unknown>, kind: McpFileKind): unknown[] {
   if (kind === "vscode") return [parsed.servers, parsed.mcpServers];
@@ -141,12 +162,8 @@ export function opentideEntryCommand(
   const parsed = kind === "cursor" ? parseStrict(text) : parseJsonc(text);
   if (!isObject(parsed)) return undefined;
   for (const servers of serverMaps(parsed, kind)) {
-    if (!isObject(servers)) continue;
-    for (const [name, entry] of Object.entries(servers)) {
-      if (name.toLowerCase() !== MCP_LABEL || !isObject(entry)) continue;
-      const command = entry.command;
-      return typeof command === "string" && command.trim() ? command.trim() : null;
-    }
+    const command = opentideServerCommand(servers);
+    if (command !== undefined) return command;
   }
   return undefined;
 }

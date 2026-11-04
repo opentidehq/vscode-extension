@@ -19,7 +19,10 @@ import {
   MCP_PROVIDER_ID,
   McpDecisionLog,
   opentideEntryCommand,
+  opentideServerCommand,
   provideMode,
+  USER_CONFIG_ORDER,
+  WORKSPACE_CONFIG_ORDER,
   type WorkspaceEntry,
   workspaceMcpFiles,
 } from "./mcp";
@@ -84,7 +87,7 @@ export default defineFeature({
 
 /**
  * The `opentide` servers of the workspace MCP files VS Code reads (`.vscode/mcp.json`, `.mcp.json`, and
- * `.cursor/mcp.json` when `chat.mcp.discovery.enabled` says so), each with its order in VS Code and
+ * `.cursor/mcp.json` when `chat.mcp.discovery.enabled` says so), a `.code-workspace`'s and the user's, each with its order in VS Code and
  * whether VS Code can start its command. decideMcp defers when those VS Code may keep can all start, and
  * logs, once, why it provides its own under another label when one cannot.
  */
@@ -117,6 +120,27 @@ async function workspaceEntries(): Promise<WorkspaceEntry[]> {
         order: file.order,
       });
     }
+  }
+  // `mcp.servers` of a `.code-workspace` and of the user's mcp.json. A single folder's workspace value is
+  // its `.vscode/mcp.json`, read above.
+  const servers = vscode.workspace.getConfiguration("mcp").inspect<unknown>("servers");
+  const workspaceFile = vscode.workspace.workspaceFile;
+  const configured = [
+    ...(workspaceFile
+      ? [
+          {
+            file: path.posix.basename(workspaceFile.path),
+            value: servers?.workspaceValue,
+            order: WORKSPACE_CONFIG_ORDER,
+          },
+        ]
+      : []),
+    { file: "the user's mcp.json", value: servers?.globalValue, order: USER_CONFIG_ORDER },
+  ];
+  for (const { file, value, order } of configured) {
+    const command = opentideServerCommand(value);
+    if (command === undefined) continue;
+    entries.push({ file, command, usable: entryUsable(command, lookup, "variables"), order });
   }
   return entries;
 }
@@ -178,6 +202,7 @@ function registerMcpProvider(ctx: FeatureContext): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (
         event.affectsConfiguration("opentide.mcp.provide") ||
+        event.affectsConfiguration("mcp") ||
         event.affectsConfiguration("chat.mcp.discovery.enabled")
       )
         fire();
