@@ -10,7 +10,7 @@ import type { OpentidePanel } from "../../core/webview/panel";
 import { MAX_LIMIT, type QueryOptions, queryArgv, sourceKey, tenantChoices, windowLabel } from "./argv";
 import { platformLabel, tenantPhrase } from "./lenses";
 import { hostValidators, type QueryPanelState, type QueryProtocol } from "./protocol";
-import { pendingTabs, progressFromEvent, tabsFromDocument } from "./results";
+import { applyProgress, keepable, pendingTabs, progressFromEvent, tabsFromDocument } from "./results";
 
 /** One run's inputs: what to send, and where. */
 export interface RunSpec {
@@ -56,7 +56,8 @@ export class QueryPanels implements vscode.Disposable {
       void existing.execute(spec);
       return;
     }
-    const kept = retainResults() ? this.retained.get(key) : undefined;
+    const retained = retainResults() ? this.retained.get(key) : undefined;
+    const kept = keepable(retained?.state) ? retained : undefined;
     this.retained.delete(key);
     const panel: QueryPanel = new QueryPanel(
       this.ctx,
@@ -64,7 +65,8 @@ export class QueryPanels implements vscode.Disposable {
       kept?.spec ?? spec,
       () => {
         this.open.delete(key);
-        if (retainResults() && panel.state) this.retained.set(key, { spec: panel.spec, state: panel.state });
+        if (retainResults() && keepable(panel.state))
+          this.retained.set(key, { spec: panel.spec, state: panel.state });
       },
       kept?.state,
     );
@@ -98,6 +100,7 @@ class QueryPanel implements vscode.Disposable {
   private readonly view: OpentidePanel<QueryProtocol>;
   private readonly disposables: vscode.Disposable[] = [];
   private cts: vscode.CancellationTokenSource | undefined;
+  private disposed = false;
   state: QueryPanelState | undefined;
 
   constructor(
@@ -143,6 +146,7 @@ class QueryPanel implements vscode.Disposable {
         else await this.hooks.action(this.spec, code);
       }),
       panel.onDidDispose(() => {
+        this.disposed = true;
         this.cts?.cancel();
         this.cts?.dispose();
         for (const d of this.disposables) d.dispose();
@@ -200,16 +204,20 @@ class QueryPanel implements vscode.Disposable {
         cancellation: cts.token,
         onProgress: (event) => {
           const progress = progressFromEvent(event);
-          if (progress && this.cts === cts) void this.view.channel.post("progress", progress);
+          if (!progress || this.cts !== cts || !this.state) return;
+          // Kept in the host's state too: a panel shown again gets the chips as they are, not "running…".
+          this.state = { ...this.state, tabs: applyProgress(this.state.tabs, progress) };
+          void this.view.channel.post("progress", progress);
         },
       });
-      if (this.cts !== cts) return;
+      if (this.cts !== cts || this.disposed || !this.state) return;
       const document = result.document;
       const choices = result.cancelled ? undefined : tenantChoices(document);
       if (choices) {
         const picked = await this.hooks.pickTenants(spec, choices);
         if (picked && this.cts === cts)
           return this.execute({ ...spec, options: { ...options, tenants: picked } });
+        if (this.disposed || !this.state) return;
       }
       const tabs = tabsFromDocument(document);
       const failed = result.exitCode !== 0 && tabs.length === 0;
@@ -232,7 +240,7 @@ class QueryPanel implements vscode.Disposable {
             : null,
       };
     } catch (error) {
-      if (this.cts !== cts) return;
+      if (this.cts !== cts || this.disposed || !this.state) return;
       const code = error instanceof BackendError ? error.code : "error";
       this.state = {
         ...this.state,

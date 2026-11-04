@@ -1,6 +1,7 @@
 // `setup --plan` (opentide#751) and `setup --yes` documents, as Review and Apply show them. vscode-free.
 
-export type FileAction = "create" | "merge" | "skip";
+/** `delete` (opentide#751 review): a step removes a file, e.g. a stale skill file it replaces. */
+export type FileAction = "create" | "merge" | "skip" | "delete";
 
 export interface PlannedFile {
   readonly path: string;
@@ -16,7 +17,12 @@ export interface PlannedStep {
 export interface Plan {
   readonly steps: readonly PlannedStep[];
   readonly warnings: readonly string[];
-  readonly summary: { readonly create: number; readonly merge: number; readonly skip: number };
+  readonly summary: {
+    readonly create: number;
+    readonly merge: number;
+    readonly skip: number;
+    readonly delete: number;
+  };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -25,7 +31,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-const ACTIONS: readonly FileAction[] = ["create", "merge", "skip"];
+const ACTIONS: readonly FileAction[] = ["create", "merge", "skip", "delete"];
 
 /** The steps of one `setup … --plan` document; undefined when it is not a plan. */
 export function parsePlan(document: unknown): PlannedStep[] | undefined {
@@ -56,16 +62,30 @@ export function mergePlans(
   return {
     steps,
     warnings,
-    summary: { create: count("create"), merge: count("merge"), skip: count("skip") },
+    summary: {
+      create: count("create"),
+      merge: count("merge"),
+      skip: count("skip"),
+      delete: count("delete"),
+    },
   };
 }
 
 /** Files Apply writes, in order, each once: what Review promises (`create` and `merge`). */
 export function writtenFiles(plan: Plan): string[] {
+  return filesWith(plan, ["create", "merge"]);
+}
+
+/** Files Apply removes, in order, each once: what Review lists under `delete`. */
+export function removedFiles(plan: Plan): string[] {
+  return filesWith(plan, ["delete"]);
+}
+
+function filesWith(plan: Plan, actions: readonly FileAction[]): string[] {
   const out: string[] = [];
   for (const step of plan.steps)
     for (const file of step.files)
-      if (file.action !== "skip" && !out.includes(file.path)) out.push(file.path);
+      if (actions.includes(file.action) && !out.includes(file.path)) out.push(file.path);
   return out;
 }
 

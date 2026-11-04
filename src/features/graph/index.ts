@@ -20,11 +20,12 @@ import {
   type FileProblems,
   folderWithNode,
   graphData,
+  inFolder,
   ModelCache,
   objectAtPath,
   parseOpenArgs,
   parseRevealArgs,
-  problemMap,
+  problemsFor,
 } from "./state";
 import type { GraphMode } from "./view";
 
@@ -80,7 +81,10 @@ class GraphPanel implements vscode.Disposable {
         ? { path: wanted, explicit: file !== undefined }
         : undefined;
     if (this.ready) {
-      if (switched) this.postData();
+      if (switched) {
+        this.postData();
+        this.postProblems();
+      }
       this.flushFocus();
     }
   }
@@ -189,11 +193,11 @@ class GraphPanel implements vscode.Disposable {
 
   private postProblems(): void {
     const catalog = this.state()?.catalog;
-    if (!this.opened || !this.ready || !catalog || !this.folder) return;
+    if (!this.opened || !this.ready || !this.folder) return;
     const root = this.folder.folder.uri.fsPath;
     const files: FileProblems[] = [];
-    for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
-      if (uri.scheme !== "file" || !uri.fsPath.startsWith(root)) continue;
+    for (const [uri, diagnostics] of catalog ? vscode.languages.getDiagnostics() : []) {
+      if (uri.scheme !== "file" || !inFolder(root, uri.fsPath, process.platform)) continue;
       let errors = 0;
       let warnings = 0;
       for (const diagnostic of diagnostics) {
@@ -202,7 +206,7 @@ class GraphPanel implements vscode.Disposable {
       }
       if (errors + warnings > 0) files.push({ file: uri.fsPath, errors, warnings });
     }
-    void this.opened.channel.post("problems", problemMap(catalog, files, process.platform));
+    void this.opened.channel.post("problems", problemsFor(catalog, files, process.platform));
   }
 
   private async open(id: string): Promise<void> {

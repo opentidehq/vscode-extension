@@ -1,6 +1,6 @@
 // A TreeDataProvider over the plain nodes the view models build, and the TreeView around it.
 import * as vscode from "vscode";
-import { type TreeNode, type ViewModel, walk } from "./node";
+import { type TreeNode, uniqueIds, type ViewModel, walk } from "./node";
 
 export function openTargetUri(node: TreeNode): vscode.Uri | undefined {
   if (!node.open) return undefined;
@@ -62,9 +62,9 @@ export class NodeTree implements vscode.TreeDataProvider<TreeNode>, vscode.Dispo
   }
 
   set(model: ViewModel): void {
-    this.model = model;
+    this.model = { ...model, nodes: uniqueIds(model.nodes) };
     this.parents = new Map();
-    walk(model.nodes, (node, parent) => this.parents.set(node.id, parent));
+    walk(this.model.nodes, (node, parent) => this.parents.set(node.id, parent));
     this.view.message = model.message;
     this.view.description = model.description;
     this.view.badge = model.badge;

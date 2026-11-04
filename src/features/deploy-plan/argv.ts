@@ -75,7 +75,8 @@ export function neededVariables(warnings: readonly string[]): string[] {
 /** A GitHub Actions step that runs the real deploy in CI, with the secrets it needs. */
 export function ciStep(options: DeployPlanOptions, variables: readonly string[] = []): string {
   const strategies = options.strategies.length ? options.strategies.join(", ") : "PREVIEW";
-  const lines = [`- name: Deploy detections (${strategies})`, `  run: ${deployCommand(options)}`];
+  // A block scalar: a plain `run:` scalar ends at ` #` (a comment) and breaks at `: ` in a rule path.
+  const lines = [`- name: Deploy detections (${strategies})`, "  run: |", `    ${deployCommand(options)}`];
   if (variables.length > 0) {
     lines.push("  env:");
     for (const name of variables) lines.push(`    ${name}: \${{ secrets.${name} }}`);

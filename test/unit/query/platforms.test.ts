@@ -106,7 +106,7 @@ describe("platform caps and query lenses (#17)", () => {
       lenses.map((l) => [l.command, l.title]),
       [
         ["opentide.query.run", "$(globe) Run on Sentinel…"],
-        ["opentide.query.validateLive", "$(pass) Validate live"],
+        ["opentide.query.validateLive", "$(globe) Validate live"],
         ["opentide.query.showCompiled", "$(file-code) Compiled query"],
       ],
     );
@@ -121,6 +121,13 @@ describe("platform caps and query lenses (#17)", () => {
       caps: one?.get("splunk"),
     });
     assert.equal(lens[0]?.title, "$(globe) Run on prod");
+    const live = lens.find((l) => l.command === "opentide.query.validateLive");
+    assert.equal(
+      live?.title,
+      "$(globe) Validate live on prod",
+      "a run that contacts tenants names them (P5)",
+    );
+    assert.match(live?.tooltip ?? "", /sends this rule's Splunk query to prod/);
     const two = parseInfoPlatforms(INFO_TENANTS)?.get("splunk");
     assert.equal(
       lensesFor(target({ platform: "splunk", language: "spl" }), { canRun: true, caps: two })[0]?.title,

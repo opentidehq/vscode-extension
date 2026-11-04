@@ -26,6 +26,14 @@ export class CredentialStore {
     return `opentide.credential.${id}`;
   }
 
+  /**
+   * A value's key: `<prefix>.var.<name>`, apart from the index at `<prefix>.index`, so a variable named
+   * `index` (a valid name) cannot overwrite it.
+   */
+  private key(folder: string, name: string): string {
+    return `${this.prefix(folder)}.var.${name}`;
+  }
+
   private async index(folder: string): Promise<string[]> {
     const raw = await this.secrets.get(`${this.prefix(folder)}.index`);
     if (!raw) return [];
@@ -47,22 +55,26 @@ export class CredentialStore {
   }
 
   async has(folder: string, name: string): Promise<boolean> {
-    return (await this.secrets.get(`${this.prefix(folder)}.${name}`)) !== undefined;
+    return (await this.get(folder, name)) !== undefined;
   }
 
   async get(folder: string, name: string): Promise<string | undefined> {
+    const value = await this.secrets.get(this.key(folder, name));
+    if (value !== undefined || name === "index") return value;
+    // Stored before values had a namespace of their own.
     return this.secrets.get(`${this.prefix(folder)}.${name}`);
   }
 
   async set(folder: string, name: string, value: string): Promise<void> {
     if (!NAME.test(name)) throw new Error(`not an environment variable name: ${name}`);
-    await this.secrets.store(`${this.prefix(folder)}.${name}`, value);
+    await this.secrets.store(this.key(folder, name), value);
     await this.writeIndex(folder, [...(await this.index(folder)), name]);
     this.emitter.fire({ folder, name });
   }
 
   async delete(folder: string, name: string): Promise<void> {
-    await this.secrets.delete(`${this.prefix(folder)}.${name}`);
+    await this.secrets.delete(this.key(folder, name));
+    if (name !== "index") await this.secrets.delete(`${this.prefix(folder)}.${name}`);
     await this.writeIndex(
       folder,
       (await this.index(folder)).filter((existing) => existing !== name),

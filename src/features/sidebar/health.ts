@@ -77,6 +77,51 @@ export function fixArgv(fix: string | null): string[] | undefined {
   return argv.length > 0 && /^[a-z]/.test(argv[0] ?? "") ? argv : undefined;
 }
 
+/**
+ * Fixes the extension does itself: `setup vscode` writes `.vscode/` files (a `yaml.schemas` mapping and a
+ * Red Hat YAML recommendation) that report every object's schema problems a second time.
+ */
+const REPLACED: Readonly<Record<string, string>> = {
+  "setup vscode":
+    "This extension replaces `opentide setup vscode`: it checks objects, offers the templates and completes them itself. Its files would report every problem twice.",
+};
+
+export type FixPlan =
+  /** Not a command this opentide has, or one that reaches a tenant: copied for a terminal. */
+  | { readonly kind: "copy" }
+  /** Something the extension already does: say so, run nothing. */
+  | { readonly kind: "replaced"; readonly message: string }
+  /** Run `argv`; `confirm` first when it writes files (and it then carries `--yes`). */
+  | { readonly kind: "run"; readonly argv: readonly string[]; readonly confirm: boolean };
+
+export interface FixContext {
+  /** The command path of `argv` in this opentide's tree, or "" when it has none. */
+  pathOf(argv: readonly string[]): string;
+  classify(argv: readonly string[]): { readonly writes: boolean; readonly contactsTenant: boolean };
+  hasOption(path: string, flag: string): boolean;
+}
+
+/** What a click on a fix does. Undefined when the fix is not an opentide command at all. */
+export function planFix(fix: string | null, context: FixContext): FixPlan | undefined {
+  const argv = fixArgv(fix);
+  if (!argv) return undefined;
+  const path = context.pathOf(argv);
+  const replaced = REPLACED[path] ?? REPLACED[argv.slice(0, 2).join(" ")];
+  if (replaced) return { kind: "replaced", message: replaced };
+  const classification = context.classify(argv);
+  if (!path || classification.contactsTenant) return { kind: "copy" };
+  if (!classification.writes) return { kind: "run", argv, confirm: false };
+  // `--json` cannot prompt: a writer runs only after the user said yes here, with `--yes`.
+  const yes = context.hasOption(path, "--yes") && !argv.includes("--yes") ? ["--yes"] : [];
+  return { kind: "run", argv: [...argv, ...yes], confirm: true };
+}
+
+/** Whether the view offers to run the fix (a play icon): an opentide command the extension does not replace. */
+export function runnableFix(fix: string | null): boolean {
+  const argv = fixArgv(fix);
+  return argv !== undefined && REPLACED[argv.slice(0, 2).join(" ")] === undefined;
+}
+
 const ICON: Readonly<Record<CheckStatus, [string, string]>> = {
   fail: ["error", "problemsErrorIcon.foreground"],
   warn: ["warning", "problemsWarningIcon.foreground"],
@@ -100,7 +145,7 @@ export function healthNodes(checks: readonly DoctorCheck[], folder: string, pref
     .sort((a, b) => RANK[a.check.status] - RANK[b.check.status] || a.index - b.index)
     .map(({ check, index }) => {
       const [icon, color] = ICON[check.status];
-      const runnable = fixArgv(check.fix) !== undefined;
+      const runnable = runnableFix(check.fix);
       const node = {
         id: `${prefix}check:${check.code}:${check.subject ?? ""}:${index}`,
         label: check.message || check.code,

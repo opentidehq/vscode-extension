@@ -1,6 +1,7 @@
 // The `opentide` task type (SPEC §11): which tasks the provider offers, the argv a definition runs, and its
 // environment. vscode-free; index.ts turns these into vscode.Task objects.
 import type { Classification } from "../../core/capabilities/classification";
+import { hasCli, type Runtime } from "../../core/runtime/types";
 import { planRun, type RunPlan } from "./safety";
 
 export const TASK_TYPE = "opentide";
@@ -94,4 +95,21 @@ export function taskEnv(
     COLUMNS: "4096",
     ...extra,
   };
+}
+
+export interface Readiness {
+  readonly trusted: boolean;
+  readonly runtime: { ready(): Promise<unknown>; readonly current: Runtime | undefined };
+  readonly capabilities: { ready(): Promise<unknown> };
+}
+
+/**
+ * Wait until a task can be built from what it needs: the resolved runtime and, when that runtime has
+ * commands, its command tree. A tasks.json task VS Code resolves at window open (`runOn: folderOpen`, a
+ * preLaunchTask) otherwise saw no runtime yet, or no `--dry-run` for a deploy, and was refused.
+ */
+export async function whenTaskReady(readiness: Readiness): Promise<void> {
+  if (!readiness.trusted) return;
+  await readiness.runtime.ready();
+  if (hasCli(readiness.runtime.current)) await readiness.capabilities.ready();
 }

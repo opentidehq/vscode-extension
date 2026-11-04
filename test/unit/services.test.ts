@@ -9,7 +9,6 @@ import { CredentialStore } from "../../src/core/credentials";
 import { defineFeature } from "../../src/core/feature";
 import { activateFeatures } from "../../src/core/featureHost";
 import { isObjectFile, isOpentideFolder, objectFolders, readTomlTable } from "../../src/core/folders";
-import { isDirectory } from "../../src/core/runtime/process";
 import { statusText, sumCounts } from "../../src/core/statusText";
 import { fakeRuntime } from "./helpers";
 
@@ -68,14 +67,37 @@ describe("credential store", () => {
     assert.ok(![...storage.map.keys()].some((key) => key.includes("/a")), "folder paths are hashed in keys");
     await assert.rejects(store.set("/a", "not a name", "x"));
   });
+
+  it("keeps a variable named `index` apart from the index of names", async () => {
+    const store = new CredentialStore(secrets());
+    await store.set("/ws", "A", "alpha");
+    await store.set("/ws", "index", "hunter2-secret");
+    assert.deepEqual(await store.env("/ws"), { A: "alpha", index: "hunter2-secret" });
+    await store.delete("/ws", "index");
+    assert.deepEqual(await store.names("/ws"), ["A"]);
+    assert.deepEqual(await store.env("/ws"), { A: "alpha" });
+  });
 });
 
 describe("opentide folders", () => {
   it("is a folder with .opentide/ or objects/", () => {
     const root = mkdtempSync(path.join(tmpdir(), "otide-f-"));
-    assert.ok(!isOpentideFolder(root, isDirectory));
+    assert.ok(!isOpentideFolder(root));
     mkdirSync(path.join(root, "objects"));
-    assert.ok(isOpentideFolder(root, isDirectory));
+    assert.ok(isOpentideFolder(root));
+  });
+
+  it("is not a CoreTIDE folder's Objects/, also where the filesystem ignores case", () => {
+    const coretide = [
+      { name: "Objects", directory: true },
+      { name: "Configurations", directory: true },
+    ];
+    assert.ok(!isOpentideFolder("/repo", () => coretide));
+    assert.ok(isOpentideFolder("/repo", () => [...coretide, { name: ".opentide", directory: true }]));
+    assert.ok(
+      !isOpentideFolder("/repo", () => [{ name: "objects", directory: false }]),
+      "a file named objects",
+    );
   });
 
   it("reads the object folders from paths.toml, as opentide does", () => {

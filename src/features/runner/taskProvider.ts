@@ -12,6 +12,7 @@ import {
   taskEnv,
   taskName,
   taskPlan,
+  whenTaskReady,
 } from "./tasks";
 
 export class OpentideTaskProvider implements vscode.TaskProvider {
@@ -19,9 +20,8 @@ export class OpentideTaskProvider implements vscode.TaskProvider {
 
   async provideTasks(): Promise<vscode.Task[]> {
     if (!this.ctx.trust.isTrusted) return [];
-    await this.ctx.runtime.ready();
+    await whenTaskReady(this.readiness());
     if (!hasCli(this.ctx.runtime.current)) return [];
-    await this.ctx.capabilities.ready();
     const tasks: vscode.Task[] = [];
     for (const folder of this.ctx.folders.all) {
       for (const provided of providedTasks((p) => this.ctx.capabilities.hasCommand(p))) {
@@ -36,10 +36,19 @@ export class OpentideTaskProvider implements vscode.TaskProvider {
 
   async resolveTask(task: vscode.Task): Promise<vscode.Task | undefined> {
     if (!isTaskDefinition(task.definition)) return undefined;
+    await whenTaskReady(this.readiness());
     const scope = typeof task.scope === "object" ? task.scope : vscode.TaskScope.Workspace;
     const resolved = await this.build(task.definition, scope, task.definition);
     resolved.group = task.group;
     return resolved;
+  }
+
+  private readiness() {
+    return {
+      trusted: this.ctx.trust.isTrusted,
+      runtime: this.ctx.runtime,
+      capabilities: this.ctx.capabilities,
+    };
   }
 
   /** A task for a definition: the command, its dry run for a deploy or share, or a refusal that says why. */

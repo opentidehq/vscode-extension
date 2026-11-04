@@ -101,17 +101,17 @@
       },
       {
         "view": "opentide.sidebar.coverage",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.platforms",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.health",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
@@ -132,6 +132,26 @@
       {
         "view": "opentide.sidebar.activity",
         "contents": "No commands yet. Every opentide command the extension runs shows here, with its status and its command line, ready to copy into a terminal or CI."
+      },
+      {
+        "view": "opentide.sidebar.catalogue",
+        "when": "virtualWorkspace",
+        "contents": "The catalogue comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "virtualWorkspace",
+        "contents": "ATT&CK coverage comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.platforms",
+        "when": "virtualWorkspace",
+        "contents": "Platforms and tenants come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "virtualWorkspace",
+        "contents": "The health checks come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
       }
     ],
     "commands": [

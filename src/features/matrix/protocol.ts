@@ -22,7 +22,8 @@ export interface MatrixState {
 }
 
 export interface MatrixProtocol extends Protocol {
-  toWebview: { state: MatrixState; detail: CellDetail; focus: string };
+  /** `detail` null: no technique selected (the folder changed). */
+  toWebview: { state: MatrixState; detail: CellDetail | null; focus: string };
   toHost: {
     ready: undefined;
     filters: MatrixFilters;
@@ -68,7 +69,7 @@ export const hostValidators: Validators<MatrixProtocol["toHost"]> = {
 export const webviewValidators: Validators<MatrixProtocol["toWebview"]> = {
   state: (value): value is MatrixState =>
     is.object(value) && is.string(value.status) && isFilters(value.filters),
-  detail: (value): value is CellDetail =>
-    is.object(value) && is.string(value.id) && Array.isArray(value.rules),
+  detail: (value): value is CellDetail | null =>
+    value === null || (is.object(value) && is.string(value.id) && Array.isArray(value.rules)),
   focus: is.string,
 };

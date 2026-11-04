@@ -265,7 +265,7 @@ The first tier that answers wins:
 |---------|----------|-------------|
 | `opentide lsp start` | One per window; restarted by "opentide: Restart Server" and by interpreter or settings changes | `OPENTIDE_OUTPUT=mcp` is implied. Never credentials |
 | `opentide serve` (D2) | One per window, started on the first request; restarted with the language server, and after a crash on the next request | As for a CLI command; credentials only on requests that contact a tenant |
-| `opentide --json <cmd>` | One per action, or every action when the runtime has no `serve` | `OPENTIDE_REPO_ROOT=<folder>` (multi-root: the folder the action is about); `NO_COLOR=1`; VS Code's `http.proxy` passed as `OPENTIDE_PROXY`; credentials from SecretStorage, only for commands that contact a tenant |
+| `opentide --json <cmd>` | One per action, or every action when the runtime has no `serve` | `OPENTIDE_REPO_ROOT=<folder>` (multi-root: the folder the action is about); `NO_COLOR=1`; VS Code's `http.proxy` passed as `OPENTIDE_PROXY`; credentials from SecretStorage, only for commands that contact a tenant. Status commands that only count credentials (`info`, `doctor --offline`) get each stored or env-file variable's name with a placeholder value, never the value |
 
 - **Concurrency:** at most one command that writes the workspace runs at a time; others queue. Read-only commands run concurrently.
 - **File changes:** the extension forwards create, change, delete and rename events under the object folders and `.opentide/` to `opentide serve`, which drops what they invalidate. Saves are debounced by 300 ms.
@@ -600,7 +600,7 @@ OPENTIDE
 - **Problems on the graph:** nodes with errors carry the error colour, and dangling references (`invalid_ref`) draw as dashed edges to a "missing" node.
 - **Export:** SVG, PNG and Mermaid (the same syntax opentide's generated docs use).
 - **Scale:** Catalogue mode handles 5,000 nodes. Above 1,000 nodes it opens in Focus mode and offers Catalogue.
-- **Accessibility:** a "View as list" toggle shows the same nodes and edges as a navigable tree for keyboard and screen-reader users.
+- **Accessibility:** a "View as list" toggle shows the same nodes and edges as a navigable tree for keyboard and screen-reader users. Shift+F10 or the menu key opens a node's menu (every action a right-click offers) from the list, and on the canvas for the selected node; Escape returns the focus to where the menu opened.
 
 ### 10.2 ATT&CK matrix
 
@@ -647,7 +647,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
   - one tab per tenant;
   - typed columns, sortable and filterable, with a virtual table (up to the CLI's 5,000-row limit);
   - copy a cell, a row or the table as Markdown;
-  - export CSV or JSONL;
+  - export CSV or JSONL (in CSV, and in Copy as CSV, a cell starting with `=`, `+`, `-`, `@`, tab or CR gets a leading `'` so a spreadsheet does not evaluate it; plain numbers are left alone; `opentide query --format csv` does not do this);
   - `sent` (the query as sent) and `vendor_query_id` in a details drawer;
   - failures show `error` and `detail`;
   - partial and truncated results are labelled.
@@ -733,7 +733,7 @@ Revises #6.
   - Registered with `vscode.lm.registerMcpServerDefinitionProvider` when the API exists and the runtime resolved: `McpStdioServerDefinition("opentide", <runtime>, ["mcp", "start"], { OPENTIDE_REPO_ROOT })`.
   - With the bundled runtime this works on install, so every VS Code agent gets opentide's tools with no `.vscode/mcp.json`.
   - The label `opentide` deduplicates against workspace MCP files.
-  - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when a workspace MCP file already defines `opentide`.
+  - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when a workspace MCP file already defines `opentide` with a command VS Code can start (an absolute path that exists, a name on `PATH`, or one with `${…}` variables). An entry whose command is not found, such as `setup mcp --vscode`'s `opentide` for a user with only the bundled runtime, is skipped with a log line, and the extension provides its server.
   - Off in Restricted Mode.
 - **Forks without the provider API** (Cursor, Windsurf): the Agents step of the wizard and the walkthrough offer "Add opentide to Cursor's MCP settings".
   - This is a **user-level** entry pointing at the resolved runtime's absolute path, because a committed `.cursor/mcp.json` with `command: opentide` fails for teammates without opentide on `PATH`.

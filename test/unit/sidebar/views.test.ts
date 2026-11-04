@@ -1,5 +1,8 @@
 import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import type { ActivityEntry } from "../../../src/core/activity";
+import { classify } from "../../../src/core/capabilities/classification";
+import { CommandTree } from "../../../src/core/capabilities/tree";
 import { newObjectHandover, ruleHandover } from "../../../src/features/sidebar/actions";
 import { activityNodes, ago, canRerun, duration, runningCount } from "../../../src/features/sidebar/activity";
 import { folderViewModel } from "../../../src/features/sidebar/folderView";
@@ -8,20 +11,24 @@ import {
   fixArgv,
   healthNodes,
   parseChecks,
+  planFix,
   redact,
   report,
   summarize,
   summaryText,
 } from "../../../src/features/sidebar/health";
 import { debounce, Loader } from "../../../src/features/sidebar/loader";
+import { uniqueIds, walk } from "../../../src/features/sidebar/node";
 import { platformFlag, platformName, platformToml } from "../../../src/features/sidebar/platformNames";
 import {
+  PRESENCE_PLACEHOLDER,
   parsePlatforms,
   platformNodes,
+  presenceEnv,
   tenantCheck,
   variableSource,
 } from "../../../src/features/sidebar/platforms";
-import { sleep, until } from "../helpers";
+import { COMMANDS_FIXTURE, sleep, until } from "../helpers";
 
 // `opentide --json info` with tenants (opentide#754), as the branch prints it.
 const INFO = {
@@ -127,6 +134,46 @@ describe("sidebar: platforms & tenants", () => {
     assert.equal(after[0]?.children?.[0]?.iconColor, "testing.iconPassed");
   });
 
+  it("counts credentials for info and doctor --offline by name, never with their values", () => {
+    const env = presenceEnv({ AZURE_CLIENT_SECRET: "s3cr3t", SPLUNK_TOKEN: "tok" });
+    assert.deepEqual(env, { AZURE_CLIENT_SECRET: PRESENCE_PLACEHOLDER, SPLUNK_TOKEN: PRESENCE_PLACEHOLDER });
+    assert.ok(!JSON.stringify(env).includes("s3cr3t"));
+  });
+
+  it("gives two tenants of one name distinct ids (a copied [[tenants]] block)", () => {
+    const splunk = {
+      name: "splunk",
+      enabled: true,
+      can_deploy: true,
+      can_validate: true,
+      can_query: true,
+      tenants: [1, 2].map(() => ({
+        name: "Prod Splunk",
+        description: null,
+        strategies: ["RELEASE"],
+        manual: false,
+        variables: [{ name: "SPLUNK_TOKEN", set: false }],
+      })),
+    };
+    const ids: string[] = [];
+    walk(platformNodes(parsePlatforms({ platforms: [splunk] }), new Set(), "/r"), (node) =>
+      ids.push(node.id),
+    );
+    assert.equal(new Set(ids).size, ids.length, ids.join("\n"));
+  });
+
+  it("makes every id of a view unique, whatever a view model gives", () => {
+    const leaf = (id: string) => ({ id, label: id });
+    const nodes = uniqueIds([
+      { ...leaf("a"), children: [leaf("a/x")] },
+      { ...leaf("a"), children: [leaf("a/x")] },
+      leaf("b"),
+    ]);
+    const ids: string[] = [];
+    walk(nodes, (node) => ids.push(node.id));
+    assert.deepEqual(ids, ["a", "a/x", "a#2", "a/x#2", "b"]);
+  });
+
   it("says tenants need a newer opentide when info has none", () => {
     const nodes = platformNodes(
       parsePlatforms({ platforms: [{ name: "sentinel", enabled: true }] }),
@@ -177,6 +224,50 @@ describe("sidebar: health", () => {
     assert.equal(fixArgv("opentide validate; rm -rf /"), undefined);
     assert.equal(fixArgv("opentide"), undefined);
     assert.equal(fixArgv(null), undefined);
+  });
+
+  it("plans doctor's real fixes: confirm and --yes for writers, nothing for setup vscode", () => {
+    const tree = CommandTree.parse(JSON.parse(readFileSync(COMMANDS_FIXTURE, "utf8")));
+    const context = {
+      pathOf: (argv: readonly string[]) => tree.commandPathOf(argv).path,
+      classify,
+      hasOption: (path: string, flag: string) => tree.hasOption(path, flag),
+    };
+    assert.deepEqual(
+      planFix("opentide setup mcp --vscode (or --cursor, --claude-code, --generic)", context),
+      {
+        kind: "run",
+        argv: ["setup", "mcp", "--vscode", "--yes"],
+        confirm: true,
+      },
+    );
+    assert.deepEqual(planFix("opentide setup platforms --sentinel (or another platform)", context), {
+      kind: "run",
+      argv: ["setup", "platforms", "--sentinel", "--yes"],
+      confirm: true,
+    });
+    assert.equal(planFix("opentide setup vscode", context)?.kind, "replaced");
+    assert.deepEqual(planFix("opentide doctor --offline", context), {
+      kind: "run",
+      argv: ["doctor", "--offline"],
+      confirm: false,
+    });
+    assert.deepEqual(planFix("opentide doctor", context), { kind: "copy" }, "contacts tenants");
+    assert.deepEqual(planFix("opentide frobnicate", context), { kind: "copy" }, "not in this opentide");
+    assert.equal(planFix("git init ./", context), undefined);
+    const [vscodeFix] = healthNodes(
+      [
+        {
+          code: "vscode_settings",
+          status: "skip",
+          message: "no settings",
+          fix: "opentide setup vscode",
+          subject: null,
+        },
+      ],
+      "/repo",
+    );
+    assert.equal(vscodeFix?.contextValue, "check.fix", "no play button for what the extension replaces");
   });
 
   it("orders failures first and offers runnable fixes", () => {

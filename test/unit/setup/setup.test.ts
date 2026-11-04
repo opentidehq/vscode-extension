@@ -28,9 +28,15 @@ import {
   fileToOpen,
   mergePlans,
   parsePlan,
+  removedFiles,
   writtenFiles,
 } from "../../../src/features/setup/plan";
-import { hostValidators, isAnswers, webviewValidators } from "../../../src/features/setup/protocol";
+import {
+  hostValidators,
+  isAnswers,
+  reviewTotals,
+  webviewValidators,
+} from "../../../src/features/setup/protocol";
 import { COMMANDS_FIXTURE, ROOT } from "../helpers";
 
 function source(tree: CommandTree): OptionSource {
@@ -282,7 +288,7 @@ describe("setup: plans and results", () => {
     const steps = parsePlan(PLAN);
     assert.ok(steps);
     const plan = mergePlans([{ steps, warnings: PLAN.warnings }]);
-    assert.deepEqual(plan.summary, { create: 4, merge: 1, skip: 1 });
+    assert.deepEqual(plan.summary, { create: 4, merge: 1, skip: 1, delete: 0 });
     assert.deepEqual(writtenFiles(plan), [
       ".gitignore",
       "README.md",
@@ -291,6 +297,41 @@ describe("setup: plans and results", () => {
     ]);
     assert.equal(plan.warnings.length, 1);
     assert.equal(parsePlan({ steps: [] }), undefined, "not a plan without plan: true");
+  });
+
+  it("lists the files a plan removes apart from those it writes", () => {
+    const steps = parsePlan({
+      plan: true,
+      steps: [
+        {
+          step: "skills",
+          files: [
+            { path: ".agents/skills/tide/SKILL.md", action: "merge" },
+            { path: ".agents/skills/tide/stale.md", action: "delete" },
+            { path: ".agents/skills/tide/odd.md", action: "rename" },
+          ],
+          warnings: [],
+        },
+      ],
+    });
+    assert.ok(steps);
+    assert.deepEqual(
+      steps[0]?.files.map((f) => f.action),
+      ["merge", "delete"],
+      "an action this extension does not know is dropped",
+    );
+    const plan = mergePlans([{ steps }]);
+    assert.deepEqual(plan.summary, { create: 0, merge: 1, skip: 0, delete: 1 });
+    assert.deepEqual(writtenFiles(plan), [".agents/skills/tide/SKILL.md"]);
+    assert.deepEqual(removedFiles(plan), [".agents/skills/tide/stale.md"]);
+    assert.equal(
+      reviewTotals(plan.summary),
+      "0 new files, 1 merged, 0 unchanged, 1 to remove. Nothing is written until you apply.",
+    );
+    assert.equal(
+      reviewTotals({ create: 1, merge: 0, skip: 0, delete: 0 }),
+      "1 new file, 0 merged, 0 unchanged. Nothing is written until you apply.",
+    );
   });
 
   it("reads the steps a setup run completed, and what to open", () => {
@@ -324,7 +365,7 @@ describe("setup: review and apply", () => {
     });
     assert.equal(runs.length, 1);
     assert.ok(runs[0]?.includes("--plan") && !runs[0]?.includes("--yes"));
-    assert.deepEqual(result.totals, { create: 4, merge: 1, skip: 1 });
+    assert.deepEqual(result.totals, { create: 4, merge: 1, skip: 1, delete: 0 });
     assert.equal(result.steps[0]?.files?.[0]?.step, "repo");
     assert.equal(result.note, undefined);
   });
@@ -495,9 +536,11 @@ describe("setup: manifest", () => {
 
   it("has the seven walkthrough steps of SPEC §8, with media that exists and real completion events", () => {
     const walkthrough = pkg.contributes.walkthroughs.find((w) => w.id === "opentide.gettingStarted");
+    // "fit" comes in two variants: with `info catalog`, and without (it leads to a newer opentide);
+    // "agent" too: VS Code, which gets the MCP server from the extension, and a fork, which needs it added.
     assert.deepEqual(
       walkthrough?.steps.map((s) => s.id),
-      ["ready", "setup", "create", "validate", "fit", "deploy", "agent"],
+      ["ready", "setup", "create", "validate", "fit", "fitNeedsCatalog", "deploy", "agent", "agentFork"],
     );
     for (const step of walkthrough?.steps ?? []) {
       const media = step.media.markdown ?? step.media.svg ?? "";

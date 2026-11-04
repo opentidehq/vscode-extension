@@ -19,6 +19,34 @@ describe("search query", () => {
     assert.deepEqual(tokenize(`author:"unterminated`), ["author:unterminated"]);
   });
 
+  it("reads an apostrophe inside a word as text, and an unclosed quote does not swallow the rest", () => {
+    assert.deepEqual(tokenize("attacker's tool p:sentinel"), ["attacker's", "tool", "p:sentinel"]);
+    assert.deepEqual(parseQuery("attacker's tool").words, ["attacker's", "tool"]);
+    assert.deepEqual(tokenize(`"open p:sentinel`), [`"open`, "p:sentinel"]);
+    assert.deepEqual(tokenize(`-author:"Jane Doe" x`), ["-author:Jane Doe", "x"]);
+  });
+
+  it("searches rule names and URLs with colons as text, not as filters", () => {
+    assert.deepEqual(parseQuery("lsadump::dcsync"), {
+      words: ["lsadump::dcsync"],
+      excluded: [],
+      filters: [],
+      problems: [],
+    });
+    const mimikatz = parseQuery("mimikatz sekurlsa::logonpasswords");
+    assert.deepEqual(mimikatz.words, ["mimikatz", "sekurlsa::logonpasswords"]);
+    assert.deepEqual(mimikatz.problems, []);
+    assert.deepEqual(parseQuery("http://evil.example").words, ["http://evil.example"]);
+  });
+
+  it("reads `m` in unreviewed: as months, as the rest of the language does", () => {
+    assert.equal(parseQuery("unreviewed:6m").unreviewed, "180d");
+    assert.equal(parseQuery("unreviewed:>6m").unreviewed, "180d");
+    assert.equal(parseQuery("unreviewed:2w").unreviewed, "14d");
+    assert.equal(parseQuery("unreviewed:12h").unreviewed, "12h");
+    assert.equal(parseQuery("unreviewed:30min").unreviewed, "30m");
+  });
+
   it("reads free text and filters, with short aliases", () => {
     const query = parseQuery(
       "LSASS dump t:T1003 p:Sentinel s:production type:rule tactic:TA0006 a:G0016 tlp:amber",
@@ -62,7 +90,8 @@ describe("search query", () => {
     const query = parseQuery("colour:red modified:soon t: s:");
     assert.deepEqual(query.problems, ["colour:red", "modified:soon"]);
     assert.deepEqual(query.filters, []);
-    assert.ok(isEmptyQuery(query));
+    assert.deepEqual(query.words, ["colour:red"], "an unknown key is still searched as text");
+    assert.ok(isEmptyQuery(parseQuery("modified:soon t: s:")));
     assert.ok(!isEmptyQuery(parseQuery("x")));
   });
 

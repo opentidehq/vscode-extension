@@ -6,22 +6,37 @@ import {
   type TenantTab,
   webviewValidators,
 } from "../../src/features/query/protocol";
-import { applyProgress, formatMs, tabSummary } from "../../src/features/query/results";
+import {
+  applyProgress,
+  exportable,
+  formatMs,
+  queryViewState,
+  tabSummary,
+} from "../../src/features/query/results";
 import { addStyles, announce, globeIcon, h, KIT_CSS, replace, stateBox } from "../panels-kit/dom";
 import { VirtualTable } from "../panels-kit/table";
-import { createChannel } from "../shared/channel";
+import { createChannel, vscodeApi } from "../shared/channel";
 
 addStyles(KIT_CSS + CSS());
 const channel = createChannel<QueryProtocol>(webviewValidators);
 const root = document.getElementById("root") ?? document.body;
 
 let state: QueryPanelState | undefined;
-let selected: string | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 const table = new VirtualTable({
   label: "Query results",
   onCopy: (format, text) => channel.post("copy", { format, text }),
+  onViewChange: () => saveView(),
 });
+// The panel reloads when hidden (rows are never kept in webview state): the selected tab, filter and
+// sort are UI preferences, so they are kept and put back.
+const saved = queryViewState(vscodeApi().getState());
+let selected: string | undefined = saved.selected;
+if (saved.table) table.restoreView(saved.table);
+
+function saveView(): void {
+  vscodeApi().setState({ selected, table: table.viewState() });
+}
 
 channel.on("state", (next) => {
   const previous = state;
@@ -119,7 +134,7 @@ function toolbar(s: QueryPanelState): HTMLElement {
         class: "secondary",
         text: `Copy ${format === "markdown" ? "Markdown" : format.toUpperCase()}`,
         title: "Copy the rows shown (filtered and sorted)",
-        attrs: { disabled: running },
+        attrs: { disabled: running, "data-needs-rows": "" },
         on: { click: () => copyTable(format) },
       }),
     ),
@@ -127,7 +142,7 @@ function toolbar(s: QueryPanelState): HTMLElement {
       h("button", {
         class: "secondary",
         text: `Export ${format.toUpperCase()}…`,
-        attrs: { disabled: running },
+        attrs: { disabled: running, "data-needs-rows": "" },
         on: { click: () => exportTable(format) },
       }),
     ),
@@ -152,14 +167,14 @@ function currentTab(): TenantTab | undefined {
 
 function copyTable(format: "csv" | "json" | "markdown"): void {
   const { columns, rows } = table.view();
-  if (!currentTab() || columns.length === 0) return;
+  if (!state || !exportable(currentTab(), state.phase) || columns.length === 0) return;
   channel.post("copy", { format, text: formatRows(format, columns, rows) });
 }
 
 function exportTable(format: "csv" | "jsonl"): void {
   const tab = currentTab();
   const { columns, rows } = table.view();
-  if (!tab || columns.length === 0) return;
+  if (!state || !tab || !exportable(tab, state.phase) || columns.length === 0) return;
   const name = [tab.tenant, tab.label].filter(Boolean).join("-");
   channel.post("export", { format, text: formatRows(format, columns, rows), name });
 }
@@ -169,6 +184,11 @@ function renderTabs(): void {
   const tabsElement = document.getElementById("tabs");
   const panel = document.getElementById("tabpanel");
   if (!s || !tabsElement || !panel) return;
+  // Copy and Export act on the selected tab's rows only.
+  const rowsShown = exportable(currentTab(), s.phase);
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-needs-rows]"))
+    button.disabled = !rowsShown;
+  if (!rowsShown) table.setData([], []);
   if (s.tabs.length === 0) {
     replace(tabsElement);
     if (s.phase === "running") {
@@ -289,14 +309,22 @@ function renderTabs(): void {
       class: "secondary",
       text: "Copy cell",
       title: "Ctrl+C in the table",
-      on: { click: () => channel.post("copy", { format: "cell", text: table.focusedCell() ?? "" }) },
+      on: {
+        click: () => {
+          const text = table.focusedCell();
+          if (text !== undefined) channel.post("copy", { format: "cell", text });
+        },
+      },
     }),
     h("button", {
       class: "secondary",
       text: "Copy row",
       title: "Ctrl+Shift+C in the table",
       on: {
-        click: () => channel.post("copy", { format: "row", text: JSON.stringify(table.focusedRow() ?? {}) }),
+        click: () => {
+          const row = table.focusedRow();
+          if (row) channel.post("copy", { format: "row", text: JSON.stringify(row) });
+        },
       },
     }),
     h("span", { class: "muted", text: "Arrow keys move between cells · click a header to sort" }),
@@ -338,6 +366,7 @@ function details(tab: TenantTab): HTMLElement {
 
 function select(key: string, focus = false): void {
   selected = key;
+  saveView();
   renderTabs();
   if (focus) document.querySelector<HTMLElement>('.tablist [aria-selected="true"]')?.focus();
 }

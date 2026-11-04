@@ -1,5 +1,6 @@
 // `opentide --json query` documents as the results panel shows them. vscode-free.
 import type { Column, Row } from "./format";
+import { type TableViewState, tableViewState } from "./format";
 import type { TenantProgress, TenantTab } from "./protocol";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -123,4 +124,38 @@ export function formatMs(ms: number): string {
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
   const minutes = Math.floor(ms / 60_000);
   return `${minutes} min ${Math.round((ms % 60_000) / 1000)} s`;
+}
+
+/**
+ * Whether a closed panel's state may be kept for `opentide.query.retainResults`: only a finished run. A
+ * state closed mid-run is `running` with pending tabs, and reopening it showed a Cancel that cancelled
+ * nothing and no Re-run, for the rest of the session.
+ */
+export function keepable<T extends { readonly phase: string }>(state: T | undefined): state is T {
+  return state !== undefined && state.phase !== "running";
+}
+
+/**
+ * Whether the selected tab has rows to copy or export. A failed, empty or pending tab has none of its
+ * own, and the table may still hold the previous tab's rows: exporting them under this tenant's name
+ * wrote one tenant's data as another's.
+ */
+export function exportable(tab: TenantTab | undefined, phase: string): boolean {
+  return phase !== "running" && tab?.status === "ok" && tab.rows.length > 0;
+}
+
+/** The query panel's webview state (vscode.getState): the selected tab and the table's view. */
+export interface QueryViewState {
+  readonly selected?: string;
+  readonly table?: TableViewState;
+}
+
+export function queryViewState(value: unknown): QueryViewState {
+  if (typeof value !== "object" || value === null) return {};
+  const v = value as Record<string, unknown>;
+  const table = tableViewState(v.table);
+  return {
+    ...(typeof v.selected === "string" ? { selected: v.selected } : {}),
+    ...(table ? { table } : {}),
+  };
 }

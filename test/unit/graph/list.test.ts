@@ -1,5 +1,10 @@
 import * as assert from "node:assert/strict";
-import { describe as describeNode, incomingLabel, listGroups } from "../../../src/features/graph/list";
+import {
+  describe as describeNode,
+  incomingLabel,
+  listGroups,
+  opensMenu,
+} from "../../../src/features/graph/list";
 import { buildModel, type NodeKind, OBJECT_KINDS } from "../../../src/features/graph/model";
 import { computeView } from "../../../src/features/graph/view";
 import { sampleCatalog, UUID } from "../catalogFixture";
@@ -52,5 +57,14 @@ describe("graph as a list", () => {
     assert.equal(rule?.description, "2 errors · sentinel DESIGN, defender PRODUCTION · T1003.001, T1003");
     const bad = model.nodes.find((n) => n.id === "file:objects/rules/bad.yaml");
     assert.match(bad ? describeNode(bad, {}) : "", /^failed to load: mapping values/);
+  });
+});
+
+describe("graph list: the node menu by keyboard", () => {
+  it("opens with the ContextMenu key and Shift+F10, as VS Code's own trees do", () => {
+    assert.ok(opensMenu({ key: "ContextMenu", shiftKey: false }));
+    assert.ok(opensMenu({ key: "F10", shiftKey: true }));
+    assert.ok(!opensMenu({ key: "F10", shiftKey: false }));
+    assert.ok(!opensMenu({ key: "Enter", shiftKey: true }));
   });
 });

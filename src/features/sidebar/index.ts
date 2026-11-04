@@ -29,9 +29,9 @@ import { buildCoverageView } from "./coverage";
 import { type FolderResult, folderViewModel } from "./folderView";
 import {
   type DoctorCheck,
-  fixArgv,
   healthNodes,
   parseChecks,
+  planFix,
   report,
   summarize,
   summaryText,
@@ -39,7 +39,7 @@ import {
 import { debounce, Loader } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
 import { platformFlag, platformName, platformToml } from "./platformNames";
-import { type PlatformInfo, parsePlatforms, platformNodes, tenantCheck } from "./platforms";
+import { type PlatformInfo, parsePlatforms, platformNodes, presenceEnv, tenantCheck } from "./platforms";
 import { NodeTree, openTargetUri } from "./tree";
 
 export const VIEWS = {
@@ -152,8 +152,8 @@ class Sidebar implements vscode.Disposable {
   }
 
   private async loadPlatforms(folder: string): Promise<PlatformsValue> {
-    // With credentials, `info`'s `set` counts what VS Code stores too; values never come back.
-    const result = await this.ctx.backend.run(folder, ["info"], { credentials: true });
+    // `info`'s `set` counts what VS Code stores and the env file sets, by name: it gets placeholders.
+    const result = await this.ctx.backend.run(folder, ["info"], await this.presence(folder));
     const platforms = parsePlatforms(result.document);
     if (platforms.length === 0 && result.exitCode !== 0) throw new Error(failureText(result));
     return { platforms, stored: await this.ctx.credentials.names(folder) };
@@ -161,7 +161,12 @@ class Sidebar implements vscode.Disposable {
 
   private async loadHealth(folder: string): Promise<readonly DoctorCheck[]> {
     const argv = this.healthOnline ? ["doctor"] : ["doctor", "--offline"];
-    const result = await this.ctx.backend.run(folder, argv, { credentials: true });
+    // Online, doctor contacts the tenants and gets the values; offline it only counts them by name.
+    const result = await this.ctx.backend.run(
+      folder,
+      argv,
+      this.healthOnline ? { credentials: true } : await this.presence(folder),
+    );
     const checks = parseChecks(result.document);
     if (checks.length === 0) throw new Error(failureText(result));
     return checks;
@@ -511,11 +516,16 @@ class Sidebar implements vscode.Disposable {
     this.renderCatalogue();
   }
 
+  /** Run options for a status command: every credential by name, with a placeholder, no value. */
+  private async presence(folder: string): Promise<{ credentials: false; env: Record<string, string> }> {
+    return { credentials: false, env: presenceEnv(await this.ctx.backend.credentialEnv(folder)) };
+  }
+
   private async run(
     folder: string,
     argv: string[],
     title: string,
-    options: { credentials?: boolean } = {},
+    options: { credentials?: boolean; env?: Readonly<Record<string, string>> } = {},
   ): Promise<RunResult | undefined> {
     try {
       return await vscode.window.withProgress(
@@ -667,9 +677,7 @@ class Sidebar implements vscode.Disposable {
       ref.folder,
       ["doctor", "--offline"],
       `Checking the credentials of ${where}…`,
-      {
-        credentials: true,
-      },
+      await this.presence(ref.folder),
     );
     if (!result || result.cancelled) return;
     const check = tenantCheck(parseChecks(result.document), ref.platform, ref.tenant);
@@ -691,17 +699,33 @@ class Sidebar implements vscode.Disposable {
 
   private async runFix(ref: NodeRef | undefined): Promise<void> {
     if (ref?.kind !== "check") return;
-    const argv = fixArgv(ref.check.fix);
-    if (!argv) return;
-    const classification = this.ctx.capabilities.classify(argv);
-    const known = (this.ctx.capabilities.current?.commandPathOf(argv).path ?? "") !== "";
-    if (!known || classification.contactsTenant) {
+    const tree = this.ctx.capabilities.current;
+    const plan = planFix(ref.check.fix, {
+      pathOf: (argv) => tree?.commandPathOf(argv).path ?? "",
+      classify: (argv) => this.ctx.capabilities.classify(argv),
+      hasOption: (path, flag) => tree?.hasOption(path, flag) ?? false,
+    });
+    if (!plan) return;
+    if (plan.kind === "replaced") {
+      void vscode.window.showInformationMessage(plan.message);
+      return;
+    }
+    if (plan.kind === "copy") {
       // Only commands this opentide has, and nothing that reaches a tenant from a click on a fix.
       await vscode.env.clipboard.writeText(ref.check.fix ?? "");
       void vscode.window.showInformationMessage(`Copied the fix to run it in a terminal: ${ref.check.fix}`);
       return;
     }
-    const result = await this.run(ref.folder, argv, `Running ${ref.check.fix}…`);
+    const shown = `opentide ${plan.argv.join(" ")}`;
+    if (plan.confirm) {
+      const choice = await vscode.window.showWarningMessage(
+        `Run \`${shown}\`? It writes files in ${path.basename(ref.folder)}.`,
+        { modal: true },
+        "Run",
+      );
+      if (choice !== "Run") return;
+    }
+    const result = await this.run(ref.folder, [...plan.argv], `Running ${shown}…`);
     if (!result || result.cancelled) return;
     if (result.exitCode !== 0) void this.showFailure(result);
     else

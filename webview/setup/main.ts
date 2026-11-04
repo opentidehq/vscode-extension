@@ -4,6 +4,7 @@ import {
   type ApplyProgress,
   type McpHost,
   type Review,
+  reviewTotals,
   type SetupAnswers,
   type SkillsHost,
   type WizardInit,
@@ -35,7 +36,7 @@ const CI_LABELS: Record<string, string> = {
   azure: "Azure Pipelines",
   none: "None for now",
 };
-const ACTION_TEXT = { create: "new", merge: "merge", skip: "unchanged" } as const;
+const ACTION_TEXT = { create: "new", merge: "merge", skip: "unchanged", delete: "remove" } as const;
 
 interface State {
   init?: WizardInit;
@@ -98,6 +99,8 @@ function installStyles(): void {
     .badge { display: inline-block; min-width: 72px; font-size: .85em; padding: 0 6px; border-radius: 8px; text-align: center;
       color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); }
     .badge.skip { background: none; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border); }
+    .badge.delete { color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+      background: var(--vscode-inputValidation-errorBackground, var(--vscode-badge-background)); }
     .status { font-weight: 600; }
     .status.ok { color: var(--vscode-testing-iconPassed); }
     .status.failed { color: var(--vscode-errorForeground); }
@@ -453,13 +456,7 @@ function reviewStep(): HTMLElement {
     h("h2", {}, "Review"),
     ...problems,
     review.error ? h("div", { className: "note problem", role: "alert" }, review.error) : null,
-    totals
-      ? h(
-          "p",
-          {},
-          `${totals.create} new file${totals.create === 1 ? "" : "s"}, ${totals.merge} merged, ${totals.skip} unchanged. Nothing is written until you apply.`,
-        )
-      : null,
+    totals ? h("p", {}, reviewTotals(totals)) : null,
     review.note ? h("p", { className: "note" }, review.note) : null,
     ...steps,
   );

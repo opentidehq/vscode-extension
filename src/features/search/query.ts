@@ -82,23 +82,48 @@ export interface ParsedQuery {
   readonly unreviewed?: string;
 }
 
-/** Split on whitespace, keeping quoted runs together (`author:"Jane Doe"`). */
+/**
+ * Split on whitespace, keeping quoted runs together (`author:"Jane Doe"`, `'two words'`). A quote opens
+ * only at the start of a token or right after `key:` (or a leading `-`); elsewhere it is text, so
+ * `attacker's tool` stays two words. A quote never closed after `key:` is the value typed so far;
+ * anywhere else it is text, and what follows it splits as usual.
+ */
 export function tokenize(text: string): string[] {
   const tokens: string[] = [];
   let current = "";
   let quote: string | undefined;
+  /** The token as it was when the quote opened, and the raw text since. */
+  let before = "";
+  let raw = "";
   for (const char of text) {
     if (quote) {
       if (char === quote) quote = undefined;
-      else current += char;
-    } else if (char === '"' || char === "'") {
+      else {
+        current += char;
+        raw += char;
+      }
+    } else if (
+      (char === '"' || char === "'") &&
+      (current === "" || current === "-" || current.endsWith(":"))
+    ) {
       quote = char;
+      before = current;
+      raw = "";
     } else if (/\s/.test(char)) {
       if (current) tokens.push(current);
       current = "";
     } else {
       current += char;
     }
+  }
+  if (quote) {
+    // `author:"Jane Do` while typing: the value so far. A quote elsewhere is text.
+    if (before.endsWith(":")) tokens.push(`${before}${raw}`);
+    else {
+      const [first = "", ...rest] = raw.split(/\s+/);
+      tokens.push(`${before}${quote}${first}`, ...rest.filter(Boolean));
+    }
+    return tokens;
   }
   if (current) tokens.push(current);
   return tokens;
@@ -133,7 +158,11 @@ export function unreviewedWindow(text: string): string | undefined {
   const value = text.replace(/^>=?/, "").trim().toLowerCase();
   if (value === "" || value === "true" || value === "yes") return "90d";
   if (/^\d+$/.test(value)) return `${value}d`;
-  if (/^\d+[dhm]$/.test(value)) return value;
+  // `m` is months, as everywhere in the search language (`modified:<6m`); opentide reads `m` as
+  // minutes, so months go as days and minutes take `min`.
+  if (/^\d+[dh]$/.test(value)) return value;
+  const minutes = /^(\d+)\s*min(ute)?s?$/.exec(value);
+  if (minutes) return `${minutes[1]}m`;
   const days = ageInDays(value);
   return days !== undefined && Number.isInteger(days) ? `${days}d` : undefined;
 }
@@ -148,9 +177,11 @@ export function parseQuery(text: string): ParsedQuery {
     const negated = token.startsWith("-") && token.length > 1 && token.includes(":");
     const body = negated ? token.slice(1) : token;
     const colon = body.indexOf(":");
-    // `T1003.001`, `http://…`, a UUID: only `word:` with letters is a filter key.
+    // `T1003.001`, a UUID, `lsadump::dcsync`, `http://…`: only `word:` with letters, then a value, is a
+    // filter key.
     const key = colon > 0 ? body.slice(0, colon).toLowerCase() : "";
-    if (!key || !/^[a-z]+$/.test(key)) {
+    const after = body.charAt(colon + 1);
+    if (!key || !/^[a-z]+$/.test(key) || after === ":" || after === "/") {
       if (token.startsWith("-") && token.length > 1 && colon < 0) excluded.push(token.slice(1).toLowerCase());
       else words.push(token.toLowerCase());
       continue;
@@ -158,7 +189,10 @@ export function parseQuery(text: string): ParsedQuery {
     const value = body.slice(colon + 1).trim();
     const canonical = KEYS.get(key);
     if (!canonical) {
+      // Not a filter: say so, and still search for it as text (rule names have colons).
       problems.push(token);
+      if (negated) excluded.push(body.toLowerCase());
+      else words.push(token.toLowerCase());
       continue;
     }
     if (!value) continue; // still typing

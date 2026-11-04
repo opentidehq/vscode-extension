@@ -5,7 +5,7 @@ import { NODE_ACTION_LABELS, type NodeAction, nodeActions } from "../../src/feat
 import { canvasColor } from "../../src/features/graph/colors";
 import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg } from "../../src/features/graph/export";
 import { layout, type Point, stabilize } from "../../src/features/graph/layout";
-import { describe, type ListGroup, listGroups } from "../../src/features/graph/list";
+import { describe, type ListGroup, listGroups, opensMenu } from "../../src/features/graph/list";
 import {
   ALL_KINDS,
   edgeLabel,
@@ -604,9 +604,13 @@ function showTooltip(id: string, at: { x: number; y: number }): void {
   place(tooltip, at);
 }
 
-function showContextMenu(id: string, at: { x: number; y: number }): void {
+/** What gets the focus back when the menu closes with Escape: the list item or the canvas. */
+let menuOpener: HTMLElement | undefined;
+
+function showContextMenu(id: string, at: { x: number; y: number }, opener?: HTMLElement): void {
   const node = nodesById.get(id);
   if (!node) return;
+  menuOpener = opener;
   tooltip.hidden = true;
   const item = (text: string, run: () => void): HTMLButtonElement => {
     const entry = h("button", { type: "button", role: "menuitem", text, tabindex: "-1" });
@@ -636,7 +640,7 @@ contextMenu.addEventListener("keydown", (event) => {
   const index = items.indexOf(document.activeElement as HTMLButtonElement);
   if (event.key === "Escape") {
     contextMenu.hidden = true;
-    canvas.focus();
+    (menuOpener?.isConnected ? menuOpener : canvas).focus();
   } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
     const next = (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
@@ -750,10 +754,25 @@ function revealInList(id: string): void {
 
 const CSS_ESCAPE = (value: string): string => (window.CSS?.escape ? window.CSS.escape(value) : value);
 
+/** The node menu of a list item, below it: every action a right-click on the canvas offers. */
+function showItemMenu(item: HTMLElement): boolean {
+  const id = item.dataset.node ?? item.dataset.target;
+  if (!id || !nodesById.has(id)) return false;
+  const rect = item.getBoundingClientRect();
+  const base = main.getBoundingClientRect();
+  // place() offsets by 12 px; this puts the menu at the item's bottom-left corner.
+  showContextMenu(id, { x: rect.left - base.left - 12, y: rect.bottom - base.top - 12 }, item);
+  return true;
+}
+
 list.addEventListener("keydown", (event) => {
   const items = visibleItems();
   const current = (event.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]');
   if (!current) return;
+  if (opensMenu(event)) {
+    if (showItemMenu(current)) event.preventDefault();
+    return;
+  }
   const index = items.indexOf(current);
   const key = current.dataset.key ?? "";
   const expandable = current.hasAttribute("aria-expanded");
@@ -823,6 +842,11 @@ list.addEventListener("click", (event) => {
     renderList();
   }
   moveTo(list.querySelector<HTMLElement>(`[data-key="${CSS_ESCAPE(key)}"]`) ?? undefined);
+});
+
+list.addEventListener("contextmenu", (event) => {
+  const item = (event.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]');
+  if (item && showItemMenu(item)) event.preventDefault();
 });
 
 list.addEventListener("dblclick", (event) => {
@@ -1046,7 +1070,12 @@ canvas.addEventListener("keydown", (event) => {
   else if (event.key === "-") cy.zoom({ level: cy.zoom() / 1.25, renderedPosition: center() });
   else if (event.key === "0") cy.fit(undefined, 30);
   else if (event.key === "Escape") hideOverlays();
-  else return;
+  else if (opensMenu(event)) {
+    // The selected node's menu (a click selects one); View as list reaches every node by keyboard.
+    const target = cy.nodes(":selected").first();
+    if (target.empty()) return;
+    showContextMenu(target.id(), target.renderedPosition(), canvas);
+  } else return;
   event.preventDefault();
 });
 

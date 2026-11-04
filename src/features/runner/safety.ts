@@ -15,6 +15,14 @@ export type RunPlan =
 
 export const DRY_RUN = "--dry-run";
 
+/**
+ * Whether a run reaches tenants, so the review names them and asks for missing credentials first. From
+ * the built argv's classification: `validate query` reaches none, `validate query --live` does.
+ */
+export function reachesTenants(classification: Pick<Classification, "contactsTenant" | "class">): boolean {
+  return classification.contactsTenant || classification.class === "deploys";
+}
+
 /** Flags that skip opentide's own confirmation of a destructive share. */
 const UNCONFIRMED = new Set(["--yes", "-y"]);
 

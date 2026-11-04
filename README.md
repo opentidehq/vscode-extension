@@ -10,7 +10,8 @@ and others through Open VSX).
 - An MCP server for agents.
 
 It works on install: the platform packages bundle an opentide runtime, so a machine without Python
-gets every feature, offline. When the repository has its own opentide (a `.venv`, the Python
+gets live checks, templates, the catalogue, queries and deploy previews, offline. The graph and the
+ATT&CK matrix need a newer opentide than the bundled 0.21.0 (one with `info catalog`). When the repository has its own opentide (a `.venv`, the Python
 extension's interpreter, `opentide` on `PATH`, or `opentide.path`), the extension uses it, so the
 editor checks what CI checks.
 
@@ -18,8 +19,9 @@ editor checks what CI checks.
 
 ### Works on install
 
-The extension for your platform ships with its own opentide (0.21.0 on CPython 3.13), so every
-feature works offline on a machine with no Python. The first time the bundled opentide runs, it
+The extension for your platform ships with its own opentide (0.21.0 on CPython 3.13), so it works
+offline on a machine with no Python; the features that need a newer opentide say so and offer
+Switch Runtime. The first time the bundled opentide runs, it
 prepares itself in the background. Each package includes an SBOM (`runtime/sbom.cdx.json`) and the
 licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). On Windows on Arm, and on
 platforms without a dedicated package, the extension needs an opentide of your own ([Runtime](#runtime)).
@@ -38,8 +40,10 @@ platforms without a dedicated package, the extension needs an opentide of your o
 | Lucene | `.lucene` | `lucene` |
 | Falco | `.falco` | `falco` |
 
-Queries embedded in a rule (`configurations.sentinel.query`, `splunk.query`, …) are highlighted,
-commented and bracket-matched in their own language.
+The queries of Sentinel, Defender, Splunk, Carbon Black and Sysdig in a rule
+(`configurations.<platform>.query`) are highlighted, commented and bracket-matched in their own
+language. An Elastic query's language depends on its `language` key, so it gets the language server's
+semantic highlighting only: comment toggling and bracket pairs there are YAML's.
 
 ### Problems: live, validate and lint
 
@@ -118,7 +122,8 @@ platforms.
 - Double-click a node to open it at its `name:` line. Right-click to focus on it, validate its file, run a
   rule's query, preview its deploy, create a rule for an objective or an objective for a threat, or copy
   its UUID. Search, zoom, fit, and **Export** as SVG, PNG or Mermaid.
-- **View as list** shows the same nodes and links as a keyboard-navigable tree.
+- **View as list** shows the same nodes and links as a keyboard-navigable tree; <kbd>Shift</kbd>+<kbd>F10</kbd>
+  (or the menu key) opens a node's actions, as a right-click does.
 - **Show in Graph** is in the editor and explorer context menus of Tide YAML files.
 
 The graph needs an opentide with `info catalog`; with an older one it says so and offers Switch Runtime.
@@ -138,9 +143,10 @@ The graph needs an opentide with `info catalog`; with an older one it says so an
 | `tactic:`, `actor:`, `author:`, `tlp:`, `uuid:`, `path:` | as named |
 | `has:errors`, `has:placeholders` | from the Problems panel |
 | `created:`, `modified:`, `reviewed:` | `>2026-01-01`, `<30d`, `none` |
-| `unreviewed:>90d` | rules `opentide rules unreviewed --older-than 90d` lists |
+| `unreviewed:>90d` | rules `opentide rules unreviewed --older-than 90d` lists (`6m` is six months, as in `modified:`; `12h`, `30min`) |
 
-Repeating a filter means "or"; `-` excludes. Each result opens at its name line, to the side, or in
+Repeating a filter means "or"; `-` excludes. A `word:` that is not a filter, such as `lsadump::dcsync`,
+is searched as text. Each result opens at its name line, to the side, or in
 the graph, and **Show all in the graph** focuses the graph on every result. A plain name, or one `t:`,
 `uuid:` or `path:` filter, can also **Filter the Catalogue**. With opentide 0.21.0, search matches names,
 types and paths only.

@@ -72,6 +72,19 @@ export function parsePlatforms(document: unknown): PlatformInfo[] {
 export type VariableSource = "stored" | "environment" | "unset";
 
 /** `stored` (SecretStorage) wins: the backend injects it over the environment. */
+/** What a status command gets for a credential it only counts: never the value. */
+export const PRESENCE_PLACEHOLDER = "set-in-vscode";
+
+/**
+ * The names of `env` (stored credentials and `opentide.envFile` variables), each with a placeholder.
+ * `info` and `doctor --offline` only report whether a variable is set; they contact no tenant, so they
+ * get no value (SPEC §9: credentials go only to commands that contact a tenant), and `info` runs under
+ * the warm `opentide serve`.
+ */
+export function presenceEnv(env: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(Object.keys(env).map((name) => [name, PRESENCE_PLACEHOLDER]));
+}
+
 export function variableSource(variable: TenantVariable, stored: ReadonlySet<string>): VariableSource {
   if (stored.has(variable.name)) return "stored";
   return variable.set ? "environment" : "unset";
@@ -123,7 +136,9 @@ export function platformNodes(
           }),
         );
       } else {
-        for (const tenant of p.tenants) children.push(tenantNode(tenant, p.name, stored, folder, id));
+        p.tenants.forEach((tenant, index) => {
+          children.push(tenantNode(tenant, p.name, stored, folder, id, index));
+        });
       }
     }
     const tenants = p.tenants?.length ?? 0;
@@ -160,8 +175,10 @@ function tenantNode(
   stored: ReadonlySet<string>,
   folder: string,
   parentId: string,
+  index: number,
 ): TreeNode {
-  const id = `${parentId}/tenant:${tenant.name}`;
+  // The index too: a copied `[[tenants]]` block not renamed yet gives two tenants of one name.
+  const id = `${parentId}/tenant:${index}:${tenant.name}`;
   const sources = tenant.variables.map((v) => variableSource(v, stored));
   const set = sources.filter((s) => s !== "unset").length;
   const all = set === tenant.variables.length;

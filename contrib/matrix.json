@@ -10,7 +10,9 @@
       }
     ],
     "menus": {
-      "commandPalette": [{ "command": "opentide.matrix.open", "when": "opentide.hasWorkspace" }]
+      "commandPalette": [
+        { "command": "opentide.matrix.open", "when": "opentide.hasWorkspace && opentide.hasInfoCatalog" }
+      ]
     }
   }
 }

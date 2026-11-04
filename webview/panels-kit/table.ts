@@ -3,11 +3,13 @@
 import {
   type Column,
   cellText,
+  clampFocus,
   filterRows,
   type Row,
   type SortKind,
   sortKind,
   sortRows,
+  type TableViewState,
 } from "../../src/features/query/format";
 import { addStyles, announce, h } from "./dom";
 
@@ -21,6 +23,8 @@ export interface TableOptions {
   readonly onCopy: (format: "cell" | "row", text: string) => void;
   /** A row was activated (Enter on a row header), for a details drawer. */
   readonly onActivate?: (row: Row) => void;
+  /** The user changed the filter or the sort (to keep it in the webview's state). */
+  readonly onViewChange?: () => void;
 }
 
 interface Sort {
@@ -47,6 +51,8 @@ export class VirtualTable {
   private widths: number[] = [];
   /** The focused cell: row index into `shown`, column index. */
   private focus = { row: 0, column: 0 };
+  /** A restored filter column, applied once a tab with that column is shown. */
+  private pendingColumn: string | undefined;
 
   constructor(private readonly options: TableOptions) {
     if (!styled) {
@@ -56,11 +62,16 @@ export class VirtualTable {
     this.filterInput = h("input", {
       class: "table-filter",
       attrs: { type: "search", placeholder: "Filter rows", "aria-label": "Filter rows" },
-      on: { input: () => this.refresh() },
+      on: { input: () => this.changed() },
     });
     this.columnSelect = h("select", {
       attrs: { "aria-label": "Filter in column" },
-      on: { change: () => this.refresh() },
+      on: {
+        change: () => {
+          this.pendingColumn = undefined;
+          this.changed();
+        },
+      },
     });
     this.countLabel = h("span", { class: "muted", attrs: { "aria-live": "polite" } });
     this.header = h("div", { class: "vt-header", attrs: { role: "row", "aria-rowindex": 1 } });
@@ -95,20 +106,44 @@ export class VirtualTable {
     this.columns = columns;
     this.rows = rows;
     this.kinds = new Map(columns.map((c) => [c.name, sortKind(c, rows)]));
-    if (this.sort && !columns.some((c) => c.name === this.sort?.column)) this.sort = undefined;
+    // An empty table (a failed tab) keeps the sort for the next tab that has the column.
+    if (this.sort && columns.length > 0 && !columns.some((c) => c.name === this.sort?.column))
+      this.sort = undefined;
     this.widths = columns.map((c) => {
       const sample = rows.slice(0, 200).map((r) => cellText(r[c.name]).length);
       const longest = Math.max(c.name.length + 2, ...sample);
       return Math.min(420, Math.max(80, longest * 7.5 + 20));
     });
-    const previous = this.columnSelect.value;
+    const previous = this.pendingColumn ?? this.columnSelect.value;
     this.columnSelect.replaceChildren(
       h("option", { text: "all columns", attrs: { value: "" } }),
       ...columns.map((c) => h("option", { text: c.name, attrs: { value: c.name } })),
     );
     this.columnSelect.value = columns.some((c) => c.name === previous) ? previous : "";
+    if (this.columnSelect.value === previous) this.pendingColumn = undefined;
     this.renderHeader();
     this.refresh();
+  }
+
+  /** The filter and sort, to keep across a hide and show of the panel. */
+  viewState(): TableViewState {
+    return {
+      filter: this.filterInput.value,
+      filterColumn: this.pendingColumn ?? this.columnSelect.value,
+      ...(this.sort ? { sort: this.sort } : {}),
+    };
+  }
+
+  /** Put back a viewState(); takes effect with the next setData. */
+  restoreView(state: TableViewState): void {
+    this.filterInput.value = state.filter;
+    this.pendingColumn = state.filterColumn || undefined;
+    this.sort = state.sort;
+  }
+
+  private changed(): void {
+    this.refresh();
+    this.options.onViewChange?.();
   }
 
   /** The rows as shown: filtered, then sorted. */
@@ -131,7 +166,7 @@ export class VirtualTable {
         : `${this.shown.length} of ${this.rows.length} rows`;
     this.viewport.setAttribute("aria-rowcount", String(this.shown.length + 1));
     this.viewport.setAttribute("aria-colcount", String(this.columns.length));
-    this.focus.row = Math.min(this.focus.row, Math.max(0, this.shown.length - 1));
+    this.focus = clampFocus(this.focus, this.shown.length, this.columns.length);
     this.spacer.style.height = `${this.shown.length * ROW_HEIGHT}px`;
     this.render(true);
   }
@@ -174,7 +209,7 @@ export class VirtualTable {
     else if (!this.sort.descending) this.sort = { column, descending: true };
     else this.sort = undefined;
     this.renderHeader();
-    this.refresh();
+    this.changed();
     announce(
       this.sort ? `Sorted by ${column}, ${this.sort.descending ? "descending" : "ascending"}` : "Unsorted",
     );

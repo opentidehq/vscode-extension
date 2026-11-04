@@ -38,17 +38,17 @@
     "viewsWelcome": [
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Create a Detection Repository Here](command:opentide.setup.open)\n[Open an Existing Repository](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && opentide.setup.legacyLayout",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && opentide.setup.legacyLayout && !virtualWorkspace",
         "contents": "It has a CoreTIDE layout (Objects/, Configurations/ or global.toml), which opentide does not support: it does not read CoreTIDE content, and there is no migration.\n[What opentide 0.21.0 removed](https://github.com/opentidehq/opentide/releases/tag/v0.21.0)"
       },
       {
         "view": "opentide.sidebar.catalogue",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)\n[Open an Existing Repository](command:vscode.openFolder)"
       }
     ],
@@ -61,7 +61,7 @@
           {
             "id": "ready",
             "title": "opentide is ready",
-            "description": "The extension bundles opentide, so every feature works without installing Python. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
+            "description": "The extension bundles opentide, so it works without installing Python. The graph and the ATT&CK matrix need a newer opentide than the bundled one. The status bar shows which opentide runs.\n[Show the Runtime](command:opentide.statusMenu)\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
             "media": {
               "markdown": "media/walkthrough/ready.md"
             },
@@ -80,7 +80,7 @@
           {
             "id": "create",
             "title": "Create your first detection",
-            "description": "Start a rule from a template, then fill its placeholders with Tab.\n[New Rule…](command:opentide.setup.step?%5B%22create%22%5D)",
+            "description": "Start a rule from a template, then step through its placeholders with Next Placeholder (Ctrl+Alt+.; Ctrl+Alt+, goes back).\n[New Rule…](command:opentide.setup.step?%5B%22create%22%5D)",
             "media": {
               "markdown": "media/walkthrough/create.md"
             },
@@ -116,7 +116,19 @@
               "onCommand:opentide.graph.open",
               "onCommand:opentide.matrix.open",
               "onCommand:opentide.sidebar.openMatrix"
-            ]
+            ],
+            "when": "opentide.hasInfoCatalog"
+          },
+          {
+            "id": "fitNeedsCatalog",
+            "title": "See how it fits",
+            "description": "The graph and the ATT&CK matrix show what each rule implements and what the repository covers. They need an opentide with `info catalog`, newer than the one running now: use a newer opentide in the repository's environment, or set opentide.path.\n[Use My Environment's opentide…](command:opentide.switchRuntime)",
+            "when": "!opentide.hasInfoCatalog",
+            "media": {
+              "svg": "media/walkthrough/fit.svg",
+              "altText": "A threat, its objective and two rules, and the ATT&CK technique they cover."
+            },
+            "completionEvents": ["onContext:opentide.hasInfoCatalog", "onCommand:opentide.switchRuntime"]
           },
           {
             "id": "deploy",
@@ -130,7 +142,18 @@
           {
             "id": "agent",
             "title": "Bring your agent",
-            "description": "MCP is on for VS Code agents. Add opentide to Cursor or Claude Code, and install the opentidehq/skills Agent Plugin (recommended).\n[Bring Your Agent…](command:opentide.setup.agents)\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)",
+            "description": "MCP is on for VS Code agents: the extension provides opentide's MCP server. For Cursor, Claude Code and other hosts, and to install the opentidehq/skills Agent Plugin (recommended), use Bring Your Agent…\n[Bring Your Agent…](command:opentide.setup.agents)",
+            "when": "!opentide.agents.forkMcp",
+            "media": {
+              "markdown": "media/walkthrough/agent.md"
+            },
+            "completionEvents": ["onContext:opentide.setup.agentReady"]
+          },
+          {
+            "id": "agentFork",
+            "title": "Bring your agent",
+            "description": "Add opentide's MCP server to this editor's MCP settings (Cursor or Windsurf), and install the opentidehq/skills Agent Plugin (recommended) with Bring Your Agent…\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)\n[Bring Your Agent…](command:opentide.setup.agents)",
+            "when": "opentide.agents.forkMcp",
             "media": {
               "markdown": "media/walkthrough/agent.md"
             },

@@ -80,11 +80,27 @@ export function filterRows(
   return rows.filter((row) => names.some((name) => cellText(row[name]).toLowerCase().includes(wanted)));
 }
 
-function csvField(text: string): string {
+const NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+
+/**
+ * A cell a spreadsheet would read as a formula (`=`, `+`, `-`, `@`, tab or CR first, OWASP's list) gets a
+ * leading `'`. Query rows carry attacker-controlled telemetry (command lines, user agents, file
+ * names), and Excel or LibreOffice evaluate `=HYPERLINK(…)` in a CSV even when it is quoted. A plain
+ * number such as `-2` is left as it is.
+ */
+export function neutraliseFormula(text: string): string {
+  return /^[=+\-@\t\r]/.test(text) && !NUMBER.test(text) ? `'${text}` : text;
+}
+
+function csvField(raw: string): string {
+  const text = neutraliseFormula(raw);
   return /[",\r\n]/.test(text) || /^\s|\s$/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-/** RFC 4180 CSV with a header row (objects as JSON, as `opentide query --format csv` writes them). */
+/**
+ * RFC 4180 CSV with a header row (objects as JSON, as `opentide query --format csv` writes them), for
+ * Export and Copy CSV. Unlike the CLI's, cells that would be formulas are neutralised.
+ */
 export function toCsv(columns: readonly Column[], rows: readonly Row[]): string {
   const lines = [columns.map((c) => csvField(c.name)).join(",")];
   for (const row of rows) lines.push(columns.map((c) => csvField(cellText(row[c.name]))).join(","));
@@ -135,4 +151,41 @@ export function formatRows(format: CopyFormat, columns: readonly Column[], rows:
     default:
       return toMarkdown(columns, rows);
   }
+}
+
+/** A grid's focused cell kept inside its data: a tab with fewer rows or columns moves it in. */
+export function clampFocus(
+  focus: { readonly row: number; readonly column: number },
+  rows: number,
+  columns: number,
+): { row: number; column: number } {
+  return {
+    row: Math.max(0, Math.min(focus.row, rows - 1)),
+    column: Math.max(0, Math.min(focus.column, columns - 1)),
+  };
+}
+
+/** What a table's user chose (filter text, filter column, sort): UI preferences, no row data. */
+export interface TableViewState {
+  readonly filter: string;
+  readonly filterColumn: string;
+  readonly sort?: { readonly column: string; readonly descending: boolean };
+}
+
+/** A persisted TableViewState, or undefined when `value` is not one. */
+export function tableViewState(value: unknown): TableViewState | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const v = value as Record<string, unknown>;
+  if (typeof v.filter !== "string" || typeof v.filterColumn !== "string") return undefined;
+  const sort = v.sort as Record<string, unknown> | undefined;
+  const validSort =
+    typeof sort === "object" &&
+    sort !== null &&
+    typeof sort.column === "string" &&
+    typeof sort.descending === "boolean";
+  return {
+    filter: v.filter,
+    filterColumn: v.filterColumn,
+    ...(validSort ? { sort: { column: sort.column as string, descending: sort.descending as boolean } } : {}),
+  };
 }

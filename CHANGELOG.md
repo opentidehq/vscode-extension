@@ -72,7 +72,7 @@ pre-releases odd ones.
   - **Health:** `opentide doctor`, with runnable fixes and a redacted report to copy.
   - **Activity:** the last 50 commands, with Run Again and Copy Command Line.
 - Set up a detection repository: a wizard over `opentide setup` that shows the files each step will
-  create or merge (with `setup --plan`) before anything is written. It applies step by step, and Copy
+  create, merge or remove (with `setup --plan`) before anything is written. It applies step by step, and Copy
   as Script reproduces it in a terminal. It also adds platforms, CI and agents to an existing
   repository. A CoreTIDE layout (`Objects/`, `Configurations/`, `global.toml`) is reported as not
   supported: opentide 0.21.0 has no migration.
@@ -88,7 +88,8 @@ pre-releases odd ones.
   - A node's menu opens, validates, runs a rule's query, previews its deploy, or creates a rule for an
     objective or an objective for a threat.
   - Search, zoom and fit, and SVG, PNG or Mermaid export.
-  - "View as list", a keyboard tree for keyboard and screen-reader users.
+  - "View as list", a keyboard tree for keyboard and screen-reader users; Shift+F10 or the menu key
+    opens a node's actions there, and on the canvas for the selected node.
 - "Show in Graph" in the editor and explorer context menus for Tide YAML.
 - "opentide: Find Detection…" (Ctrl+Shift+Alt+F, Cmd+Shift+Alt+F on macOS): a quick search over the
   catalogue.
@@ -109,7 +110,8 @@ pre-releases odd ones.
   a failed tenant's error and the platform's detail). Each tab has a virtual table to sort, filter and
   move through with the keyboard. Copy a cell, a row or the rows as CSV, JSON or Markdown, or export
   CSV or JSONL. Results stay in memory and are dropped when the panel closes
-  (`opentide.query.retainResults`).
+  (`opentide.query.retainResults`). In CSV, a cell a spreadsheet would read as a formula (`=`, `+`,
+  `-`, `@` first) gets a leading `'`, since rows carry attacker-controlled telemetry.
 - The deploy plan ("opentide: Preview Deploy"): `opentide deploy --dry-run` for the current, selected
   or changed rules. It shows each rule's action per platform and tenant, compile failures (also in
   Problems), skipped rules and missing tenants. API payloads open as read-only JSON, and you can copy

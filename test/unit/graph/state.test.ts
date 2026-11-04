@@ -5,12 +5,14 @@ import {
   exportBytes,
   folderWithNode,
   graphData,
+  inFolder,
   ModelCache,
   objectAtPath,
   parseOpenArgs,
   parseRevealArgs,
   pathKey,
   problemMap,
+  problemsFor,
 } from "../../../src/features/graph/state";
 import { sampleCatalog, UUID } from "../catalogFixture";
 
@@ -157,5 +159,20 @@ describe("graph command arguments", () => {
     assert.equal(parseRevealArgs(UUID.rule), UUID.rule);
     assert.equal(parseRevealArgs({ uuid: "" }), undefined);
     assert.equal(parseRevealArgs(null), undefined);
+  });
+});
+
+describe("graph: problems of the folder shown", () => {
+  it("is an empty map while a switched-to folder's catalogue loads, never the previous folder's", () => {
+    assert.deepEqual(
+      problemsFor(undefined, [{ file: "/a/objects/x.yaml", errors: 1, warnings: 0 }], "linux"),
+      {},
+    );
+  });
+
+  it("counts only the folder's own files, not a sibling whose path starts the same", () => {
+    assert.ok(inFolder("/repo", "/repo/objects/x.yaml", "linux"));
+    assert.ok(!inFolder("/repo", "/repo-2/objects/x.yaml", "linux"));
+    assert.ok(inFolder("C:\\Repo\\", "c:\\repo\\objects\\x.yaml", "win32"));
   });
 });

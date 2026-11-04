@@ -8,6 +8,7 @@ import {
   flagValues,
   planRun,
   platformsOf,
+  reachesTenants,
   selectedRuleCount,
 } from "../../../src/features/runner/safety";
 import { COMMANDS_FIXTURE } from "../helpers";
@@ -84,5 +85,14 @@ describe("runner safety (D6)", () => {
     assert.equal(platformsOf(["doctor"]), undefined);
     assert.equal(selectedRuleCount(["deploy", "--uuid", "a", "--file", "b"]), 2);
     assert.equal(selectedRuleCount(["deploy"]), undefined);
+  });
+});
+
+describe("runner: which runs name their tenants first", () => {
+  it("follows the built argv, so an added --live makes validate query reach tenants", () => {
+    assert.equal(reachesTenants(classify(["validate", "query"])), false);
+    assert.equal(reachesTenants(classify(["validate", "query", "--live"])), true);
+    assert.equal(reachesTenants(classify(["deploy"])), true);
+    assert.equal(reachesTenants(classify(["lint"])), false);
   });
 });
