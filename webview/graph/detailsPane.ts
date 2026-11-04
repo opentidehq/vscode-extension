@@ -137,7 +137,7 @@ export function paneContent(details: NodeDetails | undefined, context: PaneConte
     "div",
     { class: "actions", role: "group", "aria-label": "Actions" },
     context.canOpen ? button("go-to-file", "Open file", "open", true) : undefined,
-    context.canFocus ? button("target", "Focus here", "focus") : undefined,
+    context.canFocus ? button("location", "Focus here", "focus") : undefined,
     node.uuid ? button("copy", "Copy UUID", "copyUuid") : undefined,
   );
   return [

@@ -708,7 +708,6 @@ class Emphasis {
       if (!part || generation !== this.generation) return;
       run(part);
       if (parts.length > 0) requestAnimationFrame(step);
-      else redrawAfterTexture();
     };
     step();
   }
@@ -933,8 +932,8 @@ function bringIntoView(ids: readonly string[]): void {
     pan: { x: width / 2 - ((x1 + x2) / 2) * fits, y: height / 2 - ((y1 + y2) / 2) * fits },
   };
   autoFit = false;
-  if (reducedMotion()) cy.viewport(next);
-  else cy.animate(next, { duration: 220, easing: "ease-out", complete: redrawAfterTexture });
+  if (reducedMotion() || cyLarge) cy.viewport(next);
+  else cy.animate(next, { duration: 220, easing: "ease-out" });
 }
 
 /** The view was fitted and the user has not panned or zoomed since: a resize fits it again. */
@@ -1022,14 +1021,6 @@ function inViewport(id: string): boolean {
   return box.x1 >= 0 && box.y1 >= 0 && box.x2 <= canvas.clientWidth && box.y2 <= canvas.clientHeight;
 }
 
-/**
- * A large view pans as a texture (textureOnViewport): a restyle made while it animates can stay out of
- * the picture until the next interaction, so draw once more when the animation ends.
- */
-function redrawAfterTexture(): void {
-  if (cy && cyLarge) cy.forceRender();
-}
-
 /** Centre `id` (when off screen, or `always`); a jump (search) also zooms in until it is readable. */
 function centreOn(id: string, always: boolean, readable = false): void {
   if (!cy || settings.list) return;
@@ -1042,8 +1033,9 @@ function centreOn(id: string, always: boolean, readable = false): void {
     pan: { x: canvas.clientWidth / 2 - at.x * zoom, y: canvas.clientHeight / 2 - at.y * zoom },
   };
   if (zoom !== cy.zoom()) autoFit = false;
-  if (reducedMotion()) cy.viewport(next);
-  else cy.animate(next, { duration: 160, complete: redrawAfterTexture });
+  // A large view jumps: animating thousands of elements costs more frames than it is worth.
+  if (reducedMotion() || cyLarge) cy.viewport(next);
+  else cy.animate(next, { duration: 160 });
 }
 
 /**
@@ -1069,11 +1061,13 @@ function select(
   }
   selected = id;
   if (options.record !== false) history.visit(id);
+  // Centre first, then restyle: a large view's layer textures, redrawn after a viewport jump, would
+  // otherwise keep the previous emphasis until the next interaction.
+  if (options.center) centreOn(id, false);
   refreshEmphasis();
   renderDetails();
   updateHistoryButtons();
   updateNodeTools();
-  if (options.center) centreOn(id, false);
   if (settings.list) markListSelection();
 }
 
@@ -1990,8 +1984,8 @@ searchBox.addEventListener("keydown", (event) => {
     matchCursor = (matchCursor + (event.shiftKey ? -1 : 1) + inView.length) % inView.length;
     const id = inView[matchCursor] as string;
     if (settings.list) revealInList(id);
-    select(id, { center: true });
     if (cy && !settings.list) centreOn(id, true, true);
+    select(id, { center: false });
     return;
   }
   const first = model ? [...searchNodes(model.nodes, searchText)][0] : undefined;
