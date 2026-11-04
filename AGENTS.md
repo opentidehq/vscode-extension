@@ -27,6 +27,8 @@ npx @vscode/vsce package --no-dependencies   # universal VSIX
 - Integration tests (`npm run test:integration`, `npm run test:restricted`) download VS Code; they
   run in CI.
 - Tests against a real opentide: `OPENTIDE_TEST_BIN=<opentide> OPENTIDE_TEST_WORKSPACE=<workspace> npm test`.
+- CI is `.github/workflows/ci.yml`; releases are "Run workflow" on `.github/workflows/publish.yml`
+  ([`docs/RELEASING.md`](docs/RELEASING.md), skill [`.agents/skills/release/SKILL.md`](.agents/skills/release/SKILL.md)).
 - Grammars: `npm run grammars` downloads the highlights zip pinned in `pins.json`, checks its
   SHA-256, and rewrites `syntaxes/` and `contrib/grammars.json`; then `npm run manifest`.
 
