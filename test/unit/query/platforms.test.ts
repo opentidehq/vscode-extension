@@ -99,6 +99,27 @@ describe("platform caps and query lenses (#17)", () => {
     assert.equal(runs, 3);
   });
 
+  it("keeps an info without platforms until invalidate, so each lens does not run it again", async () => {
+    let runs = 0;
+    const cache = new PlatformInfoCache({
+      run: async () => {
+        runs++;
+        return {
+          document: { exit_code: 1, status: "failed", message: "Could not parse configuration TOML" },
+          exitCode: 1,
+        };
+      },
+    });
+    for (const platform of ["sentinel", "splunk", "elastic", "crowdstrike"])
+      assert.equal((await cache.caps("/w", platform)).name, platform, "the built-in matrix meanwhile");
+    await new Promise((r) => setImmediate(r));
+    await cache.get("/w");
+    assert.equal(runs, 1);
+    cache.invalidate("/w");
+    await cache.get("/w");
+    assert.equal(runs, 2, "a configuration change reads it again");
+  });
+
   it("offers Run, Validate live and Compiled query on a Sentinel rule", () => {
     const caps: PlatformCaps = { ...fallbackCaps("sentinel"), tenants: undefined };
     const lenses = lensesFor(target(), { canRun: true, caps });

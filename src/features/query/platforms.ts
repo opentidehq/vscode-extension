@@ -103,7 +103,11 @@ export interface PlatformInfoDeps {
   run(folder: string): Promise<{ document: unknown; exitCode: number }>;
 }
 
-/** One `info` per folder, single-flight; `invalidate` drops it. */
+/**
+ * One `info` per folder, single-flight; `invalidate` drops it. An `info` that answers without platforms
+ * (a configuration TOML that does not parse) is kept too, until the configuration changes and
+ * `invalidate` runs, or every query lens would run `info` again; a run that rejects is retried.
+ */
 export class PlatformInfoCache {
   private readonly entries = new Map<string, Promise<Map<string, PlatformCaps> | undefined>>();
 
@@ -112,14 +116,16 @@ export class PlatformInfoCache {
   get(folder: string): Promise<Map<string, PlatformCaps> | undefined> {
     let entry = this.entries.get(folder);
     if (!entry) {
-      entry = this.deps.run(folder).then(
-        (result) => parseInfoPlatforms(result.document),
+      const settled = this.deps.run(folder).then(
+        (result) => ({ value: parseInfoPlatforms(result.document) }),
         () => undefined,
       );
+      entry = settled.then((outcome) => outcome?.value);
       this.entries.set(folder, entry);
-      // A failed read is not cached: the next call tries again.
-      void entry.then((value) => {
-        if (value === undefined && this.entries.get(folder) === entry) this.entries.delete(folder);
+      // A run that rejected (no document came back) is not cached: the next call tries again.
+      const current = entry;
+      void settled.then((outcome) => {
+        if (outcome === undefined && this.entries.get(folder) === current) this.entries.delete(folder);
       });
     }
     return entry;
