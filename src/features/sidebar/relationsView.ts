@@ -7,7 +7,6 @@ import {
   parseServerCatalog,
   rootOf,
   SERVER_CATALOG,
-  SERVER_CATALOG_CHANGED,
 } from "../../core/catalog/serverCatalog";
 import type { FeatureContext } from "../../core/context";
 import { debounce } from "./loader";
@@ -78,7 +77,6 @@ export class RelationsView implements vscode.Disposable {
   /** The view does not follow the editor one of its rows opened. */
   private readonly guard = new FollowGuard();
   private readonly server = new ServerCatalogCache<unknown>();
-  private notification: vscode.Disposable | undefined;
   private readonly renders = new RenderTurns();
   private stale = false;
   private readonly lensChanged = new vscode.EventEmitter<void>();
@@ -92,7 +90,6 @@ export class RelationsView implements vscode.Disposable {
       { dispose: () => this.follow.cancel() },
       { dispose: () => this.renderSoon.cancel() },
       { dispose: () => this.lensSoon.cancel() },
-      { dispose: () => this.notification?.dispose() },
     );
     this.wire();
     this.registerCommands();
@@ -121,6 +118,11 @@ export class RelationsView implements vscode.Disposable {
       }),
       ctx.client.onDidChange(() => {
         this.dropServer();
+        this.renderSoon();
+      }),
+      ctx.client.onCatalogChanged(() => {
+        if (!this.server.held) return;
+        this.server.drop();
         this.renderSoon();
       }),
       ctx.folders.onDidChange(() => this.renderSoon()),
@@ -177,8 +179,6 @@ export class RelationsView implements vscode.Disposable {
 
   private dropServer(): void {
     this.server.drop();
-    this.notification?.dispose();
-    this.notification = undefined;
   }
 
   /** `opentide/catalog` from the running server, once per index version. */
@@ -199,12 +199,6 @@ export class RelationsView implements vscode.Disposable {
         },
       ),
     );
-    if (!this.notification) {
-      this.notification = client.onNotification(SERVER_CATALOG_CHANGED, () => {
-        this.server.drop();
-        this.renderSoon();
-      });
-    }
     return promise;
   }
 

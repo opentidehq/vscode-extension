@@ -2,7 +2,9 @@
 // each object row has in every sidebar view, and the when clauses that keep the editor entries on Tide
 // YAML and the pin and unpin buttons apart.
 import * as assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const { menus, views, configuration } = pkg.contributes;
@@ -100,5 +102,18 @@ describe("the Relations view in the manifest", () => {
     const setting = sections.map((s) => s.properties?.["opentide.relations.codeLens"]).find(Boolean);
     assert.equal(setting?.type, "boolean");
     assert.equal(setting?.default, true);
+  });
+});
+
+describe("server notifications", () => {
+  it("are taken once by the core: no feature registers opentide/catalogChanged itself", () => {
+    // vscode-languageclient keeps one handler per notification; a feature's would replace the core's
+    // (ctx.client.onCatalogChanged) and every other subscriber's.
+    const root = fileURLToPath(new URL("../../src/features", import.meta.url));
+    const files = readdirSync(root, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".ts"));
+    const offenders = files.filter((file) =>
+      /\.onNotification\(/.test(readFileSync(join(root, file), "utf8")),
+    );
+    assert.deepEqual(offenders, []);
   });
 });
