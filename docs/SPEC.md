@@ -199,7 +199,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 | 8 per-platform VSIX (`vsce package --target`) | Extension, grammars, the **bundled opentide runtime** for that target, licences and SBOM | win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64 |
 | 1 universal VSIX | Extension and grammars, no runtime. Uses the workspace's opentide or `opentide.path`, and says plainly when there is none | Every other target, and the web entry ([§13](#13-trust-remote-and-web)) |
 
-- **win32-arm64** needs opentide `win_arm64` wheels, which opentide does not build today ([§15](#15-what-this-needs-from-opentide-and-language-server)). Until then that target gets the universal package.
+- **win32-arm64** needs opentide `win_arm64` wheels, which opentide does not build today ([§15](#15-what-this-needs-from-opentide-and-language-server)), and a `win_arm64` wheel of cryptography ≥ 47, which has none either. Until both exist that target gets the universal package, so 0.1 ships 7 per-platform packages (`pins.json` `universalTargets`, [PACKAGING.md](PACKAGING.md#why-a-target-gets-the-universal-package)).
 - **No `opentide-lsp` binary** in the per-platform packages. The bundled opentide contains the same engine, so a second copy would be about 20 MB for nothing. `opentide.path` may still name an `opentide-lsp` binary for people who want the bare server.
 
 ### Building the runtime
@@ -234,7 +234,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Store listing
 
-- **Identity:** display name `opentide`, publisher to be decided ([§17](#17-open-questions)).
+- **Identity:** display name `opentide`, publisher `opentidehq` on the Marketplace and namespace `opentidehq` on Open VSX ([RELEASING.md](RELEASING.md)).
 - **Categories:** Programming Languages, Linters, Snippets, AI.
 - **Keywords:** detection engineering, detection as code, KQL, SPL, ES|QL, Sentinel, Defender, Splunk, Elastic, Falco, MITRE ATT&CK.
 - **README:** short GIFs of the five moments in [§8](#8-setup-wizard-and-onboarding).
@@ -556,7 +556,7 @@ OPENTIDE
 - **Theming:** VS Code theme variables, including high-contrast themes.
 - **Security:** a strict CSP (`default-src 'none'`, nonce scripts), no remote resources, and `localResourceRoots` limited to the bundled assets.
 - **Messaging:** typed messages, validated on both sides. A webview never receives a secret, and all actions go through the extension host.
-- **Components:** `@vscode-elements/elements` (MIT), since Microsoft's webview UI toolkit was retired.
+- **Components:** small DOM helpers and a virtual table of the extension's own (`webview/panels-kit/`), styled with VS Code's theme variables, since Microsoft's webview UI toolkit was retired. Cytoscape draws the graph.
 
 ### 10.1 Graph: how detections connect
 
@@ -771,7 +771,7 @@ Revises #8 and #10.
 - **Optional `.env` file:** `opentide.envFile` (trusted only, default none) loads `$VAR`s for tenant credentials, because opentide reads only the process environment.
 - **Telemetry:** none.
 - **Web** (vscode.dev, github.dev):
-  - The universal package's `browser` entry gives grammars, semantic tokens from the WASM highlighter, and later the wasip1 language server behind a setting, as in #10.
+  - The universal package's `browser` entry gives languages, grammars and language configuration. Semantic tokens from the WASM highlighter and the wasip1 language server behind a setting come later, as in #10.
   - No Python means no commands and no panels ([D2](#d2-almost-every-action-runs-opentide-in-python-so-one-warm-process-serves-them)). The status item says so.
   - A later `opentide/catalog` request in the language server would bring the Catalogue, search and the graph to the web.
 
@@ -828,7 +828,7 @@ Each item names the milestone that needs it. Items marked *nice* have a workarou
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
 | O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | pandas and numpy are about 15 MiB of each compressed package and botocore another 15 MiB; without them the packages approach the 70 MB target. Every package already fits the 100 MB budget with them (D1) | M0 *nice* (the target, not the budget) |
-| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package | M0 *nice* (universal package until then) |
+| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package, which also waits for a cryptography ≥ 47 `win_arm64` wheel | M0 *nice* (universal package until then) |
 | O3 [opentide#749](https://github.com/opentidehq/opentide/issues/749) | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
 | O4 [opentide#751](https://github.com/opentidehq/opentide/issues/751) | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
 | O5 [opentide#752](https://github.com/opentidehq/opentide/issues/752) | Generated snippets use `scope: "yaml,opentide-yaml"` | Snippets vanish in `opentide-yaml` files | M1 *nice* (client workaround) |
@@ -887,7 +887,7 @@ These need a decision before the milestone named.
 
 1. **Bundling (M0).** Confirm D1: a 68–80 MiB download per platform package with opentide 0.21.0 (less once O1 lands), 180–225 MiB on disk, downloaded again on every update.
 2. **Real deploys from the editor (M4).** Never, with CI only (the recommendation for 1.0), or later behind a setting, for tenants marked non-production, one rule at a time, with a modal confirmation? The latter needs O7 and a confirmation contract in `opentide deploy`.
-3. **Publisher identity (M0).** The Marketplace publisher id and Open VSX namespace (`opentide`?). Marketplace publisher verification for `opentide.org` becomes possible after six months.
+3. **Publisher identity (M0).** Settled: `opentidehq` on both stores. Marketplace publisher verification for `opentide.org` becomes possible after six months.
 4. **The VS Code floor and forks (M0).** Check the VS Code version Cursor and Windsurf are based on today, and set `engines.vscode` so they install the extension. Everything newer is feature-detected.
 5. **Licence review (M0).** EUPL-1.2 opentide, engine and (optionally) skills inside an MIT VSIX, shipped as separate programs. This extends #6's review to the runtime.
 6. **Object form editor (later).** A custom editor that edits an object as a form beside its YAML. Not planned for 1.0: the YAML, the server's completion and the templates cover authoring, and a second editing surface would have to stay in sync with every schema revision.
