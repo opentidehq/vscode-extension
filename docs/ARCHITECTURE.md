@@ -290,6 +290,10 @@ opens a panel on `dist/webview/<entry>.js` with:
   `createChannel<GraphProtocol>(webviewValidators)` from `webview/shared/channel.ts`. Messages that
   fail validation are dropped on both sides.
 
+A page's own styles go in a `<style>` element carrying the page's nonce
+(`(document.currentScript as HTMLScriptElement).nonce`); the CSP allows no other inline style, while
+setting `element.style` from script is fine.
+
 For a `WebviewView`, use `ctx.webview.webviewOptions()`, `ctx.webview.html(webview, entry, title)` and
 `ctx.webview.connect(webview, validators)`. A webview never receives a secret, and every action goes
 through the host.
@@ -309,7 +313,7 @@ through the host.
 
 | Command | |
 |---------|-|
-| `npm run build` | esbuild: `dist/extension.js`, `dist/web/extension.js` (the `browser` entry), `dist/webview/*.js`, `dist/webview/base.css`, `dist/THIRD-PARTY-NOTICES.txt` |
+| `npm run build` | esbuild: `dist/extension.js`, `dist/web/extension.js` (the `browser` entry), `dist/webview/*.js`, `dist/webview/base.css`, `dist/THIRD-PARTY-NOTICES.txt` (every npm package bundled into the extension, the web entry or a webview) |
 | `npm run typecheck` | tsc (strict) over src and test, and over webview/ with the DOM |
 | `npm run lint` | Biome (lint and format check); `npm run format` fixes |
 | `npm test` | tsc to `out/`, then mocha: test/unit and test/scripts in plain node |

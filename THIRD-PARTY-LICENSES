@@ -40,3 +40,8 @@ dist/extension.js
 -----------------
 Bundles vscode-languageclient and its dependencies (MIT, ISC, BlueOak-1.0.0). The build writes each
 bundled package's name, version and licence text to dist/THIRD-PARTY-NOTICES.txt.
+
+dist/webview/graph.js
+---------------------
+Bundles Cytoscape.js (MIT) and dagre with graphlib (@dagrejs/dagre, @dagrejs/graphlib; MIT) for the
+graph panel. Their versions and licence texts are in dist/THIRD-PARTY-NOTICES.txt too.

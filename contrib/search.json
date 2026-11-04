@@ -1,0 +1,23 @@
+{
+  "contributes": {
+    "commands": [
+      {
+        "command": "opentide.search.open",
+        "title": "Find Detection…",
+        "category": "opentide",
+        "icon": "$(search)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [{ "command": "opentide.search.open", "when": "opentide.hasWorkspace" }]
+    },
+    "keybindings": [
+      {
+        "command": "opentide.search.open",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "opentide.hasWorkspace"
+      }
+    ]
+  }
+}

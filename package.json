@@ -549,6 +549,24 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "opentide.graph.open",
+        "title": "Show Graph",
+        "category": "opentide",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "opentide.graph.reveal",
+        "title": "Reveal in Graph",
+        "category": "opentide",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "opentide.graph.showInGraph",
+        "title": "Show in Graph",
+        "category": "opentide",
+        "icon": "$(type-hierarchy)"
+      },
+      {
         "command": "opentide.matrix.open",
         "title": "Open ATT&CK Matrix",
         "category": "opentide",
@@ -705,6 +723,12 @@
         "title": "Open TUI in Terminal",
         "category": "opentide",
         "icon": "$(table)"
+      },
+      {
+        "command": "opentide.search.open",
+        "title": "Find Detection…",
+        "category": "opentide",
+        "icon": "$(search)"
       },
       {
         "command": "opentide.setup.open",
@@ -957,6 +981,18 @@
           "when": "opentide.hasWorkspace"
         },
         {
+          "command": "opentide.graph.open",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.graph.reveal",
+          "when": "false"
+        },
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml"
+        },
+        {
           "command": "opentide.matrix.open",
           "when": "opentide.hasWorkspace"
         },
@@ -1062,6 +1098,10 @@
         },
         {
           "command": "opentide.runner.openTui",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.search.open",
           "when": "opentide.hasWorkspace"
         },
         {
@@ -1212,6 +1252,11 @@
           "when": "resourceLangId == opentide-yaml && opentide.trusted && opentide.hasCli"
         },
         {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "group": "opentide@10"
+        },
+        {
           "command": "opentide.newObject",
           "when": "explorerResourceIsFolder && isWorkspaceTrusted && opentide.hasCli && resourcePath in opentide.objectFolders",
           "group": "navigation@9"
@@ -1220,6 +1265,18 @@
           "command": "opentide.runner.sharePreview",
           "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml",
           "group": "opentide@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && resourceLangId == opentide-yaml",
+          "group": "opentide@10"
+        },
+        {
+          "command": "opentide.query.run",
+          "group": "opentide@10",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(kql|spl|esql|eql|kuery|lucene)$/"
         }
       ],
       "file/newFile": [
@@ -1237,13 +1294,6 @@
           "command": "opentide.newObject.newFile.rule",
           "when": "isWorkspaceTrusted && opentide.hasCli",
           "group": "file"
-        }
-      ],
-      "editor/context": [
-        {
-          "command": "opentide.query.run",
-          "group": "opentide@10",
-          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(kql|spl|esql|eql|kuery|lucene)$/"
         }
       ],
       "view/title": [
@@ -1553,6 +1603,12 @@
         "key": "ctrl+alt+,",
         "mac": "ctrl+alt+,",
         "when": "editorTextFocus && opentide.hasPlaceholders"
+      },
+      {
+        "command": "opentide.search.open",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "opentide.hasWorkspace"
       }
     ],
     "colors": [
@@ -1917,6 +1973,8 @@
     "typescript": "6.0.3"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.3",
+    "cytoscape": "3.34.4",
     "vscode-languageclient": "10.1.2"
   }
 }
