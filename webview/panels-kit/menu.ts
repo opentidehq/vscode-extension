@@ -157,7 +157,12 @@ let cardTimer: ReturnType<typeof setTimeout> | undefined;
 let cardListeners = false;
 
 /** Show a hover card for `anchor` after a short delay (one card at a time, never focusable). */
-export function hoverCard(anchor: HTMLElement, content: () => Node, delayMs = 350): void {
+export function hoverCard(
+  anchor: HTMLElement,
+  content: () => Node,
+  options: { readonly delayMs?: number; readonly bounds?: () => DOMRect } = {},
+): void {
+  const delayMs = options.delayMs ?? 350;
   hideHoverCard();
   if (!cardListeners) {
     // The pointer leaving the page (to the editor beside it) or the page losing focus hides the card.
@@ -170,10 +175,12 @@ export function hoverCard(anchor: HTMLElement, content: () => Node, delayMs = 35
     card ??= h("div", { class: "ot-hovercard", attrs: { role: "tooltip" } });
     card.replaceChildren(content());
     document.body.append(card);
+    const bounds = options.bounds?.();
     const { left, top } = placePopup({
       anchor: anchor.getBoundingClientRect(),
       size: { width: card.offsetWidth, height: card.offsetHeight },
       viewport: { width: window.innerWidth, height: window.innerHeight },
+      ...(bounds ? { bounds } : {}),
     });
     card.style.left = `${left}px`;
     card.style.top = `${top}px`;

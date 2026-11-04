@@ -26,23 +26,36 @@ export function menuMove(key: string, index: number, enabled: readonly boolean[]
   }
 }
 
-/** Where a menu or hover card goes: below the anchor, flipped above or left to stay in the viewport. */
+/** A rectangle in viewport coordinates. */
+export interface Box {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
+/**
+ * Where a menu or hover card goes: below the anchor, flipped above when there is no room below. With
+ * `bounds` (the region it belongs to, such as the matrix's grid), it stays inside them: when it does not
+ * fit right of the anchor's left edge, it ends at the anchor's right edge instead, so it never covers
+ * what is beside the region (the matrix's side list).
+ */
 export function placePopup(input: {
-  readonly anchor: {
-    readonly left: number;
-    readonly right: number;
-    readonly top: number;
-    readonly bottom: number;
-  };
+  readonly anchor: Box;
   readonly size: { readonly width: number; readonly height: number };
   readonly viewport: { readonly width: number; readonly height: number };
   readonly align?: "start" | "end";
   readonly gap?: number;
+  readonly bounds?: Box;
 }): { left: number; top: number } {
   const gap = input.gap ?? 4;
   const { anchor, size, viewport } = input;
+  const area = input.bounds ?? { left: 0, top: 0, right: viewport.width, bottom: viewport.height };
+  const minLeft = Math.max(4, area.left + 4);
+  const maxRight = Math.min(viewport.width, area.right) - 4;
   let left = input.align === "end" ? anchor.right - size.width : anchor.left;
-  left = Math.max(4, Math.min(left, viewport.width - size.width - 4));
+  if (left + size.width > maxRight) left = input.bounds ? anchor.right - size.width : maxRight - size.width;
+  left = Math.max(minLeft, Math.min(left, maxRight - size.width));
   let top = anchor.bottom + gap;
   if (top + size.height > viewport.height - 4 && anchor.top - gap - size.height >= 4)
     top = anchor.top - gap - size.height;

@@ -59,3 +59,26 @@ export function revealRow(input: {
   if (top + input.rowHeight > input.scrollTop + visible) return Math.max(0, top + input.rowHeight - visible);
   return undefined;
 }
+
+/**
+ * The scrollLeft that shows a whole column of a horizontally scrolled grid: a column cut on the left
+ * snaps to its start (less `padding`), one cut on the right scrolls in until it ends at the edge. Positions
+ * are relative to the scrolling element's content. Undefined when the column is in view.
+ */
+export function snapColumn(input: {
+  readonly columnLeft: number;
+  readonly columnRight: number;
+  readonly scrollLeft: number;
+  readonly viewportWidth: number;
+  readonly padding?: number;
+}): number | undefined {
+  const padding = input.padding ?? 4;
+  const viewRight = input.scrollLeft + input.viewportWidth;
+  if (input.columnLeft < input.scrollLeft) return Math.max(0, input.columnLeft - padding);
+  if (input.columnRight > viewRight) {
+    const wanted = input.columnRight + padding - input.viewportWidth;
+    // A column wider than the view: its start wins.
+    return Math.max(0, Math.min(wanted, input.columnLeft - padding));
+  }
+  return undefined;
+}

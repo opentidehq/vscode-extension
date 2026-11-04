@@ -25,7 +25,7 @@ import {
 } from "../../../src/core/webview/kit/components";
 import { fingerprint, keyedPlan } from "../../../src/core/webview/kit/keyed";
 import { menuMove, placePopup } from "../../../src/core/webview/kit/menu";
-import { pageRows, revealRow, rowWindow } from "../../../src/core/webview/kit/virtual";
+import { pageRows, revealRow, rowWindow, snapColumn } from "../../../src/core/webview/kit/virtual";
 import {
   cx,
   findByClass,
@@ -416,6 +416,46 @@ describe("panels kit: virtual window, columns, keyed updates, menus", () => {
       }),
       { left: 10, top: 456 },
       "flipped above when there is no room below",
+    );
+  });
+
+  it("keeps a hover card inside its region: flipped to end at the anchor's right edge", () => {
+    const viewport = { width: 1600, height: 1000 };
+    const grid = { left: 360, right: 1240, top: 190, bottom: 940 };
+    // A cell in the grid's last visible column: right of its left edge there is no room in the grid.
+    const anchor = { left: 1050, right: 1215, top: 310, bottom: 360 };
+    const placed = placePopup({ anchor, size: { width: 280, height: 120 }, viewport, bounds: grid });
+    assert.equal(placed.left, 1215 - 280, "ends at the cell's right edge, off the side list");
+    assert.ok(placed.left + 280 <= grid.right);
+    // Room to the right: it starts at the anchor, as without bounds.
+    assert.equal(
+      placePopup({
+        anchor: { ...anchor, left: 400, right: 560 },
+        size: { width: 280, height: 120 },
+        viewport,
+        bounds: grid,
+      }).left,
+      400,
+    );
+  });
+
+  it("snaps a column cut on the left to its start, and scrolls one cut on the right in", () => {
+    assert.equal(
+      snapColumn({ columnLeft: 0, columnRight: 168, scrollLeft: 6, viewportWidth: 800 }),
+      0,
+      "a few pixels cut: back to 0",
+    );
+    assert.equal(snapColumn({ columnLeft: 344, columnRight: 512, scrollLeft: 350, viewportWidth: 800 }), 340);
+    assert.equal(snapColumn({ columnLeft: 700, columnRight: 868, scrollLeft: 0, viewportWidth: 800 }), 72);
+    assert.equal(
+      snapColumn({ columnLeft: 100, columnRight: 268, scrollLeft: 0, viewportWidth: 800 }),
+      undefined,
+      "in view",
+    );
+    assert.equal(
+      snapColumn({ columnLeft: 100, columnRight: 1100, scrollLeft: 50, viewportWidth: 800 }),
+      96,
+      "wider than the view: its start",
     );
   });
 });

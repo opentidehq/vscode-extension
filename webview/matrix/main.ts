@@ -13,6 +13,7 @@ import {
   spinner,
   toolbar,
 } from "../../src/core/webview/kit/components";
+import { snapColumn } from "../../src/core/webview/kit/virtual";
 import type {
   Cell,
   CellDetail,
@@ -84,7 +85,8 @@ const aside = h("aside", {
   class: "detail",
   attrs: { "aria-live": "polite", "aria-label": "Technique" },
 });
-const layout = h("div", { class: "layout" }, [h("div", { class: "matrix-scroll" }, [matrixElement]), aside]);
+const scroller = h("div", { class: "matrix-scroll" }, [matrixElement]);
+const layout = h("div", { class: "layout" }, [scroller, aside]);
 const unknown = h("div");
 const placeholder = h("div");
 replace(root, header, filters, progress, legendRegion, message, placeholder, layout, unknown);
@@ -581,7 +583,8 @@ function onHover(event: MouseEvent): void {
   );
   const cell = cellsById.get(element.dataset.id ?? "");
   if (!cell) return;
-  hoverCard(element, () => hoverContent(cell));
+  // Inside the grid's area: the card never covers the side list.
+  hoverCard(element, () => hoverContent(cell), { bounds: () => scroller.getBoundingClientRect() });
 }
 
 function hoverContent(cell: Cell): Node {
@@ -644,8 +647,21 @@ function focusCell(key: string | undefined): void {
   for (const other of matrixElement.querySelectorAll<HTMLElement>('.cell[tabindex="0"]')) other.tabIndex = -1;
   element.tabIndex = 0;
   element.focus({ preventScroll: true });
-  // Keep the cell in view inside the grid's own scroll area (both directions, below the sticky header).
+  // Keep the cell in view inside the grid's own scroll area: vertically below the sticky header, and
+  // horizontally with its whole column (a column cut by a few pixels reads "econnaissance").
   element.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const column = element.closest<HTMLElement>(".column");
+  if (column) {
+    const box = scroller.getBoundingClientRect();
+    const rect = column.getBoundingClientRect();
+    const left = snapColumn({
+      columnLeft: rect.left - box.left + scroller.scrollLeft,
+      columnRight: rect.right - box.left + scroller.scrollLeft,
+      scrollLeft: scroller.scrollLeft,
+      viewportWidth: scroller.clientWidth,
+    });
+    if (left !== undefined) scroller.scrollLeft = left;
+  }
   focused = key;
 }
 
@@ -829,7 +845,7 @@ addStyles(`
 #root { display: flex; flex-direction: column; height: calc(100vh - var(--ot-space-4)); }
 .layout { display: flex; gap: var(--ot-space-3); align-items: stretch; flex: 1; min-height: 320px; }
 .matrix-scroll { flex: 1; min-width: 0; overflow: auto; border: 1px solid var(--ot-border); border-radius: var(--ot-radius-2);
-  scroll-padding: 40px 8px 8px 8px; }
+  scroll-padding: 40px 4px 8px 4px; }
 .matrix { display: flex; gap: var(--ot-space-1); padding: 0 var(--ot-space-1) var(--ot-space-2); width: max-content; }
 .column { display: flex; flex-direction: column; gap: 3px; width: 168px; }
 .ot-kit .column-title { position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: 1fr auto; gap: 2px var(--ot-space-1);
