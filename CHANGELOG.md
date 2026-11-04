@@ -139,7 +139,8 @@ pre-releases odd ones.
 - `opentide` tasks (validate, lint, generate, deploy --dry-run, validate query, or any command in
   tasks.json) with the `$opentide` problem matcher.
 - Terminal:
-  - the bundled `opentide` goes on new terminals' PATH (`opentide.terminal.addToPath`);
+  - the bundled `opentide` goes on new terminals' PATH (`opentide.terminal.addToPath`), also when
+    the Windows user folder's name is not ASCII;
   - an "opentide" terminal profile;
   - links: UUIDs open the object, `error[code]` opens Explain.
 - The opentide MCP server for VS Code's agents, working on install with the bundled runtime

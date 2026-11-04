@@ -199,6 +199,33 @@ describe("runner launcher", () => {
     assert.equal(shQuote("a b"), "'a b'");
   });
 
+  it("reads a non-ASCII path in UTF-8 on Windows, and restores the code page and exit code", () => {
+    const command = "C:\\Users\\Jörg\\.vscode\\ext\\runtime\\python.exe";
+    const [file] = launcherFiles({ command, args: ["-I", "-m", "opentide"], env: { A: "1" } }, "win32");
+    const lines = file?.content.split("\r\n") ?? [];
+    const switchAt = lines.indexOf("chcp 65001 >nul");
+    const commandAt = lines.findIndex((line) => line.includes("Jörg"));
+    assert.ok(switchAt > 0 && switchAt < commandAt, "cmd.exe switches to UTF-8 before the path");
+    assert.ok(
+      lines.slice(0, switchAt).every((line) => /^[ -~]*$/.test(line)),
+      "ASCII before the switch",
+    );
+    assert.ok(
+      lines
+        .slice(0, switchAt)
+        .some((line) => line.includes("('chcp')") && line.includes("OPENTIDE_LAUNCHER_CP")),
+      "the console's code page is saved first",
+    );
+    assert.deepEqual(lines.slice(commandAt + 1), [
+      'set "OPENTIDE_LAUNCHER_STATUS=%ERRORLEVEL%"',
+      "if defined OPENTIDE_LAUNCHER_CP chcp %OPENTIDE_LAUNCHER_CP% >nul",
+      "exit /b %OPENTIDE_LAUNCHER_STATUS%",
+      "",
+    ]);
+    const [ascii] = launcherFiles({ command: "C:\\Users\\me\\python.exe", args: [], env: {} }, "win32");
+    assert.ok(!ascii?.content.includes("chcp"), "an ASCII launcher leaves the code page alone");
+  });
+
   it("leaves PATH and names that are not variables out of the script", () => {
     const [file] = launcherFiles(
       { command: "/x", args: [], env: { PATH: "/evil", "BAD NAME": "x", OK: "y" } },
