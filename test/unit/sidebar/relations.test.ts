@@ -11,6 +11,7 @@ import {
   OPEN_COMMAND,
   objectTooltip,
   relationsViewModel,
+  showOptions,
 } from "../../../src/features/sidebar/relationsModel";
 import { serverObjects } from "../catalog/serverFixture";
 import { ROOT, sampleCatalog, syntheticCatalog, UUID } from "../catalogFixture";
@@ -77,6 +78,21 @@ describe("Relations view", () => {
     assert.deepEqual(signal?.command?.args, [
       { file: `${ROOT}/objects/objectives/detect-lsass-access.yaml`, line: 2, signal: UUID.signal },
     ]);
+  });
+
+  it("opens a clicked row beside the followed editor and keeps the focus in the view", () => {
+    const file = "/ws/r.yaml";
+    assert.deepEqual(showOptions({ file, line: 0 }, 1), {
+      viewColumn: 2,
+      preserveFocus: true,
+      preview: true,
+    });
+    assert.deepEqual(showOptions({ file, line: 0 }, 9).viewColumn, 9);
+    assert.deepEqual(showOptions({ file, line: 0 }, undefined).viewColumn, -2);
+    assert.deepEqual(showOptions({ file, line: 0, inPlace: true }, 2).viewColumn, 2);
+    assert.deepEqual(showOptions({ file, line: 0, inPlace: true }, undefined).viewColumn, -1);
+    // Open to the Side moves the focus to the editor it opens.
+    assert.equal(showOptions({ file, line: 0, takeFocus: true }, 1).preserveFocus, false);
   });
 
   it("shows a signal's own relations, and a missing reference as missing", () => {

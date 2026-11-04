@@ -326,6 +326,31 @@ export interface RelationsOpen {
   readonly signal?: string;
   /** Open where the object already shows rather than beside (the header row). */
   readonly inPlace?: boolean;
+  /** Move the focus to the editor (Open to the Side); a row's click keeps it in the view. */
+  readonly takeFocus?: boolean;
+}
+
+/** VS Code's ViewColumn.Active and ViewColumn.Beside. */
+const ACTIVE_COLUMN = -1;
+const BESIDE_COLUMN = -2;
+
+/**
+ * How a Relations row opens: in the group beside the followed editor's (`followed`, a 1-based column),
+ * as a preview. A click keeps the focus in the view, so the arrow keys still move through the rows.
+ */
+export function showOptions(
+  open: RelationsOpen,
+  followed: number | undefined,
+): { viewColumn: number; preserveFocus: boolean; preview: boolean } {
+  const known = followed !== undefined && followed >= 1;
+  const viewColumn = open.inPlace
+    ? known
+      ? followed
+      : ACTIVE_COLUMN
+    : known
+      ? Math.min(9, followed + 1)
+      : BESIDE_COLUMN;
+  return { viewColumn, preserveFocus: !open.takeFocus, preview: true };
 }
 
 export const OPEN_COMMAND = "opentide.relations.open";

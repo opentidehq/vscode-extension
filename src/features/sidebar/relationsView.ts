@@ -23,6 +23,7 @@ import {
   type RelationsOpen,
   type RelationsState,
   relationsViewModel,
+  showOptions,
 } from "./relationsModel";
 import { NodeTree } from "./tree";
 
@@ -365,22 +366,15 @@ export class RelationsView implements vscode.Disposable {
     if (first) await this.tree.view.reveal(first, { select: false, focus: false, expand: false });
   }
 
-  /** The group rows open in: the one beside the editor the view follows. */
-  private besideColumn(): vscode.ViewColumn {
-    if (this.column === undefined || this.column < 1) return vscode.ViewColumn.Beside;
-    return Math.min(9, this.column + 1) as vscode.ViewColumn;
-  }
-
   private async open(open: RelationsOpen | undefined): Promise<void> {
     if (!open?.file) return;
     const uri = vscode.Uri.file(open.file);
-    const viewColumn = open.inPlace ? (this.column ?? vscode.ViewColumn.Active) : this.besideColumn();
+    const options = showOptions(open, this.column);
     if (!open.inPlace) this.opening = uri.fsPath;
     const position = new vscode.Position(open.line, 0);
     const editor = await vscode.window.showTextDocument(uri, {
-      viewColumn,
-      preserveFocus: false,
-      preview: true,
+      ...options,
+      viewColumn: options.viewColumn as vscode.ViewColumn,
       selection: new vscode.Range(position, position),
     });
     if (open.signal) this.revealText(editor, open.signal);
@@ -404,7 +398,7 @@ export class RelationsView implements vscode.Disposable {
     const ref = refOf(arg);
     if (ref?.kind !== "object") return;
     const line = node?.open?.line ?? 0;
-    if (node?.id.startsWith("rel:")) return this.open({ file: ref.file, line });
+    if (node?.id.startsWith("rel:")) return this.open({ file: ref.file, line, takeFocus: true });
     const position = new vscode.Position(line, 0);
     await vscode.window.showTextDocument(vscode.Uri.file(ref.file), {
       viewColumn: vscode.ViewColumn.Beside,
