@@ -28,14 +28,7 @@ import {
 } from "../../src/features/graph/expand";
 import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg, truncate } from "../../src/features/graph/export";
 import { SelectionHistory } from "../../src/features/graph/history";
-import {
-  bounds,
-  HUGE_LAYOUT,
-  layout,
-  NODE_BOX,
-  type Point,
-  stabilize,
-} from "../../src/features/graph/layout";
+import { bounds, largeView, layout, NODE_BOX, type Point, stabilize } from "../../src/features/graph/layout";
 import {
   describe,
   keptFocus,
@@ -580,6 +573,8 @@ function stylesheet(large: boolean): cytoscape.StylesheetJson {
 
 function ensureCanvas(large: boolean): cytoscape.Core {
   if (cy && cyLarge === large) return cy;
+  // A canvas made again (the view crossed the large-view threshold) keeps the user's zoom and pan.
+  const viewport = cy ? { zoom: cy.zoom(), pan: { ...cy.pan() } } : undefined;
   if (cy) {
     cy.destroy();
     cy = undefined;
@@ -598,6 +593,7 @@ function ensureCanvas(large: boolean): cytoscape.Core {
     hideEdgesOnViewport: large,
     motionBlur: false,
     ...(large ? { pixelRatio: 1 } : {}),
+    ...(viewport ?? {}),
   });
   core.on("tap", "node", (event) => {
     hideOverlays();
@@ -830,7 +826,7 @@ function drawCanvas(fit: boolean, grown: readonly string[], growFrom: string | u
   stateBox.hidden = true;
   list.hidden = true;
   canvas.hidden = false;
-  const large = view.nodes.length > HUGE_LAYOUT;
+  const large = largeView(view.nodes.length, cyLarge);
   const started = performance.now();
   const core = ensureCanvas(large);
   core.resize();
@@ -2116,7 +2112,7 @@ function exportGraph(format: ExportFormat): void {
   const colors = palette();
   if (format === "png") {
     if (settings.list) drawCanvas(true, [], undefined);
-    const core = ensureCanvas(view.nodes.length > HUGE_LAYOUT);
+    const core = ensureCanvas(largeView(view.nodes.length, cyLarge));
     const png = core.png({
       output: "base64",
       full: true,
