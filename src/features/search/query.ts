@@ -182,7 +182,8 @@ export function parseQuery(text: string): ParsedQuery {
     const key = colon > 0 ? body.slice(0, colon).toLowerCase() : "";
     const after = body.charAt(colon + 1);
     if (!key || !/^[a-z]+$/.test(key) || after === ":" || after === "/") {
-      if (token.startsWith("-") && token.length > 1 && colon < 0) excluded.push(token.slice(1).toLowerCase());
+      // A leading `-` excludes text with colons too: `-sekurlsa::logonpasswords`, `-http://x`.
+      if (token.startsWith("-") && token.length > 1) excluded.push(token.slice(1).toLowerCase());
       else words.push(token.toLowerCase());
       continue;
     }

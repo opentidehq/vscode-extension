@@ -78,6 +78,13 @@ describe("search query", () => {
     assert.deepEqual(parseQuery("-").words, ["-"]);
   });
 
+  it("excludes text with colons with a leading dash too", () => {
+    const query = parseQuery("mimikatz -sekurlsa::logonpasswords -http://evil.example -T1003.001");
+    assert.deepEqual(query.words, ["mimikatz"]);
+    assert.deepEqual(query.excluded, ["sekurlsa::logonpasswords", "http://evil.example", "t1003.001"]);
+    assert.deepEqual(query.filters, []);
+  });
+
   it("keeps technique ids, UUIDs and paths as text", () => {
     assert.deepEqual(parseQuery("T1003.001 4444-aaaa objects/rules/x.yaml").words, [
       "t1003.001",
