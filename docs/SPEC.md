@@ -249,13 +249,13 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Resolution (revises #3)
 
-The first tier that answers wins:
+The first tier that answers wins, in the order 1, 2, 3, 4, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
 
 | Tier | Source | Trust | Features |
 |-----:|--------|-------|----------|
 | 1 | `opentide.path`: an `opentide` executable (`lsp start`), or an `opentide-lsp` executable (`--stdio`, editor features only) | Trusted only | All, or editor only for `opentide-lsp` |
 | 2 | The workspace's environment: Python Environments API, else the Python extension API, else `.venv`, else `PATH`. Re-resolved on `onDidChangeEnvironment` | Trusted only | All |
-| 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in**: offered when the repository pins a version the bundled runtime does not match | Trusted only | All |
+| 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in** (`opentide.uv.usePin`, then tried before tier 2): offered when the repository pins a version the bundled runtime does not match | Trusted only | All |
 | 4 | **The bundled runtime** | Always; the only tier in Restricted Mode | All when trusted; the language server only in Restricted Mode |
 
 - **Minimum versions:** tiers 1–3 must be an opentide released after opentide#734. An older one is refused with the upgrade command, and tier 4 takes over.
