@@ -12,7 +12,7 @@ import {
 import type { FeatureContext } from "../../core/context";
 import { debounce } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
-import { ServerCatalogCache, type ServerFetch } from "./relationsFlow";
+import { FollowGuard, ServerCatalogCache, type ServerFetch } from "./relationsFlow";
 import {
   graphFromCatalog,
   graphFromServer,
@@ -71,8 +71,8 @@ export class RelationsView implements vscode.Disposable {
   private navigating = false;
   /** The editor group the target shows in: rows open in the group beside it. */
   private column: vscode.ViewColumn | undefined;
-  /** A file a row click is opening: the view does not follow the editor it opened itself. */
-  private opening: string | undefined;
+  /** The view does not follow the editor one of its rows opened. */
+  private readonly guard = new FollowGuard();
   private readonly server = new ServerCatalogCache<unknown>();
   private notification: vscode.Disposable | undefined;
   private renders = 0;
@@ -107,7 +107,10 @@ export class RelationsView implements vscode.Disposable {
   private wire(): void {
     const ctx = this.ctx;
     this.disposables.push(
-      vscode.window.onDidChangeActiveTextEditor(() => this.follow()),
+      vscode.window.onDidChangeActiveTextEditor(() => {
+        this.guard.editorChanged();
+        this.follow();
+      }),
       ctx.catalog.onDidChange(() => {
         this.renderSoon();
         this.lensSoon();
@@ -136,12 +139,7 @@ export class RelationsView implements vscode.Disposable {
   private followEditor(): void {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
-    const file = editor.document.uri.fsPath;
-    if (this.opening && this.opening === file) {
-      this.opening = undefined;
-      return;
-    }
-    this.opening = undefined;
+    if (!this.guard.shouldFollow(editor.document.uri.fsPath)) return;
     if (this.pinned) return;
     this.retargetFromEditor(editor);
   }
@@ -370,13 +368,14 @@ export class RelationsView implements vscode.Disposable {
     if (!open?.file) return;
     const uri = vscode.Uri.file(open.file);
     const options = showOptions(open, this.column);
-    if (!open.inPlace) this.opening = uri.fsPath;
+    const token = open.inPlace ? undefined : this.guard.open(uri.fsPath);
     const position = new vscode.Position(open.line, 0);
     const editor = await vscode.window.showTextDocument(uri, {
       ...options,
       viewColumn: options.viewColumn as vscode.ViewColumn,
       selection: new vscode.Range(position, position),
     });
+    if (token !== undefined) this.guard.opened(token);
     if (open.signal) this.revealText(editor, open.signal);
   }
 

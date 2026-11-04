@@ -36,3 +36,35 @@ export class ServerCatalogCache<C> {
     this.entry = undefined;
   }
 }
+
+/**
+ * The view follows the active editor, but not to an object one of its own rows just opened. A row
+ * opening a file that is already active in that group changes no editor, so nothing is left to skip.
+ */
+export class FollowGuard {
+  private opening: string | undefined;
+  private changes = 0;
+
+  /** The active editor changed (`onDidChangeActiveTextEditor`, before any debounce). */
+  editorChanged(): void {
+    this.changes += 1;
+  }
+
+  /** A row starts opening `file`; pass the token to `opened` when the editor shows it. */
+  open(file: string): number {
+    this.opening = file;
+    return this.changes;
+  }
+
+  /** The row's editor shows; if no editor change came of it, there is none to skip. */
+  opened(token: number): void {
+    if (this.changes === token) this.opening = undefined;
+  }
+
+  /** Whether to follow the editor that now shows `file`. */
+  shouldFollow(file: string): boolean {
+    const skip = this.opening === file;
+    this.opening = undefined;
+    return !skip;
+  }
+}

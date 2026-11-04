@@ -1,5 +1,9 @@
 import * as assert from "node:assert/strict";
-import { ServerCatalogCache, type ServerFetch } from "../../../src/features/sidebar/relationsFlow";
+import {
+  FollowGuard,
+  ServerCatalogCache,
+  type ServerFetch,
+} from "../../../src/features/sidebar/relationsFlow";
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -48,6 +52,34 @@ describe("Relations view bookkeeping", () => {
       await settle();
       await cache.get("a", unsupported);
       assert.equal(asked, 1);
+    });
+  });
+
+  describe("following the editor", () => {
+    it("skips the editor a row opened, once", () => {
+      const guard = new FollowGuard();
+      const token = guard.open("/ws/o.yaml");
+      guard.editorChanged();
+      guard.opened(token);
+      assert.equal(guard.shouldFollow("/ws/o.yaml"), false);
+      assert.equal(guard.shouldFollow("/ws/o.yaml"), true);
+    });
+
+    it("skips nothing after a row opened a file that was already active there", () => {
+      const guard = new FollowGuard();
+      guard.opened(guard.open("/ws/o.yaml"));
+      // Later the user really switches to that file: the view follows.
+      guard.editorChanged();
+      assert.equal(guard.shouldFollow("/ws/o.yaml"), true);
+    });
+
+    it("follows another editor at once, and forgets the opened one", () => {
+      const guard = new FollowGuard();
+      const token = guard.open("/ws/o.yaml");
+      guard.editorChanged();
+      guard.opened(token);
+      assert.equal(guard.shouldFollow("/ws/other.yaml"), true);
+      assert.equal(guard.shouldFollow("/ws/o.yaml"), true);
     });
   });
 });
