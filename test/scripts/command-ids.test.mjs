@@ -65,7 +65,7 @@ export function unknownCommands(files, contributes) {
     const named = new RegExp(String.raw`(?:executeCommand(?:<[^>]*>)?\(|\bcommand:)\s*(${CONST})\b`, "g");
     for (const m of text.matchAll(named)) check(name, text, m.index, constants.get(m[1])?.id);
     // A `…COMMANDS` table of ids (`newRule: "opentide.newObject.ruleForObjective"`).
-    const table = new RegExp(String.raw`\b[A-Z0-9_]*COMMANDS\b[^=;]*=\s*\{([^}]*)\}`, "g");
+    const table = /\b[A-Z0-9_]*COMMANDS\b[^=;]*=\s*\{([^}]*)\}/g;
     for (const m of text.matchAll(table))
       for (const id of m[1].matchAll(new RegExp(`"(${ID})"`, "g"))) check(name, text, m.index, id[1]);
   }

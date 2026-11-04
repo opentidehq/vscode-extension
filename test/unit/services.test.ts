@@ -79,6 +79,47 @@ describe("credential store", () => {
   });
 });
 
+describe("credential store: values stored before they had a namespace", () => {
+  const legacy = () => {
+    const map = new Map<string, string>();
+    const storage = {
+      map,
+      get: async (k: string) => map.get(k),
+      store: async (k: string, v: string) => void map.set(k, v),
+      delete: async (k: string) => void map.delete(k),
+    };
+    return { map, storage };
+  };
+
+  it("does not list an old `$index` whose value the index overwrote, so it is asked for again", async () => {
+    const { map, storage } = legacy();
+    const store = new CredentialStore(storage);
+    await store.set("/ws", "A", "alpha");
+    const prefix = [...map.keys()][0]?.replace(/\.var\.A$/, "") ?? "";
+    // The old scheme: `set("index", v)` stored v at <prefix>.index, then the index over it.
+    map.set(`${prefix}.index`, JSON.stringify(["A", "index"]));
+    assert.deepEqual(await store.names("/ws"), ["A"], "no value: not shown as stored");
+    assert.deepEqual(await store.env("/ws"), { A: "alpha" });
+    await store.set("/ws", "index", "new-value");
+    assert.deepEqual(await store.names("/ws"), ["A", "index"]);
+    assert.deepEqual(await store.env("/ws"), { A: "alpha", index: "new-value" });
+  });
+
+  it("drops a value's old-scheme key when it is stored again", async () => {
+    const { map, storage } = legacy();
+    const store = new CredentialStore(storage);
+    await store.set("/ws", "A", "alpha");
+    const prefix = [...map.keys()][0]?.replace(/\.var\.A$/, "") ?? "";
+    map.set(`${prefix}.TOKEN`, "old");
+    map.set(`${prefix}.index`, JSON.stringify(["A", "TOKEN"]));
+    assert.equal(await store.get("/ws", "TOKEN"), "old", "still read");
+    await store.set("/ws", "TOKEN", "new");
+    assert.equal(map.has(`${prefix}.TOKEN`), false);
+    assert.equal(await store.get("/ws", "TOKEN"), "new");
+    assert.ok(map.has(`${prefix}.index`), "the index stays");
+  });
+});
+
 describe("opentide folders", () => {
   it("is a folder with .opentide/ or objects/", () => {
     const root = mkdtempSync(path.join(tmpdir(), "otide-f-"));
