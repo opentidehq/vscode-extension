@@ -14,6 +14,7 @@ import { forkTarget, mergeMcpEntry } from "./forks";
 import {
   decideMcp,
   entryUsable,
+  environmentLookup,
   MCP_FILES,
   MCP_PROVIDER_ID,
   McpDecisionLog,
@@ -92,6 +93,7 @@ async function workspaceEntries(): Promise<WorkspaceEntry[]> {
     isAbsolute: (file: string) => path.isAbsolute(file),
     exists: (file: string) => fs.existsSync(file),
     which: (name: string) => which(name, process.env.PATH, process.platform),
+    env: environmentLookup(process.env, process.platform),
   };
   const files = workspaceMcpFiles(vscode.workspace.getConfiguration("chat.mcp").get("discovery.enabled"));
   const folders = vscode.workspace.workspaceFolders ?? [];
@@ -111,7 +113,7 @@ async function workspaceEntries(): Promise<WorkspaceEntry[]> {
       entries.push({
         file: `${folder.name}/${file.segments.join("/")}`,
         command,
-        usable: entryUsable(command, lookup),
+        usable: entryUsable(command, lookup, file.expansion),
       });
     }
   }

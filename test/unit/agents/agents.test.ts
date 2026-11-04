@@ -9,6 +9,8 @@ import {
   decideMcp,
   definesOpentide,
   entryUsable,
+  environmentLookup,
+  expandEnvironment,
   MCP_LABEL,
   MCP_SEPARATE_LABEL,
   McpDecisionLog,
@@ -248,6 +250,50 @@ describe("agents: MCP server", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: a VS Code variable, not a template
     assert.equal(entryUsable("${workspaceFolder}/.venv/bin/opentide", lookup([])), true);
     assert.equal(entryUsable(null, lookup([])), true);
+  });
+
+  it("expands only what VS Code expands in each file before checking the command", () => {
+    const lookup = (env: Record<string, string>, files: string[] = []) => ({
+      isAbsolute: (file: string) => file.startsWith("/"),
+      exists: (file: string) => files.includes(file),
+      which: () => undefined,
+      env: environmentLookup(env, "linux"),
+    });
+    const project = ["$", "{CLAUDE_PROJECT_DIR}/.venv/bin/opentide"].join("");
+    const folder = ["$", "{workspaceFolder}/.venv/bin/opentide"].join("");
+    // .vscode/mcp.json: VS Code's variable resolver handles both.
+    assert.equal(entryUsable(folder, lookup({}), "variables"), true);
+    // .mcp.json: only `${VAR}` from VS Code's environment; CLAUDE_PROJECT_DIR is Claude Code's, unset here.
+    assert.equal(entryUsable(project, lookup({}), "environment"), false);
+    assert.equal(entryUsable(folder, lookup({}), "environment"), false, "no workspaceFolder variable");
+    const venv = "/p/.venv/bin/opentide";
+    assert.equal(entryUsable(project, lookup({ CLAUDE_PROJECT_DIR: "/p" }, [venv]), "environment"), true);
+    assert.equal(entryUsable(project, lookup({ CLAUDE_PROJECT_DIR: "/p" }), "environment"), false);
+    // .cursor/mcp.json: nothing is expanded.
+    assert.equal(entryUsable(folder, lookup({}), "none"), false);
+    assert.equal(entryUsable(project, lookup({ CLAUDE_PROJECT_DIR: "/p" }, [venv]), "none"), false);
+    assert.equal(entryUsable(null, lookup({}), "none"), true, "a URL server");
+  });
+
+  it("expands VAR and VAR-with-a-default references as VS Code's root .mcp.json does", () => {
+    const ref = (body: string) => ["$", "{", body, "}"].join("");
+    const env = environmentLookup({ HOME: "/h", EMPTY: "" }, "linux");
+    assert.equal(expandEnvironment(`${ref("HOME")}/bin`, env), "/h/bin");
+    assert.equal(expandEnvironment(`${ref("NOPE")}/bin`, env), `${ref("NOPE")}/bin`, "unset: as written");
+    assert.equal(expandEnvironment(ref("NOPE:-/opt/x"), env), "/opt/x");
+    assert.equal(expandEnvironment(ref("EMPTY:-/opt/x"), env), "", "set but empty: empty, not the default");
+    assert.equal(
+      expandEnvironment(ref(`NOPE:-${ref("HOME")}`), env),
+      ref("HOME"),
+      "a default is not expanded",
+    );
+    assert.equal(expandEnvironment("$HOME/bin", env), "$HOME/bin", "bare $VAR stays literal");
+    assert.equal(expandEnvironment(ref("env:HOME"), env), ref("env:HOME"));
+    assert.equal(expandEnvironment(`${ref("HOME")}${ref("HOME")}`, env), "/h/h");
+    const windows = environmentLookup({ Path: "C:\\bin", CLAUDE_PROJECT_DIR: "C:\\p" }, "win32");
+    assert.equal(windows("PATH"), "C:\\bin", "without case on Windows");
+    assert.equal(windows("claude_project_dir"), "C:\\p");
+    assert.equal(environmentLookup({ Path: "x" }, "linux")("PATH"), undefined);
   });
 
   it("finds an entry's `opentide.exe` on a Windows PATH, so the server is not provided twice", () => {

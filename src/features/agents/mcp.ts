@@ -43,8 +43,20 @@ export function provideMode(value: unknown): ProvideMode {
  */
 export type McpFileKind = "vscode" | "root" | "cursor";
 
+/**
+ * What VS Code does with `${…}` in a server's command before it spawns it:
+ * - `variables`: `.vscode/mcp.json` goes through VS Code's variable resolver (`${workspaceFolder}`,
+ *   `${env:X}`, `${input:x}`), assumed to resolve;
+ * - `environment`: the root `.mcp.json` gets only `${VAR}` and `${VAR:-default}` from VS Code's own
+ *   environment (its `environmentVariableExpansion`, envVarResolution.ts), an unset one left as written;
+ *   `${workspaceFolder}` is such a reference too, to a variable that is not set;
+ * - `none`: `.cursor/mcp.json` gets nothing: a `${` is part of the path.
+ */
+export type Expansion = "variables" | "environment" | "none";
+
 export interface McpFile {
   readonly kind: McpFileKind;
+  readonly expansion: Expansion;
   /** The path under the folder. */
   readonly segments: readonly string[];
   /** The watcher's glob. */
@@ -53,9 +65,14 @@ export interface McpFile {
 
 /** In VS Code's priority order: `.vscode/mcp.json` (order 0) before the other two (order 1). */
 export const MCP_FILES: readonly McpFile[] = [
-  { kind: "vscode", segments: [".vscode", "mcp.json"], glob: "**/.vscode/mcp.json" },
-  { kind: "root", segments: [".mcp.json"], glob: "**/.mcp.json" },
-  { kind: "cursor", segments: [".cursor", "mcp.json"], glob: "**/.cursor/mcp.json" },
+  {
+    kind: "vscode",
+    expansion: "variables",
+    segments: [".vscode", "mcp.json"],
+    glob: "**/.vscode/mcp.json",
+  },
+  { kind: "root", expansion: "environment", segments: [".mcp.json"], glob: "**/.mcp.json" },
+  { kind: "cursor", expansion: "none", segments: [".cursor", "mcp.json"], glob: "**/.cursor/mcp.json" },
 ];
 
 /**
@@ -120,18 +137,86 @@ export interface CommandLookup {
   exists(file: string): boolean;
   /** The command found on the PATH VS Code starts MCP servers with, or undefined. */
   which(name: string): string | undefined;
+  /** A variable of VS Code's environment ({@link environmentLookup}); none when omitted. */
+  env?(name: string): string | undefined;
+}
+
+/** `name` in `env`, without case on Windows as `process.env` reads it there. */
+export function environmentLookup(
+  env: Readonly<Record<string, string | undefined>>,
+  platform: NodeJS.Platform,
+): (name: string) => string | undefined {
+  if (platform !== "win32") return (name) => env[name];
+  return (name) => {
+    const key = Object.keys(env).find((k) => k.toUpperCase() === name.toUpperCase());
+    return key === undefined ? undefined : env[key];
+  };
 }
 
 /**
- * Whether VS Code can start the workspace entry's command: an absolute path that exists, a name on PATH,
- * or one with `${…}` variables VS Code resolves itself. `setup mcp --vscode` writes `opentide`, which a
- * user with only the bundled runtime does not have.
+ * `${VAR}` and `${VAR:-default}` in `value` replaced as VS Code does for the root `.mcp.json`: a set
+ * variable gives its value (an empty one too), an unset one its default, else the reference stays as
+ * written. The default ends at its matching `}` and is not expanded again. Bare `$VAR` stays literal.
  */
-export function entryUsable(command: string | null, lookup: CommandLookup): boolean {
-  if (command === null || command.includes("${")) return true;
-  if (lookup.isAbsolute(command)) return lookup.exists(command);
-  if (/[\\/]/.test(command)) return true;
-  return lookup.which(command) !== undefined;
+export function expandEnvironment(value: string, env: (name: string) => string | undefined): string {
+  let out = "";
+  let i = 0;
+  while (i < value.length) {
+    const name = value.startsWith("${", i) ? /^[A-Za-z_][A-Za-z0-9_]*/.exec(value.slice(i + 2)) : null;
+    if (!name) {
+      out += value[i];
+      i++;
+      continue;
+    }
+    let j = i + 2 + name[0].length;
+    let fallback: string | undefined;
+    if (value.startsWith(":-", j)) {
+      let depth = 0;
+      let k = j + 2;
+      for (; k < value.length; k++) {
+        if (value.startsWith("${", k)) {
+          depth++;
+          k++;
+        } else if (value[k] === "}") {
+          if (depth === 0) break;
+          depth--;
+        }
+      }
+      fallback = value.slice(j + 2, k);
+      j = k;
+    }
+    if (value[j] !== "}") {
+      out += value[i];
+      i++;
+      continue;
+    }
+    const set = env(name[0]);
+    out += set ?? fallback ?? value.slice(i, j + 1);
+    i = j + 1;
+  }
+  return out;
+}
+
+/**
+ * Whether VS Code can start a workspace entry's command: an absolute path that exists, a name on PATH,
+ * or (in `.vscode/mcp.json`) one with `${…}` variables VS Code resolves itself. `setup mcp` writes
+ * `opentide`, which a user with only the bundled runtime does not have. In the root `.mcp.json` only
+ * environment references are expanded first, and in `.cursor/mcp.json` nothing is: a `${` left in the
+ * command is spawned as written, so it counts only as an absolute path that exists.
+ */
+export function entryUsable(
+  command: string | null,
+  lookup: CommandLookup,
+  expansion: Expansion = "variables",
+): boolean {
+  if (command === null) return true;
+  if (expansion === "variables" && command.includes("${")) return true;
+  const spawned =
+    expansion === "environment" ? expandEnvironment(command, lookup.env ?? (() => undefined)) : command;
+  if (lookup.isAbsolute(spawned)) return lookup.exists(spawned);
+  if (spawned.includes("${")) return false;
+  if (/[\\/]/.test(spawned)) return true;
+  return lookup.which(spawned) !== undefined;
 }
 
 export interface McpServerPlan {
