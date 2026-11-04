@@ -115,3 +115,67 @@ export class ModelSender {
     this.sent = undefined;
   }
 }
+
+/** What the webview does with a `data` message's model part. */
+export type Received =
+  /** A new or changed model to draw; `first`: the webview had none. */
+  | { readonly kind: "model"; readonly model: GraphModel; readonly first: boolean }
+  /** The model it has is the host's: only the status may have changed. */
+  | { readonly kind: "same" }
+  /** It lost track (a missed or out-of-order message): ask the host for the whole model. */
+  | { readonly kind: "resync" }
+  /** The host's status is not `ready`: the model is gone. */
+  | { readonly kind: "cleared" };
+
+/**
+ * The webview's end of ModelSender: the model and revision it holds. A patch applies only to the
+ * revision it was made from, and a message without a model or patch only confirms the revision held;
+ * anything else is a resync, so the webview never claims a revision whose model it does not have.
+ */
+export class ModelReceiver {
+  private held: GraphModel | undefined;
+  private at: number | undefined;
+
+  get model(): GraphModel | undefined {
+    return this.held;
+  }
+
+  get revision(): number | undefined {
+    return this.at;
+  }
+
+  receive(data: {
+    readonly status: string;
+    readonly model?: GraphModel;
+    readonly patch?: ModelPatch;
+    readonly revision?: number;
+  }): Received {
+    if (data.status !== "ready") {
+      this.clear();
+      return { kind: "cleared" };
+    }
+    const first = this.held === undefined;
+    if (data.model) {
+      this.held = data.model;
+      this.at = data.revision;
+      return { kind: "model", model: data.model, first };
+    }
+    if (data.patch) {
+      if (!this.held || this.at !== data.patch.from) return this.lost();
+      this.held = applyPatch(this.held, data.patch);
+      this.at = data.patch.to;
+      return { kind: "model", model: this.held, first: false };
+    }
+    if (this.held && data.revision !== undefined && data.revision === this.at) return { kind: "same" };
+    return this.lost();
+  }
+
+  private lost(): Received {
+    return { kind: "resync" };
+  }
+
+  clear(): void {
+    this.held = undefined;
+    this.at = undefined;
+  }
+}

@@ -7,7 +7,7 @@ import cytoscape from "cytoscape";
 import { NODE_ACTION_LABELS, type NodeAction, nodeActions } from "../../src/features/graph/actions";
 import { canvasColor } from "../../src/features/graph/colors";
 import { DetailsIndex, type NodeDetails } from "../../src/features/graph/details";
-import { applyPatch } from "../../src/features/graph/diff";
+import { ModelReceiver } from "../../src/features/graph/diff";
 import {
   DIM_CLASS,
   DIM_LIMIT,
@@ -140,7 +140,8 @@ const save = (): void => vscodeApi().setState(settings);
 
 let data: GraphData | undefined;
 let model: GraphModel | undefined;
-let revision: number | undefined;
+/** The model this page holds, and its revision (see ModelSender). */
+const receiver = new ModelReceiver();
 let problems: ProblemMap = {};
 let mode: GraphMode | undefined;
 let focus: string[] = [];
@@ -1209,7 +1210,7 @@ function renderDetails(): void {
       : [],
     problems[selected ?? ""],
     hiddenBy,
-    revision,
+    receiver.revision,
   ]);
   if (key === paneKey) return;
   paneKey = key;
@@ -2152,38 +2153,29 @@ function setModel(next: GraphModel): void {
 
 channel.on("data", (next) => {
   data = next;
-  if (next.status !== "ready") {
-    model = undefined;
-    revision = undefined;
-    detailsIndex = undefined;
-    updateToolbar();
-    showData(next);
-    progress.classList.toggle("active", next.refreshing || next.status === "loading");
-    return;
-  }
-  const first = !model;
-  if (!next.model && !next.patch && model && revision === next.revision) {
-    // The same model (a refresh started or ended): the status line only.
-    updateStatus();
-    return;
-  }
-  if (next.model) {
-    setModel(next.model);
-  } else if (next.patch) {
-    if (!model || revision !== next.patch.from) {
-      // Lost track (a reload, a dropped message): ask for the whole model.
+  const received = receiver.receive(next);
+  switch (received.kind) {
+    case "cleared":
+      model = undefined;
+      detailsIndex = undefined;
+      updateToolbar();
+      showData(next);
+      progress.classList.toggle("active", next.refreshing || next.status === "loading");
+      return;
+    case "resync":
+      // Lost track (a reload, a dropped or reordered message): ask for the whole model.
       channel.post("resync", undefined);
       return;
-    }
-    setModel(applyPatch(model, next.patch));
-  } else if (!model) {
-    channel.post("resync", undefined);
-    return;
+    case "same":
+      // The same model (a refresh started or ended): the status line only.
+      updateStatus();
+      return;
+    case "model":
+      setModel(received.model);
+      if (received.first && !mode) mode = initialMode(received.model, focus.length > 0);
+      if (received.first) renderLegend();
+      render({ fit: received.first });
   }
-  revision = next.revision;
-  if (first && !mode) mode = initialMode(next.model ?? (model as GraphModel), focus.length > 0);
-  if (first) renderLegend();
-  render({ fit: first });
 });
 
 /** Other features' node actions this window has (validate, run query, preview deploy, new …). */

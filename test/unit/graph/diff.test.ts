@@ -1,5 +1,11 @@
 import * as assert from "node:assert/strict";
-import { applyPatch, diffModels, ModelSender, patchSize } from "../../../src/features/graph/diff";
+import {
+  applyPatch,
+  diffModels,
+  ModelReceiver,
+  ModelSender,
+  patchSize,
+} from "../../../src/features/graph/diff";
 import { buildModel, type GraphModel } from "../../../src/features/graph/model";
 import { outgoingData } from "../../../src/features/graph/state";
 import { object, sampleCatalog, syntheticCatalog, UUID } from "../catalogFixture";
@@ -83,5 +89,57 @@ describe("graph model patches", () => {
     assert.equal(patchSize(patch), 1);
     assert.ok(JSON.stringify(patch).length < 2000, "the message is small");
     assert.ok(took < 500, `the diff took ${Math.round(took)} ms`);
+  });
+});
+
+describe("graph model patches: the webview's end", () => {
+  const model = buildModel(sampleCatalog());
+  const ready = { status: "ready" };
+
+  it("takes the whole model, then patches in order", () => {
+    const sender = new ModelSender();
+    const receiver = new ModelReceiver();
+    const first = sender.next(model);
+    assert.equal(first.kind, "full");
+    const got = receiver.receive({ ...ready, model, revision: first.revision });
+    assert.equal(got.kind, "model");
+    assert.equal(got.kind === "model" && got.first, true);
+    const next = renamed(model, UUID.rule, "Renamed");
+    const patched = sender.next(next);
+    assert.equal(patched.kind, "patch");
+    if (patched.kind !== "patch") return;
+    const applied = receiver.receive({ ...ready, patch: patched.patch, revision: patched.revision });
+    assert.equal(applied.kind, "model");
+    assert.deepEqual(receiver.model, next);
+    assert.equal(receiver.revision, patched.revision);
+    assert.equal(receiver.receive({ ...ready, revision: patched.revision }).kind, "same");
+  });
+
+  it("asks for the whole model for a patch out of order, and keeps what it has", () => {
+    const receiver = new ModelReceiver();
+    receiver.receive({ ...ready, model, revision: 1 });
+    const skipped = diffModels(model, renamed(model, UUID.rule, "R"), 2, 3);
+    assert.equal(receiver.receive({ ...ready, patch: skipped, revision: 3 }).kind, "resync");
+    assert.equal(receiver.revision, 1, "it does not claim revision 3");
+    assert.equal(receiver.model, model);
+  });
+
+  it("asks for the whole model when a message names a revision it has no payload for", () => {
+    const receiver = new ModelReceiver();
+    receiver.receive({ ...ready, model, revision: 1 });
+    // A model or patch lost on the way, then a status-only message at the host's new revision.
+    assert.equal(receiver.receive({ ...ready, revision: 2 }).kind, "resync");
+    assert.equal(receiver.revision, 1, "it still says it holds revision 1");
+    assert.equal(new ModelReceiver().receive({ ...ready, revision: 1 }).kind, "resync", "no model yet");
+  });
+
+  it("drops its model when the host is not ready, and takes a resent model after a resync", () => {
+    const receiver = new ModelReceiver();
+    receiver.receive({ ...ready, model, revision: 1 });
+    assert.equal(receiver.receive({ status: "loading" }).kind, "cleared");
+    assert.equal(receiver.model, undefined);
+    const again = receiver.receive({ ...ready, model, revision: 5 });
+    assert.equal(again.kind === "model" && again.first, true);
+    assert.equal(receiver.revision, 5);
   });
 });
