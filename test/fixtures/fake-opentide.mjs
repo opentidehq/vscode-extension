@@ -2,8 +2,14 @@
 // A fake `opentide` for tests: `--version`, `--json <command>` and `serve` (CONTRACTS.md).
 // FAKE_VERSION sets the version; FAKE_NO_SERVE=1 leaves `serve` out of `commands`; FAKE_LINT_FILE=1 adds
 // `lint --file` (opentide#755); FAKE_INFO_CATALOG=1 adds `info catalog`; FAKE_TENANTS=1 adds tenants to
-// `info` (opentide#754); FAKE_SETUP_PLAN=1 adds `setup --plan` and its flags (opentide#751).
+// `info` (opentide#754); FAKE_SETUP_PLAN=1 adds `setup --plan` and its flags (opentide#751);
+// FAKE_DEPLOY_SELECT=1 adds `deploy --uuid/--file` (opentide#753).
 // `validate`, `lint`, `explain`, `new`, `info`, `doctor` and `setup …` follow the real shapes.
+// Panels (query, deploy plan, matrix): `info catalog` with FAKE_CATALOG_FIXTURE=1 prints panels/catalog.json;
+// `query` answers per tenant (FAKE_QUERY_TENANTS, default "prod"; a tenant named "dev" fails with 403;
+// FAKE_QUERY_DELAY_MS waits, cancellably); `deploy --dry-run` prints panels/deploy-dry-run.json, and
+// `deploy` without --dry-run fails with `fake_real_deploy`; `generate exports navigator` reports its layer
+// file. FAKE_INFO_PLAIN=1 makes `info` with no section a usage error.
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -61,6 +67,24 @@ function commandsDocument() {
       envvars: [],
       help: "Lint only this object file (repeatable)",
     });
+  }
+  if (process.env.FAKE_DEPLOY_SELECT === "1") {
+    const deploy = fixture.commands.find((c) => c.path === "deploy");
+    for (const name of ["uuid", "file"]) {
+      deploy.options.push({
+        name,
+        flags: [`--${name}`],
+        secondary_flags: [],
+        type: "string",
+        choices: null,
+        default: null,
+        required: false,
+        multiple: true,
+        is_flag: false,
+        envvars: [],
+        help: `Read the rule with this ${name} (repeatable)`,
+      });
+    }
   }
   if (process.env.FAKE_INFO_CATALOG === "1") {
     const info = fixture.commands.find((c) => c.path === "info");
@@ -582,8 +606,47 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
         }),
         0,
       ];
+    case "query":
+      return runQuery(rest, { emit, cancelled });
+    case "deploy":
+      return runDeploy(rest);
+    case "generate":
+      if (rest[0] === "exports" && rest[1] === "navigator") {
+        return [
+          envelope("generate exports navigator", {
+            target: "navigator",
+            steps: [
+              {
+                name: "navigator",
+                status: "ok",
+                count: 1,
+                unit: "layer",
+                seconds: 0.1,
+                where: ".opentide/exports/attack-navigator.json",
+              },
+            ],
+          }),
+          0,
+        ];
+      }
+      return [
+        envelope("generate", {}, 2, {
+          code: "usage_unknown_command",
+          message: "fake: only exports navigator",
+        }),
+        2,
+      ];
     case "info":
-      if (rest.length === 0 || rest[0].startsWith("--")) return [infoDocument(env), 0];
+      if ((rest[0] === undefined || rest[0].startsWith("--")) && !process.env.FAKE_INFO_PLAIN) {
+        return [infoDocument(env), 0];
+      }
+      if (
+        rest[0] === "catalog" &&
+        process.env.FAKE_INFO_CATALOG === "1" &&
+        process.env.FAKE_CATALOG_FIXTURE === "1"
+      ) {
+        return [JSON.parse(readFileSync(join(here, "panels", "catalog.json"), "utf8")), 0];
+      }
       if (rest[0] === "catalog" && process.env.FAKE_INFO_CATALOG === "1") {
         return [
           envelope("info", { objects: [], edges: [], signals: [], attack: { tactics: [], techniques: {} } }),
@@ -603,6 +666,133 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
         2,
       ];
   }
+}
+
+/** Every value of a repeatable flag. */
+function values(args, flag) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) if (args[i] === flag && i + 1 < args.length) out.push(args[++i]);
+  return out;
+}
+
+async function runQuery(args, { emit, cancelled }) {
+  const platform = values(args, "--platform")[0] ?? "";
+  const configured = (process.env.FAKE_QUERY_TENANTS ?? "prod").split(",");
+  let tenants = values(args, "--tenant");
+  if (tenants.includes("all")) tenants = configured;
+  const base = {
+    platform,
+    source: values(args, "--rule").length || values(args, "--file").length ? "rule" : "query",
+  };
+  if (tenants.length === 0) {
+    if (configured.length > 1) {
+      const message = `${platform} has ${configured.length} tenants (${configured.join(", ")}): name one with --tenant, or pass --tenant all`;
+      return [
+        envelope("query", { ...base, choices: [...configured, "all"], error: message }, 2, {
+          code: "usage_invalid_value",
+          message,
+          argument: "--tenant",
+          suggestion: null,
+          crash_log: null,
+        }),
+        2,
+      ];
+    }
+    tenants = configured;
+  }
+  const limit = Number(values(args, "--limit")[0] ?? 100);
+  const delay = Number(process.env.FAKE_QUERY_DELAY_MS ?? 0);
+  const results = [];
+  for (const tenant of tenants) {
+    const started = Date.now();
+    while (Date.now() - started < delay) {
+      if (cancelled())
+        return [envelope("query", base, 130, { code: "interrupted", message: "Interrupted" }), 130];
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    if (tenant === "dev") {
+      results.push({
+        tenant,
+        status: "failed",
+        error: "HTTP 403 Forbidden",
+        detail: "AuthorizationFailed",
+        warnings: [],
+        elapsed_ms: 40,
+      });
+      emit({ event: "tenant", platform, tenant, status: "failed", rows: 0, elapsed_ms: 40 });
+      continue;
+    }
+    const all = Array.from({ length: 3 }, (_, i) => ({
+      TimeGenerated: `2026-11-03T09:1${i}:00Z`,
+      DeviceName: `ws-${i}`,
+      Count: i * 10,
+    }));
+    const rows = all.slice(0, limit);
+    results.push({
+      tenant,
+      status: "ok",
+      columns: [
+        { name: "TimeGenerated", type: "datetime" },
+        { name: "DeviceName", type: "string" },
+        { name: "Count", type: "long" },
+      ],
+      rows,
+      row_count: rows.length,
+      truncated: all.length > limit,
+      sent: "DeviceProcessEvents | take 3",
+      vendor_query_id: `fake-${tenant}`,
+      warnings: [],
+      elapsed_ms: 1800,
+    });
+    emit({ event: "tenant", platform, tenant, status: "ok", rows: rows.length, elapsed_ms: 1800 });
+  }
+  const failed = results.filter((r) => r.status === "failed");
+  const rowCount = results.reduce((n, r) => n + (r.rows?.length ?? 0), 0);
+  const extra = {
+    ...base,
+    tenants,
+    results,
+    row_count: rowCount,
+    argv: args,
+    window: { from: "2026-11-02T00:00:00Z", to: "2026-11-03T00:00:00Z" },
+    limit,
+  };
+  if (failed.length > 0) {
+    const message = `${failed.length} of ${results.length} queries failed on ${tenants.length} ${platform} tenants`;
+    return [envelope("query", extra, 1, { code: "command_failed", message }), 1];
+  }
+  return [envelope("query", extra), 0];
+}
+
+function runDeploy(args) {
+  if (!args.includes("--dry-run")) {
+    return [
+      envelope("deploy", { argv: args }, 99, {
+        code: "fake_real_deploy",
+        message: "the fake refuses a real deploy",
+      }),
+      99,
+    ];
+  }
+  const unmatched = values(args, "--uuid").filter((u) => u === "nope");
+  if (unmatched.length > 0) {
+    return [
+      envelope("deploy", { argv: args, unmatched, scope: "selected" }, 1, {
+        code: "command_failed",
+        message: "1 selection matched no rule",
+      }),
+      1,
+    ];
+  }
+  const plan = JSON.parse(readFileSync(join(here, "panels", "deploy-dry-run.json"), "utf8"));
+  return [
+    {
+      ...plan,
+      argv: args,
+      ...(values(args, "--uuid").length || values(args, "--file").length ? { scope: "selected" } : {}),
+    },
+    0,
+  ];
 }
 
 async function serve() {

@@ -1,0 +1,39 @@
+{
+  "$comment": "The deploy plan (#18, SPEC §10.5): deploy --dry-run only (D6).",
+  "contributes": {
+    "commands": [
+      {
+        "command": "opentide.deployPlan.open",
+        "title": "Preview Deploy",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "opentide.deployPlan.openChanged",
+        "title": "Preview Deploy of Changed Rules",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "opentide.deployPlan.open", "when": "opentide.trusted && opentide.hasCli" },
+        { "command": "opentide.deployPlan.openChanged", "when": "opentide.trusted && opentide.hasCli" }
+      ],
+      "editor/title": [
+        {
+          "command": "opentide.deployPlan.open",
+          "group": "navigation@60",
+          "when": "resourceLangId == opentide-yaml && resourcePath =~ /[\\\\/]rules[\\\\/]/ && opentide.trusted && opentide.hasCli"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "opentide.deployPlan.open",
+          "group": "opentide@20",
+          "when": "resourceLangId == opentide-yaml && opentide.trusted && opentide.hasCli"
+        }
+      ]
+    }
+  }
+}

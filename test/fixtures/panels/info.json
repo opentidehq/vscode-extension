@@ -1,0 +1,29 @@
+{
+  "version": "0.21.0",
+  "repo": "/workspace",
+  "counts": { "rules": 2, "threats": 1, "objectives": 1 },
+  "parse_error_count": 0,
+  "platforms": [
+    {
+      "name": "carbon_black_cloud",
+      "enabled": false,
+      "can_deploy": true,
+      "can_validate": true,
+      "can_query": true
+    },
+    { "name": "crowdstrike", "enabled": false, "can_deploy": true, "can_validate": false, "can_query": true },
+    {
+      "name": "defender_for_endpoint",
+      "enabled": false,
+      "can_deploy": true,
+      "can_validate": true,
+      "can_query": true
+    },
+    { "name": "elastic", "enabled": false, "can_deploy": true, "can_validate": true, "can_query": true },
+    { "name": "harfanglab", "enabled": false, "can_deploy": true, "can_validate": false, "can_query": true },
+    { "name": "sentinel", "enabled": true, "can_deploy": true, "can_validate": true, "can_query": true },
+    { "name": "sentinel_one", "enabled": false, "can_deploy": true, "can_validate": true, "can_query": true },
+    { "name": "splunk", "enabled": true, "can_deploy": true, "can_validate": true, "can_query": true },
+    { "name": "sysdig", "enabled": false, "can_deploy": true, "can_validate": false, "can_query": false }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "$comment": "The ATT&CK matrix (#20, SPEC §10.2). The sidebar's Coverage view opens it with opentide.matrix.open.",
+  "contributes": {
+    "commands": [
+      {
+        "command": "opentide.matrix.open",
+        "title": "Open ATT&CK Matrix",
+        "category": "opentide",
+        "icon": "$(table)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [{ "command": "opentide.matrix.open", "when": "opentide.hasWorkspace" }]
+    }
+  }
+}

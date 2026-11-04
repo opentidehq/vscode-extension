@@ -417,6 +417,34 @@
         }
       },
       {
+        "title": "opentide: Query",
+        "properties": {
+          "opentide.query.lenses": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "Show **Run**, **Validate live** and **Compiled query** lenses above each query in a rule and in query files."
+          },
+          "opentide.query.defaultWindow": {
+            "type": "string",
+            "default": "24h",
+            "pattern": "^(\\d+[smhdwSMHDW]|P.*)$",
+            "markdownDescription": "The look-back a query run offers first (`--since`): `15m`, `24h`, `7d` or ISO-8601 (`PT1H`)."
+          },
+          "opentide.query.defaultLimit": {
+            "type": "integer",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 5000,
+            "markdownDescription": "Rows per tenant (`--limit`, at most 5,000)."
+          },
+          "opentide.query.retainResults": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Keep a query's last results in memory after its panel closes, for this window. Results are never written to disk except by **Export**."
+          }
+        }
+      },
+      {
         "id": "opentide-terminal",
         "title": "opentide: Terminal",
         "properties": {
@@ -473,6 +501,18 @@
         "icon": "$(plug)"
       },
       {
+        "command": "opentide.deployPlan.open",
+        "title": "Preview Deploy",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "opentide.deployPlan.openChanged",
+        "title": "Preview Deploy of Changed Rules",
+        "category": "opentide",
+        "icon": "$(rocket)"
+      },
+      {
         "command": "opentide.diagnostics.validateWorkspace",
         "title": "Validate Workspace",
         "category": "opentide",
@@ -507,6 +547,12 @@
         "title": "Clear Validate and Lint Problems",
         "category": "opentide",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "opentide.matrix.open",
+        "title": "Open ATT&CK Matrix",
+        "category": "opentide",
+        "icon": "$(table)"
       },
       {
         "command": "opentide.newObject",
@@ -569,6 +615,29 @@
       {
         "command": "opentide.placeholder.previous",
         "title": "Previous Placeholder",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.query.run",
+        "title": "Run Query on Tenants…",
+        "category": "opentide",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "opentide.query.validateLive",
+        "title": "Validate Query on Tenants",
+        "category": "opentide",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "opentide.query.showCompiled",
+        "title": "Show Compiled Query",
+        "category": "opentide",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "opentide.query.configureTenant",
+        "title": "Configure a Tenant…",
         "category": "opentide"
       },
       {
@@ -856,6 +925,14 @@
           "when": "isWorkspaceTrusted && opentide.agents.forkMcp"
         },
         {
+          "command": "opentide.deployPlan.open",
+          "when": "opentide.trusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.deployPlan.openChanged",
+          "when": "opentide.trusted && opentide.hasCli"
+        },
+        {
           "command": "opentide.diagnostics.validateWorkspace",
           "when": "isWorkspaceTrusted && opentide.hasCli"
         },
@@ -877,6 +954,10 @@
         },
         {
           "command": "opentide.diagnostics.clear",
+          "when": "opentide.hasWorkspace"
+        },
+        {
+          "command": "opentide.matrix.open",
           "when": "opentide.hasWorkspace"
         },
         {
@@ -930,6 +1011,22 @@
         {
           "command": "opentide.placeholder.previous",
           "when": "editorIsOpen && opentide.hasPlaceholders"
+        },
+        {
+          "command": "opentide.query.run",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(opentide-yaml|kql|spl|esql|eql|kuery|lucene)$/"
+        },
+        {
+          "command": "opentide.query.validateLive",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId == opentide-yaml"
+        },
+        {
+          "command": "opentide.query.showCompiled",
+          "when": "editorLangId =~ /^(opentide-yaml|kql|spl)$/"
+        },
+        {
+          "command": "opentide.query.configureTenant",
+          "when": "false"
         },
         {
           "command": "opentide.runner.showLastResult",
@@ -1098,12 +1195,22 @@
       ],
       "editor/title": [
         {
+          "command": "opentide.deployPlan.open",
+          "group": "navigation@60",
+          "when": "resourceLangId == opentide-yaml && resourcePath =~ /[\\\\/]rules[\\\\/]/ && opentide.trusted && opentide.hasCli"
+        },
+        {
           "command": "opentide.diagnostics.validateFile",
           "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
           "group": "navigation@50"
         }
       ],
       "explorer/context": [
+        {
+          "command": "opentide.deployPlan.open",
+          "group": "opentide@20",
+          "when": "resourceLangId == opentide-yaml && opentide.trusted && opentide.hasCli"
+        },
         {
           "command": "opentide.newObject",
           "when": "explorerResourceIsFolder && isWorkspaceTrusted && opentide.hasCli && resourcePath in opentide.objectFolders",
@@ -1130,6 +1237,13 @@
           "command": "opentide.newObject.newFile.rule",
           "when": "isWorkspaceTrusted && opentide.hasCli",
           "group": "file"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opentide.query.run",
+          "group": "opentide@10",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(kql|spl|esql|eql|kuery|lucene)$/"
         }
       ],
       "view/title": [
