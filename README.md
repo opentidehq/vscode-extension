@@ -14,6 +14,26 @@ gets live checks, templates, the catalogue, the graph, the ATT&CK matrix, querie
 offline. When the repository has its own opentide (a `.venv`, the Python extension's interpreter,
 `opentide` on `PATH`, or `opentide.path`), the extension uses it, so the editor checks what CI checks.
 
+## Install
+
+Releases are on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide)
+(VS Code) and [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) (VSCodium, Cursor, Windsurf
+and other forks), under the id `opentidehq.opentide`.
+
+Versions with an odd minor (0.1.x, 0.3.x) are pre-releases. In the Extensions view, open opentide and
+choose **Switch to Pre-Release Version**, or from a terminal:
+
+```bash
+code --install-extension opentidehq.opentide --pre-release
+```
+
+A pinned version installs whatever its channel: `code --install-extension opentidehq.opentide@0.1.0`.
+Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries every
+package as a `.vsix` (**Extensions: Install from VSIX…**), with `SHA256SUMS` and build provenance
+(`gh attestation verify <file>.vsix --repo opentidehq/vscode-extension`).
+
+VS Code downloads the package for your platform. It bundles opentide, so nothing else needs installing.
+
 ## Features
 
 ### Works on install

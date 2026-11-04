@@ -6,6 +6,10 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-04
+
+The first pre-release of opentide for VS Code and its forks: live checks for Tide objects and their queries, new objects from templates, the catalogue with its Relations view, the graph and the ATT&CK coverage, query results and deploy previews beside the object, the setup wizard and an MCP server for agents. Each platform package bundles opentide 0.22.0 (engine: language server 0.10.0) on CPython 3.13, so it works offline on a machine without Python; a repository's own opentide is used when it has one.
+
 ### Added
 
 #### Runtime and core
@@ -244,16 +248,4 @@ pre-releases odd ones.
 
 - Releases to the Visual Studio Marketplace and Open VSX from one workflow, with trusted publishing
   (no long-lived token), plus a `SHA256SUMS` for every release and a build-provenance attestation for
-  every VSIX once the repository is public.
-
-### Changed
-
-- Bundles opentide 0.22.0 (was 0.21.0). The graph, the ATT&CK matrix, Relations and the Catalogue
-  work out of the box with the bundled runtime, which now has `info catalog` and `opentide serve`, as
-  do tenants in the Platforms view and the setup wizard's Review (`setup --plan`): no "needs a newer
-  opentide" until you switch to an older one. The packages are smaller, since opentide no longer
-  requires pandas or numpy: linux-x64 is 57.7 MiB instead of 80.5 MiB (151 MiB installed instead of
-  225 MiB).
-- The language server is language-server 0.10.0, the engine inside opentide 0.22.0: a query `opentide
-  new` left as a placeholder is no longer a parse error in Problems, and a folder created, deleted or
-  moved under `objects/` is read again. The grammars come from its highlights (unchanged).
+  every VSIX.
