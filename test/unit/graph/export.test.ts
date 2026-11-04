@@ -63,14 +63,14 @@ describe("graph export", () => {
     assert.ok(lines.includes(`threat_${mermaidIdentifier(UUID.threat)}{{"Credential Dumping"}}`));
     assert.ok(lines.includes(`objective_${mermaidIdentifier(UUID.objective)}(["Detect LSASS access"])`));
     assert.ok(
-      lines.some((line) => line.includes(`-->|implements| objective_${mermaidIdentifier(UUID.objective)}`)),
+      lines.some((line) => line.includes(`-->|Implements| objective_${mermaidIdentifier(UUID.objective)}`)),
     );
     assert.ok(
-      lines.some((line) => line.includes("-.->|implements| missing_")),
+      lines.some((line) => line.includes("-.->|Implements| missing_")),
       "a dangling edge is dotted",
     );
     assert.ok(lines.includes("classDef missing stroke-dasharray: 5 5"));
-    assert.ok(lines.some((line) => line.includes("-->|preceeds|")));
+    assert.ok(lines.some((line) => line.includes("Precedes|")));
   });
 
   it("keeps Mermaid identifiers unique and labels free of syntax", () => {

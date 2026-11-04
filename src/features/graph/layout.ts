@@ -61,6 +61,17 @@ export const LARGE_LAYOUT = 600;
  */
 export const HUGE_LAYOUT = 1500;
 
+/**
+ * The canvas's large-view mode (textures while panning, no glyphs): on above HUGE_LAYOUT drawn nodes,
+ * off again below LARGE_VIEW_LEAVE, so expanding and collapsing around the threshold does not recreate
+ * the canvas back and forth.
+ */
+export const LARGE_VIEW_LEAVE = 1300;
+
+export function largeView(nodes: number, wasLarge: boolean): boolean {
+  return wasLarge ? nodes >= LARGE_VIEW_LEAVE : nodes > HUGE_LAYOUT;
+}
+
 const RANK_SEP = 70;
 const NODE_SEP = 8;
 const MARGIN = 20;

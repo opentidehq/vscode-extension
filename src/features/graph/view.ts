@@ -59,6 +59,18 @@ function passesRuleFilters(node: GraphNode, options: ViewOptions): boolean {
   );
 }
 
+/**
+ * Whether the mode's kinds and the platform and status filters let `node` be drawn (not the focus, the
+ * depth or "problems only"): what an expanded neighbour must pass.
+ */
+export function passesFilters(node: GraphNode, options: ViewOptions): boolean {
+  const kind =
+    options.mode === "chains"
+      ? node.kind === "threat" || node.kind === "missing"
+      : options.kinds.has(node.kind) || node.kind === "missing";
+  return kind && passesRuleFilters(node, options);
+}
+
 interface Adjacency {
   readonly all: Map<string, string[]>;
   readonly up: Map<string, string[]>;

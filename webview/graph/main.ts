@@ -1,11 +1,41 @@
-// The graph webview (SPEC §10.1): Cytoscape draws, dagre lays out (src/features/graph/layout.ts), and
-// "View as list" shows the same nodes and edges as a keyboard tree. Every action goes to the host.
+// The graph webview (SPEC §10.1): Cytoscape draws, layout.ts lays out, the details pane says what the
+// selected node points to and what points to it, and "View as list" shows the same as a keyboard tree.
+// Selection and hover only change Cytoscape classes (no re-render, no layout); expanding a node places
+// its neighbours beside it. Every action goes to the host.
 import cytoscape from "cytoscape";
 import { NODE_ACTION_LABELS, type NodeAction, nodeActions } from "../../src/features/graph/actions";
 import { canvasColor } from "../../src/features/graph/colors";
-import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg } from "../../src/features/graph/export";
-import { layout, type Point, stabilize } from "../../src/features/graph/layout";
-import { describe, keptFocus, type ListGroup, listGroups, opensMenu } from "../../src/features/graph/list";
+import { DetailsIndex, type NodeDetails } from "../../src/features/graph/details";
+import { ModelReceiver } from "../../src/features/graph/diff";
+import {
+  DIM_CLASS,
+  DIM_LIMIT,
+  DIM_SLICE,
+  type EmphasisClass,
+  emphasisOf,
+  Incidence,
+  planEmphasis,
+  slices,
+} from "../../src/features/graph/emphasis";
+import {
+  collapsibleNeighbours,
+  hiddenNeighbours,
+  NO_OVERRIDES,
+  type Overrides,
+  placeNear,
+  withOverrides,
+} from "../../src/features/graph/expand";
+import { type ExportPalette, KIND_SHAPES, toMermaid, toSvg, truncate } from "../../src/features/graph/export";
+import { SelectionHistory, withoutGone } from "../../src/features/graph/history";
+import { bounds, largeView, layout, NODE_BOX, type Point, stabilize } from "../../src/features/graph/layout";
+import {
+  describe,
+  keptFocus,
+  type ListGroup,
+  listGroups,
+  listKey,
+  opensMenu,
+} from "../../src/features/graph/list";
 import {
   ALL_KINDS,
   edgeLabel,
@@ -18,6 +48,7 @@ import {
   OPTIONAL_KINDS,
   type ProblemMap,
 } from "../../src/features/graph/model";
+import { type ArrowDirection, arrowDirection, nodeInDirection } from "../../src/features/graph/navigate";
 import {
   type ExportFormat,
   type GraphData,
@@ -31,36 +62,47 @@ import {
   type GraphView,
   hasErrors,
   initialMode,
+  passesFilters,
   searchNodes,
+  type ViewOptions,
 } from "../../src/features/graph/view";
+import { NODE_ICONS, themeVar } from "../../src/features/graph/words";
 import { createChannel, vscodeApi } from "../shared/channel";
+import { paneContent, paneSkeleton } from "./detailsPane";
+import { CSS_ESCAPE, h, icon, iconButton, reducedMotion } from "./dom";
+import { glyphUri } from "./glyphs";
 import { CSS } from "./styles";
 
 // ---------------------------------------------------------------------------------------------- setup
 
-const scriptNonce = (document.currentScript as HTMLScriptElement | null)?.nonce ?? "";
+const script = document.currentScript as HTMLScriptElement | null;
+const scriptNonce = script?.nonce ?? "";
 const style = document.createElement("style");
 style.nonce = scriptNonce;
 style.textContent = CSS;
 document.head.append(style);
+// The codicon font comes with every opentide page (codicons/codicon.css, linked by createPanel).
 
 const channel = createChannel<GraphProtocol>(webviewValidators);
 
 interface Persisted {
   depth: number;
   kinds: NodeKind[];
-  follow: boolean;
   list: boolean;
   problemsOnly: boolean;
+  details: boolean;
+  /** The details pane's width as the user set it; 0: a third of the panel. */
+  detailsWidth: number;
 }
 
 const DEFAULTS: Persisted = {
   // One hop plus the chain the focus serves: a rule shows its objective and threat.
   depth: 1,
   kinds: [...OBJECT_KINDS],
-  follow: true,
   list: false,
   problemsOnly: false,
+  details: true,
+  detailsWidth: 0,
 };
 
 function restore(): Persisted {
@@ -70,9 +112,13 @@ function restore(): Persisted {
     kinds: Array.isArray(saved?.kinds)
       ? saved.kinds.filter((kind): kind is NodeKind => (ALL_KINDS as readonly string[]).includes(kind))
       : DEFAULTS.kinds,
-    follow: typeof saved?.follow === "boolean" ? saved.follow : DEFAULTS.follow,
     list: typeof saved?.list === "boolean" ? saved.list : DEFAULTS.list,
     problemsOnly: typeof saved?.problemsOnly === "boolean" ? saved.problemsOnly : DEFAULTS.problemsOnly,
+    details: typeof saved?.details === "boolean" ? saved.details : DEFAULTS.details,
+    detailsWidth:
+      typeof saved?.detailsWidth === "number" && Number.isFinite(saved.detailsWidth)
+        ? Math.min(800, Math.max(0, saved.detailsWidth))
+        : DEFAULTS.detailsWidth,
   };
 }
 
@@ -81,6 +127,8 @@ const save = (): void => vscodeApi().setState(settings);
 
 let data: GraphData | undefined;
 let model: GraphModel | undefined;
+/** The model this page holds, and its revision (see ModelSender). */
+const receiver = new ModelReceiver();
 let problems: ProblemMap = {};
 let mode: GraphMode | undefined;
 let focus: string[] = [];
@@ -92,147 +140,211 @@ let lastKey = "";
 let lastIds = "";
 let positions = new Map<string, Point>();
 let cy: cytoscape.Core | undefined;
+/** The canvas was made for a large view (textures while panning, no edges while zooming). */
+let cyLarge = false;
 let nodesById = new Map<string, GraphNode>();
+let viewIndex = new Incidence([]);
+let modelIndex = new Incidence([]);
+let detailsIndex: DetailsIndex | undefined;
+let overrides: Overrides = NO_OVERRIDES;
+let selected: string | undefined;
+let hovered: string | undefined;
+let following = true;
+let firstPaint = true;
+const history = new SelectionHistory();
 
 // -------------------------------------------------------------------------------------------- DOM
-
-type Child = Node | string | undefined | false;
-
-function h<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  props: Partial<Record<string, string | boolean>> = {},
-  ...children: Child[]
-): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  for (const [key, value] of Object.entries(props)) {
-    if (value === undefined || value === false) continue;
-    if (key === "text") element.textContent = String(value);
-    else element.setAttribute(key, value === true ? "" : value);
-  }
-  for (const child of children) if (child) element.append(child);
-  return element;
-}
-
-/** The children that exist. */
-function present(...children: (HTMLElement | undefined)[]): HTMLElement[] {
-  return children.filter((child): child is HTMLElement => child !== undefined);
-}
 
 const root = document.getElementById("root") ?? document.body;
 root.removeAttribute("role");
 
-const modeSelect = h(
-  "select",
-  { "aria-label": "Mode" },
-  h("option", { value: "focus", text: "Focus" }),
-  h("option", { value: "catalogue", text: "Catalogue" }),
-  h("option", { value: "chains", text: "Threat chains" }),
+const backButton = iconButton("arrow-left", "Back (Alt+Left)");
+const forwardButton = iconButton("arrow-right", "Forward (Alt+Right)");
+const targetIcon = icon("circle-large-outline");
+const targetState = h("span", { class: "follow-state", text: "Following" });
+const targetName = h("span", { class: "name", text: "—", role: "button", tabindex: "0" });
+const pinButton = iconButton("pin", "Pin: stay on this object instead of following the editor", {
+  pressed: false,
+});
+const target = h(
+  "span",
+  { class: "target", role: "group", "aria-label": "Graph target" },
+  targetIcon,
+  targetState,
+  targetName,
+  pinButton,
+);
+const modeButtons: Record<GraphMode, HTMLButtonElement> = {
+  focus: h("button", {
+    type: "button",
+    "aria-pressed": "false",
+    text: "Focus",
+    title: "The object and its neighbours",
+  }),
+  catalogue: h("button", {
+    type: "button",
+    "aria-pressed": "false",
+    text: "Catalogue",
+    title: "Every object",
+  }),
+  chains: h("button", {
+    type: "button",
+    "aria-pressed": "false",
+    text: "Chains",
+    title: "Threats and their chaining",
+  }),
+};
+const modeGroup = h(
+  "span",
+  { class: "segmented", role: "group", "aria-label": "Scope" },
+  modeButtons.focus,
+  modeButtons.catalogue,
+  modeButtons.chains,
 );
 const depthSelect = h(
   "select",
-  { "aria-label": "Depth around the focus" },
+  { "aria-label": "Hops around the focus", title: "Hops around the focus" },
   h("option", { value: "1", text: "1 hop" }),
   h("option", { value: "2", text: "2 hops" }),
   h("option", { value: "3", text: "3 hops" }),
 );
-const kindsPopup = h("div", { class: "popup", role: "group", "aria-label": "Kinds of node to show" });
-const kindsMenu = h("details", { class: "menu" }, h("summary", { text: "Kinds" }), kindsPopup);
+const kindsBox = h("div", { role: "group", "aria-label": "Kinds of node to show" });
 const platformSelect = h("select", { "aria-label": "Platform" });
 const statusSelect = h("select", { "aria-label": "Status" });
 const problemsBox = h("input", { type: "checkbox" });
-const followBox = h("input", { type: "checkbox" });
+const clearFiltersButton = h("button", { type: "button", class: "item", text: "Clear filters" });
+const filtersBadge = h("span", { class: "badge", hidden: true });
+const filtersPopup = h(
+  "div",
+  { class: "popup" },
+  h("span", { class: "heading", text: "Kinds" }),
+  kindsBox,
+  h("span", { class: "heading", text: "Rules" }),
+  platformSelect,
+  statusSelect,
+  h("label", {}, problemsBox, "Problems only"),
+  clearFiltersButton,
+);
+const filtersSummary = h(
+  "summary",
+  { class: "icon-button", role: "button", "aria-label": "Filters", title: "Filters" },
+  icon("filter"),
+  h("span", { class: "text", text: "Filters" }),
+  filtersBadge,
+);
+const filtersMenu = h("details", { class: "menu" }, filtersSummary, filtersPopup);
 const searchBox = h("input", {
   type: "search",
-  placeholder: "Search the graph",
-  "aria-label": "Search the graph: name, UUID, path or technique",
+  placeholder: "Search",
+  "aria-label": "Search the graph: name, UUID, path or technique. Enter jumps to the next match.",
 });
-const button = (text: string, label: string, extra: Record<string, string> = {}): HTMLButtonElement =>
-  h("button", { class: "secondary", type: "button", text, "aria-label": label, title: label, ...extra });
-const zoomOut = button("−", "Zoom out");
-const zoomIn = button("+", "Zoom in");
-const fitButton = button("Fit", "Fit the graph to the panel");
-const relayoutButton = button("Re-layout", "Lay the graph out again");
-const listButton = button("View as list", "View as list", { "aria-pressed": "false" });
+const searchCount = h("span", { class: "count", "aria-live": "polite" });
+const search = h("span", { class: "search" }, icon("search"), searchBox, searchCount);
+const fitButton = iconButton("screen-full", "Fit the graph to the panel (0)");
+const relayoutButton = iconButton("refresh", "Lay the graph out again");
+const listButton = iconButton("list-tree", "View as list", { pressed: false });
+const detailsButton = iconButton("layout-sidebar-right", "Show the details pane", { pressed: true });
 const exportPopup = h(
   "div",
   { class: "popup", role: "menu" },
-  button("SVG…", "Export as SVG", { role: "menuitem", "data-format": "svg" }),
-  button("PNG…", "Export as PNG", { role: "menuitem", "data-format": "png" }),
-  button("Mermaid…", "Export as Mermaid", { role: "menuitem", "data-format": "mermaid" }),
+  h("button", { type: "button", class: "item", role: "menuitem", "data-format": "svg", text: "SVG…" }),
+  h("button", { type: "button", class: "item", role: "menuitem", "data-format": "png", text: "PNG…" }),
+  h("button", {
+    type: "button",
+    class: "item",
+    role: "menuitem",
+    "data-format": "mermaid",
+    text: "Mermaid…",
+  }),
 );
-const exportMenu = h("details", { class: "menu right" }, h("summary", { text: "Export" }), exportPopup);
+const exportMenu = h(
+  "details",
+  { class: "menu right" },
+  h(
+    "summary",
+    { class: "icon-button", role: "button", "aria-label": "Export", title: "Export" },
+    icon("export"),
+  ),
+  exportPopup,
+);
 
 const toolbar = h(
   "div",
   { class: "toolbar", role: "toolbar", "aria-label": "Graph" },
-  h("span", { class: "group" }, modeSelect, depthSelect),
-  kindsMenu,
-  platformSelect,
-  statusSelect,
-  h("label", {}, problemsBox, "Problems only"),
-  h("label", { title: "Focus the object open in the editor" }, followBox, "Follow editor"),
-  searchBox,
+  h("span", { class: "group", role: "group", "aria-label": "History" }, backButton, forwardButton),
+  h("span", { class: "group" }, target),
+  h("span", { class: "group", role: "group", "aria-label": "Scope" }, modeGroup, depthSelect),
+  h("span", { class: "group" }, filtersMenu, search),
   h("span", { class: "spacer" }),
   h(
     "span",
-    { class: "group", role: "group", "aria-label": "Zoom" },
-    zoomOut,
-    zoomIn,
+    { class: "group", role: "group", "aria-label": "View" },
     fitButton,
     relayoutButton,
+    listButton,
+    detailsButton,
   ),
-  exportMenu,
-  listButton,
+  h("span", { class: "group" }, exportMenu),
 );
+const progress = h("div", { class: "progress", role: "progressbar", "aria-label": "Loading", hidden: false });
 const statusLine = h("div", { class: "status", role: "status", "aria-live": "polite" });
 const canvas = h("div", {
   id: "canvas",
   tabindex: "0",
-  role: "img",
-  "aria-label": "Graph. Keys: plus and minus zoom, 0 fits. Use View as list to move between nodes.",
+  role: "application",
+  "aria-roledescription": "graph",
+  "aria-label":
+    "Graph. Arrow keys move between nodes, Enter opens, Escape clears the selection, plus and minus expand or collapse the selected node (or zoom), 0 fits, Shift+F10 opens the node's menu. View as list reads it as a tree.",
 });
 const list = h("ul", { id: "list", role: "tree", "aria-label": "Graph as a list", hidden: true });
 const stateBox = h("div", { class: "state", hidden: true });
 const tooltip = h("div", { class: "tooltip", role: "tooltip", hidden: true });
 const contextMenu = h("div", { class: "context-menu", role: "menu", hidden: true });
-const main = h("div", { class: "main" }, canvas, list, stateBox, tooltip, contextMenu);
+const expandButton = iconButton("add", "Show its hidden neighbours (+)");
+const collapseButton = iconButton("remove", "Hide its neighbours that link to nothing else (−)");
+const nodeTools = h(
+  "div",
+  { class: "node-tools", role: "group", "aria-label": "Selected node", hidden: true },
+  expandButton,
+  collapseButton,
+);
+const main = h("div", { class: "main" }, canvas, list, stateBox, tooltip, contextMenu, nodeTools);
+const splitter = h("div", {
+  class: "splitter",
+  role: "separator",
+  tabindex: "0",
+  "aria-orientation": "vertical",
+  "aria-label": "Resize the details pane",
+  "aria-valuemin": "200",
+  "aria-valuemax": "800",
+});
+const details = h("aside", { class: "details", "aria-label": "Details", tabindex: "-1" });
+const body = h("div", { class: "body" }, main, splitter, details);
 const legend = h("div", { class: "legend", "aria-label": "Legend" });
-root.append(toolbar, statusLine, main, legend);
-
-const GLYPHS: Readonly<Record<NodeKind, string>> = {
-  threat: "◆",
-  objective: "●",
-  signal: "▲",
-  rule: "▬",
-  technique: "■",
-  actor: "⬢",
-  logsource: "◉",
-  platform: "⯃",
-  missing: "⬚",
-};
+root.append(toolbar, progress, statusLine, body, legend);
 
 function renderLegend(): void {
+  const entry = (...children: (Node | string)[]): HTMLElement => h("span", { class: "entry" }, ...children);
   legend.replaceChildren(
-    ...ALL_KINDS.filter((kind) => kind === "missing" || settings.kinds.includes(kind)).map((kind) =>
-      h(
-        "span",
-        {},
-        h("span", { class: `glyph kind-${kind}`, "aria-hidden": "true", text: GLYPHS[kind] }),
-        KIND_LABELS[kind],
-      ),
-    ),
-    h("span", {}, h("span", { class: "glyph error", "aria-hidden": "true", text: "✗" }), "has errors"),
-    h(
-      "span",
-      {},
-      h("span", { class: "glyph error", "aria-hidden": "true", text: "┄" }),
-      "dangling reference",
-    ),
+    entry(h("span", { class: "line out", "aria-hidden": "true" }), "→ out"),
+    entry(h("span", { class: "line in", "aria-hidden": "true" }), "← in"),
+    h("span", { class: "sep", "aria-hidden": "true" }),
+    ...ALL_KINDS.filter((kind) => kind !== "missing" && (settings.kinds.includes(kind) || mode === "chains"))
+      .filter((kind) => mode !== "chains" || kind === "threat")
+      .map((kind) => {
+        const visual = NODE_ICONS[kind];
+        const glyph = icon(visual.codicon);
+        glyph.style.color = `var(${themeVar(visual.themeColor)})`;
+        return entry(glyph, KIND_LABELS[kind]);
+      }),
+    h("span", { class: "sep", "aria-hidden": "true" }),
+    entry(h("span", { class: "line missing", "aria-hidden": "true" }), icon("warning", "error"), "missing"),
+    entry(h("span", { class: "error", "aria-hidden": "true", text: "✗" }), "has errors"),
   );
 }
 
 function renderKinds(): void {
-  kindsPopup.replaceChildren(
+  kindsBox.replaceChildren(
     ...[...OBJECT_KINDS, ...OPTIONAL_KINDS].map((kind) => {
       const box = h("input", { type: "checkbox", value: kind });
       box.checked = settings.kinds.includes(kind);
@@ -244,13 +356,10 @@ function renderKinds(): void {
         renderLegend();
         render();
       });
-      return h(
-        "label",
-        {},
-        box,
-        h("span", { class: `kind-${kind}`, "aria-hidden": "true", text: GLYPHS[kind] }),
-        KIND_LABELS[kind],
-      );
+      const visual = NODE_ICONS[kind];
+      const glyph = icon(visual.codicon);
+      glyph.style.color = `var(${themeVar(visual.themeColor)})`;
+      return h("label", {}, box, glyph, KIND_LABELS[kind]);
     }),
   );
 }
@@ -274,24 +383,22 @@ function cssVar(name: string): string {
   return getComputedStyle(document.body).getPropertyValue(name).trim();
 }
 
-const KIND_VARS: Readonly<Record<NodeKind, string>> = {
-  threat: "--vscode-charts-red",
-  objective: "--vscode-charts-blue",
-  signal: "--vscode-charts-purple",
-  rule: "--vscode-charts-green",
-  technique: "--vscode-charts-orange",
-  actor: "--vscode-charts-yellow",
-  logsource: "--vscode-terminal-ansiCyan",
-  platform: "--vscode-descriptionForeground",
-  missing: "--vscode-errorForeground",
-};
+interface Palette extends ExportPalette {
+  readonly focus: string;
+  readonly match: string;
+  readonly muted: string;
+  readonly out: string;
+  readonly in: string;
+  readonly contrast: string | undefined;
+}
 
-function palette(): ExportPalette & { focus: string; match: string; muted: string } {
+function palette(): Palette {
   const color = (name: string, fallback: string): string => canvasColor(cssVar(name), fallback).color;
   const foreground = color("--vscode-editor-foreground", color("--vscode-foreground", "#888888"));
   const kinds = Object.fromEntries(
-    ALL_KINDS.map((kind) => [kind, color(KIND_VARS[kind], foreground)]),
+    ALL_KINDS.map((kind) => [kind, color(themeVar(NODE_ICONS[kind].themeColor), foreground)]),
   ) as Record<NodeKind, string>;
+  const contrast = cssVar("--vscode-contrastBorder");
   return {
     background: color("--vscode-editor-background", "#1e1e1e"),
     foreground,
@@ -302,21 +409,26 @@ function palette(): ExportPalette & { focus: string; match: string; muted: strin
     focus: color("--vscode-focusBorder", foreground),
     match: color("--vscode-editor-findMatchBorder", color("--vscode-focusBorder", foreground)),
     muted: color("--vscode-descriptionForeground", foreground),
+    out: color("--vscode-charts-orange", "#d18616"),
+    in: color("--vscode-charts-blue", "#3794ff"),
+    contrast: contrast ? canvasColor(contrast, foreground).color : undefined,
   };
 }
 
 function stylesheet(large: boolean): cytoscape.StylesheetJson {
   const colors = palette();
-  const contrast = cssVar("--vscode-contrastBorder");
-  const border = contrast ? canvasColor(contrast, colors.foreground).color : colors.background;
+  const border = colors.contrast ?? colors.background;
   const sheet: cytoscape.StylesheetJson = [
     {
       selector: "node",
       style: {
-        width: 22,
-        height: 22,
+        width: 24,
+        height: 24,
         "background-color": colors.foreground,
-        "border-width": contrast ? 2 : 1,
+        "background-width": "62%",
+        "background-height": "62%",
+        "background-clip": "none",
+        "border-width": colors.contrast ? 2 : 1,
         "border-color": border,
         label: "data(display)",
         color: colors.foreground,
@@ -325,15 +437,29 @@ function stylesheet(large: boolean): cytoscape.StylesheetJson {
         "text-valign": "bottom",
         "text-halign": "center",
         "text-margin-y": 4,
-        "text-wrap": "ellipsis",
-        "text-max-width": "160px",
-        "min-zoomed-font-size": 7,
+        // Labels come truncated (truncate()): Cytoscape's own ellipsis measures each label character by
+        // character, seconds of the first frame at 5,000 nodes. The tooltip has the full name.
+        "text-wrap": "none",
+        "min-zoomed-font-size": large ? 9 : 6,
+        "overlay-opacity": 0,
+        "transition-property": "opacity",
+        "transition-duration": 0,
       },
     },
-    ...ALL_KINDS.map((kind) => ({
-      selector: `node[kind = "${kind}"]`,
-      style: { shape: KIND_SHAPES[kind] as cytoscape.Css.NodeShape, "background-color": colors.kinds[kind] },
-    })),
+    ...ALL_KINDS.map((kind) => {
+      // Above 1,500 nodes the glyphs cost a draw each per frame and are too small to see: shapes only.
+      const glyph = large
+        ? undefined
+        : glyphUri(NODE_ICONS[kind].codicon, kind === "missing" ? colors.error : colors.background);
+      return {
+        selector: `node[kind = "${kind}"]`,
+        style: {
+          shape: KIND_SHAPES[kind] as cytoscape.Css.NodeShape,
+          "background-color": colors.kinds[kind],
+          ...(glyph ? { "background-image": glyph } : {}),
+        },
+      };
+    }),
     {
       selector: 'node[kind = "missing"]',
       style: {
@@ -345,12 +471,7 @@ function stylesheet(large: boolean): cytoscape.StylesheetJson {
       },
     },
     { selector: "node.error", style: { "border-width": 3, "border-color": colors.error } },
-    {
-      selector: "node.focus",
-      style: { "font-weight": "bold", "border-width": 3, "border-color": colors.focus },
-    },
-    { selector: "node:selected", style: { "border-width": 3, "border-color": colors.focus } },
-    { selector: "node.match", style: { "border-width": 4, "border-color": colors.match } },
+    { selector: "node.focus", style: { "font-weight": "bold" } },
     {
       selector: "edge",
       style: {
@@ -361,10 +482,14 @@ function stylesheet(large: boolean): cytoscape.StylesheetJson {
         "arrow-scale": 0.8,
         "curve-style": large ? "straight" : "bezier",
         "font-family": colors.font,
-        "font-size": 9,
+        "font-size": 10,
         color: colors.muted,
-        "min-zoomed-font-size": 9,
+        "text-background-color": colors.background,
+        "text-background-opacity": 0.85,
+        "text-background-padding": "2px",
+        "min-zoomed-font-size": 8,
         "text-rotation": "autorotate",
+        "overlay-opacity": 0,
       },
     },
     { selector: "edge.labelled", style: { label: "data(label)" } },
@@ -372,35 +497,123 @@ function stylesheet(large: boolean): cytoscape.StylesheetJson {
       selector: "edge.missing",
       style: { "line-style": "dashed", "line-color": colors.error, "target-arrow-color": colors.error },
     },
-    { selector: ".faded", style: { opacity: 0.25 } },
+    // In and out: the selected (or hovered) node's edges and neighbours, everything else dimmed.
+    { selector: `.${DIM_CLASS}`, style: { opacity: 0.16 } },
+    {
+      selector: "node.em-center",
+      style: {
+        "outline-width": 3,
+        "outline-color": colors.focus,
+        "outline-offset": 2,
+        "font-weight": "bold",
+        "z-index": 20,
+      },
+    },
+    {
+      selector: "node.em-out",
+      style: { "outline-width": 2, "outline-color": colors.out, "outline-offset": 2, "z-index": 15 },
+    },
+    {
+      selector: "node.em-in",
+      style: { "outline-width": 2, "outline-color": colors.in, "outline-offset": 2, "z-index": 15 },
+    },
+    {
+      selector: "node.em-both",
+      style: {
+        "outline-width": 3,
+        "outline-color": colors.out,
+        "border-color": colors.in,
+        "border-width": 3,
+        "z-index": 15,
+      },
+    },
+    {
+      selector: "edge.em-out",
+      style: {
+        width: 2.5,
+        "line-color": colors.out,
+        "target-arrow-color": colors.out,
+        "arrow-scale": 1.2,
+        label: "data(label)",
+        color: colors.foreground,
+        "z-index": 10,
+      },
+    },
+    {
+      selector: "edge.em-in",
+      style: {
+        width: 2.5,
+        "line-color": colors.in,
+        "target-arrow-color": colors.in,
+        "arrow-scale": 1.2,
+        label: "data(label)",
+        color: colors.foreground,
+        "z-index": 10,
+      },
+    },
+    {
+      selector: "edge.missing.em-out",
+      style: { "line-color": colors.error, "target-arrow-color": colors.error },
+    },
+    {
+      selector: "node.match",
+      style: { "outline-width": 3, "outline-color": colors.match, "outline-offset": 4 },
+    },
   ];
   return sheet;
 }
 
 // -------------------------------------------------------------------------------------------- canvas
 
-function ensureCanvas(): cytoscape.Core {
-  if (cy) return cy;
+function ensureCanvas(large: boolean): cytoscape.Core {
+  if (cy && cyLarge === large) return cy;
+  // A canvas made again (the view crossed the large-view threshold) keeps the user's zoom and pan.
+  const viewport = cy ? { zoom: cy.zoom(), pan: { ...cy.pan() } } : undefined;
+  if (cy) {
+    cy.destroy();
+    cy = undefined;
+    emphasis.reset();
+  }
   const core = cytoscape({
     container: canvas,
-    style: stylesheet(false),
+    style: stylesheet(large),
     layout: { name: "preset" },
     minZoom: 0.05,
     maxZoom: 3,
     boxSelectionEnabled: false,
-    selectionType: "single",
+    autounselectify: true,
+    // SPEC §10.1 "Scale": above 1,500 nodes, pan and zoom move a texture of the graph, without edges.
+    textureOnViewport: large,
+    hideEdgesOnViewport: large,
+    motionBlur: false,
+    ...(large ? { pixelRatio: 1 } : {}),
+    ...(viewport ?? {}),
+  });
+  core.on("tap", "node", (event) => {
+    hideOverlays();
+    select(event.target.id(), { center: false });
   });
   core.on("dbltap", "node", (event) => {
     hideOverlays();
     channel.post("open", event.target.id());
   });
-  core.on("cxttap", "node", (event) => showContextMenu(event.target.id(), event.renderedPosition));
-  core.on("tap", (event) => {
-    if (event.target === core) hideOverlays();
+  core.on("cxttap", "node", (event) => {
+    select(event.target.id(), { center: false });
+    showContextMenu(event.target.id(), event.renderedPosition);
   });
-  core.on("mouseover", "node", (event) => showTooltip(event.target.id(), event.renderedPosition));
+  core.on("tap", (event) => {
+    if (event.target === core) {
+      hideOverlays();
+      clearSelection();
+    }
+  });
+  core.on("mouseover", "node", (event) => {
+    hover(event.target.id());
+    showTooltip(event.target.id(), event.renderedPosition);
+  });
   core.on("mouseout", "node", () => {
     tooltip.hidden = true;
+    hover(undefined);
   });
   core.on("dragfree", "node", (event) => {
     const node = event.target as cytoscape.NodeSingular;
@@ -408,9 +621,114 @@ function ensureCanvas(): cytoscape.Core {
   });
   core.on("viewport", () => {
     tooltip.hidden = true;
+    placeNodeTools();
+  });
+  core.on("position", "node", (event) => {
+    if (event.target.id() === selected) placeNodeTools();
   });
   cy = core;
+  cyLarge = large;
   return core;
+}
+
+/**
+ * The emphasis classes on the canvas, and the dimming: changed by difference only, so moving the
+ * selection or the hover costs the neighbourhoods involved. Showing or clearing the dimming of a large
+ * view is spread over frames.
+ */
+class Emphasis {
+  private applied = new Map<string, EmphasisClass>();
+  private dimmed = false;
+  private generation = 0;
+
+  reset(): void {
+    this.applied = new Map();
+    this.dimmed = false;
+    this.generation += 1;
+  }
+
+  /** Elements just drawn: dimmed too while the emphasis dims the rest. */
+  adopt(ids: readonly string[]): void {
+    const core = cy;
+    if (!core || !this.dimmed || ids.length === 0) return;
+    core.batch(() => {
+      for (const id of ids) if (!this.applied.has(id)) core.getElementById(id).addClass(DIM_CLASS);
+    });
+  }
+
+  apply(next: Map<string, EmphasisClass>, dim: boolean): void {
+    const core = cy;
+    if (!core) return;
+    const wantDim = dim && next.size > 0;
+    const plan = planEmphasis(this.applied, next);
+    const flip = wantDim !== this.dimmed;
+    const element = (id: string) => core.getElementById(id);
+    core.batch(() => {
+      for (const [id, cls] of plan.remove) element(id).removeClass(cls);
+      for (const [id, cls] of plan.add) element(id).addClass(cls);
+      if (!flip && wantDim) {
+        for (const id of plan.dim) element(id).addClass(DIM_CLASS);
+        for (const id of plan.undim) element(id).removeClass(DIM_CLASS);
+      }
+    });
+    this.applied = next;
+    if (flip) {
+      this.dimmed = wantDim;
+      this.reconcileDimming();
+    }
+  }
+
+  /** Dim or undim every element to match the current emphasis: at once, or a slice per frame. */
+  private reconcileDimming(): void {
+    const core = cy;
+    if (!core) return;
+    const generation = ++this.generation;
+    const all = core.elements().toArray();
+    const run = (part: readonly cytoscape.SingularElementArgument[]): void => {
+      core.batch(() => {
+        for (const ele of part) ele.toggleClass(DIM_CLASS, this.dimmed && !this.applied.has(ele.id()));
+      });
+    };
+    if (all.length <= DIM_LIMIT) {
+      run(all);
+      return;
+    }
+    const parts = slices(all, DIM_SLICE);
+    const step = (): void => {
+      const part = parts.shift();
+      if (!part || generation !== this.generation) return;
+      run(part);
+      if (parts.length > 0) requestAnimationFrame(step);
+    };
+    step();
+  }
+}
+
+const emphasis = new Emphasis();
+
+/** Show the in/out emphasis of the hovered node, else the selected one. */
+function refreshEmphasis(): void {
+  if (!cy || settings.list) return;
+  const started = performance.now();
+  const id = hovered ?? selected;
+  const shown = id && cy.getElementById(id).nonempty() ? id : undefined;
+  // A hover on a large view colours the neighbourhood without dimming the rest (that costs a frame).
+  const small = view.nodes.length + view.edges.length <= DIM_LIMIT;
+  const dim = shown !== undefined && (small || hovered === undefined || selected !== undefined);
+  emphasis.apply(emphasisOf(viewIndex, shown), dim);
+  performance.measure(hovered ? "graph:hover" : "graph:select", { start: started });
+}
+
+function viewOptions(): ViewOptions {
+  return {
+    mode: mode ?? "focus",
+    focus,
+    depth: settings.depth,
+    kinds: new Set(settings.kinds),
+    platforms: new Set(platform ? [platform] : []),
+    statuses: new Set(status ? [status.toLowerCase()] : []),
+    problemsOnly: settings.problemsOnly,
+  };
 }
 
 function viewKey(): string {
@@ -429,55 +747,97 @@ function nodeErrors(): Set<string> {
   return new Set(view.nodes.filter((node) => hasErrors(node, problems)).map((node) => node.id));
 }
 
-function render(options: { fit?: boolean } = {}): void {
+/** The characters of a node's label on the canvas (about 150 px at 11 px). */
+const LABEL_LIMIT = 26;
+
+/** At most this many new nodes join a drawn view beside their neighbours; more lay it out again. */
+const INCREMENTAL_LIMIT = 80;
+
+interface RenderOptions {
+  readonly fit?: boolean;
+  readonly relayout?: boolean;
+  /** Nodes that join should grow from this point (an expanded node). */
+  readonly growFrom?: string;
+}
+
+function render(options: RenderOptions = {}): void {
   if (!model || !mode) return;
   const started = performance.now();
-  view = computeView(model, problems, {
-    mode,
-    focus,
-    depth: settings.depth,
-    kinds: new Set(settings.kinds),
-    platforms: new Set(platform ? [platform] : []),
-    statuses: new Set(status ? [status.toLowerCase()] : []),
-    problemsOnly: settings.problemsOnly,
-  });
-  nodesById = new Map(view.nodes.map((node) => [node.id, node]));
+  const viewSettings = viewOptions();
   const key = viewKey();
-  const ids = `${view.nodes.map((n) => n.id).join("\n")}|${view.edges.map((e) => e.id).join("\n")}`;
   const sameView = key === lastKey;
-  if (!(sameView && ids === lastIds)) {
-    const fresh = layout(view.nodes, view.edges);
-    positions = sameView ? stabilize(positions, fresh) : fresh;
+  if (!sameView) overrides = NO_OVERRIDES;
+  const base = computeView(model, problems, viewSettings);
+  const passes = (node: GraphNode): boolean => passesFilters(node, viewSettings);
+  view = withOverrides(model, base, overrides, passes);
+  nodesById = new Map(view.nodes.map((node) => [node.id, node]));
+  viewIndex = new Incidence(view.edges);
+  const ids = `${view.nodes.map((n) => n.id).join("\n")}|${view.edges.map((e) => e.id).join("\n")}`;
+  let grown: string[] = [];
+  if (!sameView || options.relayout) {
+    positions = layout(view.nodes, view.edges);
+  } else if (ids !== lastIds) {
+    const added = view.nodes.filter((node) => !positions.has(node.id)).map((node) => node.id);
+    for (const id of [...positions.keys()]) if (!nodesById.has(id)) positions.delete(id);
+    if (added.length > INCREMENTAL_LIMIT) {
+      positions = stabilize(positions, layout(view.nodes, view.edges));
+    } else if (added.length > 0) {
+      for (const [id, point] of placeNear(positions, added, view.edges)) positions.set(id, point);
+      grown = added;
+    }
   }
   const laidOut = performance.now();
-  const changed = !sameView || options.fit === true;
+  performance.measure("graph:layout", { start: started, end: laidOut });
   lastKey = key;
   lastIds = ids;
+  history.retain((id) => detailsIndex?.node(id) !== undefined);
+  // A patch may remove the selected or the hovered node (the hover would never get its mouseout).
+  ({ selected, hovered } = withoutGone(
+    { selected, hovered },
+    (id) => detailsIndex?.node(id) !== undefined,
+    (id) => nodesById.has(id),
+  ));
 
   updateToolbar();
+  updateStatus();
   if (showEmptyFocus()) return;
   if (settings.list) renderList();
-  else drawCanvas(changed);
+  else drawCanvas(!sameView || options.fit === true, grown, options.growFrom);
+  renderDetails();
   const done = performance.now();
   updateStatus();
+  if (firstPaint) {
+    firstPaint = false;
+    performance.measure("graph:first-paint", { start: started });
+  }
+  performance.measure("graph:render", { start: started });
+  // Until the canvas has drawn it: Cytoscape draws on the next animation frame.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => performance.measure("graph:render-to-frame", { start: started })),
+  );
   channel.post(
     "log",
     `${mode} view: ${view.nodes.length} nodes, ${view.edges.length} edges; layout ${Math.round(laidOut - started)} ms, draw ${Math.round(done - laidOut)} ms`,
   );
 }
 
-function drawCanvas(fit: boolean): void {
+function drawCanvas(fit: boolean, grown: readonly string[], growFrom: string | undefined): void {
   stateBox.hidden = true;
-  toolbar.hidden = false;
-  legend.hidden = false;
   list.hidden = true;
   canvas.hidden = false;
-  const core = ensureCanvas();
+  const large = largeView(view.nodes.length, cyLarge);
+  const started = performance.now();
+  const core = ensureCanvas(large);
   core.resize();
-  const large = view.edges.length > 600;
   const errors = nodeErrors();
   const focusSet = new Set(focus);
   const labelled = view.edges.length <= 300;
+  const grow = new Set(grown);
+  const animate = grown.length > 0 && !reducedMotion();
+  const added: string[] = [];
+  // New elements are added in one call, with their classes: per element, an add and then class
+  // toggles each restyle it again (seconds at 5,000 nodes).
+  const fresh: cytoscape.ElementDefinition[] = [];
   core.batch(() => {
     const wanted = new Set([...view.nodes.map((n) => n.id), ...view.edges.map((e) => e.id)]);
     core.elements().forEach((element) => {
@@ -485,64 +845,136 @@ function drawCanvas(fit: boolean): void {
     });
     for (const node of view.nodes) {
       const position = positions.get(node.id) ?? { x: 0, y: 0 };
-      const display = `${errors.has(node.id) && node.kind !== "missing" ? "✗ " : ""}${node.label}`;
+      const error = errors.has(node.id) && node.kind !== "missing";
+      const display = truncate(`${error ? "✗ " : ""}${node.label}`, LABEL_LIMIT);
+      const focused = mode === "focus" && focusSet.has(node.id);
       const existing = core.getElementById(node.id);
       if (existing.nonempty()) {
-        existing.data({ display, kind: node.kind });
-        existing.position(position);
+        if (existing.data("display") !== display || existing.data("kind") !== node.kind)
+          existing.data({ display, kind: node.kind });
+        const at = existing.position();
+        if (at.x !== position.x || at.y !== position.y) existing.position(position);
+        if (existing.hasClass("error") !== error) existing.toggleClass("error", error);
+        if (existing.hasClass("focus") !== focused) existing.toggleClass("focus", focused);
       } else {
-        core.add({
+        const start = animate && grow.has(node.id) && growFrom ? positions.get(growFrom) : undefined;
+        added.push(node.id);
+        fresh.push({
           group: "nodes",
           data: { id: node.id, display, kind: node.kind },
-          position: { ...position },
+          position: { ...(start ?? position) },
+          classes: [error ? "error" : "", focused ? "focus" : ""].filter(Boolean).join(" "),
         });
       }
-      const element = core.getElementById(node.id);
-      element.toggleClass("error", errors.has(node.id) && node.kind !== "missing");
-      element.toggleClass("focus", mode === "focus" && focusSet.has(node.id));
     }
     for (const edge of view.edges) {
       const existing = core.getElementById(edge.id);
       const label = edgeLabel(edge);
-      if (existing.nonempty()) existing.data({ label });
-      else
-        core.add({
+      if (existing.nonempty()) {
+        if (existing.data("label") !== label) existing.data({ label });
+        if (existing.hasClass("labelled") !== labelled) existing.toggleClass("labelled", labelled);
+      } else {
+        added.push(edge.id);
+        fresh.push({
           group: "edges",
           data: { id: edge.id, source: edge.source, target: edge.target, label },
-          classes: edge.missing ? "missing" : "",
+          classes: [edge.missing ? "missing" : "", labelled ? "labelled" : ""].filter(Boolean).join(" "),
         });
-      core.getElementById(edge.id).toggleClass("labelled", labelled);
+      }
     }
+    if (fresh.length > 0) core.add(fresh);
   });
-  core.style(stylesheet(large));
+  const drawn = performance.now();
+  emphasis.adopt(added);
+  if (animate) {
+    // A short settle from the expanded node to the new nodes' places.
+    for (const id of grown) {
+      const point = positions.get(id);
+      if (point)
+        core.getElementById(id).animate({ position: { ...point } }, { duration: 220, easing: "ease-out" });
+    }
+  }
   applySearch();
+  refreshEmphasis();
+  updateNodeTools();
+  performance.measure("graph:draw-elements", { start: started, end: drawn });
   if (fit) fitView();
+  else if (grown.length > 0) bringIntoView([...(growFrom ? [growFrom] : []), ...grown]);
 }
+
+/** Pan (and zoom out, if it must) so that `ids`, at their final places, are on screen. */
+function bringIntoView(ids: readonly string[]): void {
+  if (!cy) return;
+  const points = ids.map((id) => positions.get(id)).filter((p): p is Point => p !== undefined);
+  if (points.length === 0) return;
+  const pad = { x: NODE_BOX.width / 2 + 16, y: NODE_BOX.height / 2 + 16 };
+  const x1 = Math.min(...points.map((p) => p.x)) - pad.x;
+  const x2 = Math.max(...points.map((p) => p.x)) + pad.x;
+  const y1 = Math.min(...points.map((p) => p.y)) - pad.y;
+  const y2 = Math.max(...points.map((p) => p.y)) + pad.y;
+  const zoom = cy.zoom();
+  const pan = cy.pan();
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const visible =
+    x1 * zoom + pan.x >= 0 &&
+    y1 * zoom + pan.y >= 0 &&
+    x2 * zoom + pan.x <= width &&
+    y2 * zoom + pan.y <= height;
+  if (visible) return;
+  const fits = Math.min(zoom, width / (x2 - x1), height / (y2 - y1));
+  const next = {
+    zoom: fits,
+    pan: { x: width / 2 - ((x1 + x2) / 2) * fits, y: height / 2 - ((y1 + y2) / 2) * fits },
+  };
+  autoFit = false;
+  if (reducedMotion() || cyLarge) cy.viewport(next);
+  else cy.animate(next, { duration: 220, easing: "ease-out" });
+}
+
+/** The view was fitted and the user has not panned or zoomed since: a resize fits it again. */
+let autoFit = false;
 
 function fitView(): void {
   if (!cy) return;
-  cy.fit(undefined, 30);
-  // A small graph would be drawn huge: cap the zoom and keep it centred.
-  if (cy.zoom() > 1.25) {
-    cy.zoom(1.25);
-    cy.center();
-  }
+  autoFit = true;
+  // From the laid-out positions, not Cytoscape's bounding box: that measures every label (a second at
+  // 2,000 nodes). The box is padded for the labels under the nodes.
+  const box = bounds(
+    [...nodesById.keys()].map((id) => positions.get(id)).filter((p): p is Point => p !== undefined),
+  );
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (box.width === 0 || width === 0 || height === 0) return;
+  const padding = 30;
+  // A small graph would be drawn huge: cap the zoom.
+  const zoom = Math.max(
+    cy.minZoom(),
+    Math.min(1.25, (width - 2 * padding) / box.width, (height - 2 * padding) / (box.height + 16)),
+  );
+  cy.viewport({
+    zoom,
+    pan: {
+      x: width / 2 - (box.x + box.width / 2) * zoom,
+      y: height / 2 - (box.y + box.height / 2 + 8) * zoom,
+    },
+  });
 }
 
+let matches = new Set<string>();
+
+/** Mark the nodes that match the search (by difference: a keystroke touches the matches only). */
 function applySearch(): void {
-  const matches = searchNodes(view.nodes, searchText);
+  const next = searchNodes(view.nodes, searchText);
   if (cy) {
     const core = cy;
     core.batch(() => {
-      core.nodes().forEach((node) => {
-        node.toggleClass("match", matches.has(node.id()));
-        node.toggleClass("faded", searchText.trim() !== "" && !matches.has(node.id()));
-      });
-      core.edges().forEach((edge) => {
-        edge.toggleClass("faded", searchText.trim() !== "");
-      });
+      for (const id of matches) if (!next.has(id)) core.getElementById(id).removeClass("match");
+      for (const id of next) core.getElementById(id).addClass("match");
     });
   }
+  matches = next;
+  searchCount.textContent = searchText.trim() ? String(next.size) : "";
   updateStatus();
 }
 
@@ -551,26 +983,356 @@ function showEmptyFocus(): boolean {
   const total = model.nodes.length;
   const unknown = view.unknownFocus.length > 0 && focus.length > 0;
   showState(
+    unknown ? "eye-closed" : "type-hierarchy",
     unknown
       ? "The focused object is not in this view: a filter hides it, or it is no longer in the catalogue."
       : total === 0
         ? "The catalogue has no objects yet."
         : "Open a Tide object in the editor, or search, to focus the graph on it.",
     [
+      ...(unknown ? [{ label: "Clear the filters", run: clearFilters }] : []),
       ...(total > 0
         ? [
             {
               label: `Show the whole catalogue (${total} nodes)`,
               run: () => setMode("catalogue"),
+              secondary: unknown,
             },
           ]
         : []),
-      ...(unknown ? [{ label: "Clear the filters", run: clearFilters }] : []),
       { label: "Find a detection…", run: () => channel.post("action", "search"), secondary: true },
     ],
   );
+  renderDetails();
   return true;
 }
+
+// ----------------------------------------------------------------------------------------- selection
+
+function inViewport(id: string): boolean {
+  if (!cy) return true;
+  const node = cy.getElementById(id);
+  if (node.empty()) return true;
+  const box = node.renderedBoundingBox();
+  return box.x1 >= 0 && box.y1 >= 0 && box.x2 <= canvas.clientWidth && box.y2 <= canvas.clientHeight;
+}
+
+/** Centre `id` (when off screen, or `always`); a jump (search) also zooms in until it is readable. */
+function centreOn(id: string, always: boolean, readable = false): void {
+  if (!cy || settings.list) return;
+  const node = cy.getElementById(id);
+  if (node.empty() || (!always && inViewport(id))) return;
+  const zoom = readable ? Math.max(cy.zoom(), 0.9) : cy.zoom();
+  const at = node.position();
+  const next = {
+    zoom,
+    pan: { x: canvas.clientWidth / 2 - at.x * zoom, y: canvas.clientHeight / 2 - at.y * zoom },
+  };
+  if (zoom !== cy.zoom()) autoFit = false;
+  // A large view jumps: animating thousands of elements costs more frames than it is worth.
+  if (reducedMotion() || cyLarge) cy.viewport(next);
+  else cy.animate(next, { duration: 160 });
+}
+
+/**
+ * Select `id`: the details pane, the emphasis and the history follow; nothing is laid out again. A node
+ * of the model that is not drawn joins the view beside a drawn neighbour, when the filters allow it.
+ */
+function select(
+  id: string,
+  options: { center: boolean; record?: boolean; reveal?: boolean } = { center: true },
+): void {
+  if (!detailsIndex?.node(id)) return;
+  if (!nodesById.has(id) && options.reveal !== false && model) {
+    const node = detailsIndex.node(id);
+    if (node && passesFilters(node, viewOptions())) {
+      const anchor = [...modelIndex.neighbours(id)].find((other) => nodesById.has(other));
+      overrides = {
+        added: new Set([...overrides.added, id]),
+        removed: new Set([...overrides.removed].filter((other) => other !== id)),
+      };
+      selected = id;
+      render(anchor ? { growFrom: anchor } : {});
+    }
+  }
+  selected = id;
+  if (options.record !== false) history.visit(id);
+  // Centre first, then restyle: a large view's layer textures, redrawn after a viewport jump, would
+  // otherwise keep the previous emphasis until the next interaction.
+  if (options.center) centreOn(id, false);
+  refreshEmphasis();
+  renderDetails();
+  updateHistoryButtons();
+  updateNodeTools();
+  if (settings.list) markListSelection();
+}
+
+function clearSelection(): void {
+  if (selected === undefined) return;
+  selected = undefined;
+  refreshEmphasis();
+  renderDetails();
+  updateNodeTools();
+}
+
+function hover(id: string | undefined): void {
+  if (hovered === id) return;
+  hovered = id;
+  refreshEmphasis();
+}
+
+function updateHistoryButtons(): void {
+  backButton.disabled = !history.canBack;
+  forwardButton.disabled = !history.canForward;
+}
+
+function goBack(): void {
+  const id = history.back();
+  if (id) select(id, { center: true, record: false });
+  updateHistoryButtons();
+}
+
+function goForward(): void {
+  const id = history.forward();
+  if (id) select(id, { center: true, record: false });
+  updateHistoryButtons();
+}
+
+/** "+": the selected node's neighbours that are not drawn join the view beside it. */
+function expand(id: string): void {
+  if (!model) return;
+  const viewSettings = viewOptions();
+  const passes = (other: string): boolean => {
+    const node = detailsIndex?.node(other);
+    return node !== undefined && passesFilters(node, viewSettings);
+  };
+  const hidden = hiddenNeighbours(modelIndex, nodesById, id, passes);
+  if (hidden.length === 0) return;
+  const removed = new Set(overrides.removed);
+  for (const other of hidden) removed.delete(other);
+  overrides = { added: new Set([...overrides.added, ...hidden]), removed };
+  render({ growFrom: id });
+}
+
+/** "−": the selected node's neighbours that link to nothing else drawn leave the view. */
+function collapse(id: string): void {
+  const gone = collapsibleNeighbours(viewIndex, id, new Set([...focus, id]));
+  if (gone.length === 0) return;
+  const added = new Set(overrides.added);
+  for (const other of gone) added.delete(other);
+  overrides = { added, removed: new Set([...overrides.removed, ...gone]) };
+  render();
+}
+
+function expandable(id: string): number {
+  const viewSettings = viewOptions();
+  return hiddenNeighbours(modelIndex, nodesById, id, (other) => {
+    const node = detailsIndex?.node(other);
+    return node !== undefined && passesFilters(node, viewSettings);
+  }).length;
+}
+
+/** The "+" and "−" beside the selected node: what they would do (on selection and redraw). */
+function updateNodeTools(): void {
+  const id = selected;
+  if (!cy || !id || settings.list || canvas.hidden || cy.getElementById(id).empty()) {
+    nodeTools.hidden = true;
+    return;
+  }
+  const more = expandable(id);
+  const fewer = collapsibleNeighbours(viewIndex, id, new Set([...focus, id])).length;
+  expandButton.disabled = more === 0;
+  collapseButton.disabled = fewer === 0;
+  const moreLabel =
+    more === 0 ? "No hidden neighbours" : `Show ${more} hidden neighbour${more === 1 ? "" : "s"} (+)`;
+  expandButton.title = moreLabel;
+  expandButton.setAttribute("aria-label", moreLabel);
+  const text = expandButton.querySelector(".text") ?? expandButton.appendChild(h("span", { class: "text" }));
+  text.textContent = more > 0 ? String(more) : "";
+  placeNodeTools();
+}
+
+/** The "+" and "−" beside the selected node: where (on every pan and zoom, so no counting here). */
+function placeNodeTools(): void {
+  const id = selected;
+  if (!cy || !id || settings.list || canvas.hidden || cy.getElementById(id).empty()) {
+    nodeTools.hidden = true;
+    return;
+  }
+  const box = cy.getElementById(id).renderedBoundingBox({ includeLabels: false });
+  nodeTools.hidden = false;
+  nodeTools.style.left = `${Math.round(box.x2 + 6)}px`;
+  nodeTools.style.top = `${Math.round(box.y1 - 30)}px`;
+}
+
+expandButton.addEventListener("click", () => {
+  if (selected) expand(selected);
+});
+collapseButton.addEventListener("click", () => {
+  if (selected) collapse(selected);
+});
+
+// --------------------------------------------------------------------------------------- details pane
+
+function nodeDetails(id: string | undefined): NodeDetails | undefined {
+  return id ? detailsIndex?.details(id) : undefined;
+}
+
+let paneKey = "";
+let previousPaneNode: string | undefined;
+
+function renderDetails(): void {
+  details.hidden = !settings.details;
+  splitter.hidden = !settings.details;
+  details.style.width = `${paneWidth()}px`;
+  if (!settings.details) return;
+  if (!model) {
+    if (paneKey !== "skeleton") details.replaceChildren(...paneSkeleton());
+    paneKey = "skeleton";
+    return;
+  }
+  const found = nodeDetails(selected);
+  const viewSettings = viewOptions();
+  const hiddenBy =
+    found && !nodesById.has(found.node.id) && !passesFilters(found.node, viewSettings)
+      ? `${KIND_LABELS[found.node.kind]} is filtered out, or this is not a rule the platform and status filters keep.`
+      : undefined;
+  // Unchanged pane, unchanged DOM: a hover or a redraw must not move a keyboard user's place in it.
+  const key = JSON.stringify([
+    selected,
+    found
+      ? [found.outgoing, found.incoming].flat().map((g) => g.items.map((i) => [i.id, nodesById.has(i.id)]))
+      : [],
+    problems[selected ?? ""],
+    hiddenBy,
+    receiver.revision,
+  ]);
+  if (key === paneKey) return;
+  paneKey = key;
+  const hadFocus = details.contains(document.activeElement);
+  const focusedId = (document.activeElement as HTMLElement | null)?.dataset?.id;
+  details.replaceChildren(
+    ...paneContent(found, {
+      drawn: (id) => nodesById.has(id),
+      problems: selected ? problems[selected] : undefined,
+      canOpen: Boolean(found?.node.filePath),
+      canFocus: Boolean(found && !(mode === "focus" && focus.length === 1 && focus[0] === found.node.id)),
+      canShowRelations: Boolean(found && nodeActions(found.node, availableActions).includes("showRelations")),
+      ...(hiddenBy ? { hiddenBy } : {}),
+    }),
+  );
+  if (hadFocus) {
+    // The same node's details again: the same link; another node's: its name, read out first.
+    const again =
+      focusedId && found?.node.id === previousPaneNode
+        ? details.querySelector<HTMLElement>(`a[data-id="${CSS_ESCAPE(focusedId)}"]`)
+        : null;
+    (again ?? details.querySelector<HTMLElement>("h2") ?? details).focus();
+  }
+  previousPaneNode = found?.node.id;
+}
+
+details.addEventListener("click", (event) => {
+  const element = event.target as HTMLElement;
+  const link = element.closest<HTMLElement>("a[data-id]");
+  if (link) {
+    event.preventDefault();
+    const id = link.dataset.id ?? "";
+    select(id, { center: true });
+    return;
+  }
+  const action = element.closest<HTMLElement>("[data-action]")?.dataset.action;
+  const node = nodeDetails(selected)?.node;
+  if (!action || !node) return;
+  if (action === "open") channel.post("open", node.id);
+  else if (action === "copyUuid" && node.uuid) channel.post("copy", node.uuid);
+  else if (action === "focus") focusOn([node.id]);
+  else if (action === "relations") channel.post("nodeAction", { action: "showRelations", id: node.id });
+});
+details.addEventListener("dblclick", (event) => {
+  const link = (event.target as HTMLElement).closest<HTMLElement>("a[data-id]");
+  if (!link) return;
+  event.preventDefault();
+  channel.post("open", link.dataset.id ?? "");
+});
+details.addEventListener("keydown", (event) => {
+  const link = (event.target as HTMLElement).closest<HTMLElement>("a[data-id]");
+  if (!link) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    channel.post("open", link.dataset.id ?? "");
+  } else if (event.key === " ") {
+    event.preventDefault();
+    select(link.dataset.id ?? "", { center: true });
+  } else if (opensMenu(event)) {
+    event.preventDefault();
+    const id = link.dataset.id ?? "";
+    const rect = link.getBoundingClientRect();
+    const base = main.getBoundingClientRect();
+    showContextMenu(
+      id,
+      { x: Math.max(0, rect.left - base.left - 200), y: rect.bottom - base.top - 12 },
+      link,
+    );
+  }
+});
+
+// Resizing the pane: drag the splitter, or Left/Right on it.
+splitter.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  splitter.setPointerCapture(event.pointerId);
+  splitter.classList.add("dragging");
+  const startX = event.clientX;
+  const startWidth = paneWidth();
+  const move = (moved: PointerEvent): void => {
+    setDetailsWidth(startWidth + (startX - moved.clientX));
+  };
+  const up = (): void => {
+    splitter.classList.remove("dragging");
+    splitter.removeEventListener("pointermove", move);
+    splitter.removeEventListener("pointerup", up);
+    save();
+  };
+  splitter.addEventListener("pointermove", move);
+  splitter.addEventListener("pointerup", up);
+});
+splitter.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  setDetailsWidth(paneWidth() + (event.key === "ArrowLeft" ? 16 : -16));
+  save();
+});
+
+/** The pane's width: the user's, else a third of the panel (a graph beside an editor is narrow). */
+function paneWidth(): number {
+  const max = Math.max(200, Math.min(800, root.clientWidth - 240));
+  const wanted = settings.detailsWidth || Math.round(root.clientWidth * 0.34);
+  return Math.min(max, Math.max(200, Math.min(settings.detailsWidth ? 800 : 340, wanted)));
+}
+
+function setDetailsWidth(width: number): void {
+  settings.detailsWidth = Math.round(width);
+  settings.detailsWidth = paneWidth();
+  details.style.width = `${settings.detailsWidth}px`;
+  splitter.setAttribute("aria-valuenow", String(settings.detailsWidth));
+}
+
+// The canvas follows its box (the pane opening, the panel resizing) without a new layout.
+let resizeFrame = 0;
+new ResizeObserver(() => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    if (!settings.detailsWidth) details.style.width = `${paneWidth()}px`;
+    cy?.resize();
+    // The panel opening beside the editor grows for a moment: keep a fitted view fitted.
+    if (autoFit && !canvas.hidden) fitView();
+    placeNodeTools();
+  });
+}).observe(main);
+for (const event of ["wheel", "pointerdown"] as const)
+  canvas.addEventListener(event, () => {
+    autoFit = false;
+  });
 
 // --------------------------------------------------------------------------------------- overlays
 
@@ -592,23 +1354,26 @@ function showTooltip(id: string, at: { x: number; y: number }): void {
   const node = nodesById.get(id);
   if (!node || !contextMenu.hidden) return;
   const description = describe(node, problems);
+  const counts = detailsIndex?.details(id);
+  const out = counts?.outgoing.reduce((sum, g) => sum + g.items.length, 0) ?? 0;
+  const incoming = counts?.incoming.reduce((sum, g) => sum + g.items.length, 0) ?? 0;
   tooltip.replaceChildren(
-    ...present(
+    ...[
       h("div", { class: "title", text: node.label }),
-      h("div", { class: "row", text: KIND_LABELS[node.kind] }),
+      h("div", { class: "row", text: `${KIND_LABELS[node.kind]} · ${out} out → · ← ${incoming} in` }),
       node.uuid ? h("div", { class: "row mono", text: node.uuid }) : undefined,
       description ? h("div", { class: "row", text: description }) : undefined,
-      node.filePath ? h("div", { class: "row", text: "Double-click to open" }) : undefined,
-    ),
+      node.filePath ? h("div", { class: "row", text: "Click to select, double-click to open" }) : undefined,
+    ].filter((child): child is HTMLDivElement => child !== undefined),
   );
   place(tooltip, at);
 }
 
-/** What gets the focus back when the menu closes with Escape: the list item or the canvas. */
+/** What gets the focus back when the menu closes with Escape: the list item, a pane link or the canvas. */
 let menuOpener: HTMLElement | undefined;
 
 function showContextMenu(id: string, at: { x: number; y: number }, opener?: HTMLElement): void {
-  const node = nodesById.get(id);
+  const node = detailsIndex?.node(id);
   if (!node) return;
   menuOpener = opener;
   tooltip.hidden = true;
@@ -620,9 +1385,14 @@ function showContextMenu(id: string, at: { x: number; y: number }, opener?: HTML
     });
     return entry;
   };
+  const drawn = nodesById.has(id);
   const items = [
-    node.filePath ? item("Open", () => channel.post("open", id)) : undefined,
+    node.filePath ? item("Open beside", () => channel.post("open", id)) : undefined,
     item("Focus on this", () => focusOn([id])),
+    drawn && expandable(id) > 0 ? item("Expand neighbours (+)", () => expand(id)) : undefined,
+    drawn && collapsibleNeighbours(viewIndex, id, new Set([...focus, id])).length > 0
+      ? item("Collapse neighbours (−)", () => collapse(id))
+      : undefined,
     ...nodeActions(node, availableActions).map((action) =>
       item(NODE_ACTION_LABELS[action], () => channel.post("nodeAction", { action, id })),
     ),
@@ -639,6 +1409,7 @@ contextMenu.addEventListener("keydown", (event) => {
   const items = [...contextMenu.querySelectorAll<HTMLButtonElement>("button")];
   const index = items.indexOf(document.activeElement as HTMLButtonElement);
   if (event.key === "Escape") {
+    event.stopPropagation();
     contextMenu.hidden = true;
     // The opener, else (the list was redrawn meanwhile) the list's current item; the canvas is hidden
     // in View as list.
@@ -654,23 +1425,26 @@ contextMenu.addEventListener("keydown", (event) => {
 // ------------------------------------------------------------------------------------------- list
 
 let listFocus = "";
-const expanded = new Set<string>(ALL_KINDS.map((kind) => `group:${kind}`));
+const expanded = new Set<string>([...ALL_KINDS.map((kind) => listKey.group(kind))]);
+
+/** The list's content as last drawn (see renderList). */
+let listSignature = "";
 
 function renderList(): void {
   stateBox.hidden = true;
-  toolbar.hidden = false;
-  legend.hidden = false;
   canvas.hidden = true;
+  nodeTools.hidden = true;
   list.hidden = false;
-  const groups: ListGroup[] = listGroups(view, problems);
-  const matches = searchNodes(view.nodes, searchText);
+  if (!detailsIndex) return;
+  const groups: ListGroup[] = listGroups(view, problems, detailsIndex);
   const items: HTMLElement[] = [];
   // What the list shows, to leave the DOM (and a screen reader's place) alone when nothing changed.
   const shown: string[] = [];
   const treeitem = (
     key: string,
     level: number,
-    label: string,
+    label: (Node | string)[],
+    text: string,
     description: string,
     children: (() => HTMLElement[]) | undefined,
     extra: Record<string, string> = {},
@@ -688,42 +1462,75 @@ function renderList(): void {
       h(
         "div",
         { class: "row" },
-        h("span", { class: "twisty", "aria-hidden": "true", text: children ? (open ? "▾" : "▸") : "" }),
-        h("span", { text: label }),
+        h("span", {
+          class: `twisty codicon ${children ? (open ? "codicon-chevron-down" : "codicon-chevron-right") : ""}`,
+          "aria-hidden": "true",
+        }),
+        ...label,
         description ? h("span", { class: "desc", text: description }) : undefined,
       ),
     );
-    shown.push([key, label, description, open, extra["aria-selected"] ?? ""].join("\u0000"));
+    shown.push([key, text, description, open, extra["aria-selected"] ?? ""].join("\u0000"));
     if (open && children) li.append(h("ul", { role: "group" }, ...children()));
     items.push(li);
     return li;
   };
+  const glyph = (kind: NodeKind): HTMLSpanElement => {
+    const visual = NODE_ICONS[kind];
+    const element = icon(visual.codicon);
+    element.style.color = `var(${themeVar(visual.themeColor)})`;
+    return element;
+  };
   const top = groups.map((group) =>
-    treeitem(`group:${group.kind}`, 1, group.label, "", () =>
+    treeitem(listKey.group(group.kind), 1, [glyph(group.kind), group.label], group.label, "", () =>
       group.nodes.map((entry) => {
         const { node } = entry;
         const problem = hasErrors(node, problems);
+        const label = `${problem ? "✗ " : ""}${node.label}`;
         return treeitem(
-          `node:${node.id}`,
+          listKey.node(node.id),
           2,
-          `${problem ? "✗ " : ""}${node.label}`,
+          [glyph(node.kind), h("span", { text: label })],
+          label,
           entry.description,
-          entry.links.length > 0
+          entry.relations.length > 0
             ? () =>
-                entry.links.map((link, index) =>
+                entry.relations.map((relation) =>
                   treeitem(
-                    `link:${node.id}:${index}`,
+                    listKey.relation(node.id, relation),
                     3,
-                    `${link.missing ? "┄ " : "→ "}${link.text}`,
+                    [
+                      icon(relation.icon, relation.direction === "out" ? "out-color" : "in-color"),
+                      relation.header,
+                    ],
+                    relation.header,
                     "",
-                    undefined,
-                    { "data-target": link.target },
+                    () =>
+                      relation.items.map((item, index) =>
+                        treeitem(
+                          listKey.link(node.id, relation, index),
+                          4,
+                          [
+                            glyph(item.missing ? "missing" : item.kind),
+                            h("span", { class: item.missing ? "missing" : "", text: item.label }),
+                          ],
+                          item.label,
+                          [item.missing ? "missing" : "", nodesById.has(item.id) ? "" : "not drawn"]
+                            .filter(Boolean)
+                            .join(" · "),
+                          undefined,
+                          {
+                            "data-target": item.id,
+                            "aria-label": `${relation.header}: ${item.missing ? "missing reference " : ""}${item.label}`,
+                          },
+                        ),
+                      ),
                   ),
                 )
             : undefined,
           {
             "data-node": node.id,
-            "aria-selected": String(matches.has(node.id) || focus.includes(node.id)),
+            "aria-selected": String(node.id === selected || matches.has(node.id)),
             "aria-label": [node.label, KIND_LABELS[node.kind], problem ? "has errors" : "", entry.description]
               .filter(Boolean)
               .join(", "),
@@ -750,8 +1557,13 @@ function renderList(): void {
   if (hadFocus) current.focus();
 }
 
-/** The list's content as last drawn (see renderList). */
-let listSignature = "";
+function markListSelection(): void {
+  for (const item of list.querySelectorAll<HTMLElement>("[data-node]"))
+    item.setAttribute(
+      "aria-selected",
+      String(item.dataset.node === selected || matches.has(item.dataset.node ?? "")),
+    );
+}
 
 function visibleItems(): HTMLElement[] {
   return [...list.querySelectorAll<HTMLElement>('[role="treeitem"]')];
@@ -768,23 +1580,27 @@ function moveTo(item: HTMLElement | undefined): void {
 function revealInList(id: string): void {
   const node = nodesById.get(id);
   if (!node) return;
-  expanded.add(`group:${node.kind}`);
-  listFocus = `node:${id}`;
+  expanded.add(listKey.group(node.kind));
+  listFocus = listKey.node(id);
   renderList();
   moveTo(list.querySelector<HTMLElement>(`[data-key="${CSS_ESCAPE(listFocus)}"]`) ?? undefined);
 }
 
-const CSS_ESCAPE = (value: string): string => (window.CSS?.escape ? window.CSS.escape(value) : value);
-
 /** The node menu of a list item, below it: every action a right-click on the canvas offers. */
 function showItemMenu(item: HTMLElement): boolean {
   const id = item.dataset.node ?? item.dataset.target;
-  if (!id || !nodesById.has(id)) return false;
+  if (!id || !detailsIndex?.node(id)) return false;
   const rect = item.getBoundingClientRect();
   const base = main.getBoundingClientRect();
   // place() offsets by 12 px; this puts the menu at the item's bottom-left corner.
   showContextMenu(id, { x: rect.left - base.left - 12, y: rect.bottom - base.top - 12 }, item);
   return true;
+}
+
+/** A link item selects its node (adding it to the view when it is not drawn) and moves there. */
+function followLink(target: string): void {
+  select(target, { center: false });
+  revealInList(target);
 }
 
 list.addEventListener("keydown", (event) => {
@@ -797,7 +1613,7 @@ list.addEventListener("keydown", (event) => {
   }
   const index = items.indexOf(current);
   const key = current.dataset.key ?? "";
-  const expandable = current.hasAttribute("aria-expanded");
+  const expandableItem = current.hasAttribute("aria-expanded");
   const open = current.getAttribute("aria-expanded") === "true";
   const rerender = (focusKey: string): void => {
     listFocus = focusKey;
@@ -818,7 +1634,7 @@ list.addEventListener("keydown", (event) => {
       moveTo(items[items.length - 1]);
       break;
     case "ArrowRight":
-      if (expandable && !open) {
+      if (expandableItem && !open) {
         expanded.add(key);
         rerender(key);
       } else if (open) moveTo(items[index + 1]);
@@ -832,10 +1648,10 @@ list.addEventListener("keydown", (event) => {
       }
       break;
     case "Enter": {
-      const target = current.dataset.target;
-      if (target) revealInList(target);
+      const linked = current.dataset.target;
+      if (linked) channel.post("open", linked);
       else if (current.dataset.node) channel.post("open", current.dataset.node);
-      else if (expandable) {
+      else if (expandableItem) {
         if (open) expanded.delete(key);
         else expanded.add(key);
         rerender(key);
@@ -843,14 +1659,21 @@ list.addEventListener("keydown", (event) => {
       break;
     }
     case " ": {
-      const id = current.dataset.node ?? current.dataset.target;
-      if (id) focusOn([id]);
+      const linked = current.dataset.target;
+      if (linked) followLink(linked);
+      else if (current.dataset.node) select(current.dataset.node, { center: false });
       break;
     }
     default:
       return;
   }
   event.preventDefault();
+});
+
+list.addEventListener("focusin", (event) => {
+  // Moving through the nodes selects them: the details pane follows.
+  const item = (event.target as HTMLElement).closest<HTMLElement>("[data-node]");
+  if (item?.dataset.node && item.dataset.node !== selected) select(item.dataset.node, { center: false });
 });
 
 list.addEventListener("click", (event) => {
@@ -862,6 +1685,9 @@ list.addEventListener("click", (event) => {
     else expanded.add(key);
     listFocus = key;
     renderList();
+  } else if (item.dataset.target) {
+    followLink(item.dataset.target);
+    return;
   }
   moveTo(list.querySelector<HTMLElement>(`[data-key="${CSS_ESCAPE(key)}"]`) ?? undefined);
 });
@@ -873,8 +1699,8 @@ list.addEventListener("contextmenu", (event) => {
 
 list.addEventListener("dblclick", (event) => {
   const item = (event.target as HTMLElement).closest<HTMLElement>('[role="treeitem"]');
-  if (item?.dataset.node) channel.post("open", item.dataset.node);
-  else if (item?.dataset.target) revealInList(item.dataset.target);
+  const id = item?.dataset.node ?? item?.dataset.target;
+  if (id) channel.post("open", id);
 });
 
 // ------------------------------------------------------------------------------------- state view
@@ -885,21 +1711,21 @@ interface StateAction {
   readonly secondary?: boolean;
 }
 
-function showState(message: string, actions: readonly StateAction[] = []): void {
+function showState(glyph: string, message: string, actions: readonly StateAction[] = []): void {
   canvas.hidden = true;
   list.hidden = true;
+  nodeTools.hidden = true;
   hideOverlays();
   stateBox.hidden = false;
-  const graphControls = model !== undefined;
-  toolbar.hidden = !graphControls;
-  legend.hidden = !graphControls;
+  stateBox.classList.remove("skeleton-state");
   const paragraph = h("p");
   paragraph.append(...richText(message));
   stateBox.replaceChildren(
-    ...present(
-      paragraph,
-      actions.length > 0
-        ? h(
+    icon(glyph),
+    paragraph,
+    ...(actions.length > 0
+      ? [
+          h(
             "div",
             { class: "actions" },
             ...actions.map((action) => {
@@ -911,10 +1737,27 @@ function showState(message: string, actions: readonly StateAction[] = []): void 
               entry.addEventListener("click", action.run);
               return entry;
             }),
-          )
-        : undefined,
-    ),
+          ),
+        ]
+      : []),
   );
+}
+
+function showLoading(): void {
+  canvas.hidden = true;
+  list.hidden = true;
+  nodeTools.hidden = true;
+  stateBox.hidden = false;
+  stateBox.classList.add("skeleton-state");
+  stateBox.replaceChildren(
+    h(
+      "div",
+      { class: "skeleton-graph", "aria-hidden": "true" },
+      ...Array.from({ length: 9 }, () => h("span")),
+    ),
+    h("p", { class: "visually-hidden", text: "Loading the catalogue…" }),
+  );
+  renderDetails();
 }
 
 /** `code` spans for backticked words, the rest as text. */
@@ -923,11 +1766,17 @@ function richText(message: string): (HTMLElement | string)[] {
 }
 
 function showData(next: GraphData): void {
-  if (next.model) return;
   const actions: StateAction[] = [];
+  if (next.status === "loading") {
+    showLoading();
+    statusLine.textContent = next.folder
+      ? `${next.folder} · loading the catalogue…`
+      : "Loading the catalogue…";
+    return;
+  }
   if (next.status === "unavailable") {
     if (next.reason === "needs-command" || next.reason === "no-runtime" || next.reason === "editor-only")
-      actions.push({ label: "Switch runtime…", run: () => channel.post("action", "switchRuntime") });
+      actions.push({ label: "Switch Runtime…", run: () => channel.post("action", "switchRuntime") });
     if (next.reason === "untrusted")
       actions.push({ label: "Trust this folder…", run: () => channel.post("action", "manageTrust") });
     if (next.reason === "needs-command")
@@ -942,25 +1791,34 @@ function showData(next: GraphData): void {
       { label: "Show output", run: () => channel.post("action", "showOutput"), secondary: true },
     );
   }
-  const message =
-    next.status === "loading" ? "Loading the catalogue…" : (next.message ?? "Nothing to show yet.");
-  showState(message, actions);
+  showState(next.status === "error" ? "error" : "info", next.message ?? "Nothing to show yet.", actions);
+  renderDetails();
   statusLine.textContent = next.folder ? next.folder : "";
 }
 
 // ---------------------------------------------------------------------------------------- toolbar
 
 function updateToolbar(): void {
-  modeSelect.value = mode ?? "focus";
+  const ready = model !== undefined;
+  for (const kind of Object.keys(modeButtons) as GraphMode[]) {
+    modeButtons[kind].setAttribute("aria-pressed", String(mode === kind));
+    modeButtons[kind].disabled = !ready;
+  }
   depthSelect.value = String(settings.depth);
-  depthSelect.disabled = mode !== "focus";
+  depthSelect.disabled = !ready || mode !== "focus";
   problemsBox.checked = settings.problemsOnly;
-  followBox.checked = settings.follow;
   listButton.setAttribute("aria-pressed", String(settings.list));
-  listButton.textContent = settings.list ? "View as graph" : "View as list";
-  for (const control of [zoomIn, zoomOut, fitButton, relayoutButton]) control.disabled = settings.list;
-  const kindsOff = mode === "chains";
-  kindsMenu.toggleAttribute("aria-disabled", kindsOff);
+  const listLabel = settings.list ? "View as graph" : "View as list";
+  listButton.title = listLabel;
+  listButton.setAttribute("aria-label", listLabel);
+  detailsButton.setAttribute("aria-pressed", String(settings.details));
+  const detailsLabel = settings.details ? "Hide the details pane" : "Show the details pane";
+  detailsButton.title = detailsLabel;
+  detailsButton.setAttribute("aria-label", detailsLabel);
+  for (const control of [fitButton, relayoutButton]) control.disabled = !ready || settings.list;
+  listButton.disabled = !ready;
+  searchBox.disabled = !ready;
+  kindsBox.toggleAttribute("aria-disabled", mode === "chains");
   if (model) {
     const known = facets(model);
     if (platformSelect.options.length !== known.platforms.length + 1)
@@ -968,30 +1826,61 @@ function updateToolbar(): void {
     if (statusSelect.options.length !== known.statuses.length + 1)
       fillSelect(statusSelect, "All statuses", known.statuses, status);
   }
+  const active =
+    (platform ? 1 : 0) +
+    (status ? 1 : 0) +
+    (settings.problemsOnly ? 1 : 0) +
+    OBJECT_KINDS.filter((kind) => !settings.kinds.includes(kind)).length +
+    OPTIONAL_KINDS.filter((kind) => settings.kinds.includes(kind)).length;
+  filtersBadge.hidden = active === 0;
+  filtersBadge.textContent = String(active);
+  filtersSummary.setAttribute("aria-label", active ? `Filters, ${active} changed` : "Filters");
+  updateTarget();
+  updateHistoryButtons();
+}
+
+/** The object the graph is on, and whether it follows the editor or is pinned there. */
+function updateTarget(): void {
+  // What the graph follows (or is pinned to): the editor's object, whatever the mode.
+  const id = focus[0];
+  const node = id ? detailsIndex?.node(id) : undefined;
+  const more = mode === "focus" && focus.length > 1 ? ` +${focus.length - 1}` : "";
+  const name = node ? `${node.label}${more}` : "no object";
+  targetName.textContent = name;
+  targetName.title = node
+    ? `${node.label}${node.path ? `\n${node.path}` : ""}\nClick to select it.`
+    : "Open a Tide object in the editor to follow it.";
+  const visual = node ? NODE_ICONS[node.kind] : undefined;
+  targetIcon.className = `codicon codicon-${visual?.codicon ?? "type-hierarchy"}`;
+  targetState.textContent = following ? "Following" : "Pinned";
+  pinButton.setAttribute("aria-pressed", String(!following));
+  pinButton
+    .querySelector(".codicon")
+    ?.setAttribute("class", `codicon codicon-${following ? "pin" : "pinned"}`);
+  const pinLabel = following
+    ? "Pin: stay on this object instead of following the editor"
+    : "Unpin: follow the active editor again";
+  pinButton.title = pinLabel;
+  pinButton.setAttribute("aria-label", pinLabel);
 }
 
 function updateStatus(): void {
   if (!data || !model || !mode) return;
   const parts: string[] = [];
-  if (mode === "focus") {
-    const names = focus.map((id) => nodesById.get(id)?.label ?? id);
-    parts.push(
-      `Focus: ${names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(", ")}`,
-      `${settings.depth} ${settings.depth === 1 ? "hop" : "hops"}`,
-    );
-  } else parts.push(mode === "catalogue" ? "Catalogue" : "Threat chains");
+  if (mode === "focus") parts.push(`${settings.depth} ${settings.depth === 1 ? "hop" : "hops"}`);
   parts.push(`${view.nodes.length} nodes, ${view.edges.length} edges`);
-  if (searchText.trim()) {
-    const count = searchNodes(view.nodes, searchText).size;
-    parts.push(count === 1 ? "1 match" : `${count} matches`);
-  }
+  if (overrides.added.size + overrides.removed.size > 0)
+    parts.push(`${overrides.added.size} expanded, ${overrides.removed.size} collapsed`);
+  if (searchText.trim()) parts.push(matches.size === 1 ? "1 match" : `${matches.size} matches`);
   if (data.refreshing) parts.push("refreshing…");
   statusLine.replaceChildren(parts.join(" · "));
-  if (data.message) statusLine.append(" · ", h("span", { class: "warning", text: data.message }));
+  if (data.message) statusLine.append(h("span", { class: "warning", text: data.message }));
+  progress.classList.toggle("active", data.refreshing || data.status === "loading");
 }
 
 function setMode(next: GraphMode): void {
   mode = next;
+  renderLegend();
   render({ fit: true });
 }
 
@@ -999,6 +1888,7 @@ function focusOn(ids: string[]): void {
   focus = ids;
   mode = "focus";
   render({ fit: true });
+  if (ids[0]) select(ids[0], { center: false });
   if (settings.list && ids[0]) revealInList(ids[0]);
 }
 
@@ -1015,7 +1905,8 @@ function clearFilters(): void {
   render({ fit: true });
 }
 
-modeSelect.addEventListener("change", () => setMode(modeSelect.value as GraphMode));
+for (const kind of Object.keys(modeButtons) as GraphMode[])
+  modeButtons[kind].addEventListener("click", () => setMode(kind));
 depthSelect.addEventListener("change", () => {
   settings.depth = clampDepth(Number(depthSelect.value));
   save();
@@ -1034,71 +1925,179 @@ problemsBox.addEventListener("change", () => {
   save();
   render({ fit: true });
 });
-followBox.addEventListener("change", () => {
-  settings.follow = followBox.checked;
-  save();
+clearFiltersButton.addEventListener("click", () => {
+  filtersMenu.open = false;
+  clearFilters();
 });
+pinButton.addEventListener("click", () => {
+  following = !following;
+  updateTarget();
+  channel.post("follow", following);
+});
+targetName.addEventListener("click", () => {
+  const id = focus[0];
+  if (id) select(id, { center: true });
+});
+targetName.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  targetName.click();
+});
+backButton.addEventListener("click", goBack);
+forwardButton.addEventListener("click", goForward);
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+let matchCursor = -1;
 searchBox.addEventListener("input", () => {
-  searchText = searchBox.value;
-  if (settings.list) renderList();
-  else applySearch();
+  if (searchTimer) clearTimeout(searchTimer);
+  // A keystroke in a 5,000-node view: mark the matches once typing pauses.
+  searchTimer = setTimeout(() => {
+    searchText = searchBox.value;
+    matchCursor = -1;
+    if (settings.list) {
+      matches = searchNodes(view.nodes, searchText);
+      renderList();
+      updateStatus();
+    } else applySearch();
+  }, 80);
 });
 searchBox.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter") return;
-  const first =
-    [...searchNodes(view.nodes, searchText)][0] ??
-    (model ? [...searchNodes(model.nodes, searchText)][0] : undefined);
-  if (!first) return;
-  event.preventDefault();
-  if (!nodesById.has(first)) focusOn([first]);
-  else if (settings.list) revealInList(first);
-  else if (cy) {
-    const node = cy.getElementById(first);
-    cy.$(":selected").unselect();
-    node.select();
-    cy.animate({ center: { eles: node }, duration: 150 });
+  if (event.key === "Escape" && searchBox.value) {
+    event.preventDefault();
+    event.stopPropagation();
+    searchBox.value = "";
+    searchText = "";
+    applySearch();
+    return;
   }
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  searchText = searchBox.value;
+  applySearch();
+  // Enter: the next match in the view; with none, the first in the catalogue (the view focuses on it).
+  const inView = [...matches].sort((a, b) =>
+    (nodesById.get(a)?.label ?? a).localeCompare(nodesById.get(b)?.label ?? b),
+  );
+  if (inView.length > 0) {
+    matchCursor = (matchCursor + (event.shiftKey ? -1 : 1) + inView.length) % inView.length;
+    const id = inView[matchCursor] as string;
+    if (settings.list) revealInList(id);
+    if (cy && !settings.list) centreOn(id, true, true);
+    select(id, { center: false });
+    return;
+  }
+  const first = model ? [...searchNodes(model.nodes, searchText)][0] : undefined;
+  if (first) focusOn([first]);
 });
-zoomIn.addEventListener("click", () => cy?.zoom({ level: cy.zoom() * 1.25, renderedPosition: center() }));
-zoomOut.addEventListener("click", () => cy?.zoom({ level: cy.zoom() / 1.25, renderedPosition: center() }));
-fitButton.addEventListener("click", () => cy?.fit(undefined, 30));
-relayoutButton.addEventListener("click", () => {
-  lastKey = "";
-  render({ fit: true });
-});
+fitButton.addEventListener("click", fitView);
+relayoutButton.addEventListener("click", () => render({ fit: true, relayout: true }));
 listButton.addEventListener("click", () => {
   settings.list = !settings.list;
   save();
   render({ fit: true });
-  if (settings.list) moveTo(list.querySelector<HTMLElement>('[tabindex="0"]') ?? undefined);
+  if (settings.list) {
+    if (selected) revealInList(selected);
+    else moveTo(list.querySelector<HTMLElement>('[tabindex="0"]') ?? undefined);
+  }
+});
+detailsButton.addEventListener("click", () => {
+  settings.details = !settings.details;
+  save();
+  updateToolbar();
+  paneKey = "";
+  renderDetails();
 });
 exportPopup.addEventListener("click", (event) => {
   const format = (event.target as HTMLElement).closest<HTMLElement>("[data-format]")?.dataset.format;
   exportMenu.open = false;
   if (format === "svg" || format === "png" || format === "mermaid") exportGraph(format);
 });
-for (const menu of [kindsMenu, exportMenu]) {
+for (const menu of [filtersMenu, exportMenu]) {
   menu.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && menu.open) {
+      event.stopPropagation();
       menu.open = false;
       menu.querySelector("summary")?.focus();
     }
   });
 }
+document.addEventListener("click", (event) => {
+  // A click elsewhere closes the open menus, as VS Code's own do.
+  for (const menu of [filtersMenu, exportMenu])
+    if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
+});
+
 canvas.addEventListener("keydown", (event) => {
   if (!cy) return;
-  if (event.key === "+" || event.key === "=")
-    cy.zoom({ level: cy.zoom() * 1.25, renderedPosition: center() });
-  else if (event.key === "-") cy.zoom({ level: cy.zoom() / 1.25, renderedPosition: center() });
-  else if (event.key === "0") cy.fit(undefined, 30);
-  else if (event.key === "Escape") hideOverlays();
-  else if (opensMenu(event)) {
-    // The selected node's menu (a click selects one); View as list reaches every node by keyboard.
-    const target = cy.nodes(":selected").first();
-    if (target.empty()) return;
-    showContextMenu(target.id(), target.renderedPosition(), canvas);
+  const direction = arrowDirection(event.key);
+  if (direction && !event.altKey) {
+    moveSelection(direction);
+  } else if (event.key === "+" || event.key === "=") {
+    if (selected && nodesById.has(selected)) expand(selected);
+    else {
+      autoFit = false;
+      cy.zoom({ level: cy.zoom() * 1.25, renderedPosition: center() });
+    }
+  } else if (event.key === "-" || event.key === "_") {
+    if (selected && nodesById.has(selected)) collapse(selected);
+    else {
+      autoFit = false;
+      cy.zoom({ level: cy.zoom() / 1.25, renderedPosition: center() });
+    }
+  } else if (event.key === "0") fitView();
+  else if (event.key === "Enter") {
+    if (selected) channel.post("open", selected);
+  } else if (event.key === "Escape") {
+    if (!contextMenu.hidden || !tooltip.hidden) hideOverlays();
+    else clearSelection();
+  } else if (opensMenu(event)) {
+    if (!selected || cy.getElementById(selected).empty()) return;
+    showContextMenu(selected, cy.getElementById(selected).renderedPosition(), canvas);
   } else return;
   event.preventDefault();
+});
+
+canvas.addEventListener("focus", () => {
+  // Tabbing in selects something to start from: the focus, else the first node.
+  if (!canvas.matches(":focus-visible") || (selected && nodesById.has(selected))) return;
+  const start = focus.find((id) => nodesById.has(id)) ?? view.nodes[0]?.id;
+  if (start) select(start, { center: true });
+});
+
+/** The arrow keys: to the neighbour that way, else the nearest node that way. */
+function moveSelection(direction: ArrowDirection): void {
+  if (!cy) return;
+  if (!selected || cy.getElementById(selected).empty()) {
+    const start = focus.find((id) => nodesById.has(id)) ?? view.nodes[0]?.id;
+    if (start) select(start, { center: true });
+    return;
+  }
+  const from = cy.getElementById(selected).position();
+  const point = (id: string): readonly [string, Point] | undefined => {
+    const node = cy?.getElementById(id);
+    return node?.nonempty() ? [id, { ...node.position() }] : undefined;
+  };
+  const neighbours = [...viewIndex.neighbours(selected)].map(point).filter((p) => p !== undefined);
+  const everyone = view.nodes
+    .filter((node) => node.id !== selected)
+    .map((node) => point(node.id))
+    .filter((p) => p !== undefined);
+  const next = nodeInDirection({ ...from }, direction, neighbours, everyone);
+  if (next) select(next, { center: true });
+}
+
+window.addEventListener("keydown", (event) => {
+  if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+    event.preventDefault();
+    if (event.key === "ArrowLeft") goBack();
+    else goForward();
+    return;
+  }
+  if (event.key === "Escape") hideOverlays();
+  if (event.key === "/" && document.activeElement?.tagName !== "INPUT") {
+    event.preventDefault();
+    searchBox.focus();
+  }
 });
 
 function center(): { x: number; y: number } {
@@ -1113,8 +2112,8 @@ function exportGraph(format: ExportFormat): void {
   }
   const colors = palette();
   if (format === "png") {
-    if (settings.list) drawCanvas(true);
-    const core = ensureCanvas();
+    if (settings.list) drawCanvas(true, [], undefined);
+    const core = ensureCanvas(largeView(view.nodes.length, cyLarge));
     const png = core.png({
       output: "base64",
       full: true,
@@ -1143,23 +2142,53 @@ function exportGraph(format: ExportFormat): void {
 
 // ----------------------------------------------------------------------------------------- host
 
+function setModel(next: GraphModel): void {
+  model = next;
+  modelIndex = new Incidence(next.edges);
+  detailsIndex = new DetailsIndex(next);
+}
+
 channel.on("data", (next) => {
   data = next;
-  if (!next.model) {
-    model = undefined;
-    showData(next);
-    return;
+  const received = receiver.receive(next);
+  switch (received.kind) {
+    case "cleared":
+      model = undefined;
+      detailsIndex = undefined;
+      updateToolbar();
+      showData(next);
+      progress.classList.toggle("active", next.refreshing || next.status === "loading");
+      return;
+    case "resync":
+      // Lost track (a reload, a dropped or reordered message): ask for the whole model, once.
+      channel.post("resync", undefined);
+      return;
+    case "waiting":
+      return;
+    case "same":
+      // The same model (a refresh started or ended): the status line only.
+      updateStatus();
+      return;
+    case "model":
+      setModel(received.model);
+      if (received.first && !mode) mode = initialMode(received.model, focus.length > 0);
+      if (received.first) renderLegend();
+      render({ fit: received.first });
   }
-  const first = !model;
-  model = next.model;
-  if (first && !mode) mode = initialMode(model, focus.length > 0);
-  render({ fit: first });
 });
 
 /** Other features' node actions this window has (validate, run query, preview deploy, new …). */
 let availableActions: readonly NodeAction[] = [];
 channel.on("actions", (next) => {
   availableActions = next;
+  // Show Relations in the details pane depends on them.
+  paneKey = "";
+  renderDetails();
+});
+
+channel.on("follow", (state) => {
+  following = state.following;
+  updateTarget();
 });
 
 channel.on("problems", (next) => {
@@ -1168,42 +2197,42 @@ channel.on("problems", (next) => {
 });
 
 channel.on("focus", (request) => {
-  if (!request.explicit && !settings.follow) return;
   const ids = [...request.ids];
   if (!model) {
     focus = ids;
-    if (request.explicit) mode = request.mode ?? "focus";
+    if (request.explicit || !mode) mode = request.mode ?? "focus";
+    selected = ids[0];
+    return;
+  }
+  const id = ids[0];
+  // Following the editor to what is selected already (a double-click opened it): nothing to redo.
+  if (!request.explicit && id && id === selected && nodesById.has(id)) {
+    centreOn(id, false);
     return;
   }
   if (!request.explicit && mode !== "focus") {
     // Following the editor in the catalogue: select and centre it, keep the view.
     focus = ids;
-    if (cy && !settings.list) {
-      const wanted = new Set(ids);
-      const nodes = cy.nodes().filter((node) => wanted.has(node.id()));
-      cy.$(":selected").unselect();
-      if (nodes.nonempty()) {
-        nodes.select();
-        cy.animate({ center: { eles: nodes }, duration: 150 });
-      }
-    }
+    if (id) select(id, { center: true });
+    updateTarget();
     return;
   }
   focus = ids;
   mode = request.mode ?? "focus";
+  renderLegend();
   render({ fit: true });
-  if (settings.list && ids[0]) revealInList(ids[0]);
+  if (id) select(id, { center: false });
+  if (settings.list && id) revealInList(id);
 });
 
 new MutationObserver(() => {
-  if (cy) cy.style(stylesheet(view.edges.length > 600));
+  if (cy) cy.style(stylesheet(cyLarge));
 }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
-
-window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") hideOverlays();
-});
 
 renderKinds();
 renderLegend();
-showState("Loading the catalogue…");
+updateToolbar();
+details.style.width = `${paneWidth()}px`;
+showLoading();
+progress.classList.add("active");
 channel.post("ready", undefined);

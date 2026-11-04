@@ -52,6 +52,9 @@ const webview = {
   format: "iife",
   target: "es2022",
   metafile: true,
+  // The graph's canvas glyphs: codicon SVGs imported as text (webview/graph/glyphs.ts). The codicon
+  // font itself is copied to dist/webview/codicons (copiedAssets).
+  loader: { ".svg": "text" },
 };
 
 if (!watch) rmSync(join(root, "dist"), { recursive: true, force: true });

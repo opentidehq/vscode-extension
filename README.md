@@ -164,16 +164,34 @@ and your agent.
 their signals, the rules that implement them, and optionally ATT&CK techniques, actors, log sources and
 platforms.
 
-- **Focus** follows the file you are editing. A rule shows its objective and that objective's threat;
-  widen to 2 or 3 hops. **Catalogue** shows everything; **Threat chains** shows threats and how they chain.
-- Filter by kind, platform, status or "Problems only". Nodes with errors carry ✗ and an error outline;
-  a reference to a UUID no object has is drawn dashed to a "missing" node.
-- Double-click a node to open it at its `name:` line. Right-click to focus on it, validate its file, run a
-  rule's query, preview its deploy, create a rule for an objective or an objective for a threat, or copy
-  its UUID. Search, zoom, fit, and **Export** as SVG, PNG or Mermaid.
-- **View as list** shows the same nodes and links as a keyboard-navigable tree; <kbd>Shift</kbd>+<kbd>F10</kbd>
-  (or the menu key) opens a node's actions, as a right-click does.
-- **Show in Graph** is in the editor and explorer context menus of Tide YAML files.
+- **Beside the object.** **Show in Graph** (the type-hierarchy icon in a Tide YAML editor's title bar,
+  the editor and explorer context menus, the sidebar's and Find Detection's "Show in graph") opens the
+  graph beside the editor, without taking the focus, in **Focus** on that object. There is one graph
+  panel: asking again retargets it.
+- **Following the editor.** The toolbar names the object the graph is on, **Following** the active
+  editor; the pin keeps it **Pinned** there while you open other files.
+- **In and out.** Click a node: its outgoing edges and the nodes they point to turn one colour (→ out),
+  its incoming edges and their sources another (← in), and everything else dims. Hovering does the same
+  for a moment. The legend names the colours and the kinds.
+- **Details pane** (right; drag its edge to resize, the toolbar button hides it): the node's kind, path,
+  UUID, platforms and problems, then **Outgoing** and **Incoming** groups, worded as everywhere else
+  ("Implements 1 →", "← Implemented by 3", "Precedes 1 →"). Click an item to select it in the graph;
+  double-click it (or <kbd>Enter</kbd>) to open its file beside, at its line. **Open file**, **Focus here**,
+  **Show Relations** (the sidebar's Relations view) and **Copy UUID** act on the node.
+- **Click around.** Double-click a node to open it; <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> (or the
+  toolbar's arrows) go back and forward through what you selected. **+** and **−** beside the selected
+  node (or the keys) show its hidden neighbours in place, or hide the ones that link to nothing else. On
+  the canvas the arrow keys move to the neighbour that way, <kbd>Enter</kbd> opens, <kbd>Escape</kbd>
+  clears the selection, <kbd>/</kbd> searches; <kbd>Enter</kbd> in the search box jumps to the next match.
+- **Scope:** **Focus** (1–3 hops; a rule shows its objective and that objective's threat), **Catalogue**
+  (everything; above 1,000 nodes the graph opens in Focus), **Chains** (threats and how they chain).
+  **Filters** by kind, platform, status or "Problems only". Nodes with errors carry ✗ and an error
+  outline; a reference to a UUID no object has is drawn dashed to a "missing" node.
+- Right-click a node to focus on it, expand or collapse it, validate its file, run a rule's query,
+  preview its deploy, create a rule for an objective or an objective for a threat, or copy its UUID.
+  Fit, re-layout, and **Export** as SVG, PNG or Mermaid.
+- **View as list** shows the same nodes as a keyboard-navigable tree, structured as the details pane is;
+  <kbd>Shift</kbd>+<kbd>F10</kbd> (or the menu key) opens a node's actions, as a right-click does.
 
 The graph needs an opentide with `info catalog`; with an older one it says so and offers Switch Runtime.
 

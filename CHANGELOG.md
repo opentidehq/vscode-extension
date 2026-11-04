@@ -125,7 +125,22 @@ pre-releases odd ones.
   - "View as list", a keyboard tree for keyboard and screen-reader users, which keeps the focused item
     when the catalogue or Problems change; Shift+F10 or the menu key opens a node's actions there, and
     on the canvas for the selected node.
-- "Show in Graph" in the editor and explorer context menus for Tide YAML.
+- "Show in Graph" in a Tide YAML editor's title bar and context menu and the explorer's.
+- The graph opens beside the editor it is asked from (Show in Graph, the sidebar, Find Detection, a
+  CodeLens) without taking the focus, and retargets its one panel; it follows the active editor, with
+  the object's name and a pin in the toolbar.
+- In and out at a glance: selecting or hovering a node colours its outgoing edges and targets (→ out)
+  and its incoming edges and sources (← in), dims the rest, and shows the relation words on its edges;
+  the legend explains the colours and node kinds, with each kind's sidebar icon.
+- A details pane (resizable, collapsible) for the selected node: path, UUID, platforms, problems, then
+  Outgoing and Incoming groups ("Implements 1 →", "← Implemented by 3", "Precedes 1 →") whose items
+  select the node (click) or open its file beside (double-click, Enter); Open file, Focus here, Show Relations, Copy UUID.
+  A node's menu has Show Relations too.
+- Back and Forward through the selection (toolbar, Alt+←/→); + and − expand and collapse a node's
+  neighbours in place, without laying the graph out again; arrow keys move between neighbours, Enter
+  opens, Escape clears, and Enter in the search box jumps to the next match.
+- Selection and hover restyle only the elements involved (no redraw of the view, no layout); a
+  catalogue change sends the webview only the nodes and edges that changed.
 - A file that did not load appears by its path in the graph, search, the sidebar and the agents'
   active-object tool, with its load error, even when it carries another object's UUID (a broken copy):
   that object keeps its node, links and counts.

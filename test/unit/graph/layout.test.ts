@@ -4,6 +4,8 @@ import {
   bounds,
   columnLimit,
   HUGE_LAYOUT,
+  LARGE_VIEW_LEAVE,
+  largeView,
   layeredLayout,
   layout,
   layoutDirection,
@@ -16,6 +18,15 @@ import { computeView } from "../../../src/features/graph/view";
 import { document, object, sampleCatalog, syntheticCatalog, UUID } from "../catalogFixture";
 
 describe("graph layout", () => {
+  it("enters the large-view mode above 1,500 nodes and leaves it only below 1,300", () => {
+    assert.equal(largeView(HUGE_LAYOUT, false), false);
+    assert.equal(largeView(HUGE_LAYOUT + 1, false), true);
+    assert.equal(largeView(1400, true), true, "expanding and collapsing near 1,500 keeps one canvas");
+    assert.equal(largeView(LARGE_VIEW_LEAVE, true), true);
+    assert.equal(largeView(LARGE_VIEW_LEAVE - 1, true), false);
+    assert.equal(largeView(1400, false), false);
+  });
+
   it("lays threats, objectives and rules out left to right", () => {
     const model = buildModel(sampleCatalog());
     const positions = layout(model.nodes, model.edges);

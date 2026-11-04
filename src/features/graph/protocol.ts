@@ -1,6 +1,7 @@
 // The messages between the graph panel and its webview (webview/graph/main.ts). No vscode, no DOM.
 import { is, type Protocol, type Validators } from "../../core/webview/protocol";
 import { isNodeAction, type NodeAction } from "./actions";
+import type { ModelPatch } from "./diff";
 import type { GraphModel, ProblemMap } from "./model";
 import type { GraphMode } from "./view";
 
@@ -16,9 +17,19 @@ export interface GraphData {
   readonly needs?: string;
   /** Why the catalogue is unavailable (`untrusted`, `no-runtime`, `editor-only`, `needs-command`). */
   readonly reason?: string;
+  /** The whole model (the first time, or after a resync); with `patch`, neither. */
   readonly model?: GraphModel;
+  /** What changed since the revision the webview has (`patch.from`). */
+  readonly patch?: ModelPatch;
+  /** The model's revision, with `model`, `patch` or neither (unchanged). */
+  readonly revision?: number;
   /** A refresh is running (the model is the last good one). */
   readonly refreshing: boolean;
+}
+
+/** Whether the graph follows the active editor (`following`) or is pinned to its object. */
+export interface FollowState {
+  readonly following: boolean;
 }
 
 export interface FocusRequest {
@@ -53,11 +64,16 @@ export interface GraphProtocol extends Protocol {
     focus: FocusRequest;
     /** The node actions whose commands this window has. */
     actions: readonly NodeAction[];
+    follow: FollowState;
   };
   toHost: {
     ready: undefined;
-    /** Open the node's file at its line. */
+    /** Open the node's file at its line, beside the graph. */
     open: string;
+    /** Follow the active editor (true) or keep the graph on its object (false: pinned). */
+    follow: boolean;
+    /** The webview's model is not the revision a patch applies to: send the whole model. */
+    resync: undefined;
     copy: string;
     export: ExportRequest;
     action: GraphAction;
@@ -74,6 +90,8 @@ const MAX_EXPORT = 64 * 1024 * 1024;
 export const hostValidators: Validators<GraphProtocol["toHost"]> = {
   ready: is.nothing,
   open: is.string,
+  follow: is.boolean,
+  resync: is.nothing,
   copy: (value): value is string => is.string(value) && value.length <= 10_000,
   export: (value): value is ExportRequest =>
     is.object(value) &&
@@ -91,15 +109,27 @@ export const hostValidators: Validators<GraphProtocol["toHost"]> = {
 const isModel = (value: unknown): value is GraphModel =>
   is.object(value) && Array.isArray(value.nodes) && Array.isArray(value.edges);
 
+const isPatch = (value: unknown): value is ModelPatch =>
+  is.object(value) &&
+  is.number(value.from) &&
+  is.number(value.to) &&
+  Array.isArray(value.nodes) &&
+  is.stringArray(value.removedNodes) &&
+  Array.isArray(value.edges) &&
+  is.stringArray(value.removedEdges);
+
 export const webviewValidators: Validators<GraphProtocol["toWebview"]> = {
   data: (value): value is GraphData =>
     is.object(value) &&
     typeof value.status === "string" &&
     typeof value.folder === "string" &&
     typeof value.refreshing === "boolean" &&
-    (value.model === undefined || isModel(value.model)),
+    (value.model === undefined || isModel(value.model)) &&
+    (value.patch === undefined || isPatch(value.patch)) &&
+    (value.revision === undefined || is.number(value.revision)),
   problems: (value): value is ProblemMap => is.object(value),
   focus: (value): value is FocusRequest =>
     is.object(value) && is.stringArray(value.ids) && typeof value.explicit === "boolean",
   actions: (value): value is readonly NodeAction[] => Array.isArray(value) && value.every(isNodeAction),
+  follow: (value): value is FollowState => is.object(value) && is.boolean(value.following),
 };

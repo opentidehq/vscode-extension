@@ -1349,6 +1349,11 @@
           "group": "navigation@50"
         },
         {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "group": "navigation@20"
+        },
+        {
           "command": "opentide.relations.show",
           "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
           "group": "navigation@45"

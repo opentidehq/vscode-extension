@@ -4,6 +4,7 @@
 import { isLoaded } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument } from "../../core/catalog/types";
+import type { ModelSender } from "./diff";
 import { buildModel, type GraphModel, type NodeProblems, objectNodeId } from "./model";
 import type { ExportFormat, GraphData } from "./protocol";
 import type { GraphMode } from "./view";
@@ -63,6 +64,28 @@ export function graphData(state: CatalogState, folder: string, cache: ModelCache
       };
     default:
       return { status: "loading", folder, refreshing };
+  }
+}
+
+/**
+ * `data` as one webview should get it: its model as the whole model the first time, then as a patch
+ * against what `sender` last sent, or not at all when it did not change.
+ */
+export function outgoingData(data: GraphData, sender: ModelSender): GraphData {
+  if (!data.model) {
+    // A webview told anything but `ready` drops its model: the next one must go whole.
+    sender.reset();
+    return data;
+  }
+  const { model, ...rest } = data;
+  const message = sender.next(model);
+  switch (message.kind) {
+    case "full":
+      return { ...rest, model: message.model, revision: message.revision };
+    case "patch":
+      return { ...rest, patch: message.patch, revision: message.revision };
+    case "same":
+      return { ...rest, revision: message.revision };
   }
 }
 
@@ -204,4 +227,14 @@ export class ChangedOnly {
   reset(): void {
     this.last = undefined;
   }
+}
+
+/** What `opentide.graph.*` commands return: where the panel is and what it is on. */
+export interface GraphPanelStatus {
+  readonly open: boolean;
+  readonly viewColumn?: number;
+  /** Following the active editor; false when pinned. */
+  readonly following: boolean;
+  /** The node id the graph is on, or the file, before the catalogue has loaded. */
+  readonly target?: string;
 }
