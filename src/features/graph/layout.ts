@@ -153,7 +153,9 @@ export function layeredLayout(core: readonly GraphNode[], edges: readonly GraphE
   const ranks: number[][] = [];
   for (let i = 0; i < core.length; i++) {
     const r = rank[i] as number;
-    (ranks[r] ??= []).push(i);
+    const members = ranks[r];
+    if (members) members.push(i);
+    else ranks[r] = [i];
   }
   const order = new Array<number>(core.length).fill(0);
   const positions = new Map<string, Point>();

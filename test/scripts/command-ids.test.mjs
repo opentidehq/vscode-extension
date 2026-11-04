@@ -19,10 +19,10 @@ function sources(dir) {
 }
 
 const ID = String.raw`opentide\.[A-Za-z0-9_.]+`;
-const CONST = String.raw`[A-Z][A-Z0-9_]*`;
+const CONST = "[A-Z][A-Z0-9_]*";
 
 /** What the manifest contributes that a command id can name, and what else an `opentide.…` id may be. */
-export function contributions(contributes) {
+function contributions(contributes) {
   const commands = new Set((contributes.commands ?? []).map((c) => c.command));
   const views = new Set(Object.values(contributes.views ?? {}).flatMap((list) => list.map((v) => v.id)));
   const configuration = Array.isArray(contributes.configuration)
@@ -50,7 +50,7 @@ function constantsOf(files) {
 const lineOf = (text, index) => text.slice(0, index).split("\n").length;
 
 /** Command ids the sources run that nothing contributes, as `file:line id`. */
-export function unknownCommands(files, contributes) {
+function unknownCommands(files, contributes) {
   const { isCommand, others } = contributions(contributes);
   const constants = constantsOf(files);
   const all = files.map((f) => f.text).join("\n");
@@ -81,7 +81,7 @@ export function unknownCommands(files, contributes) {
 }
 
 /** Contributed commands no source registers (registerCommand, or a local `command(…)` helper). */
-export function unregisteredCommands(files, contributes) {
+function unregisteredCommands(files, contributes) {
   const { commands } = contributions(contributes);
   const constants = constantsOf(files);
   const registered = new Set();
@@ -171,6 +171,7 @@ describe("command ids: the guard itself", () => {
       "command(GO, () => {});",
     ].join("\n");
     assert.deepEqual(unregisteredCommands([{ name: "x.ts", text }], contributes), ["opentide.a.other"]);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: source text with a template, not a template
     const template = "command(`opentide.a.${kind}`, run);";
     assert.deepEqual(unregisteredCommands([{ name: "y.ts", text: template }], contributes), [
       "opentide.b.go",
