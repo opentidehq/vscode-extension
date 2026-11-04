@@ -33,6 +33,12 @@ export function webviewEntries(dir) {
 /** npm packages whose files the build copies into dist/ as they are (not bundled by esbuild). */
 export const COPIED_PACKAGES = ["@vscode/codicons"];
 
+/**
+ * Licence labels where a package's `license` field names only part of it: @vscode/codicons says
+ * CC-BY-4.0 (the font) and ships its code (codicon.css) under MIT in LICENSE-CODE.
+ */
+export const LICENCE_LABELS = { "@vscode/codicons": "CC-BY-4.0 AND MIT" };
+
 /** The files the build copies into dist/webview: [source, destination]. */
 export function copiedAssets(root) {
   const webview = join(root, "dist", "webview");
@@ -81,7 +87,8 @@ export function thirdPartyNotices(packages, readFile) {
     const licenseFiles = readdirSync(dir)
       .filter((file) => /^(licen[cs]e|copying)(-[a-z]+)?(\.md|\.txt)?$/i.test(file))
       .sort();
-    sections.push(`${name} ${pkg.version} (${pkg.license ?? "see licence"})`, "-".repeat(40));
+    const label = LICENCE_LABELS[name] ?? pkg.license ?? "see licence";
+    sections.push(`${name} ${pkg.version} (${label})`, "-".repeat(40));
     if (licenseFiles.length === 0) sections.push(`Licence: ${pkg.license}`, "");
     for (const file of licenseFiles) {
       if (licenseFiles.length > 1) sections.push(`${file}:`, "");

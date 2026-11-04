@@ -75,7 +75,13 @@ describe("third-party notices", () => {
     assert.deepEqual([...packages.keys()], ["@vscode/codicons"]);
     const { readFileSync } = await import("node:fs");
     const text = thirdPartyNotices(packages, (file) => readFileSync(file, "utf8"));
-    assert.match(text, /@vscode\/codicons 0\.0\.45 \(CC-BY-4\.0\)/);
+    assert.match(
+      text,
+      /@vscode\/codicons 0\.0\.45 \(CC-BY-4\.0 AND MIT\)/,
+      "the font's and the CSS's licences",
+    );
+    const legal = readFileSync(new URL("../../THIRD-PARTY-LICENSES", import.meta.url), "utf8");
+    assert.match(legal, /dist\/webview\/codicons\/codicon\.ttf[\s\S]*Licence: CC-BY-4\.0 AND MIT/);
     assert.match(text, /LICENSE:\n\nCC BY 4\.0 text/);
     assert.match(text, /LICENSE-CODE:\n\nMIT code text/);
     // The font and its stylesheet land next to the webview bundles, under the CSP's font-src.
