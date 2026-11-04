@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -8,6 +9,8 @@ import {
   extensionLogs,
   restrictedLaunchArgs,
   runnerOptions,
+  runUntilSignal,
+  SIGNAL_EXIT,
   testFiles,
 } from "../../scripts/test-restricted-lib.mjs";
 
@@ -79,6 +82,60 @@ describe("test-restricted: Restricted Mode tests run untrusted", () => {
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
+  });
+
+  /** A fake VS Code: `kill` records the signal, and the test says when it exits. */
+  function fakeRun() {
+    const signals = new EventEmitter();
+    const child = new EventEmitter();
+    const killed = [];
+    const forced = [];
+    child.kill = (signal) => killed.push(signal);
+    const result = runUntilSignal({
+      spawn: () => child,
+      command: "code",
+      args: [],
+      options: {},
+      signals,
+      forceExit: (code) => forced.push(code),
+      log: () => undefined,
+    });
+    return { signals, child, killed, forced, result };
+  }
+
+  it("stops VS Code on Ctrl+C and returns, so the run's folder is still removed", async () => {
+    const run = fakeRun();
+    assert.equal(run.signals.listenerCount("SIGINT"), 1, "Ctrl+C no longer ends this process at once");
+    assert.equal(run.signals.listenerCount("SIGTERM"), 1);
+    run.signals.emit("SIGINT");
+    assert.deepEqual(run.killed, ["SIGINT"]);
+    run.child.emit("exit", null, "SIGINT");
+    assert.equal(await run.result, SIGNAL_EXIT.SIGINT);
+    assert.equal(run.signals.listenerCount("SIGINT"), 0);
+    assert.equal(run.signals.listenerCount("SIGTERM"), 0);
+    assert.deepEqual(run.forced, []);
+  });
+
+  it("exits at once on a second signal, and passes VS Code's own exit code otherwise", async () => {
+    const stuck = fakeRun();
+    stuck.signals.emit("SIGTERM");
+    stuck.signals.emit("SIGTERM");
+    assert.deepEqual(stuck.forced, [SIGNAL_EXIT.SIGTERM]);
+    stuck.child.emit("exit", null, "SIGKILL");
+    assert.equal(await stuck.result, 143);
+    const failed = fakeRun();
+    failed.child.emit("exit", 3, null);
+    assert.equal(await failed.result, 3);
+    const errored = fakeRun();
+    errored.child.emit("error", new Error("ENOENT"));
+    assert.equal(await errored.result, 1);
+  });
+
+  it("removes the run's folder on every way out of the script", () => {
+    const script = readFileSync(join(root, "scripts", "test-restricted.mjs"), "utf8");
+    const removal = script.indexOf("} finally {\n  removeScratch();");
+    assert.ok(removal > script.indexOf("cpSync(") && removal > script.indexOf("runUntilSignal({"));
+    assert.ok(script.indexOf("try {") < script.indexOf("cpSync("), "a failed copy removes it too");
   });
 
   it("is what npm run test:restricted runs, and the fixture settings turn trust on", () => {

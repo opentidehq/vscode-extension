@@ -18,6 +18,7 @@ import {
   extensionLogs,
   restrictedLaunchArgs,
   runnerOptions,
+  runUntilSignal,
   testFiles,
 } from "./test-restricted-lib.mjs";
 
@@ -36,42 +37,53 @@ if (files.length === 0) {
 const executable = await electron.downloadAndUnzipVSCode({ version, cachePath: join(root, ".vscode-test") });
 // Short: on macOS the main IPC socket lives in the user-data-dir, and socket paths are limited.
 const scratch = mkdtempSync(join(tmpdir(), "otr-"));
-const userDataDir = join(scratch, "user");
-cpSync(join(root, "test", "fixtures", "restricted-user"), userDataDir, { recursive: true });
-
-const args = restrictedLaunchArgs({
-  workspace: join(root, "test", "fixtures", "workspace"),
-  extensionDevelopmentPath: root,
-  extensionTestsPath: runner,
-  userDataDir,
-  extensionsDir: join(scratch, "extensions"),
-});
-const env = {
-  ...process.env,
-  VSCODE_TEST_OPTIONS: runnerOptions({ files, timeout: 60_000, color: Boolean(process.stdout.isTTY) }),
-};
-delete env.ELECTRON_RUN_AS_NODE;
-
-const code = await new Promise((resolve) => {
-  const child = spawn(executable, args, { env, stdio: "inherit" });
-  child.on("error", (error) => {
-    console.error(`test-restricted: ${error.message}`);
-    resolve(1);
-  });
-  child.on("exit", (exitCode, signal) => resolve(signal ? 1 : (exitCode ?? 1)));
-});
-
-// A failure is read from CI's log: print the extension's own logs before they go with the folder.
-if (code !== 0)
-  for (const file of extensionLogs(userDataDir)) {
-    console.log(`::group::${file}`);
-    console.log(readFileSync(file, "utf8"));
-    console.log("::endgroup::");
+const removeScratch = () => {
+  try {
+    rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+  } catch (error) {
+    console.warn(`test-restricted: could not remove ${scratch}: ${error.message}`);
   }
+};
+let code = 1;
+// The folder goes on every way out: a failed copy, VS Code's exit, Ctrl+C or a cancelled CI job.
 try {
-  rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
-} catch (error) {
-  console.warn(`test-restricted: could not remove ${scratch}: ${error.message}`);
+  const userDataDir = join(scratch, "user");
+  cpSync(join(root, "test", "fixtures", "restricted-user"), userDataDir, { recursive: true });
+
+  const args = restrictedLaunchArgs({
+    workspace: join(root, "test", "fixtures", "workspace"),
+    extensionDevelopmentPath: root,
+    extensionTestsPath: runner,
+    userDataDir,
+    extensionsDir: join(scratch, "extensions"),
+  });
+  const env = {
+    ...process.env,
+    VSCODE_TEST_OPTIONS: runnerOptions({ files, timeout: 60_000, color: Boolean(process.stdout.isTTY) }),
+  };
+  delete env.ELECTRON_RUN_AS_NODE;
+
+  code = await runUntilSignal({
+    spawn,
+    command: executable,
+    args,
+    options: { env, stdio: "inherit" },
+    forceExit: (signalCode) => {
+      removeScratch();
+      process.exit(signalCode);
+    },
+    log: (message) => console.error(message),
+  });
+
+  // A failure is read from CI's log: print the extension's own logs before they go with the folder.
+  if (code !== 0 && code !== 130 && code !== 143)
+    for (const file of extensionLogs(userDataDir)) {
+      console.log(`::group::${file}`);
+      console.log(readFileSync(file, "utf8"));
+      console.log("::endgroup::");
+    }
+} finally {
+  removeScratch();
 }
 if (code !== 0) console.error(`test-restricted: VS Code exited with ${code}`);
 process.exit(code);

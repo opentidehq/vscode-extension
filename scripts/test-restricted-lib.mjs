@@ -69,3 +69,47 @@ export function extensionLogs(userDataDir, extensionId = "opentidehq.opentide") 
     .filter((file) => file.split(/[\\/]/).includes(extensionId))
     .sort();
 }
+
+/** The exit code of a run stopped by a signal, as a shell reports it. */
+export const SIGNAL_EXIT = { SIGINT: 130, SIGTERM: 143 };
+
+/**
+ * Run VS Code and resolve with its exit code. While it runs, SIGINT and SIGTERM (Ctrl+C, a cancelled CI
+ * job) stop it instead of this process, so the caller still removes the run's folder; the result is then
+ * 130 or 143. A second signal before it exits calls `forceExit` with that code: the caller removes the
+ * folder and exits at once.
+ */
+export function runUntilSignal({ spawn, command, args, options, signals = process, forceExit, log }) {
+  return new Promise((resolve) => {
+    let stopping;
+    let child;
+    const handlers = Object.keys(SIGNAL_EXIT).map((signal) => [
+      signal,
+      () => {
+        if (stopping) {
+          forceExit(SIGNAL_EXIT[signal]);
+          return;
+        }
+        stopping = signal;
+        child?.kill(signal);
+      },
+    ]);
+    const done = (code) => {
+      for (const [signal, handler] of handlers) signals.off(signal, handler);
+      resolve(stopping ? SIGNAL_EXIT[stopping] : code);
+    };
+    for (const [signal, handler] of handlers) signals.on(signal, handler);
+    try {
+      child = spawn(command, args, options);
+    } catch (error) {
+      log(`test-restricted: ${error.message}`);
+      done(1);
+      return;
+    }
+    child.on("error", (error) => {
+      log(`test-restricted: ${error.message}`);
+      done(1);
+    });
+    child.on("exit", (exitCode, signal) => done(signal ? 1 : (exitCode ?? 1)));
+  });
+}
