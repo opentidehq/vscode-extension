@@ -107,18 +107,33 @@
       },
       {
         "view": "opentide.sidebar.coverage",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.platforms",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.health",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
-        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)"
       },
       {
         "view": "opentide.sidebar.coverage",

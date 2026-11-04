@@ -50,4 +50,65 @@ describe("welcome views across features", () => {
       seen.set(key, welcome.contents);
     }
   });
+
+  // Restricted Mode with a folder open: what VS Code knows; every other key may be either.
+  const restricted = { isWorkspaceTrusted: false, workspaceFolderCount: 1, virtualWorkspace: false };
+  /** Whether a `when` can hold in `context`: false only when one of its `&&` terms is false there. */
+  function canShow(when, context) {
+    if (!when) return true;
+    if (/\|\||[()]/.test(when)) return true;
+    return when.split("&&").every((raw) => {
+      const term = raw.trim();
+      const compare = /^([\w.]+)\s*(==|!=|>=|<=|>|<)\s*(\S+)$/.exec(term);
+      if (compare) {
+        const [, key, op, literal] = compare;
+        if (!(key in context)) return true;
+        const value = context[key];
+        const other = Number.isNaN(Number(literal)) ? literal : Number(literal);
+        return {
+          "==": value === other,
+          "!=": value !== other,
+          ">=": value >= other,
+          "<=": value <= other,
+          ">": value > other,
+          "<": value < other,
+        }[op];
+      }
+      const negated = term.startsWith("!");
+      const key = negated ? term.slice(1).trim() : term;
+      if (!(key in context)) return true;
+      return negated ? !context[key] : Boolean(context[key]);
+    });
+  }
+
+  it("reads when clauses as VS Code does, for the Restricted Mode check", () => {
+    assert.equal(canShow("workspaceFolderCount > 0 && !isWorkspaceTrusted", restricted), true);
+    assert.equal(canShow("workspaceFolderCount == 0", restricted), false);
+    assert.equal(canShow("opentide.hasWorkspace && isWorkspaceTrusted", restricted), false);
+    assert.equal(canShow("!opentide.hasWorkspace && !virtualWorkspace", restricted), true);
+    assert.equal(canShow("virtualWorkspace", restricted), false);
+    assert.equal(canShow(undefined, restricted), true);
+  });
+
+  it("offers trust in Restricted Mode, never an opentide command that needs it (as the Catalogue does)", () => {
+    const offending = (contributes.viewsWelcome ?? [])
+      .filter((welcome) => canShow(welcome.when, restricted))
+      .flatMap((welcome) =>
+        [...welcome.contents.matchAll(/\(command:(opentide\.[\w.]+)/g)].map(
+          (m) => `${welcome.view} (${welcome.when}): ${m[1]}`,
+        ),
+      );
+    assert.deepEqual(offending, []);
+    for (const view of ["catalogue", "coverage", "platforms", "health"]) {
+      const shown = (contributes.viewsWelcome ?? []).filter(
+        (welcome) =>
+          welcome.view === `opentide.sidebar.${view}` &&
+          canShow(welcome.when, { ...restricted, "opentide.hasWorkspace": false }) &&
+          welcome.contents.includes("not an opentide repository yet"),
+      );
+      assert.ok(shown.length > 0, `${view}: a welcome for a folder that is not a repository yet`);
+      for (const welcome of shown)
+        assert.match(welcome.contents, /\(command:workbench\.trust\.manage\)/, `${view}: ${welcome.when}`);
+    }
+  });
 });

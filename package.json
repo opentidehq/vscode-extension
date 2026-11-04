@@ -353,8 +353,8 @@
             "default": "auto",
             "scope": "window",
             "enumDescriptions": [
-              "Provide the opentide MCP server to VS Code's agents, unless the workspace's `.vscode/mcp.json` already defines `opentide`.",
-              "Always provide it; VS Code shows one `opentide` server when a workspace file defines one too.",
+              "Provide the opentide MCP server to VS Code's agents, unless a workspace MCP file (`.vscode/mcp.json`, `.mcp.json`) already defines an `opentide` server VS Code can start. When that server's command is not found, the extension's is named `opentide (VS Code)`.",
+              "Always provide it; VS Code shows one `opentide` server when a workspace file defines one too, and names the extension's `opentide (VS Code)` when the file's command is not found.",
               "Never provide it."
             ],
             "markdownDescription": "Whether the extension gives VS Code's agents the opentide MCP server (`opentide mcp start` with the resolved runtime, the bundled one included). Off in Restricted Mode, where this setting is not read."
@@ -1926,18 +1926,33 @@
       },
       {
         "view": "opentide.sidebar.coverage",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.platforms",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && isWorkspaceTrusted && !virtualWorkspace",
         "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
       },
       {
         "view": "opentide.sidebar.health",
-        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !virtualWorkspace",
-        "contents": "This folder is not an opentide repository yet.\n[Set Up a Detection Repository…](command:opentide.setup.open)"
+        "when": "workspaceFolderCount > 0 && !opentide.hasWorkspace && !isWorkspaceTrusted && !virtualWorkspace",
+        "contents": "This folder is not an opentide repository yet. Trust it to set one up here.\n[Manage Workspace Trust](command:workbench.trust.manage)"
       },
       {
         "view": "opentide.sidebar.coverage",

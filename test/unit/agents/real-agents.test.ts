@@ -56,7 +56,7 @@ describe("agents against a real opentide (OPENTIDE_TEST_BIN)", function () {
       runtime,
       hasMcpStart: tree.hasCommand("mcp start"),
       folder: workspace,
-      workspaceDefines: false,
+      workspaceEntries: [],
     });
     assert.ok(decision.provide);
     const { server } = decision;
