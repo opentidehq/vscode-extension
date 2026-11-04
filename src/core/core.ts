@@ -9,7 +9,7 @@ import { spawnRun } from "./backend/spawn";
 import { Capabilities, type CommandsCache } from "./capabilities/capabilities";
 import { CatalogStore, INFO_CATALOG } from "./catalog/store";
 import { folderSymbols, type WorkspaceSymbol } from "./catalog/symbols";
-import type { FeatureContext, Logger, TrustService } from "./context";
+import type { FeatureContext, Logger, StatusMenuItem, TrustService } from "./context";
 import { CredentialStore } from "./credentials";
 import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
@@ -18,7 +18,7 @@ import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
 import { uvExecutable } from "./runtime/resolve";
-import { cliCommand } from "./runtime/types";
+import { cliCommand, describeRuntime } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
 import { LanguageClientManager } from "./services/languageClient";
 import { createLogger } from "./services/logger";
@@ -27,6 +27,7 @@ import { RuntimeManager } from "./services/runtime";
 import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./services/settings";
 import { StatusManager } from "./services/status";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
+import { menuSections, problemsText } from "./statusText";
 import { Emitter } from "./util/event";
 import { serialized } from "./util/serial";
 import { createWebviewHelpers } from "./webview/panel";
@@ -243,9 +244,10 @@ export function createCore(context: vscode.ExtensionContext): Core {
           tree?.hasCommand(INFO_CATALOG) ?? false,
         ),
     ),
-    backend.onDidChangeServe(
-      ({ running }) => void vscode.commands.executeCommand("setContext", "opentide.serveRunning", running),
-    ),
+    backend.onDidChangeServe(({ running }) => {
+      status.setServe(running);
+      void vscode.commands.executeCommand("setContext", "opentide.serveRunning", running);
+    }),
     runtime.onDidChange(
       () => void vscode.commands.executeCommand("setContext", "opentide.trusted", trust.isTrusted),
     ),
@@ -314,32 +316,44 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
         .menuItems()
         .filter((item) => ctx.trust.isTrusted || item.order === 100 || item.order === 110);
       const pin = runtime.pin;
-      const extra =
+      const extra: StatusMenuItem[] =
         runtime.pinMismatch && pin && ctx.trust.isTrusted
           ? [
               {
                 label: `$(pinned) Use the pinned version (${pin.version})`,
                 command: "opentide.usePinnedVersion",
+                order: 125,
               },
               {
                 label: `$(add) Create .venv with opentide ${pin.version}`,
                 command: "opentide.createPinnedVenv",
+                order: 126,
               },
             ]
           : [];
-      const picked = await vscode.window.showQuickPick(
-        [...extra, ...items].map((item) => ({
+      const counts = status.problemCounts();
+      const problems: StatusMenuItem = {
+        label: `$(${counts.errors ? "error" : counts.warnings ? "warning" : "pass"}) Show Problems`,
+        description: problemsText(counts),
+        command: "workbench.actions.view.problems",
+        order: 99,
+      };
+      type Item = vscode.QuickPickItem & { item?: StatusMenuItem };
+      const entries: Item[] = menuSections([problems, ...items, ...extra]).flatMap((section) => [
+        { label: section.label, kind: vscode.QuickPickItemKind.Separator },
+        ...section.items.map((item) => ({
           label: item.label,
-          description: "description" in item ? item.description : undefined,
+          ...(item.description ? { description: item.description } : {}),
           item,
         })),
-        { placeHolder: "opentide" },
-      );
-      if (picked)
-        await vscode.commands.executeCommand(
-          picked.item.command,
-          ...("args" in picked.item ? (picked.item.args ?? []) : []),
-        );
+      ]);
+      const current = runtime.current;
+      const picked = await vscode.window.showQuickPick(entries, {
+        title: current ? `opentide ${current.version}` : "opentide",
+        placeHolder: current ? `${describeRuntime(current)} · ${problemsText(counts)}` : "No runtime",
+      });
+      const chosen = picked?.item;
+      if (chosen) await vscode.commands.executeCommand(chosen.command, ...(chosen.args ?? []));
     }),
     vscode.commands.registerCommand("opentide.switchRuntime", () => switchRuntime(ctx)),
     vscode.commands.registerCommand("opentide.usePinnedVersion", async () => {

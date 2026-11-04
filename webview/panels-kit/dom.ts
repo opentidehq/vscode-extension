@@ -1,6 +1,10 @@
-// Small DOM helpers for the panels stream's webviews (query results, deploy plan, ATT&CK matrix).
+// DOM helpers for the panels' webviews (query results, deploy plan, ATT&CK matrix, setup). The kit's
+// components (src/core/webview/kit/components.ts) describe elements as VNodes; `mount` builds them.
+// Styles are dist/webview/kit.css, linked by the page (theme variables and codicons only).
+import { keyedPlan } from "../../src/core/webview/kit/keyed";
+import { isVNode, takeFocusIntent, type VNode } from "../../src/core/webview/kit/vnode";
 
-type Child = Node | string | number | null | undefined | false;
+export type Child = Node | VNode | string | number | null | undefined | false;
 
 export interface Props {
   readonly id?: string;
@@ -9,6 +13,20 @@ export interface Props {
   readonly title?: string;
   readonly attrs?: Readonly<Record<string, string | number | boolean | undefined>>;
   readonly on?: { readonly [K in keyof HTMLElementEventMap]?: (event: HTMLElementEventMap[K]) => void };
+}
+
+function setAttrs(element: Element, attrs: Readonly<Record<string, string | number | boolean | undefined>>) {
+  for (const [name, value] of Object.entries(attrs)) {
+    if (value === undefined || value === false) continue;
+    element.setAttribute(name, value === true ? "" : String(value));
+  }
+}
+
+function node(child: Child): Node | undefined {
+  if (child === null || child === undefined || child === false) return undefined;
+  if (typeof child === "string" || typeof child === "number") return document.createTextNode(String(child));
+  if (isVNode(child)) return mount(child);
+  return child;
 }
 
 /** Create an element: `h("button", { class: "secondary", on: { click } }, ["Re-run"])`. */
@@ -22,32 +40,112 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   if (props.class) element.className = props.class;
   if (props.text !== undefined) element.textContent = props.text;
   if (props.title) element.title = props.title;
-  for (const [name, value] of Object.entries(props.attrs ?? {})) {
-    if (value === undefined || value === false) continue;
-    element.setAttribute(name, value === true ? "" : String(value));
-  }
+  setAttrs(element, props.attrs ?? {});
   for (const [name, handler] of Object.entries(props.on ?? {})) {
     if (handler) element.addEventListener(name, handler as EventListener);
   }
   for (const child of children) {
-    if (child === null || child === undefined || child === false) continue;
-    element.append(typeof child === "number" ? String(child) : child);
+    const built = node(child);
+    if (built) element.append(built);
   }
   return element;
 }
 
-/** Replace an element's children. */
-export function replace(element: Element, ...children: readonly Child[]): void {
-  element.replaceChildren(
-    ...children.flatMap((c) =>
-      c === null || c === undefined || c === false ? [] : [typeof c === "number" ? String(c) : c],
-    ),
-  );
+/** Build a kit VNode. */
+export function mount(vnode: VNode): HTMLElement {
+  const element = document.createElement(vnode.tag);
+  const { props } = vnode;
+  if (props.class) element.className = props.class;
+  if (props.text !== undefined) element.textContent = props.text;
+  if (props.title) element.title = props.title;
+  setAttrs(element, props.attrs ?? {});
+  for (const [name, value] of Object.entries(props.style ?? {})) element.style.setProperty(name, value);
+  for (const [name, handler] of Object.entries(props.on ?? {}))
+    element.addEventListener(name, handler as unknown as EventListener);
+  for (const child of vnode.children) {
+    const built = node(child as Child);
+    if (built) element.append(built);
+  }
+  return element;
+}
+
+function nodes(children: readonly Child[]): Node[] {
+  return children.flatMap((c) => {
+    const built = node(c);
+    return built ? [built] : [];
+  });
 }
 
 /**
- * Add a stylesheet. The page's CSP allows styles from the extension and with the page's nonce, which the
- * page's own script element carries.
+ * Replace an element's children, keeping the keyboard focus where it was: on the element a handler asked
+ * for (`requestFocus`), else on the new element with the focused one's `data-focus` key.
+ */
+export function replace(element: Element, ...children: readonly Child[]): void {
+  const active = document.activeElement as HTMLElement | null;
+  const had = active && element.contains(active) ? active.dataset.focus : undefined;
+  const wanted = takeFocusIntent() ?? had;
+  element.replaceChildren(...nodes(children));
+  if (wanted) focusKey(wanted, element);
+}
+
+/** Focus the element with this `data-focus` key, if there is one. */
+export function focusKey(key: string, within: ParentNode = document): boolean {
+  const target = within.querySelector<HTMLElement>(`[data-focus="${CSS.escape(key)}"]`);
+  if (!target) return false;
+  target.focus({ preventScroll: false });
+  return true;
+}
+
+/**
+ * Update a container's children by key: items whose key stays are updated in place (`update`), new
+ * ones built (`create`), gone ones removed; nothing else is touched. Children carry `data-key`.
+ */
+export function patchKeyed<T>(
+  container: HTMLElement,
+  items: readonly T[],
+  key: (item: T) => string,
+  create: (item: T) => HTMLElement,
+  update: (element: HTMLElement, item: T) => void,
+): void {
+  const existing = new Map<string, HTMLElement>();
+  for (const child of Array.from(container.children)) {
+    const k = (child as HTMLElement).dataset.key;
+    if (k !== undefined) existing.set(k, child as HTMLElement);
+  }
+  const keys = items.map(key);
+  const plan = keyedPlan([...existing.keys()], keys);
+  for (const gone of plan.remove) existing.get(gone)?.remove();
+  let previous: HTMLElement | null = null;
+  items.forEach((item, index) => {
+    const k = keys[index] ?? "";
+    let element = existing.get(k);
+    if (element) update(element, item);
+    else {
+      element = create(item);
+      element.dataset.key = k;
+    }
+    const expected: Element | null = previous ? previous.nextElementSibling : container.firstElementChild;
+    if (expected !== element) {
+      if (previous) previous.after(element);
+      else container.prepend(element);
+    }
+    previous = element;
+  });
+}
+
+/** Set an element's text only when it changed (no layout work otherwise). */
+export function setText(element: Element, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
+}
+
+/** Toggle a class only when needed. */
+export function setClass(element: Element, name: string, on: boolean): void {
+  if (element.classList.contains(name) !== on) element.classList.toggle(name, on);
+}
+
+/**
+ * Add a page-specific stylesheet. The page's CSP allows styles from the extension and with the page's
+ * nonce, which the page's own script element carries.
  */
 export function addStyles(css: string): void {
   const style = document.createElement("style");
@@ -72,112 +170,15 @@ export function announce(text: string): void {
   }, 30);
 }
 
-/** A codicon-free icon glyph with a text alternative (webviews get no codicon font). */
-export function glyph(symbol: string, label: string): HTMLSpanElement {
-  return h("span", { class: "glyph", text: symbol, attrs: { "aria-hidden": "true", title: label } });
+/** Run `work` at most once per animation frame (scroll, resize, hover). */
+export function frameThrottle(work: () => void): () => void {
+  let pending = false;
+  return () => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      work();
+    });
+  };
 }
-
-/** The globe that marks what contacts a tenant (SPEC P5), as inline SVG in the text colour. */
-export function globeIcon(label = "Contacts tenants"): SVGSVGElement {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("width", "14");
-  svg.setAttribute("height", "14");
-  svg.setAttribute("class", "icon-svg");
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", label);
-  const paths = [
-    "M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z",
-    "M1.5 8h13",
-    "M8 1.5c1.8 1.9 2.7 4 2.7 6.5S9.8 12.6 8 14.5C6.2 12.6 5.3 10.5 5.3 8S6.2 3.4 8 1.5Z",
-  ];
-  for (const d of paths) {
-    const path = document.createElementNS(ns, "path");
-    path.setAttribute("d", d);
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "currentColor");
-    path.setAttribute("stroke-width", "1.1");
-    svg.append(path);
-  }
-  return svg;
-}
-
-/** An empty, loading or error state with a next action. */
-export function stateBox(options: {
-  readonly kind: "empty" | "loading" | "error" | "info";
-  readonly title: string;
-  readonly body?: string;
-  readonly actions?: readonly {
-    readonly label: string;
-    readonly run: () => void;
-    readonly secondary?: boolean;
-  }[];
-}): HTMLElement {
-  const symbols = { empty: "○", loading: "◌", error: "✕", info: "ℹ" };
-  return h(
-    "section",
-    { class: `state state-${options.kind}`, attrs: { role: options.kind === "error" ? "alert" : "status" } },
-    [
-      h("div", {
-        class: `state-icon${options.kind === "loading" ? " spin" : ""}`,
-        text: symbols[options.kind],
-        attrs: { "aria-hidden": "true" },
-      }),
-      h("h2", { text: options.title }),
-      options.body ? h("p", { class: "muted", text: options.body }) : null,
-      options.actions?.length
-        ? h(
-            "div",
-            { class: "actions" },
-            options.actions.map((action) =>
-              h("button", {
-                class: action.secondary ? "secondary" : "",
-                text: action.label,
-                on: { click: action.run },
-              }),
-            ),
-          )
-        : null,
-    ],
-  );
-}
-
-/** Styles every panel of this stream shares. Theme variables only. */
-export const KIT_CSS = `
-body { padding: 0 16px 16px; }
-h1 { font-size: 1.3em; font-weight: 600; margin: 12px 0 4px; }
-h2 { font-size: 1.1em; font-weight: 600; margin: 12px 0 6px; }
-h3 { font-size: 1em; font-weight: 600; margin: 10px 0 4px; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
-.toolbar .spacer { flex: 1; }
-.toolbar label { display: inline-flex; gap: 4px; align-items: center; }
-.chip { display: inline-flex; gap: 6px; align-items: center; padding: 2px 8px; border-radius: 10px;
-  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
-  background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 0.92em; }
-.chip.ok { background: transparent; color: var(--vscode-foreground); border-color: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); }
-.chip.failed { background: transparent; color: var(--vscode-errorForeground); border-color: var(--vscode-errorForeground); }
-.chip.pending { background: transparent; color: var(--vscode-descriptionForeground); }
-.glyph { display: inline-block; min-width: 1em; text-align: center; }
-.icon-svg { vertical-align: -2px; }
-.state { margin: 32px auto; max-width: 520px; text-align: center; }
-.state .state-icon { font-size: 2em; color: var(--vscode-descriptionForeground); }
-.state-error .state-icon { color: var(--vscode-errorForeground); }
-.state .actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
-.spin { animation: spin 1.2s linear infinite; display: inline-block; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-.banner { border-left: 3px solid var(--vscode-editorWarning-foreground); padding: 4px 8px; margin: 6px 0;
-  background: var(--vscode-inputValidation-warningBackground, transparent); }
-.banner.info { border-left-color: var(--vscode-focusBorder); background: transparent; }
-.banner.error { border-left-color: var(--vscode-errorForeground); background: var(--vscode-inputValidation-errorBackground, transparent); }
-.footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border)); }
-.cmdline { display: block; padding: 4px 8px; white-space: pre-wrap; word-break: break-all;
-  background: var(--vscode-textCodeBlock-background); border-radius: 2px; }
-button.link { background: none; border: none; color: var(--vscode-textLink-foreground); padding: 0; cursor: pointer; text-align: left; }
-button.link:hover { text-decoration: underline; background: none; }
-button.icon { padding: 2px 6px; }
-details > summary { cursor: pointer; }
-.badge { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 0.85em;
-  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border)); }
-`;

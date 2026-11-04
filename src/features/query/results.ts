@@ -1,13 +1,54 @@
 // `opentide --json query` documents as the results panel shows them. vscode-free.
 import type { Column, Row } from "./format";
 import { type TableViewState, tableViewState } from "./format";
-import type { QueryPanelState, TenantProgress, TenantTab } from "./protocol";
+import type { QueryPanelState, TenantErrorKind, TenantProgress, TenantTab } from "./protocol";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 const str = (value: unknown): string | null => (typeof value === "string" ? value : null);
 const num = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
+
+/**
+ * The action a failed tab's "Set Credential…" posts: the tenant, and the `$VAR`s its error names (the
+ * fallback when `info` does not list the tenant). `credentials:<tenant>[:VAR,VAR]`.
+ */
+export function credentialAction(tenant: string, variables: readonly string[]): string {
+  return `credentials:${tenant}${variables.length ? `:${variables.join(",")}` : ""}`;
+}
+
+export function parseCredentialAction(code: string): { tenant: string; variables: string[] } | undefined {
+  const match = /^credentials:([^:]*)(?::([A-Z_][A-Z0-9_]*(?:,[A-Z_][A-Z0-9_]*)*))?$/.exec(code);
+  if (!match) return undefined;
+  return { tenant: match[1] ?? "", variables: match[2] ? match[2].split(",") : [] };
+}
+
+/** `$VAR` names in a tenant's error ("Sentinel credentials are unset ($AZURE_CLIENT_ID, …)"). */
+export function errorVariables(text: string): string[] {
+  return [...new Set([...text.matchAll(/\$\{?([A-Z_][A-Z0-9_]*)\}?/g)].map((m) => m[1] ?? ""))].filter(
+    Boolean,
+  );
+}
+
+/** What kind of failure a tenant's `error` and `detail` describe, for the tab's next action. */
+export function tenantErrorKind(error: string | null, detail: string | null): TenantErrorKind {
+  const text = `${error ?? ""} ${detail ?? ""}`;
+  if (/credentials? (are|is) unset|environment variables? .*(not set|unset)|not set:? \$/i.test(text))
+    return "credentials";
+  if (
+    /\b(401|403)\b|unauthori[sz]ed|forbidden|authenticat|AuthorizationFailed|invalid[_ ]client|access denied/i.test(
+      text,
+    )
+  )
+    return "auth";
+  if (
+    /unreachable|cannot reach|timed? ?out|did not answer|connection (refused|reset)|name resolution/i.test(
+      text,
+    )
+  )
+    return "network";
+  return "other";
+}
 
 export function tabKey(tenant: string, label: string | null | undefined): string {
   return label ? `${tenant}\u0000${label}` : tenant;
@@ -31,11 +72,14 @@ export function tabsFromDocument(document: unknown): TenantTab[] {
       for (const row of rows) for (const key of Object.keys(row)) seen.add(key);
       for (const name of seen) columns.push({ name, type: null });
     }
+    const status = result.status === "ok" ? "ok" : "failed";
+    const error = str(result.error);
+    const detail = str(result.detail);
     return {
       key: tabKey(tenant, label),
       tenant,
       label,
-      status: result.status === "ok" ? "ok" : "failed",
+      status,
       columns,
       rows,
       rowCount: num(result.row_count) ?? (result.status === "ok" ? rows.length : null),
@@ -44,8 +88,10 @@ export function tabsFromDocument(document: unknown): TenantTab[] {
       language: str(result.language),
       sent: str(result.sent),
       vendorQueryId: str(result.vendor_query_id),
-      error: str(result.error),
-      detail: str(result.detail),
+      error,
+      detail,
+      errorKind: status === "failed" ? tenantErrorKind(error, detail) : null,
+      variables: status === "failed" ? errorVariables(`${error ?? ""} ${detail ?? ""}`) : [],
       warnings: Array.isArray(result.warnings)
         ? result.warnings.filter((w): w is string => typeof w === "string")
         : [],
@@ -75,6 +121,8 @@ function pendingTab(tenant: string): TenantTab {
     vendorQueryId: null,
     error: null,
     detail: null,
+    errorKind: null,
+    variables: [],
     warnings: [],
     elapsedMs: null,
   };
@@ -171,6 +219,21 @@ export function exportable(tab: TenantTab | undefined, phase: string): boolean {
 export interface QueryViewState {
   readonly selected?: string;
   readonly table?: TableViewState;
+  /** The query the view is for (`queryIdentity`): another query starts with a clear filter and sort. */
+  readonly query?: string;
+}
+
+/** Which query a panel shows: its rule or file, and the platform. */
+export function queryIdentity(state: Pick<QueryPanelState, "name" | "platformId">): string {
+  return `${state.platformId}\u0000${state.name}`;
+}
+
+/** Whether a saved view (tab, filter, sort) applies to the query `next` shows: only to the same query. */
+export function viewApplies(
+  view: string | undefined,
+  next: Pick<QueryPanelState, "name" | "platformId">,
+): boolean {
+  return view === undefined || view === queryIdentity(next);
 }
 
 export function queryViewState(value: unknown): QueryViewState {
@@ -180,5 +243,6 @@ export function queryViewState(value: unknown): QueryViewState {
   return {
     ...(typeof v.selected === "string" ? { selected: v.selected } : {}),
     ...(table ? { table } : {}),
+    ...(typeof v.query === "string" ? { query: v.query } : {}),
   };
 }

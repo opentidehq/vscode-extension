@@ -2,6 +2,44 @@
    high-contrast themes work without per-theme rules. */
 :root {
   color-scheme: light dark;
+
+  /* Design tokens (the panels kit, webview/panels-kit/kit.css): a 4/8 px grid, radii and a type scale,
+     every colour a VS Code theme variable so light, dark and high-contrast themes work as they are. */
+  --ot-space-1: 4px;
+  --ot-space-2: 8px;
+  --ot-space-3: 12px;
+  --ot-space-4: 16px;
+  --ot-space-6: 24px;
+  --ot-space-8: 32px;
+  --ot-radius-1: 2px;
+  --ot-radius-2: 4px;
+  --ot-radius-pill: 999px;
+  --ot-font-xs: calc(var(--vscode-font-size, 13px) * 0.85);
+  --ot-font-sm: calc(var(--vscode-font-size, 13px) * 0.92);
+  --ot-font-md: var(--vscode-font-size, 13px);
+  --ot-font-lg: calc(var(--vscode-font-size, 13px) * 1.15);
+  --ot-font-xl: calc(var(--vscode-font-size, 13px) * 1.38);
+  --ot-row-height: 24px;
+  /* The results table's height: the panel less its toolbar, tabs and footer, never under 10 rows. */
+  --ot-table-height: max(240px, calc(100vh - 330px));
+  --ot-control-height: 26px;
+  --ot-duration: 120ms;
+  --ot-border: var(
+    --vscode-widget-border,
+    var(--vscode-editorWidget-border, var(--vscode-panel-border, transparent))
+  );
+  --ot-border-strong: var(--vscode-contrastBorder, var(--ot-border));
+  --ot-surface: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --ot-surface-raised: var(--vscode-editorHoverWidget-background, var(--ot-surface));
+  --ot-muted: var(--vscode-descriptionForeground);
+  --ot-focus: var(--vscode-focusBorder);
+  --ot-ok: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+  --ot-warning: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
+  --ot-error: var(--vscode-errorForeground, var(--vscode-charts-red));
+  --ot-info: var(--vscode-editorInfo-foreground, var(--vscode-charts-blue));
+  --ot-hover: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+  --ot-selected: var(--vscode-list-activeSelectionBackground);
+  --ot-selected-foreground: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 }
 
 body {

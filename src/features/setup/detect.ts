@@ -1,4 +1,21 @@
 // What kind of folder the wizard is in, from its top-level entries. vscode-free.
+import * as path from "node:path";
+
+/**
+ * The file a wizard link names, inside `folder`, or undefined when it leaves it. A prefix check let
+ * `../<folder>-x/…` through: the path relative to the folder must not start with `..` nor be absolute.
+ */
+export function fileInFolder(
+  folder: string,
+  relative: string,
+  paths: Pick<typeof path, "join" | "relative" | "isAbsolute" | "sep"> = path,
+): string | undefined {
+  const file = paths.join(folder, relative);
+  const inside = paths.relative(folder, file);
+  if (inside === "" || inside === ".." || inside.startsWith(`..${paths.sep}`) || paths.isAbsolute(inside))
+    return undefined;
+  return file;
+}
 
 export type FolderKind = "opentide" | "legacy" | "empty" | "other";
 

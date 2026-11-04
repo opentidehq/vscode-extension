@@ -150,7 +150,10 @@ request shows one line, **Relations need a newer opentide**, with **Switch Runti
 **opentide: Set Up Repository…** (or **Create a Detection Repository Here** in an empty folder's sidebar)
 opens a wizard over `opentide setup`: repository, platforms, CI, agents and extras. **Review** lists every
 file each step will create or merge before anything is written (with an opentide that has `setup --plan`),
-and **Copy as Script** gives the same commands for a terminal. **Apply** runs them and opens the README. In
+and **Copy as Script** gives the same commands for a terminal. The stepper marks the steps that are done
+and those that need attention, and each field says what is wrong as you type. **Apply** runs the commands
+with a progress bar and the status of each, opens the README beside the wizard, and ends on what to do
+next: **Open README**, **New Rule**, **Show Graph** or the Catalogue. In
 an existing repository the wizard adds platforms, CI, MCP, skills and hooks. The **Get started with
 opentide** walkthrough goes from the runtime to your first validated rule, its coverage, a deploy preview
 and your agent.
@@ -202,16 +205,21 @@ types and paths only.
 **opentide: Open ATT&CK Matrix** shows your coverage, tactic by tactic. Each technique is shaded by the
 number of rules covering it, and gaps are hatched. Add planned objectives and unaddressed threats, filter
 by platform, tenant or status, and select a technique to list and open its rules, search for it, or start
-a new objective. **Export Navigator layer** writes the ATT&CK Navigator file. The matrix needs an opentide
-with `info catalog`.
+a new objective. The grid scrolls both ways under sticky tactic headers, and the arrow keys move through it;
+hover a cell for its rule count and top rules. Rules open beside the matrix. **Export Navigator layer**
+writes the ATT&CK Navigator file. The matrix needs an opentide with `info catalog`.
 
 ### Run queries on your tenants
 
 Above every query in a rule, and in `.kql`, `.spl`, `.esql`, `.eql`, `.kuery` and `.lucene` files, lenses
 run the query on the platform's tenants (**Run on prod**), check it there (**Validate live**), or show the
 KQL or SPL the platform runs (**Compiled query**). Pick the tenants and the time window, and the results
-panel shows each tenant's progress, then one tab per tenant: sort, filter, copy as CSV, JSON or Markdown,
-or export CSV or JSONL. Queries are read-only, except Elastic Kuery: it runs as a rule preview, which
+panel opens beside the rule, keeping your place in it. It shows each tenant's progress and the running
+time with **Cancel**, then one tab per tenant: sort, filter, resize columns, copy a cell or a row
+(Shift+F10 for the cell menu), and copy or export the rows from the **Export** menu. A tenant whose
+credentials are unset or refused offers **Set Credential…**. Running another query reuses the panel;
+**Lock** keeps it on its results and the next query opens a panel of its own. Queries are read-only,
+except Elastic Kuery: it runs as a rule preview, which
 writes preview alerts, and the lens says so. Results stay in memory and are dropped when the panel closes.
 Credentials you set are kept in VS Code's secret storage.
 
@@ -219,9 +227,11 @@ Credentials you set are kept in VS Code's secret storage.
 
 **opentide: Preview Deploy** (editor title, explorer, palette, the Catalogue and the graph) runs `opentide
 deploy --dry-run` for the current rule, the selected rules or the changed rules. It shows what each
-platform and tenant would get, the rules that would fail to compile (also in Problems), skipped rules and
-missing tenants. Each API request opens as a read-only JSON document. The editor never deploys: copy the
-deploy command or a ready-made CI step instead.
+platform and tenant would get, beside the rule: the counts as cards, a section per platform with its
+tenants' changes, the rules that would fail to compile (also in Problems), skipped rules and missing
+tenants (with **Open configuration**). Switch between Changed, All and Only this rule. Each API request
+opens beside as a read-only JSON document. Previewing another rule reuses the panel unless it is locked.
+The editor never deploys: copy the deploy command or a ready-made CI step instead.
 
 ### Every command, in the palette, tasks and the terminal
 
@@ -259,8 +269,10 @@ deploy command or a ready-made CI step instead.
 
 ### Status
 
-The status bar shows the opentide version in use and the workspace's problem counts. Its menu
-restarts the server, switches the runtime and shows the output. When the repository pins a different
+The status bar shows the opentide version in use, a lightning icon while the warm backend (`opentide serve`)
+runs, and the workspace's problem counts; its tooltip names the runtime, the backend and the problems.
+Its menu runs the common actions, shows Problems, restarts the server, switches the runtime and shows the
+output. When the repository pins a different
 opentide, it says so and offers the pinned version.
 
 ### Web and virtual workspaces

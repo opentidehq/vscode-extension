@@ -141,3 +141,16 @@ export class PlatformInfoCache {
     else this.entries.delete(folder);
   }
 }
+
+/**
+ * The variables "Set Credential…" offers for a tenant: those `info` lists for it, else the ones its
+ * error named (a tenant `info` does not know), each with whether it is set.
+ */
+export function credentialVariables(
+  tenants: readonly TenantInfo[],
+  fromError: readonly string[],
+): TenantVariable[] {
+  const known = tenants.flatMap((tenant) => tenant.variables);
+  if (known.length > 0) return known;
+  return [...new Set(fromError)].map((name) => ({ name, set: false }));
+}

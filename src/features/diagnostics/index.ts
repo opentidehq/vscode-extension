@@ -464,11 +464,16 @@ class Diagnostics implements vscode.Disposable {
     const uri = vscode.Uri.from({ scheme: EXPLAIN_SCHEME, path: `/${code}.md` });
     this.explainChanged.fire(uri);
     try {
+      // The rendered page beside the editor; Markdown's preview keeps one per side (the next code reuses it).
       await vscode.commands.executeCommand("markdown.showPreviewToSide", uri);
     } catch {
-      // The built-in Markdown extension is disabled: show the source instead.
+      // The built-in Markdown extension is disabled: show the source instead, beside, keeping the focus.
       const document = await vscode.workspace.openTextDocument(uri);
-      await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Beside, preview: true });
+      await vscode.window.showTextDocument(document, {
+        viewColumn: vscode.ViewColumn.Beside,
+        preview: true,
+        preserveFocus: true,
+      });
     }
   }
 

@@ -16,6 +16,7 @@ import {
   validateAnswers,
 } from "../../../src/features/setup/answers";
 import {
+  fileInFolder,
   folderKind,
   isGitRepository,
   WALKTHROUGH_COMMANDS,
@@ -35,8 +36,10 @@ import {
   hostValidators,
   isAnswers,
   reviewTotals,
+  hostValidators as setupHostValidators,
   webviewValidators,
 } from "../../../src/features/setup/protocol";
+import { fieldError, stepStates } from "../../../src/features/setup/validate";
 import { COMMANDS_FIXTURE, ROOT } from "../helpers";
 
 function source(tree: CommandTree): OptionSource {
@@ -590,5 +593,91 @@ describe("setup: manifest", () => {
 
   it("ships the walkthrough media in the VSIX", () => {
     assert.ok(readFileSync(path.join(ROOT, ".vscodeignore"), "utf8").includes("!media/walkthrough/**"));
+  });
+});
+
+describe("setup wizard: stepper states and inline validation", () => {
+  const base = () => ({ ...defaultAnswers("repo"), platforms: ["sentinel"] });
+
+  it("marks the current step, visited steps done, and a visited step with a problem invalid", () => {
+    const answers = { ...base(), name: "" };
+    const states = stepStates({
+      answers,
+      mode: "new",
+      steps: [0, 1, 2, 3, 4, 5],
+      current: 2,
+      visited: new Set([0, 1, 2]),
+    });
+    assert.deepEqual(
+      states.map((s) => s.state),
+      ["invalid", "done", "current", "todo", "todo", "todo"],
+    );
+    // Not visited yet: a problem does not show until Review is reached.
+    const fresh = stepStates({ answers, mode: "new", steps: [0, 1, 2], current: 1, visited: new Set([1]) });
+    assert.deepEqual(
+      fresh.map((s) => s.state),
+      ["todo", "current", "todo"],
+    );
+    const reviewed = stepStates({
+      answers,
+      mode: "new",
+      steps: [0, 1, 5],
+      current: 5,
+      visited: new Set([1, 5]),
+    });
+    assert.deepEqual(
+      reviewed.map((s) => s.state),
+      ["invalid", "done", "current"],
+    );
+    const applied = stepStates({
+      answers: base(),
+      mode: "new",
+      steps: [0, 5],
+      current: 5,
+      visited: new Set([5]),
+      applied: true,
+    });
+    assert.deepEqual(
+      applied.map((s) => s.state),
+      ["done", "done"],
+    );
+  });
+
+  it("gives each field its own message", () => {
+    assert.equal(fieldError("name", { ...base(), name: " " }, "new"), "Give the repository a name.");
+    assert.equal(
+      fieldError("name", { ...base(), name: "" }, "existing"),
+      undefined,
+      "an existing repository has one",
+    );
+    assert.equal(fieldError("platforms", { ...base(), platforms: [] }, "new"), "Pick at least one platform.");
+    assert.equal(fieldError("pythonVersion", { ...base(), pythonVersion: "3.12" }, "new"), undefined);
+    assert.equal(
+      fieldError("pythonVersion", { ...base(), pythonVersion: "twelve" }, "new"),
+      "The Python version looks like 3.12.",
+    );
+    assert.equal(
+      fieldError("defaultBranch", { ...base(), defaultBranch: "main dev" }, "new"),
+      "That is not a valid branch name.",
+    );
+  });
+
+  it("accepts only the finish screen's actions", () => {
+    for (const action of ["readme", "newRule", "graph", "openFolder", "catalogue"])
+      assert.equal(setupHostValidators.next(action), true, action);
+    assert.equal(setupHostValidators.next("rm -rf"), false);
+    assert.equal(setupHostValidators.next(undefined), false);
+  });
+});
+
+describe("setup wizard: file links stay in the folder", () => {
+  it("refuses a sibling folder that shares the folder's name as a prefix", () => {
+    assert.equal(fileInFolder("/work/repo", "README.md"), path.join("/work/repo", "README.md"));
+    assert.equal(fileInFolder("/work/repo", "docs/a.md"), path.join("/work/repo", "docs", "a.md"));
+    assert.equal(fileInFolder("/work/repo", "../repo-x/secret"), undefined, "a prefix is not inside");
+    assert.equal(fileInFolder("/work/repo", "../../etc/passwd"), undefined);
+    assert.equal(fileInFolder("/work/repo", ""), undefined, "the folder itself");
+    assert.equal(fileInFolder("C:\\work\\repo", "..\\repo-x\\a", path.win32), undefined);
+    assert.equal(fileInFolder("C:\\work\\repo", "a\\b.md", path.win32), "C:\\work\\repo\\a\\b.md");
   });
 });

@@ -2,6 +2,7 @@
 // only from dist/webview, the shared base CSS, and a typed, validated message channel.
 import * as vscode from "vscode";
 import { nonce, renderHtml } from "./html";
+import { placement } from "./placement";
 import { acceptMessage, type Protocol, type Validators } from "./protocol";
 
 /** The host's end of a webview's message channel. */
@@ -26,8 +27,28 @@ export interface PanelOptions<P extends Protocol> {
   readonly validators: Validators<P["toHost"]>;
   readonly column?: vscode.ViewColumn;
   readonly preserveFocus?: boolean;
+  /**
+   * A panel about an object: invoked from an editor, it opens beside it without taking the focus, so the
+   * object stays in view (`column` and `preserveFocus` win when given).
+   */
+  readonly beside?: boolean;
+  /** Link the panels kit (`kit.css`, the `ot-kit` page class): tokens, components, focus rings. */
+  readonly kit?: boolean;
   readonly retainContextWhenHidden?: boolean;
   readonly enableFindWidget?: boolean;
+}
+
+export interface PageOptions {
+  /** Link the panels kit stylesheet and give the body its class. */
+  readonly kit?: boolean;
+}
+
+/** Where a panel about an object goes now: beside the active text editor, else the active group. */
+export function objectPanelColumn(): { viewColumn: vscode.ViewColumn; preserveFocus: boolean } {
+  const where = placement(vscode.window.activeTextEditor !== undefined);
+  return where.beside
+    ? { viewColumn: vscode.ViewColumn.Beside, preserveFocus: where.preserveFocus }
+    : { viewColumn: vscode.ViewColumn.Active, preserveFocus: where.preserveFocus };
 }
 
 export interface OpentidePanel<P extends Protocol> extends vscode.Disposable {
@@ -41,7 +62,7 @@ export interface WebviewHelpers {
   /** The options every opentide webview uses: scripts on, resources only from dist/webview. */
   webviewOptions(): vscode.WebviewOptions;
   /** The page for `entry` with its CSP and nonce (for a WebviewView too). */
-  html(webview: vscode.Webview, entry: string, title: string): string;
+  html(webview: vscode.Webview, entry: string, title: string, options?: PageOptions): string;
   /** A channel over any webview (panel or view). */
   connect<P extends Protocol>(webview: vscode.Webview, validators: Validators<P["toHost"]>): HostChannel<P>;
 }
@@ -53,12 +74,17 @@ export function createWebviewHelpers(
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
   const helpers: WebviewHelpers = {
     webviewOptions: () => ({ enableScripts: true, localResourceRoots: [root] }),
-    html(webview, entry, title) {
+    html(webview, entry, title, options = {}) {
       if (!/^[a-z][a-z0-9-]*$/.test(entry)) throw new Error(`bad webview entry: ${entry}`);
+      const asset = (...segments: string[]) =>
+        webview.asWebviewUri(vscode.Uri.joinPath(root, ...segments)).toString();
       return renderHtml({
         cspSource: webview.cspSource,
-        scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(root, `${entry}.js`)).toString(),
-        styleUri: webview.asWebviewUri(vscode.Uri.joinPath(root, "base.css")).toString(),
+        scriptUri: asset(`${entry}.js`),
+        styleUri: asset("base.css"),
+        // The codicon font ships in the extension (dist/webview/codicons), under the page's CSP.
+        extraStyleUris: [asset("codicons", "codicon.css"), ...(options.kit ? [asset("kit.css")] : [])],
+        ...(options.kit ? { bodyClass: "ot-kit" } : {}),
         title,
         nonce: nonce(),
       });
@@ -99,12 +125,15 @@ export function createWebviewHelpers(
       };
     },
     createPanel<P extends Protocol>(options: PanelOptions<P>): OpentidePanel<P> {
+      const where = options.beside
+        ? objectPanelColumn()
+        : { viewColumn: vscode.ViewColumn.Active, preserveFocus: false };
       const panel = vscode.window.createWebviewPanel(
         options.viewType,
         options.title,
         {
-          viewColumn: options.column ?? vscode.ViewColumn.Active,
-          preserveFocus: options.preserveFocus ?? false,
+          viewColumn: options.column ?? where.viewColumn,
+          preserveFocus: options.preserveFocus ?? where.preserveFocus,
         },
         {
           ...helpers.webviewOptions(),
@@ -112,7 +141,9 @@ export function createWebviewHelpers(
           enableFindWidget: options.enableFindWidget ?? true,
         },
       );
-      panel.webview.html = helpers.html(panel.webview, options.entry, options.title);
+      panel.webview.html = helpers.html(panel.webview, options.entry, options.title, {
+        kit: options.kit ?? false,
+      });
       const channel = helpers.connect<P>(panel.webview, options.validators);
       const disposeChannel = panel.onDidDispose(() => channel.dispose());
       return {

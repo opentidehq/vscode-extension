@@ -2,7 +2,7 @@ import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import type { CatalogDocument, CatalogObject } from "../../../src/core/catalog/types";
-import { parseOpenArgs } from "../../../src/features/matrix/index";
+import { matrixTitle, parseOpenArgs } from "../../../src/features/matrix/index";
 import {
   buildMatrix,
   type Cell,
@@ -171,6 +171,24 @@ describe("ATT&CK matrix (#20)", () => {
     assert.deepEqual(
       cellOf(view, "T1003")?.subtechniques.map((s) => s.id),
       ["T1003.001", "T1003.002"],
+    );
+  });
+
+  it("carries a cell's first rules by name for its hover card", () => {
+    const view = buildMatrix(CATALOG);
+    const cell = cellOf(view, "T1003");
+    assert.equal(cell?.top.length, cell?.rules, "two rules, both named");
+    assert.deepEqual(
+      cell?.top,
+      [...(cell?.top ?? [])].sort((a, b) => a.localeCompare(b)),
+      "by name",
+    );
+    assert.deepEqual(cellOf(view, "T1059")?.top, [], "a gap names none");
+    assert.equal(matrixTitle("detections", 1), "ATT&CK Coverage");
+    assert.equal(
+      matrixTitle("detections", 2),
+      "ATT&CK Coverage · detections",
+      "the folder, in a multi-root window",
     );
   });
 
