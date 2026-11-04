@@ -180,7 +180,8 @@ See [§6](#6-diagnostics). The language server owns open files. `opentide valida
 
 - **The editor previews.** It runs `deploy --dry-run` and `share preview`.
 - **CI executes.** A real deploy, `share push`, `share retract` and `deploy migrate-state` are not offered from any menu.
-- **The generic command runner** ([§11](#11-every-cli-command-has-a-home)) can still run them, behind a modal confirmation that names the platform and tenants.
+- **The generic command runner** ([§11](#11-every-cli-command-has-a-home)) runs a deploy or share only as its dry run, behind a modal confirmation that names the platforms and tenants; a dry run plans and compiles locally and sends nothing. A command without a dry run is refused.
+- **MCP is opentide's own surface.** The MCP server the extension provides ([§12](#12-agents)) is `opentide mcp start` unchanged, so its `deploy_rule` tool still takes `dry_run: false`. That is by design: the agent host asks before each tool call, and opentide's server instructions tell agents to deploy for real only when a person asks. The extension does not filter opentide's tools.
 
 Whether to add a gated "deploy to a development tenant" later is an [open question](#17-open-questions).
 
@@ -736,6 +737,7 @@ Revises #6.
   - The label `opentide` deduplicates against workspace MCP files.
   - The setting `opentide.mcp.provide` takes `auto`, `always` or `never`. `auto` provides nothing when a workspace MCP file already defines `opentide` with a command VS Code can start (an absolute path that exists, a name on `PATH`, or one with `${…}` variables). An entry whose command is not found, such as `setup mcp --vscode`'s `opentide` for a user with only the bundled runtime, is skipped with a log line, and the extension provides its server.
   - Off in Restricted Mode.
+  - The server's tools are opentide's, unfiltered: `deploy_rule` with `dry_run: false` deploys for real when an agent calls it so (D6).
 - **Forks without the provider API** (Cursor, Windsurf): the Agents step of the wizard and the walkthrough offer "Add opentide to Cursor's MCP settings".
   - This is a **user-level** entry pointing at the resolved runtime's absolute path, because a committed `.cursor/mcp.json` with `command: opentide` fails for teammates without opentide on `PATH`.
   - The project file is still offered for teams that install opentide.
