@@ -46,6 +46,27 @@ export function planSave(target: SaveTarget, settings: SaveSettings, features: F
   return { ...(validate ? { validate } : {}), ...(lint ? { lint } : {}) };
 }
 
+/**
+ * What one batch of saves in a folder runs: its object files, and whether a configuration file was among
+ * them. A configuration file validates the workspace, which covers the object files, and brings the
+ * workspace lint `opentide.lint.withValidate` asks for; without that, the object files are still linted
+ * one by one.
+ */
+export function planSaveBatch(
+  batch: { readonly objects: number; readonly configuration: boolean },
+  settings: SaveSettings,
+  features: Features,
+): SavePlan {
+  const forObjects = planSave({ isObject: batch.objects > 0, isConfiguration: false }, settings, features);
+  if (!batch.configuration) return forObjects;
+  const forConfiguration = planSave({ isObject: false, isConfiguration: true }, settings, features);
+  const lint = forConfiguration.lint ?? forObjects.lint;
+  return {
+    ...(forConfiguration.validate ? { validate: forConfiguration.validate } : {}),
+    ...(lint ? { lint } : {}),
+  };
+}
+
 export function validateArgv(files?: readonly string[]): string[] {
   return ["validate", ...(files ?? []).flatMap((file) => ["--file", file])];
 }

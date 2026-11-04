@@ -13,6 +13,7 @@ import {
   lintArgv,
   nonOverlapping,
   planSave,
+  planSaveBatch,
   summaryText,
   validateArgv,
   withoutDuplicates,
@@ -48,6 +49,30 @@ describe("diagnostics: plan", () => {
         lint: "workspace",
       },
     );
+  });
+
+  it("a batch with a configuration file validates the workspace, with lint.withValidate's workspace lint", () => {
+    const withValidate = { ...defaults, lintWithValidate: true };
+    assert.deepEqual(planSaveBatch({ objects: 0, configuration: true }, withValidate, both), {
+      validate: "workspace",
+      lint: "workspace",
+    });
+    assert.deepEqual(planSaveBatch({ objects: 2, configuration: true }, withValidate, both), {
+      validate: "workspace",
+      lint: "workspace",
+    });
+    // Without withValidate, the saved objects are still linted alone.
+    assert.deepEqual(planSaveBatch({ objects: 2, configuration: true }, defaults, both), {
+      validate: "workspace",
+      lint: "file",
+    });
+    assert.deepEqual(planSaveBatch({ objects: 0, configuration: true }, defaults, both), {
+      validate: "workspace",
+    });
+    assert.deepEqual(planSaveBatch({ objects: 1, configuration: false }, defaults, both), {
+      validate: "file",
+      lint: "file",
+    });
   });
 
   it("does nothing when off, and for other files", () => {

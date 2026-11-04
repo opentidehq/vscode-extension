@@ -34,7 +34,7 @@ import {
   lintArgv,
   nonOverlapping,
   type OnSave,
-  planSave,
+  planSaveBatch,
   summaryText,
   validateArgv,
   withoutDuplicates,
@@ -261,18 +261,7 @@ class Diagnostics implements vscode.Disposable {
         lintWithValidate: setting<boolean>("lint.withValidate", scope, false),
       };
       const targets = [...files];
-      const forObjects = planSave(
-        { isObject: targets.length > 0, isConfiguration: false },
-        settings,
-        features,
-      );
-      // A configuration file affects every object: it validates the workspace, which covers the files.
-      const plan = configuration
-        ? {
-            ...planSave({ isObject: false, isConfiguration: true }, settings, features),
-            lint: forObjects.lint,
-          }
-        : forObjects;
+      const plan = planSaveBatch({ objects: targets.length, configuration }, settings, features);
       if (plan.validate) this.background("validate", folder, plan.validate === "file" ? targets : undefined);
       if (plan.lint) this.background("lint", folder, plan.lint === "file" ? targets : undefined);
     }
