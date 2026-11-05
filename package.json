@@ -2,7 +2,7 @@
   "name": "opentide",
   "displayName": "opentide",
   "description": "The opentide workbench for detection engineering: live checks for Tide objects and their KQL, SPL, ES|QL, EQL, Kibana KQL, Lucene and Falco queries, templates, catalogue, ATT&CK coverage, query results and deploy previews.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "opentidehq",
   "license": "MIT",
   "icon": "images/icon.png",

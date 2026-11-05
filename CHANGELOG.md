@@ -6,6 +6,10 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-05
+
+Installs on every platform. 0.1.0 reached the Visual Studio Marketplace for Alpine arm64 only, so VS Code on macOS, Windows, Linux x64 and the web said the extension was not available for the platform; 0.1.1 is published for all eight platform packages and the universal one, and the release now checks that the Marketplace lists every package. It also gives Windows on Arm the bundled runtime, adds the opentide engine (WASM) for editor features with nothing installed, on any platform, in Restricted Mode and on vscode.dev and github.dev, and fixes the Marketplace page. It bundles opentide 0.22.0 (engine: language server 0.10.0).
+
 ### Added
 
 - The opentide engine (WASM): editor features with nothing installed, on every platform VS Code runs
@@ -43,6 +47,17 @@ pre-releases odd ones.
 - `npm run smoke` checks the engine in every package, the universal one included, and that each
   carries the web extension (`browser` and the engine's Web Worker), which the Marketplace needs to
   offer it on vscode.dev.
+
+### Fixed
+
+- The extension is on the Marketplace for every platform. 0.1.0 was the extension's first publish: vsce
+  reported all eight packages published, but the Marketplace kept only the first (alpine-arm64). The
+  release now waits until the Marketplace lists every package of the version, publishes any missing one
+  again, and fails naming it.
+- The Marketplace Overview no longer turns into code partway down: a placeholder written as
+  `Explain <code>` opened an HTML element that never closed. Placeholders are escaped, and a test
+  rejects stray HTML tags in the README and CHANGELOG. The Overview also gets screenshots, the
+  Visualization category and more search terms.
 
 ## [0.1.0] - 2026-11-04
 
