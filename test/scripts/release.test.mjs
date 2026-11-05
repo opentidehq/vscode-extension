@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateRawSync } from "node:zlib";
+import { sizeReport } from "../../scripts/package-lib.mjs";
 import {
   ALPINE_IMAGE,
   absoluteLinks,
@@ -373,10 +374,10 @@ describe("release: size summary", () => {
           name: "opentide-linux-x64-0.1.0.vsix",
           report: {
             bytes: 80 * MB,
-            largestDirs: [1, 2, 3, 4, 5, 6].map((n) => ({ path: `runtime/d${n}`, bytes: n * MB })),
+            largest: [1, 2, 3, 4, 5, 6].map((n) => ({ path: `runtime/d${n}`, bytes: n * MB })),
           },
         },
-        { name: "opentide-universal-0.1.0.vsix", report: { bytes: 2 * MB, largestDirs: [] } },
+        { name: "opentide-universal-0.1.0.vsix", report: { bytes: 2 * MB, largest: [] } },
         { name: "opentide-win32-x64-0.1.0.vsix", report: { bytes: 101 * MB } },
       ],
       { budgetBytes: 100 * MB, targetBytes: 70 * MB },
@@ -389,6 +390,31 @@ describe("release: size summary", () => {
     assert.doesNotMatch(text, /d6/);
     assert.match(text, /\| `opentide-universal-0\.1\.0\.vsix` \| 2\.0 MB \| ok \|/);
     assert.match(text, /\| `opentide-win32-x64-0\.1\.0\.vsix` \| 101\.0 MB \| over budget \|/);
+  });
+
+  it("lists the largest directories of a report written by package-lib's sizeReport", () => {
+    const MB = 1024 * 1024;
+    const report = sizeReport({
+      file: "opentide-linux-x64-0.1.0.vsix",
+      target: "linux-x64",
+      bytes: 80 * MB,
+      entries: [
+        { name: "extension/runtime/bin/python3", compressedSize: 3 * MB, size: 6 * MB },
+        { name: "extension/dist/extension.js", compressedSize: 1 * MB, size: 2 * MB },
+      ],
+      budget: { bytes: 100 * MB },
+      targetBytes: 70 * MB,
+      opentide: "0.22.0",
+    });
+    // Round-trip through JSON, as release.mjs reads the <name>.size.json that package.mjs writes.
+    const text = sizeSummary([{ name: report.file, report: JSON.parse(JSON.stringify(report)) }], {
+      budgetBytes: 100 * MB,
+      targetBytes: 70 * MB,
+    });
+    assert.match(
+      text,
+      /\| `opentide-linux-x64-0\.1\.0\.vsix` \| 80\.0 MB \| over target \| `extension\/runtime\/bin` 3\.0 MB, `extension\/dist` 1\.0 MB \|/,
+    );
   });
 });
 
