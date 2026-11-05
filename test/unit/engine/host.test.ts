@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import {
   type EngineModule,
+  exitReasonOf,
   type HostPort,
   logMessage,
   requestId,
@@ -100,6 +101,11 @@ describe("engine host (src/engine/host.ts)", () => {
     fake.send({ jsonrpc: "2.0", id: 1, method: "trap" });
     await done;
     assert.equal(fake.closed, true, "the port is closed: the worker exits");
+    assert.equal(
+      exitReasonOf(fake.posted.at(-1)),
+      "the opentide engine stopped: RuntimeError: unreachable",
+      "its last message says so, for a Web Worker's client",
+    );
     const methods = fake.posted.map((m) => (m as { method?: string }).method);
     assert.ok(methods.includes("window/showMessage"), JSON.stringify(fake.posted));
     const shown = fake.posted.find((m) => (m as { method?: string }).method === "window/showMessage") as {

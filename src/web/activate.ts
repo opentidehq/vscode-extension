@@ -6,6 +6,7 @@ import { ENGINE_STATUS, INSTALL_URL } from "../engine/protocol";
 import {
   CONTINUE_ON_DESKTOP,
   contributedCommands,
+  engineStatus,
   languageIds,
   STATUS,
   unavailableMessage,
@@ -49,10 +50,17 @@ export function activateWeb(context: vscode.ExtensionContext, host: EngineHost):
   context.subscriptions.push(status, item);
 
   const engineState = () => {
-    status.severity = session.current
-      ? vscode.LanguageStatusSeverity.Information
-      : vscode.LanguageStatusSeverity.Warning;
-    status.detail = session.current ? STATUS.detail : "the engine is not running: see the output";
+    const state = engineStatus(session.current !== undefined, session.hasWorkspace);
+    status.severity =
+      state.severity === "warning"
+        ? vscode.LanguageStatusSeverity.Warning
+        : vscode.LanguageStatusSeverity.Information;
+    status.detail = state.detail;
+    status.command = state.restart
+      ? { title: "Restart", command: "opentide.restartServer" }
+      : { title: STATUS.learnMore, command: "vscode.open", arguments: [docs] };
+    item.text = state.restart ? `$(warning) ${ENGINE_STATUS}` : `$(shield) ${ENGINE_STATUS}`;
+    item.command = state.restart ? "opentide.restartServer" : "opentide.showOutput";
   };
   context.subscriptions.push(
     session.onDidChange(engineState),

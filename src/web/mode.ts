@@ -80,3 +80,19 @@ export function unavailableMessage(title: string): string {
 export function isVirtualOnly(schemes: readonly string[]): boolean {
   return schemes.length > 0 && !schemes.includes("file");
 }
+
+/**
+ * The language status of web mode: the engine runs; or it does not (a trap ended its worker, or it did
+ * not start), a warning with Restart. Before any opentide folder is found, nothing to warn about.
+ */
+export function engineStatus(
+  running: boolean,
+  hasWorkspace: boolean,
+): { severity: "information" | "warning"; detail: string; restart: boolean } {
+  if (running || !hasWorkspace) return { severity: "information", detail: STATUS.detail, restart: false };
+  return {
+    severity: "warning",
+    detail: "The opentide engine is not running: Restart, or see the output",
+    restart: true,
+  };
+}

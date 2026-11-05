@@ -5,6 +5,7 @@ import { ENGINE_STATUS } from "../../src/engine/protocol";
 import {
   CONTINUE_ON_DESKTOP,
   contributedCommands,
+  engineStatus,
   isVirtualOnly,
   languageIds,
   STATUS,
@@ -60,6 +61,19 @@ describe("web mode", () => {
     const contributed = new Set(contributedCommands(pkg).map((c) => c.command));
     for (const command of WEB_COMMANDS) assert.ok(contributed.has(command), command);
     assert.ok(contributed.has(CONTINUE_ON_DESKTOP[0]) === false, "a VS Code command, not ours");
+  });
+
+  it("warns, with Restart, when the engine does not run in an opentide workspace", () => {
+    assert.deepEqual(engineStatus(true, true), {
+      severity: "information",
+      detail: STATUS.detail,
+      restart: false,
+    });
+    assert.equal(engineStatus(false, false).restart, false, "no opentide folder: nothing to restart");
+    const stopped = engineStatus(false, true);
+    assert.equal(stopped.severity, "warning");
+    assert.equal(stopped.restart, true);
+    assert.match(stopped.detail, /not running/);
   });
 
   it("says what runs and what is missing in a short status", () => {

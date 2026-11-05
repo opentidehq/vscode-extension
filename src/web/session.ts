@@ -5,7 +5,12 @@
 // worker and the client: a Web Worker and vscode-languageclient/browser in the browser, a worker thread
 // and the node client on the desktop. No Node built-ins.
 import * as vscode from "vscode";
-import type { BaseLanguageClient, LanguageClientOptions, MessageTransports } from "vscode-languageclient";
+import {
+  type BaseLanguageClient,
+  type LanguageClientOptions,
+  type MessageTransports,
+  State,
+} from "vscode-languageclient";
 import {
   parseServerCatalog,
   SERVER_CATALOG,
@@ -126,8 +131,12 @@ export class EngineSession implements vscode.Disposable {
     }
   }
 
+  /** Whether the engine answers: false between an unexpected stop (a trap) and the client's restart. */
+  private running = false;
+
+  /** The running client: undefined while it starts, stopped, or after a trap until it restarts. */
   get current(): BaseLanguageClient | undefined {
-    return this.client;
+    return this.running ? this.client : undefined;
   }
 
   get hasWorkspace(): boolean {
@@ -194,6 +203,22 @@ export class EngineSession implements vscode.Disposable {
       return;
     }
     this.client = client;
+    this.running = true;
+    // An engine that traps ends its worker: the client restarts it, under its crash ceiling.
+    client.onDidChangeState(({ newState }) => {
+      if (this.client !== client) return;
+      if (newState === State.Stopped && this.running) {
+        this.output.warn("engine: stopped; the client restarts it, or use opentide: Restart Server");
+        this.running = false;
+        this.sync.down();
+        this.fire();
+      } else if (newState === State.Running && !this.running) {
+        this.running = true;
+        this.output.info("engine: running again");
+        void this.apply(this.sync.ready(this.updates));
+        this.fire();
+      }
+    });
     this.updates = takesWorkspaceUpdates(client.initializeResult?.capabilities.experimental);
     client.onNotification(SERVER_CATALOG_CHANGED, () => this.fire());
     this.output.info(`engine: initialized in ${Date.now() - started} ms`);
@@ -292,6 +317,7 @@ export class EngineSession implements vscode.Disposable {
   async stop(): Promise<void> {
     const client = this.client;
     this.client = undefined;
+    this.running = false;
     this.sync.down();
     if (client) {
       this.fire();
