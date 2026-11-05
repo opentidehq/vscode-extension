@@ -30,6 +30,7 @@ import { processEnv } from "../runtime/env";
 import { type Fallback, type ServerStart, startWithFallback } from "../runtime/fallback";
 import { languageServerCommand, type Runtime } from "../runtime/types";
 import { Emitter } from "../util/event";
+import { SerialQueue } from "../util/serial";
 import { startEngineWorker } from "./engine";
 
 /** How long after the last file change the engine is restarted with the new workspace. */
@@ -75,8 +76,11 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private readonly catalogChanged = new Emitter<CatalogChanged>();
   readonly onCatalogChanged = this.catalogChanged.event;
 
-  /** Starts and stops run one after another. */
-  private chain: Promise<unknown> = Promise.resolve();
+  /**
+   * Starts and stops run one after another: a stop the core asks for while the engine starts (or
+   * restarts for a file change) waits for that start, rather than tearing down a client mid-start.
+   */
+  private readonly lifecycle = new SerialQueue();
   private last: { runtime: Runtime | undefined; cwd: string | undefined } | undefined;
   /** The engine's worker, its workspace and whether it takes workspace updates, while it runs. */
   private engine: { port: EnginePort | undefined; updates: boolean } | undefined;
@@ -140,8 +144,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     cwd: string | undefined,
     reuseWorkspace: boolean,
   ): Promise<LanguageClient | undefined> {
-    const starting = this.chain.then(() => this.doStart(runtime, cwd, reuseWorkspace));
-    this.chain = starting.catch(() => undefined);
+    const starting = this.lifecycle.run(() => this.doStart(runtime, cwd, reuseWorkspace));
     this.starting = starting;
     void starting.finally(() => {
       if (this.starting === starting) this.starting = undefined;
@@ -154,7 +157,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     cwd: string | undefined,
     reuseWorkspace = false,
   ): Promise<LanguageClient | undefined> {
-    await this.stop();
+    await this.doStop();
     this.last = { runtime, cwd };
     this.lastFallback = undefined;
     if (!runtime) return undefined;
@@ -347,7 +350,12 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     }, ENGINE_RESTART_MS);
   }
 
-  async stop(): Promise<void> {
+  /** Stop the running client, after any start or stop queued before. */
+  stop(): Promise<void> {
+    return this.lifecycle.run(() => this.doStop());
+  }
+
+  private async doStop(): Promise<void> {
     const client = this.client;
     this.client = undefined;
     this.running = false;

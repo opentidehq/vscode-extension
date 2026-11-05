@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { serialized } from "../../src/core/util/serial";
+import { SerialQueue, serialized } from "../../src/core/util/serial";
 
 /** A task whose runs finish when the test says so. */
 function gated() {
@@ -87,5 +87,37 @@ describe("serialized: restarts run one at a time", () => {
     await restart("second");
     assert.equal(await first, "failed");
     assert.deepEqual(reasons, ["first", "second"]);
+  });
+});
+
+describe("SerialQueue: the language client's starts and stops", () => {
+  it("runs a stop asked for during a start after that start, never in the middle of it", async () => {
+    const queue = new SerialQueue();
+    const log: string[] = [];
+    let release: () => void = () => undefined;
+    const start = queue.run(async () => {
+      log.push("start: begin");
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      log.push("start: client up");
+    });
+    const stop = queue.run(async () => {
+      log.push("stop");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.deepEqual(log, ["start: begin"], "the stop waits");
+    release();
+    await Promise.all([start, stop]);
+    assert.deepEqual(log, ["start: begin", "start: client up", "stop"]);
+  });
+
+  it("goes on after a task that fails, and hands each caller its own result", async () => {
+    const queue = new SerialQueue();
+    const failed = queue.run(async () => {
+      throw new Error("boom");
+    });
+    await assert.rejects(failed, /boom/);
+    assert.equal(await queue.run(async () => 7), 7);
   });
 });
