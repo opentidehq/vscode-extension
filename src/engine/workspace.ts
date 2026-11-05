@@ -132,6 +132,13 @@ export class WorkspaceMirror {
     return this.texts.has(uri);
   }
 
+  /** Whether the server has a file under the folder `uri` (no trailing slash). */
+  hasUnder(uri: string): boolean {
+    const prefix = `${uri.replace(/\/+$/, "")}/`;
+    for (const key of this.texts.keys()) if (key.startsWith(prefix)) return true;
+    return false;
+  }
+
   /** The workspace as it stands, for a new server. */
   snapshot(): SuppliedWorkspace {
     return {
@@ -170,4 +177,13 @@ export class WorkspaceMirror {
     if (documents.length === 0 && removed.length === 0 && !changedVisibility) return undefined;
     return { documents, removed, ...(changedVisibility ?? {}) };
   }
+}
+
+/**
+ * Whether a watcher event that is no object file is a folder's: one the server has files under (it was
+ * deleted or moved away), or a folder there now (created or moved in). A folder's name may have a dot
+ * (`objects/threats/APT.29/`), so the name alone says nothing.
+ */
+export function isFolderEvent(uri: string, mirror: WorkspaceMirror, isDirectory: boolean): boolean {
+  return isDirectory || mirror.hasUnder(uri);
 }

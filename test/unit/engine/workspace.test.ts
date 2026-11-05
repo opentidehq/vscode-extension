@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import {
   collectDocuments,
+  isFolderEvent,
   isSuppliedPath,
   objectGlob,
   objectRoots,
@@ -112,5 +113,29 @@ describe("engine workspace (src/engine/workspace.ts)", () => {
       ],
     });
     assert.equal(mirror.size, 2);
+  });
+});
+
+describe("folder events (a folder created, deleted or moved)", () => {
+  const mirror = new WorkspaceMirror({
+    documents: [
+      { uri: "file:///w/objects/threats/APT.29/actor.yaml", text: "a" },
+      { uri: "file:///w/objects/threats/other.yaml", text: "b" },
+    ],
+  });
+
+  it("knows a deleted folder by the files the server has under it, a dot in its name or not", () => {
+    assert.equal(isFolderEvent("file:///w/objects/threats/APT.29", mirror, false), true);
+    assert.equal(isFolderEvent("file:///w/objects/threats/APT.29/", mirror, false), true);
+    assert.equal(
+      mirror.hasUnder("file:///w/objects/threats/APT"),
+      false,
+      "a prefix of a name is not a folder",
+    );
+  });
+
+  it("knows a created folder by what is there now, and nothing else", () => {
+    assert.equal(isFolderEvent("file:///w/objects/threats/FIN.7", mirror, true), true);
+    assert.equal(isFolderEvent("file:///w/objects/threats/notes.md", mirror, false), false);
   });
 });
