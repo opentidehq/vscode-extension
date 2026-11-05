@@ -12,7 +12,7 @@ import {
   SERVER_CATALOG_CHANGED,
   type ServerObject,
 } from "../engine/catalog";
-import { type FeedFolder, WorkspaceFeed } from "../engine/feed";
+import { type FeedFolder, relativeTo, WorkspaceFeed } from "../engine/feed";
 import { WEB_DOCUMENT_SELECTOR } from "../engine/languages";
 import { convertShowReferencesArgs } from "../engine/lsp";
 import { objectFolders } from "../engine/pathsToml";
@@ -115,11 +115,9 @@ export class EngineSession implements vscode.Disposable {
   private associate(document: vscode.TextDocument): void {
     if (document.languageId !== "yaml") return;
     for (const folder of this.folders) {
-      const root = folder.uri.path.endsWith("/") ? folder.uri.path : `${folder.uri.path}/`;
-      if (document.uri.scheme !== folder.uri.scheme || document.uri.authority !== folder.uri.authority)
-        continue;
-      if (!document.uri.path.startsWith(root)) continue;
-      if (isSuppliedPath(document.uri.path.slice(root.length), folder.objectFolders))
+      const relative = relativeTo(folder.uri, document.uri);
+      if (relative === undefined) continue;
+      if (isSuppliedPath(relative, folder.objectFolders))
         void vscode.languages.setTextDocumentLanguage(document, "opentide-yaml");
       return;
     }
