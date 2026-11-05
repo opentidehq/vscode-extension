@@ -197,11 +197,12 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 | Package | Contents | Who gets it |
 |---------|----------|-------------|
-| 8 per-platform VSIX (`vsce package --target`) | Extension, grammars, the **bundled opentide runtime** for that target, licences and SBOM | win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64 |
-| 1 universal VSIX | Extension and grammars, no runtime. Uses the workspace's opentide or `opentide.path`, and says plainly when there is none | Every other target, and the web entry ([§13](#13-trust-remote-and-web)) |
+| 8 per-platform VSIX (`vsce package --target`) | Extension, grammars, the **bundled opentide runtime** for that target, the engine (WASM), licences and SBOM | win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64 |
+| 1 universal VSIX | Extension, grammars and the engine (WASM), no runtime. Uses the workspace's opentide or `opentide.path`, else the engine for editor features, and says plainly which | Every other target, and the web entry ([§13](#13-trust-remote-and-web)) |
 
 - **win32-arm64:** opentide publishes a `win_arm64` wheel since 0.22.0 ([§15](#15-what-this-needs-from-opentide-and-language-server), O2), but cryptography publishes none after 46.0.3, so a wheels-only closure resolves there only with cryptography 46.0.3, behind the 50.x every other target locks. Until cryptography publishes one again that target gets the universal package, so 0.1 ships 7 per-platform packages (`pins.json` `universalTargets`, [PACKAGING.md](PACKAGING.md#why-a-target-gets-the-universal-package)).
-- **No `opentide-lsp` binary** in the per-platform packages. The bundled opentide contains the same engine, so a second copy would be about 20 MB for nothing. `opentide.path` may still name an `opentide-lsp` binary for people who want the bare server.
+- **No `opentide-lsp` binary** in the per-platform packages. The bundled opentide contains the same engine, so a second native copy would be about 20 MB for nothing. `opentide.path` may still name an `opentide-lsp` binary for people who want the bare server.
+- **The engine (WASM) in every package.** language-server's `opentide-wasm-web` zip (`pins.json` `engine`, pinned by URL and SHA-256 like the highlights zip, from the same release) is the runtime of tier 5: the language server, with nothing installed, on every platform VS Code runs on. It costs 3.4 MiB compressed (15.7 MiB installed), about 6% of a per-platform package, which stays under the 70 MiB target. The per-platform packages carry it too, as the safety net for a bundled runtime that does not start (an interpreter blocked by an endpoint agent or AppLocker, a library missing on an unusual Linux, a broken update): editor features survive what breaks Python. It is one platform-independent copy, so the universal package carries the same file ([PACKAGING.md](PACKAGING.md#the-packages)).
 
 ### Building the runtime
 
@@ -250,16 +251,19 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Resolution (revises #3)
 
-The first tier that answers wins, in the order 1, 2, 3, 4, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
+The first tier that answers wins, in the order 1, 2, 3, 4, 5, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
 
 | Tier | Source | Trust | Features |
 |-----:|--------|-------|----------|
 | 1 | `opentide.path`: an `opentide` executable (`lsp start`), or an `opentide-lsp` executable (`--stdio`, editor features only) | Trusted only | All, or editor only for `opentide-lsp` |
 | 2 | The workspace's environment: Python Environments API, else the Python extension API, else `.venv`, else `PATH`. Re-resolved on `onDidChangeEnvironment` | Trusted only | All |
 | 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in** (`opentide.uv.usePin`, then tried before tier 2): offered when the repository pins a version the bundled runtime does not match | Trusted only | All |
-| 4 | **The bundled runtime** | Always; the only tier in Restricted Mode | All when trusted; the language server only in Restricted Mode |
+| 4 | **The bundled runtime** | Always; the only CLI tier in Restricted Mode | All when trusted; the language server only in Restricted Mode |
+| 5 | **The engine (WASM)**: language-server's `opentide-wasm` in a `worker_threads` Worker, used when no other tier answers (the universal package; a bundled runtime that is missing or does not start) | Always: it spawns nothing and reads the workspace through VS Code | Editor features only: diagnostics, hover, completion, semantic tokens, code actions, definitions, references, outline, lenses, the Catalogue, Relations, the graph and Find Detection (from `opentide/catalog`). Not configuration TOML checks, commands, validate and lint, deploy, query, setup, tasks or MCP |
 
 - **Minimum versions:** tiers 1–3 must be an opentide released after opentide#734. An older one is refused with the upgrade command, and tier 4 takes over.
+- **Editor-only runtimes** (tier 5, and an `opentide-lsp` named by `opentide.path`) degrade the same way: every action that needs opentide says so in one line, with **Install opentide** and **Switch Runtime…**; the status item and the language status read `opentide engine (WASM): editor features only`, and the sidebar's opentide-only views say what they need.
+- **The engine's workspace.** It has no filesystem, so the client gives it each opentide folder's object files (`objects/` and the paths.toml object folders, read with `findFiles` and `workspace.fs` in batches of 32) and the primary folder's `visibility.toml` on `initialize` (`initializationOptions.workspace`, language-server `docs/EDITORS.md`). A change on disk goes to the engine as `opentide/didChangeWorkspace` when it says it takes it (`experimental.opentide.workspaceUpdates`, [§15](#15-what-this-needs-from-opentide-and-language-server) L5); 0.10.0 does not, so it is restarted with the new workspace a second after the last change (a file open in an editor counts once it is closed: until then the server reads the buffer). Its findings cover open documents: 0.10.0 does not check the files it is given, only indexes them.
 - **Pin mismatch:** when the repository pins opentide (`pyproject.toml`, `requirements*.txt`, `uv.lock`) and the active tier's version differs, the status item shows `0.21.0 · repo pins 0.20.1`. It offers "Use the pinned version" (tier 3) and "Create .venv with the pinned version" (`uv venv` + install, or the Python extension's create-environment command).
 
 ### Processes
@@ -891,6 +895,7 @@ language-server 0.10.0, the engine in opentide 0.22.0, ships L1 (its highlights 
 | L2 [language-server#196](https://github.com/opentidehq/language-server/issues/196) | SHA-256 sums, and ideally attestations, for release assets | The grammar build verifies the zip; today the extension records its own hashes | M1 *nice* |
 | L3 [language-server#197](https://github.com/opentidehq/language-server/issues/197) | `DOCUMENT_SELECTOR` gains `opentide-config`, and non-`file` schemes for the web | Consistency with `EDITORS.md`; web mode | M4 |
 | L4 [language-server#198](https://github.com/opentidehq/language-server/issues/198) | An `opentide/catalog` (index) request: per object `{uuid, object_type, name, uri, range, refs[]}`, with a change notification | A live, keystroke-fresh graph, and the Catalogue and graph on the web. The body is already in memory | M4 |
+| L5 [language-server#212](https://github.com/opentidehq/language-server/pull/212) | `opentide/didChangeWorkspace`: update the workspace a host supplied on `initialize` (documents added, changed and removed, `visibility.toml`), announced as `experimental.opentide.workspaceUpdates` | The engine (WASM) follows file changes without a restart, on the desktop and the web | *nice* (the extension restarts the engine until then) |
 
 ---
 
