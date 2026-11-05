@@ -24,7 +24,7 @@
       "commandPalette": [
         {
           "command": "opentide.graph.open",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly)"
         },
         {
           "command": "opentide.graph.reveal",
@@ -32,27 +32,27 @@
         },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml"
         }
       ],
       "editor/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         }
       ],
       "explorer/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         }
       ],
       "editor/title": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
           "group": "navigation@20"
         }
       ]

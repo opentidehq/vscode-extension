@@ -35,7 +35,8 @@ describe("sidebar (#15)", () => {
 
   it("lists the run in Activity after a refresh", async () => {
     const api = await activated();
-    if (!api.ctx.runtime.current) return;
+    // Only opentide runs `info`: not the engine (WASM), nor no runtime at all.
+    if (!api.ctx.backend.availability().available) return;
     await vscode.commands.executeCommand("opentide.sidebar.refreshPlatforms");
     await waitFor(() => api.ctx.activity.list().find((entry) => entry.argv[0] === "info"));
   });

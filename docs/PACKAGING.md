@@ -8,8 +8,17 @@ What and why is [SPEC §3](SPEC.md#3-distribution-marketplace-and-open-vsx) and
 
 | Package | Built with | Contents |
 |---------|------------|----------|
-| Per-platform, one per target in `pins.json` `runtimeTargets` | `npm run package -- --target <t>` | The extension, grammars and `runtime/`: CPython, the opentide closure, `BUILD-INFO.json`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt`. An `emulatedTargets` target's `runtime/` is another target's ([below](#emulated-targets-win32-arm64)) |
-| Universal | `npm run package -- --universal` | The extension and grammars, no `runtime/` |
+| Per-platform, one per target in `pins.json` `runtimeTargets` | `npm run package -- --target <t>` | The extension, grammars, `dist/engine/` and `runtime/`: CPython, the opentide closure, `BUILD-INFO.json`, `sbom.cdx.json`, `THIRD-PARTY-NOTICES.txt`. An `emulatedTargets` target's `runtime/` is another target's ([below](#emulated-targets-win32-arm64)) |
+| Universal | `npm run package -- --universal` | The extension, grammars and `dist/engine/`, no `runtime/` |
+
+`dist/engine/` is the engine (WASM), the runtime of tier 5 ([SPEC §4](SPEC.md#4-the-runtime-resolution-processes-status)):
+`npm run build` unpacks the `opentide-wasm-web` zip that `pins.json` `engine` pins (URL and SHA-256, the
+zip's line in the language-server release's `SHA256SUMS`, cached in `.cache/`), bundles its wasm-bindgen
+glue into `dist/engine/worker.js`, and copies `opentide_wasm_bg.wasm`, the zip's `LICENSE`, `NOTICE` and
+`licenses/`, and the release's `THIRD-PARTY-LICENSES.html` (pinned the same way) next to it, with
+`engine.json` (version and checksums), which the resolver reads (`scripts/engine-lib.mjs`). Every package
+carries it, the per-platform ones as the safety net for a bundled runtime that does not start; the cost
+is in the size table below.
 
 Output: `dist-vsix/opentide-<target>-<version>.vsix` (universal: `opentide-universal-<version>.vsix`),
 with `<name>.size.json` next to it for the CI summary. VS Code installs the per-platform package where one
@@ -171,6 +180,7 @@ It exits non-zero on any failure. On a universal package it checks there is no r
 | `python.pythonBuildStandalone`, `python.cpython`, `python.flavor` | The interpreter: the newest CPython for which every closure package has a wheel on every runtime target |
 | `python.macosDeploymentTarget` | The oldest macOS the closure's wheels must load on |
 | `highlights` | The language-server highlights zip; its version is the engine inside the bundled opentide |
+| `engine` | The language-server `opentide-wasm-web` zip (version, URL, SHA-256) and the release's `THIRD-PARTY-LICENSES.html` (URL, SHA-256): the engine (WASM). Same release as `highlights` |
 | `runtimeTargets` | The VS Code targets that get a bundled runtime. Empty: universal only |
 | `universalTargets` | Why each other target gets the universal package |
 | `emulatedTargets.<t>` | `{ runtime, reason }`: a runtime target whose package bundles `runtime`'s runtime, which the OS emulates (win32-arm64: win32-x64). Same OS, not itself emulated |
@@ -206,6 +216,13 @@ same packages were 80.5 MiB for linux-x64 (224.7 MiB installed, the same extensi
 | win32-arm64 (2026-11-05: win32-x64's runtime) | 56.1 MiB | 144.4 MiB | the same as win32-x64 |
 | universal | 0.6 MiB | 1.9 MiB | dist 0.2, dist/webview 0.2, dist/webview/codicons 0.1 |
 
+With the engine (WASM), measured on 2026-11-05 with language-server 0.10.0's `opentide-wasm-web`: the
+universal package is 4.0 MiB (17.6 MiB installed), its largest directory `dist/engine` at 3.4 MiB
+compressed (15.7 MiB installed: the 15.5 MiB module, its worker and licences). Each per-platform package
+grows by the same 3.4 MiB, about 6%: linux-x64 61.1 MiB (measured in CI, 166.3 MiB installed, its
+smoke test running the engine too), darwin-arm64 about 53.6 MiB and win32-x64 about 59.5 MiB, all under
+the 70 MiB target.
+
 Every package carries the production build (`vscode:prepublish`: minified, no source maps). With every
 feature merged: `dist/extension.js` 746 KiB and `dist/webview/graph.js` 520 KiB (Cytoscape), against
 1.5 MiB and 1.1 MiB in `npm run build`; the other webviews are 14–24 KiB each.
@@ -224,7 +241,8 @@ add it to `runtimeTargets`, drop it from `universalTargets`, and commit the new 
 
 1. Set `pins.json` `opentide.version`.
 2. If the engine inside that opentide changed, bump `highlights` (version, URL, SHA-256), then `npm run
-   grammars && npm run manifest`.
+   grammars && npm run manifest`, and `engine` to the same release (the zip's and `THIRD-PARTY-LICENSES.html`'s
+   URLs and SHA-256 from its `SHA256SUMS`); `npm run build` unpacks it.
 3. `npm run runtime:lock -- --upgrade` (or without `--upgrade` to keep the other packages where they
    are), and commit `runtime/requirements.in` and `runtime/locks/`.
 4. Review `runtimeTargets`/`universalTargets` (a target may gain wheels) and drop a

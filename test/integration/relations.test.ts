@@ -118,8 +118,8 @@ describe("relations", () => {
         catalogued,
       )) ?? [];
     const relations = lenses.filter((lens) => lens.command?.command === "opentide.relations.show");
-    if (!catalog.catalog) {
-      // Without `info catalog` the language server's lens is the only one.
+    if (catalog.source !== "cli") {
+      // Without `info catalog` (the engine's index too) the language server's lens is the only one.
       assert.equal(relations.length, 0);
       return;
     }

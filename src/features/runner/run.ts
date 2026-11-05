@@ -8,8 +8,10 @@ import { BackendError } from "../../core/backend/types";
 import type { Classification } from "../../core/capabilities/classification";
 import type { FeatureContext } from "../../core/context";
 import { displayArgv } from "../../core/runtime/env";
-import { cliCommand, hasCli } from "../../core/runtime/types";
+import { cliCommand, hasCli, type Runtime } from "../../core/runtime/types";
 import { httpProxy } from "../../core/services/settings";
+import { explainUnavailable } from "../../core/services/unavailable";
+import { editorOnlyText } from "../../core/unavailable";
 import { ProgressModel } from "./progress";
 import {
   changedFiles,
@@ -40,9 +42,9 @@ export interface Ran {
 }
 
 const MESSAGES = {
-  untrusted: "Restricted Mode: trust this folder to run opentide commands.",
-  "no-runtime": "No opentide runtime. Install opentide in the workspace, or set opentide.path.",
-  "editor-only": "opentide.path names opentide-lsp, which runs no commands. Point it at opentide.",
+  untrusted: () => "Restricted Mode: trust this folder to run opentide commands.",
+  "no-runtime": () => "No opentide runtime. Install opentide in the workspace, or set opentide.path.",
+  "editor-only": (runtime: Runtime | undefined) => editorOnlyText(runtime, "this command"),
 } as const;
 
 export class Runner implements vscode.Disposable {
@@ -68,10 +70,13 @@ export class Runner implements vscode.Disposable {
   }
 
   private async explainUnavailable(code: keyof typeof MESSAGES): Promise<void> {
-    const action = code === "untrusted" ? "Manage Workspace Trust" : "Switch Runtime…";
-    const picked = await vscode.window.showWarningMessage(MESSAGES[code], action);
+    const message = MESSAGES[code](this.ctx.runtime.current);
+    if (code !== "untrusted") {
+      await explainUnavailable(code, message);
+      return;
+    }
+    const picked = await vscode.window.showWarningMessage(message, "Manage Workspace Trust");
     if (picked === "Manage Workspace Trust") await vscode.commands.executeCommand("workbench.trust.manage");
-    else if (picked === "Switch Runtime…") await vscode.commands.executeCommand("opentide.switchRuntime");
   }
 
   /** The folder a run is about: an opentide folder (asked when several), else the first workspace folder. */

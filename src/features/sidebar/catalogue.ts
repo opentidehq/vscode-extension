@@ -44,6 +44,10 @@ interface ScopedInput extends CatalogueInput {
   readonly index?: RelationIndex;
 }
 
+/** The view's message over a catalogue from the language server's index (an editor-only runtime). */
+export const SERVER_CATALOGUE_MESSAGE =
+  "From the language server's index: names, files and references. Platforms, techniques and deployment need opentide.";
+
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** `✗ 2 ! 1`: problem counts as text, so colour is never the only signal. */
@@ -129,6 +133,12 @@ function buildFolder(folder: CatalogueFolder, input: CatalogueInput, multi: bool
     const scoped: ScopedInput = { ...input, index: relationIndexOf(state.catalog) };
     const nodes = fromCatalog(state.catalog, folder.path, scoped, prefix);
     const loadErrors = state.catalog.objects.filter((o) => o.load_error).length;
+    if (state.source === "server")
+      return {
+        nodes,
+        loadErrors,
+        message: SERVER_CATALOGUE_MESSAGE,
+      };
     if (state.status === "error")
       return { nodes, loadErrors, message: `The last refresh failed (${state.error ?? "unknown error"}).` };
     return { nodes, loadErrors };

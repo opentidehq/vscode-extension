@@ -31,3 +31,14 @@ export function serialized(task: (reason: string) => Promise<void>): (reason: st
     return next.done;
   };
 }
+
+/** Tasks run one after another, in the order they were queued; one that fails does not stop the rest. */
+export class SerialQueue {
+  private tail: Promise<unknown> = Promise.resolve();
+
+  run<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(task, task);
+    this.tail = result.catch(() => undefined);
+    return result;
+  }
+}

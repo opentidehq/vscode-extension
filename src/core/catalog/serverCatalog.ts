@@ -3,8 +3,8 @@
 // relation surfaces work, from the same RelationIndex, on a runtime without `info catalog`. Incoming
 // references are the outgoing ones of every other object of the root, inverted. vscode-free.
 import * as path from "node:path";
-import { fileUriPath } from "./symbols";
-import type { CatalogEdge, CatalogSignal } from "./types";
+import { fileUriPath, pathInside } from "./symbols";
+import type { CatalogDocument, CatalogEdge, CatalogObject, CatalogSignal } from "./types";
 
 /** The request and its notification. */
 export const SERVER_CATALOG = "opentide/catalog";
@@ -195,4 +195,67 @@ function lower(value: string): string {
 /** Whether an error is JSON-RPC's MethodNotFound (-32601): a server without the request. */
 export function isMethodNotFound(error: unknown): boolean {
   return (error as { code?: unknown } | null)?.code === -32601;
+}
+
+/**
+ * A folder's catalogue document built from its root in the server's index, for a runtime without
+ * `info catalog` that runs the language server (the engine, or `opentide-lsp`): every object with its
+ * name, type, schema and file, and the edges and signals of its references. What only opentide knows is
+ * empty: platforms, deployment, techniques, tactics, actors, log sources and the ATT&CK skeleton.
+ * Objects outside the folder (a host-supplied stub, another root) are left out.
+ */
+export function serverCatalogDocument(
+  root: ServerRoot,
+  folder: string,
+  platform: NodeJS.Platform = process.platform,
+): CatalogDocument {
+  const lib = platform === "win32" ? path.win32 : path.posix;
+  const inFolder = root.objects.filter((object) => {
+    const file = fileUriPath(object.uri, platform);
+    return file !== undefined && pathInside(folder, file, platform);
+  });
+  const objects: CatalogObject[] = inFolder.map((object) => {
+    const file = fileUriPath(object.uri, platform) ?? object.uri;
+    return {
+      uuid: object.uuid,
+      type: object.object_type,
+      schema: object.schema,
+      name: object.name,
+      path: lib.relative(folder, file).replaceAll("\\", "/"),
+      file_path: file,
+      line: object.range.start.line + 1,
+      platforms: [],
+      deployment: [],
+      techniques: { own: [], inherited: [] },
+      tactics: [],
+      actors: [],
+      load_error: null,
+    };
+  });
+  const { edges, signals } = serverRelations(inFolder);
+  const count = (type: string) => objects.filter((object) => object.type === type).length;
+  return {
+    ok: true,
+    status: "ok",
+    message: "From the language server's index (opentide/catalog)",
+    schema_version: 1,
+    command: SERVER_CATALOG,
+    duration_ms: 0,
+    exit_code: 0,
+    next_actions: [],
+    failure: null,
+    objects,
+    edges,
+    signals: signals.map(({ line: _line, ...signal }) => signal),
+    attack: { tactics: [], techniques: {} },
+    summary: {
+      objects: objects.length,
+      threats: count("threat"),
+      objectives: count("objective"),
+      rules: count("rule"),
+      signals: signals.length,
+      edges: edges.length,
+      load_errors: 0,
+    },
+  };
 }

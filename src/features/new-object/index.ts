@@ -7,6 +7,8 @@ import * as vscode from "vscode";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { explainUnavailable } from "../../core/services/unavailable";
+import { editorOnlyText } from "../../core/unavailable";
 import {
   type ChoiceItem,
   choiceItem,
@@ -124,12 +126,19 @@ class NewObject implements vscode.Disposable, vscode.CodeActionProvider {
   private canRun(): boolean {
     const availability = this.ctx.backend.availability();
     if (availability.available) return true;
-    const messages = {
-      untrusted: "Trust this folder to create objects: opentide new writes the file.",
-      "no-runtime": "No opentide runtime: install opentide in the workspace or set opentide.path.",
-      "editor-only": "opentide.path names opentide-lsp, which has no commands. Point it at opentide.",
-    };
-    void vscode.window.showInformationMessage(messages[availability.code]);
+    if (availability.code === "untrusted") {
+      void vscode.window.showInformationMessage(
+        "Trust this folder to create objects: opentide new writes the file.",
+      );
+      return false;
+    }
+    void explainUnavailable(
+      availability.code,
+      availability.code === "editor-only"
+        ? editorOnlyText(this.ctx.runtime.current, "creating an object")
+        : "No opentide runtime: install opentide in the workspace or set opentide.path.",
+      "information",
+    );
     return false;
   }
 

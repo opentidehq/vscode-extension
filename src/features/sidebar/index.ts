@@ -302,7 +302,11 @@ class Sidebar implements vscode.Disposable {
     const resolved = this.ctx.runtime.attempts.length > 0 || this.ctx.runtime.current !== undefined;
     setContext(
       "opentide.sidebar.noRuntime",
-      resolved && !availability.available && availability.code !== "untrusted",
+      resolved && !availability.available && availability.code === "no-runtime",
+    );
+    setContext(
+      "opentide.sidebar.editorOnly",
+      resolved && !availability.available && availability.code === "editor-only",
     );
     setContext("opentide.sidebar.filtered", Boolean(this.filter));
   }

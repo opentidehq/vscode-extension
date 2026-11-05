@@ -6,6 +6,7 @@ import {
   type ProbeResult,
   type ResolveInput,
   type RuntimeSettings,
+  readEngineManifest,
   resolveRuntime,
   uvExecutable,
 } from "../../src/core/runtime/resolve";
@@ -283,7 +284,8 @@ describe("runtime resolution", () => {
       ).value;
     const arm = await resolveRuntime(failing("win32", "arm64"));
     assert.equal(arm.runtime, undefined);
-    const last = arm.attempts.at(-1);
+    // Tier 5 (the engine) follows: the hint is on tier 4's attempt, wherever it sits.
+    const last = arm.attempts.find((attempt) => attempt.tier === 4);
     assert.equal(last?.tier, 4);
     assert.equal(last?.outcome, "failed");
     assert.match(
@@ -295,7 +297,8 @@ describe("runtime resolution", () => {
       ["linux", "arm64"],
     ] as const) {
       const other = await resolveRuntime(failing(platform, arch));
-      assert.doesNotMatch(other.attempts.at(-1)?.detail ?? "", /Windows 10 on Arm/, `${platform}-${arch}`);
+      const bundled = other.attempts.find((attempt) => attempt.tier === 4);
+      assert.doesNotMatch(bundled?.detail ?? "", /Windows 10 on Arm/, `${platform}-${arch}`);
     }
   });
 
@@ -337,11 +340,110 @@ describe("runtime resolution", () => {
     assert.equal((await resolveRuntime(value)).runtime?.tier, 4);
   });
 
-  it("the universal package without opentide has no runtime, and says why", async () => {
+  it("a build without the engine and no opentide has no runtime, and says why", async () => {
     const { value } = input({}, {}, { files: new Set() });
     const { runtime, attempts } = await resolveRuntime(value);
     assert.equal(runtime, undefined);
-    assert.match(attempts.at(-1)?.detail ?? "", /no bundled runtime/);
+    assert.match(attempts.find((a) => a.tier === 4)?.detail ?? "", /no bundled runtime/);
+    assert.equal(attempts.at(-1)?.tier, 5);
+    assert.match(attempts.at(-1)?.detail ?? "", /carries no engine/);
+  });
+
+  describe("tier 5: the engine (WASM)", () => {
+    const ENGINE = { module: path.join(EXT, "dist", "engine", "opentide_wasm_bg.wasm"), version: "0.10.0" };
+
+    it("is the universal package's runtime when no opentide answers", async () => {
+      const { value, state } = input({ engine: ENGINE }, {}, { files: new Set([ENGINE.module]) });
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime?.tier, 5);
+      assert.equal(runtime?.source, "engine");
+      assert.equal(runtime?.kind, "engine");
+      assert.equal(runtime?.command, ENGINE.module);
+      assert.equal(runtime?.version, "0.10.0");
+      assert.equal(runtime?.restricted, false);
+      assert.deepEqual(
+        attempts.map((a) => [a.tier, a.outcome]),
+        [
+          [1, "missing"],
+          [3, "skipped"],
+          [2, "missing"],
+          [2, "missing"],
+          [2, "missing"],
+          [2, "missing"],
+          [4, "missing"],
+          [5, "ok"],
+        ],
+      );
+      // The engine is not probed: nothing is spawned for it.
+      assert.equal(
+        state.probes.some((p) => p.command === ENGINE.module),
+        false,
+      );
+    });
+
+    it("takes over from a broken bundled runtime", async () => {
+      const { value } = input(
+        { engine: ENGINE },
+        {},
+        {
+          files: new Set([BUNDLED, ENGINE.module]),
+          versions: { [BUNDLED]: { code: 1, stdout: "", stderr: "ImportError: libssl.so.3" } },
+        },
+      );
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime?.kind, "engine");
+      const bundled = attempts.find((a) => a.tier === 4);
+      assert.equal(bundled?.outcome, "failed");
+      assert.match(bundled?.detail ?? "", /libssl/);
+    });
+
+    it("takes over when opentide.path names nothing and opentide.runtime is bundled", async () => {
+      for (const settings of [{ path: () => "/nowhere/opentide" }, { runtime: () => "bundled" }]) {
+        const { value } = input({ engine: ENGINE }, settings, { files: new Set([ENGINE.module]) });
+        const { runtime } = await resolveRuntime(value);
+        assert.equal(runtime?.tier, 5, JSON.stringify(Object.keys(settings)));
+      }
+    });
+
+    it("never replaces a tier that answers", async () => {
+      const { value } = input(
+        { engine: ENGINE },
+        {},
+        { files: new Set([BUNDLED, ENGINE.module]), versions: { [BUNDLED]: "opentide 0.22.0" } },
+      );
+      const { runtime } = await resolveRuntime(value);
+      assert.equal(runtime?.tier, 4);
+    });
+
+    it("runs in Restricted Mode, restricted, when the package has no bundled runtime", async () => {
+      const { value } = input(
+        { trusted: false, engine: ENGINE, pythonEnvironments: throwing("python") },
+        { path: throwing("opentide.path"), interpreter: throwing("opentide.interpreter") },
+        { files: new Set([ENGINE.module]) },
+      );
+      const { runtime } = await resolveRuntime(value);
+      assert.equal(runtime?.kind, "engine");
+      assert.equal(runtime?.restricted, true);
+    });
+
+    it("is missing when its module is", async () => {
+      const { value } = input({ engine: ENGINE }, {}, { files: new Set() });
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime, undefined);
+      assert.match(attempts.at(-1)?.detail ?? "", /does not exist/);
+    });
+  });
+
+  it("reads dist/engine/engine.json", () => {
+    const dir = path.join(EXT, "dist", "engine");
+    assert.deepEqual(readEngineManifest('{"version":"0.10.0","module":"opentide_wasm_bg.wasm"}', dir), {
+      module: path.join(dir, "opentide_wasm_bg.wasm"),
+      version: "0.10.0",
+    });
+    assert.equal(readEngineManifest(undefined, dir), undefined);
+    assert.equal(readEngineManifest("not json", dir), undefined);
+    assert.equal(readEngineManifest('{"version":"0.10.0","module":"../x.wasm"}', dir), undefined);
+    assert.equal(readEngineManifest('{"module":"x.wasm"}', dir), undefined);
   });
 
   it("opentide.interpreter replaces the Python extensions and .venv lookup", async () => {

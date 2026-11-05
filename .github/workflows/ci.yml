@@ -1,10 +1,10 @@
-# CI for the extension (#2): the checks every commit passes, the VS Code integration and Restricted Mode
-# tests on {ubuntu, macos, windows} x {the engines.vscode floor, stable, insiders} (Xvfb on Linux), the
-# tests against the pinned opentide, and the packages: the universal VSIX plus linux-x64 with its smoke
-# test and size report, and the two Windows packages on their own runners, win32-arm64's (the win32-x64
-# runtime, pins.json emulatedTargets) on Windows 11 on Arm under x64 emulation, each with its smoke test
-# and the extension's tests against that bundled runtime. publish.yml builds and smoke-tests every
-# target for a release.
+# CI for the extension (#2): the checks every commit passes, the VS Code integration, Restricted Mode and
+# engine (WASM) tests on {ubuntu, macos, windows} x {the engines.vscode floor, stable, insiders} (Xvfb on
+# Linux), the tests against the pinned opentide, and the packages: the universal VSIX plus linux-x64 with
+# its smoke test and size report, and the two Windows packages on their own runners, win32-arm64's (the
+# win32-x64 runtime, pins.json emulatedTargets) on Windows 11 on Arm under x64 emulation, each with its
+# smoke test and the extension's tests against that bundled runtime. publish.yml builds and smoke-tests
+# every target for a release.
 #
 # Actions are pinned by commit SHA with the version in a comment; Dependabot (github-actions) bumps them.
 name: CI
@@ -166,6 +166,16 @@ jobs:
             xvfb-run -a npm run test:restricted -- --code-version "${CODE_VERSION}"
           else
             npm run test:restricted -- --code-version "${CODE_VERSION}"
+          fi
+      # No opentide anywhere (opentide.path names nothing, none on PATH, no bundled runtime): the engine
+      # (WASM) tier gives diagnostics, hover, completion and the Catalogue.
+      - name: Engine (WASM) tests, with no opentide
+        run: |
+          set -euo pipefail
+          if [[ "${RUNNER_OS}" == "Linux" ]]; then
+            xvfb-run -a npm run test:engine -- --code-version "${CODE_VERSION}"
+          else
+            npm run test:engine -- --code-version "${CODE_VERSION}"
           fi
       # The extension's output channels, which a failed test's message rarely explains. The Restricted
       # Mode run prints its own: its user-data-dir is gone by now.

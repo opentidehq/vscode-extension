@@ -333,6 +333,17 @@ The first that answers wins:
 4. The bundled runtime. On Windows on Arm it is the x64 one, run under Windows 11's emulation: the
    cryptography opentide needs has no Windows on Arm build. On Windows 10 on Arm, which cannot run x64
    programs, it does not start, and the opentide output channel says why: use tiers 1 to 3.
+5. The opentide engine (WASM): the language server built for WebAssembly, which every package carries.
+
+The engine is what runs where nothing else does: the universal package (platforms without a bundled runtime) with no opentide installed, Windows 10 on
+Arm, or a bundled runtime that does not start. It gives the editor features with nothing installed: diagnostics, hover, completion, semantic
+tokens, quick fixes, go to definition, references, the outline, and, from its index of the workspace,
+the Catalogue, Relations, the graph and Find Detection. The status bar then reads **opentide engine
+(WASM): editor features only**. Everything that runs opentide (validate and lint, new objects, deploy
+previews, queries, setup, tasks, the terminal, MCP, ATT&CK coverage and the configuration TOML checks)
+says so in one line, with **Install opentide** and **Switch Runtime…**. It runs in a worker thread, so
+it never blocks the editor, and reads the workspace's object files through VS Code: about a second for
+3,000 objects, then under 300 ms to the first diagnostics of an opened file.
 
 ## Restricted Mode
 

@@ -6,6 +6,10 @@
 //   webview/shared/base.css -> dist/webview/base.css
 //   webview/panels-kit/kit.css -> dist/webview/kit.css
 //   @vscode/codicons' codicon.css and codicon.ttf -> dist/webview/codicons/ (no CDN: the page's CSP)
+//   src/core/engine/worker.ts -> dist/engine/worker.js (node worker thread: the engine (WASM), with the
+//                            wasm-bindgen glue of the pinned opentide-wasm-web zip bundled in)
+//   the zip's opentide_wasm_bg.wasm and licence files, THIRD-PARTY-LICENSES.html -> dist/engine/, with
+//                            engine.json (version and checksums, read by the runtime resolver)
 //   the npm packages bundled in any of them -> dist/THIRD-PARTY-NOTICES.txt
 // Flags: --production (minify, no source maps), --watch.
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -22,6 +26,7 @@ import {
   webExtensionOptions,
   webviewEntries,
 } from "./build-lib.mjs";
+import { engineManifest, GLUE, prepareEngine, shippedFiles, WASM } from "./engine-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const production = process.argv.includes("--production");
@@ -43,6 +48,22 @@ const extension = {
 
 const web = webExtensionOptions(root, common);
 
+// The engine (WASM): unpacked from the pinned zip into .cache/ (downloaded once), checked by SHA-256.
+const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
+const engineDir = await prepareEngine(root, pins.engine);
+const engineWorker = {
+  ...common,
+  entryPoints: { worker: join(root, "src", "core", "engine", "worker.ts") },
+  outdir: join(root, "dist", "engine"),
+  platform: "node",
+  format: "cjs",
+  target: "node20",
+  alias: { "opentide-wasm-glue": join(engineDir, GLUE) },
+  // The glue's default initialiser finds the module next to itself; the worker passes it the bytes.
+  define: { "import.meta.url": JSON.stringify("file:///opentide_wasm.js") },
+  metafile: true,
+};
+
 const webviews = webviewEntries(join(root, "webview"));
 const webview = {
   ...common,
@@ -59,12 +80,16 @@ const webview = {
 
 if (!watch) rmSync(join(root, "dist"), { recursive: true, force: true });
 mkdirSync(join(root, "dist", "webview"), { recursive: true });
-for (const [from, to] of copiedAssets(root)) {
+for (const [from, to] of [...copiedAssets(root), ...shippedFiles(engineDir, join(root, "dist", "engine"))]) {
   mkdirSync(dirname(to), { recursive: true });
   copyFileSync(from, to);
 }
+writeFileSync(
+  join(root, "dist", "engine", "engine.json"),
+  `${JSON.stringify(engineManifest(pins.engine, readFileSync(join(engineDir, WASM))), null, 2)}\n`,
+);
 
-const configs = Object.keys(webviews).length > 0 ? [extension, web, webview] : [extension, web];
+const configs = [extension, web, engineWorker, ...(Object.keys(webviews).length > 0 ? [webview] : [])];
 if (watch) {
   for (const config of configs) await (await esbuild.context(config)).watch();
 } else {

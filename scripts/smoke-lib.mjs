@@ -95,6 +95,24 @@ export function checkInitialize(response, expected) {
 }
 
 /**
+ * The engine (WASM) worker's `initialize`: the server is opentide-lsp at the version dist/engine/engine.json
+ * records, hosted by nothing, and the worker ended after `exit`.
+ */
+export function checkEngineInitialize(response, version, exitCode) {
+  const errors = [];
+  const result = response?.result;
+  if (!result)
+    return [`engine initialize failed: ${JSON.stringify(response?.error ?? response).slice(0, 300)}`];
+  if (result.serverInfo?.name !== "opentide-lsp")
+    errors.push(`engine serverInfo.name is ${result.serverInfo?.name}`);
+  const info = result.capabilities?.experimental?.opentide;
+  if (info?.engine !== version) errors.push(`engine is ${info?.engine}, engine.json says ${version}`);
+  if (info?.host !== null) errors.push(`engine host is ${JSON.stringify(info?.host)}, expected none`);
+  if (exitCode !== 0) errors.push(`the engine worker exited with ${exitCode} after exit`);
+  return errors;
+}
+
+/**
  * The interpreter is of its runtime's architecture: `sysconfig.get_platform()` (`win-amd64`,
  * `linux-aarch64`, `macosx-11.0-arm64`) against the CPU of BUILD-INFO's `runtime` (else `target`).
  * An emulated target's interpreter is its runtime's, not the machine's: win32-arm64 runs `win-amd64`.

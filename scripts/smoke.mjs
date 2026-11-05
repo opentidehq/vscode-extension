@@ -7,9 +7,11 @@
 //   3. `opentide setup --path <tmp> --yes`, then `opentide --json doctor --offline` in it;
 //   4. the fixture's objects (test/fixtures/workspace/objects) copied in: `opentide --json info catalog`
 //      lists them, loaded and linked;
-//   5. `opentide lsp start`: `initialize` reports host.name "opentide" and the pinned engine.
+//   5. `opentide lsp start`: `initialize` reports host.name "opentide" and the pinned engine;
+//   6. every package, the universal one too: the engine (WASM) worker, dist/engine/worker.js, answers
+//      `initialize` with the version engine.json records and no host.
 //   node scripts/smoke.mjs <file.vsix> [--keep]
-// Exits non-zero on any failure. A universal VSIX has no runtime: it only checks there is none.
+// Exits non-zero on any failure. A universal VSIX has no runtime: it checks there is none, and the engine.
 import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -25,11 +27,13 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { Worker } from "node:worker_threads";
 import { PackageError, zipEntries, zipRead } from "./package-lib.mjs";
 import {
   bundledPython,
   checkCatalog,
   checkDoctor,
+  checkEngineInitialize,
   checkInitialize,
   checkInterpreterPlatform,
   checkVersion,
@@ -145,6 +149,47 @@ function initialize(command, argv, workspace) {
   });
 }
 
+/** The engine (WASM) worker as the extension starts it: `initialize`, then `shutdown` and `exit`. */
+function engineInitialize(extension) {
+  const dir = join(extension, "dist", "engine");
+  const manifestPath = join(dir, "engine.json");
+  if (!existsSync(manifestPath)) throw new SmokeError("the package has no dist/engine/engine.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  return new Promise((resolvePromise, reject) => {
+    const worker = new Worker(join(dir, "worker.js"), { workerData: { module: join(dir, manifest.module) } });
+    const timer = setTimeout(() => {
+      void worker.terminate();
+      reject(new SmokeError(`the engine did not answer initialize in ${TIMEOUT_MS / 1000} s`));
+    }, TIMEOUT_MS);
+    let response;
+    worker.on("error", (error) => {
+      clearTimeout(timer);
+      reject(new SmokeError(`engine worker: ${error.message}`));
+    });
+    worker.on("exit", (code) => {
+      clearTimeout(timer);
+      if (response) resolvePromise({ response, manifest, exitCode: code });
+      else reject(new SmokeError(`the engine worker exited with ${code} before answering`));
+    });
+    worker.on("message", (text) => {
+      const message = JSON.parse(text);
+      if (message.id === 1) {
+        response = message;
+        worker.postMessage(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "shutdown" }));
+        worker.postMessage(JSON.stringify({ jsonrpc: "2.0", method: "exit" }));
+      }
+    });
+    worker.postMessage(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { processId: null, rootUri: null, capabilities: {} },
+      }),
+    );
+  });
+}
+
 async function main() {
   if (!vsix) throw new SmokeError("usage: npm run smoke -- <file.vsix> [--keep]");
   const temp = mkdtempSync(join(tmpdir(), "opentide-smoke-"));
@@ -153,10 +198,18 @@ async function main() {
     step(`unpacking ${vsix}`);
     const count = unpack(resolve(vsix), join(temp, "vsix"));
     const extension = join(temp, "vsix", "extension");
+
+    step("engine (WASM): initialize in a worker thread");
+    const engine = await engineInitialize(extension);
+    errors.push(...checkEngineInitialize(engine.response, engine.manifest.version, engine.exitCode));
+    console.log(`smoke: engine ${engine.response.result?.capabilities?.experimental?.opentide?.engine}`);
+
     const infoPath = join(extension, "runtime", "BUILD-INFO.json");
     if (!existsSync(infoPath)) {
       if (existsSync(join(extension, "runtime"))) throw new SmokeError("runtime/ has no BUILD-INFO.json");
-      console.log(`smoke: universal package (${count} files, no runtime): nothing to run`);
+      console.log(`smoke: universal package (${count} files, no runtime): the engine is its runtime`);
+      if (errors.length > 0) throw new SmokeError(errors.join("; "));
+      console.log("smoke: OK");
       return;
     }
     const info = JSON.parse(readFileSync(infoPath, "utf8"));

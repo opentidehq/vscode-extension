@@ -81,6 +81,73 @@ describe("catalogue store", () => {
     instance.dispose();
   });
 
+  describe("an editor-only runtime (the engine, opentide-lsp)", () => {
+    const serverDocument = { ...catalogDocument(2), message: "From the language server's index" };
+    const editorOnly = () => ({ available: false as const, code: "editor-only" as const });
+
+    it("serves the language server's index as the catalogue, and says what it lacks", async () => {
+      let symbols = 0;
+      const { instance, calls } = store({
+        availability: editorOnly,
+        serverCatalog: async () => serverDocument as never,
+        unavailableMessage: (reason) =>
+          reason === "editor-only" ? "The engine runs editor features only" : undefined,
+        symbols: async () => {
+          symbols++;
+          return [];
+        },
+      });
+      const state = await instance.refresh("/r", { immediate: true });
+      assert.equal(state.status, "ready");
+      assert.equal(state.source, "server");
+      assert.equal(state.catalog?.objects.length, 2);
+      assert.equal(state.unavailable?.reason, "editor-only");
+      assert.equal(state.unavailable?.message, "The engine runs editor features only");
+      assert.equal(calls.runs, 0, "no info catalog");
+      assert.equal(symbols, 0, "no workspace/symbol either");
+      instance.dispose();
+    });
+
+    it("falls back to workspace symbols when the server has no index of the folder", async () => {
+      const { instance } = store({ availability: editorOnly, serverCatalog: async () => undefined });
+      const state = await instance.refresh("/r", { immediate: true });
+      assert.equal(state.status, "unavailable");
+      assert.equal(state.source, undefined);
+      assert.equal(state.symbols?.length, 1);
+      assert.match(state.unavailable?.message ?? "", /opentide-lsp/);
+    });
+
+    it("falls back to workspace symbols when opentide/catalog fails", async () => {
+      const { instance } = store({
+        availability: editorOnly,
+        serverCatalog: async () => {
+          throw Object.assign(new Error("Unhandled method opentide/catalog"), { code: -32601 });
+        },
+      });
+      const state = await instance.refresh("/r", { immediate: true });
+      assert.equal(state.status, "unavailable");
+      assert.equal(state.symbols?.length, 1);
+    });
+
+    it("never keeps the server's document once opentide runs, even when info catalog fails", async () => {
+      let available = false;
+      const { instance } = store({
+        availability: () => (available ? { available: true } : editorOnly()),
+        serverCatalog: async () => serverDocument as never,
+        runCatalog: async () => {
+          throw new Error("boom");
+        },
+      });
+      assert.equal((await instance.refresh("/r", { immediate: true })).source, "server");
+      available = true;
+      const state = await instance.refresh("/r", { immediate: true });
+      assert.equal(state.status, "error");
+      assert.equal(state.catalog, undefined);
+      assert.equal(state.source, undefined);
+      instance.dispose();
+    });
+  });
+
   it("says to trust the folder in Restricted Mode", async () => {
     const { instance } = store({ availability: () => ({ available: false, code: "untrusted" }) });
     const state = await instance.refresh("/r", { immediate: true });

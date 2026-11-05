@@ -23,6 +23,12 @@ export interface CatalogState {
   readonly status: CatalogStatus;
   /** The last good document; kept while a refresh runs or after one fails. */
   readonly catalog?: CatalogDocument;
+  /**
+   * Where `catalog` came from: `info catalog` (`cli`), or the language server's `opentide/catalog` on an
+   * editor-only runtime (`server`: names, types, files and references; no platforms, techniques or
+   * deployment, and `unavailable` says why).
+   */
+  readonly source?: "cli" | "server";
   /** Fallback names and locations (`workspace/symbol`), when there is no document. */
   readonly symbols?: readonly CatalogSymbol[];
   readonly unavailable?: CatalogUnavailable;
@@ -43,6 +49,13 @@ export interface CatalogStoreDeps {
   runCatalog(folder: string): Promise<{ document: unknown; exitCode: number }>;
   /** `workspace/symbol` results under the folder, when the language server runs. */
   symbols(folder: string): Promise<readonly CatalogSymbol[] | undefined>;
+  /**
+   * The folder's document from the language server's index (`opentide/catalog`), for an editor-only
+   * runtime; undefined when the server has none.
+   */
+  serverCatalog?(folder: string): Promise<CatalogDocument | undefined>;
+  /** The message of an unavailable reason, when it depends on the runtime (`editor-only`). */
+  unavailableMessage?(reason: "no-runtime" | "untrusted" | "editor-only"): string | undefined;
   log(level: "debug" | "warn", message: string): void;
   readonly debounceMs?: number;
   now?(): number;
@@ -183,12 +196,31 @@ export class CatalogStore {
 
     const availability = this.deps.availability();
     if (!availability.available) {
+      const unavailable = {
+        reason: availability.code,
+        message: this.deps.unavailableMessage?.(availability.code) ?? UNAVAILABLE_MESSAGES[availability.code],
+      };
+      if (availability.code === "editor-only" && this.deps.serverCatalog) {
+        const catalog = await this.safeServerCatalog(folder);
+        if (catalog) {
+          this.replace(slot, {
+            folder,
+            status: "ready",
+            catalog,
+            source: "server",
+            unavailable,
+            refreshing: false,
+            updatedAt: now(),
+          });
+          return;
+        }
+      }
       const symbols = await this.safeSymbols(folder);
       this.replace(slot, {
         folder,
         status: "unavailable",
         refreshing: false,
-        unavailable: { reason: availability.code, message: UNAVAILABLE_MESSAGES[availability.code] },
+        unavailable,
         ...(symbols ? { symbols } : {}),
         updatedAt: now(),
       });
@@ -220,23 +252,33 @@ export class CatalogStore {
         folder,
         status: "ready",
         catalog: inFolderSpelling(document, folder),
+        source: "cli",
         refreshing: false,
         updatedAt: now(),
       });
     } catch (error) {
       const message = error instanceof BackendError || error instanceof Error ? error.message : String(error);
       this.deps.log("warn", `catalogue of ${folder}: ${message}`);
-      const catalog = slot.state.catalog;
+      const catalog = slot.state.source === "cli" ? slot.state.catalog : undefined;
       const symbols = catalog ? undefined : await this.safeSymbols(folder);
       this.replace(slot, {
         folder,
-        ...(catalog ? { catalog } : {}),
+        ...(catalog ? { catalog, source: "cli" as const } : {}),
         status: "error",
         error: message,
         refreshing: false,
         ...(symbols ? { symbols } : {}),
         updatedAt: now(),
       });
+    }
+  }
+
+  private async safeServerCatalog(folder: string): Promise<CatalogDocument | undefined> {
+    try {
+      return await this.deps.serverCatalog?.(folder);
+    } catch (error) {
+      this.deps.log("debug", `opentide/catalog for ${folder}: ${String(error)}`);
+      return undefined;
     }
   }
 
