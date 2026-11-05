@@ -413,18 +413,20 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     version: engine.version,
     detail: `${engine.module} ${engine.version}`,
   });
+  return { runtime: engineRuntime(engine, !input.trusted), attempts };
+}
+
+/** The tier-5 runtime of an engine layout. */
+export function engineRuntime(engine: EngineLayout, restricted: boolean): Runtime {
   return {
-    runtime: {
-      tier: 5,
-      source: "engine",
-      kind: "engine",
-      command: engine.module,
-      args: [],
-      version: engine.version,
-      env: {},
-      restricted: !input.trusted,
-      binDirs: [],
-    },
-    attempts,
+    tier: 5,
+    source: "engine",
+    kind: "engine",
+    command: engine.module,
+    args: [],
+    version: engine.version,
+    env: {},
+    restricted,
+    binDirs: [],
   };
 }

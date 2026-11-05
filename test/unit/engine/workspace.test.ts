@@ -1,10 +1,10 @@
 import * as assert from "node:assert/strict";
 import {
   collectDocuments,
+  isFolderEvent,
   isSuppliedPath,
   objectGlob,
   objectRoots,
-  planDelta,
   WorkspaceMirror,
 } from "../../../src/engine/workspace";
 
@@ -116,35 +116,26 @@ describe("engine workspace (src/engine/workspace.ts)", () => {
   });
 });
 
-describe("what a workspace change does to the engine (planDelta)", () => {
-  const delta = (uris: string[], visibility?: string | null) => ({
-    documents: uris.map((uri) => ({ uri, text: "x" })),
-    removed: [],
-    ...(visibility !== undefined ? { visibility } : {}),
+describe("folder events (a folder created, deleted or moved)", () => {
+  const mirror = new WorkspaceMirror({
+    documents: [
+      { uri: "file:///w/objects/threats/APT.29/actor.yaml", text: "a" },
+      { uri: "file:///w/objects/threats/other.yaml", text: "b" },
+    ],
   });
 
-  it("sends it to an engine that takes opentide/didChangeWorkspace", () => {
-    assert.deepEqual(planDelta(delta(["file:///w/objects/a.yaml"]), true, new Set()), { kind: "notify" });
+  it("knows a deleted folder by the files the server has under it, a dot in its name or not", () => {
+    assert.equal(isFolderEvent("file:///w/objects/threats/APT.29", mirror, false), true);
+    assert.equal(isFolderEvent("file:///w/objects/threats/APT.29/", mirror, false), true);
+    assert.equal(
+      mirror.hasUnder("file:///w/objects/threats/APT"),
+      false,
+      "a prefix of a name is not a folder",
+    );
   });
 
-  it("restarts 0.10.0, unless every file it touches is open", () => {
-    assert.deepEqual(planDelta(delta(["file:///w/objects/a.yaml"]), false, new Set()), { kind: "restart" });
-    assert.deepEqual(
-      planDelta(delta(["file:///w/objects/a.yaml"]), false, new Set(["file:///w/objects/a.yaml"])),
-      { kind: "after-close", uris: ["file:///w/objects/a.yaml"] },
-    );
-    assert.deepEqual(
-      planDelta(
-        delta(["file:///w/objects/a.yaml", "file:///w/objects/b.yaml"]),
-        false,
-        new Set(["file:///w/objects/a.yaml"]),
-      ),
-      { kind: "restart" },
-    );
-    // visibility.toml is read by every analysis: restart at once.
-    assert.deepEqual(
-      planDelta(delta(["file:///w/objects/a.yaml"], "x"), false, new Set(["file:///w/objects/a.yaml"])),
-      { kind: "restart" },
-    );
+  it("knows a created folder by what is there now, and nothing else", () => {
+    assert.equal(isFolderEvent("file:///w/objects/threats/FIN.7", mirror, true), true);
+    assert.equal(isFolderEvent("file:///w/objects/threats/notes.md", mirror, false), false);
   });
 });

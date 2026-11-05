@@ -940,6 +940,11 @@ async function serve() {
 
 if (argv[0] === "--version") {
   process.stdout.write(`opentide ${version}\n`);
+} else if (argv[0] === "lsp") {
+  // A runtime whose engine module does not load: `--version` answers, `lsp start` dies on import, as a
+  // broken bundled runtime's would (`opentide._native` fails to load).
+  process.stderr.write("ImportError: DLL load failed while importing _native\n");
+  process.exit(1);
 } else if (argv[0] === "serve") {
   if (process.env.FAKE_SERVE_BROKEN === "1") {
     process.stderr.write("serve: cannot start\n");

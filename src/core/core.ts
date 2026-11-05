@@ -15,16 +15,18 @@ import { CredentialStore } from "./credentials";
 import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
+import { fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
-import { uvExecutable } from "./runtime/resolve";
+import { shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
+import { engineRuntime, uvExecutable } from "./runtime/resolve";
 import { cliCommand, describeRuntime, ENGINE_LABEL, isEditorOnly } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
 import { LanguageClientManager } from "./services/languageClient";
 import { createLogger } from "./services/logger";
 import { onDidChangePythonEnvironment } from "./services/python";
-import { RuntimeManager } from "./services/runtime";
+import { RuntimeManager, readEngine } from "./services/runtime";
 import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./services/settings";
 import { StatusManager } from "./services/status";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
@@ -130,8 +132,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
   );
 
   // The engine (WASM) has no filesystem: it is given each opentide folder's object files.
-  const client = new LanguageClientManager(log, () =>
-    folders.all.map((folder) => ({ uri: folder.folder.uri, objectFolders: folder.objectFolders })),
+  // It is also the language server of a runtime whose own does not start (fallback.ts).
+  const client = new LanguageClientManager(
+    log,
+    () => folders.all.map((folder) => ({ uri: folder.folder.uri, objectFolders: folder.objectFolders })),
+    (restricted) => {
+      const engine = readEngine(context.extensionPath);
+      return engine ? engineRuntime(engine, restricted) : undefined;
+    },
   );
   subscriptions.push({ dispose: () => void client.dispose() });
 
@@ -199,6 +207,20 @@ export function createCore(context: vscode.ExtensionContext): Core {
     if (!trust.isTrusted)
       await fs.promises.mkdir(context.globalStorageUri.fsPath, { recursive: true }).catch(() => undefined);
     await client.start(rt, cwd);
+    const fallback = client.fallback;
+    const server = client.serverRuntime;
+    if (fallback && server) {
+      runtime.noteAttempts(fallbackAttempts(fallback, server));
+      void vscode.window
+        .showWarningMessage(
+          `The language server of opentide ${fallback.from.version} did not start (${fallback.reason}). The opentide engine (WASM) gives the editor features instead.`,
+          "Show Output",
+        )
+        .then((choice) => {
+          if (choice) log.show();
+        });
+    }
+    status.setFallback(fallback);
     status.setServer(client.serverInfo, client.current !== undefined);
     void precompiler.ensure(rt);
     catalog.refreshAll({ immediate: true });
@@ -231,18 +253,22 @@ export function createCore(context: vscode.ExtensionContext): Core {
         backend.invalidate([document.uri.fsPath]);
     }),
     fileEvents.onDidChange(({ folder, uris }) => {
-      if (runtime.current?.kind === "engine") void client.filesChanged(uris);
+      // The engine's, also when it serves a runtime whose own server did not start.
+      void client.filesChanged(uris);
       backend.invalidate(uris.map((uri) => uri.fsPath));
       if (catalog.folders().includes(folder.path)) void catalog.refresh(folder.path);
     }),
     folders.onDidChange((all) => {
       // A removed folder's catalogue goes, so a restart's refreshAll does not run `info catalog` there.
       catalog.retain(all.map((folder) => folder.path));
-      // A new primary folder changes the runtime; a paths.toml edit only changes object folders.
+      // A new primary folder changes the runtime; a paths.toml edit only changes object folders, which
+      // the engine (WASM) is given as files: it reads them again (a fresh read, not the mirror).
       const primary = all[0]?.path;
       if (primary !== lastPrimary) {
         lastPrimary = primary;
         void restart("workspace folders changed");
+      } else if (runtime.current?.kind === "engine") {
+        void restart("opentide folders changed: the engine reads them again");
       }
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -276,6 +302,35 @@ export function createCore(context: vscode.ExtensionContext): Core {
     runtime.onDidChange(
       () => void vscode.commands.executeCommand("setContext", "opentide.trusted", trust.isTrusted),
     ),
+  );
+  // On the engine tier: an opentide that appears later replaces it without a Restart Server.
+  let lastRecheck: number | undefined;
+  const recheck = async (reason: string, force: boolean): Promise<void> => {
+    const now = Date.now();
+    if (!force && !shouldRecheck(runtime.current, lastRecheck, now)) return;
+    if (runtime.current?.kind !== "engine") return;
+    lastRecheck = now;
+    const attempts = runtime.attempts;
+    const rt = await runtime.resolveAgain();
+    if (rt?.kind !== "engine") await restart(reason);
+    else if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
+      log.debug(`runtime: looked again (${reason}); still the engine`);
+  };
+  // Anything created under a .venv, a second after the last: a file made right after its new folder
+  // can slip past a recursive watcher, and an install creates thousands at once.
+  const venvWatcher = vscode.workspace.createFileSystemWatcher(`**/${VENV_GLOB}`, false, true, true);
+  let venvTimer: NodeJS.Timeout | undefined;
+  subscriptions.push(
+    venvWatcher,
+    venvWatcher.onDidCreate(() => {
+      if (runtime.current?.kind !== "engine") return;
+      if (venvTimer) clearTimeout(venvTimer);
+      venvTimer = setTimeout(() => void recheck("something appeared in a .venv", true), VENV_SETTLE_MS);
+    }),
+    { dispose: () => venvTimer && clearTimeout(venvTimer) },
+    vscode.window.onDidChangeWindowState((state) => {
+      if (state.focused) void recheck("the window got the focus back", false);
+    }),
   );
   void onDidChangePythonEnvironment(() => {
     if (trust.isTrusted && runtime.current && runtime.current.tier >= 2)

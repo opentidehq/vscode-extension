@@ -4,7 +4,8 @@
 import * as vscode from "vscode";
 import type { OpentideServerInfo, ProblemCounts, StatusMenuItem, StatusService } from "../context";
 import { DOCUMENT_SELECTOR } from "../lsp";
-import { describeRuntime, ENGINE_STATUS } from "../runtime/types";
+import type { Fallback } from "../runtime/fallback";
+import { describeRuntime, ENGINE_LABEL, ENGINE_STATUS } from "../runtime/types";
 import { problemsText, type StatusModel, serveText, statusLabel, statusText, sumCounts } from "../statusText";
 
 export class StatusManager implements StatusService, vscode.Disposable {
@@ -25,6 +26,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
   };
   private serverInfo: OpentideServerInfo | undefined;
   private serverRunning = false;
+  private fallback: Fallback | undefined;
 
   constructor() {
     this.item.name = "opentide";
@@ -66,6 +68,12 @@ export class StatusManager implements StatusService, vscode.Disposable {
   /** The problems the item counts, for the menu. */
   problemCounts(): ProblemCounts {
     return sumCounts(this.counts.values());
+  }
+
+  /** The runtime's own language server did not start: the engine serves the editor features. */
+  setFallback(fallback: Fallback | undefined): void {
+    this.fallback = fallback;
+    this.render();
   }
 
   setServer(info: OpentideServerInfo | undefined, running: boolean): void {
@@ -116,6 +124,10 @@ export class StatusManager implements StatusService, vscode.Disposable {
             : ""),
       );
       if (runtime.restricted) tooltip.appendMarkdown("\n\nRestricted Mode: only the language server runs.");
+      if (this.fallback)
+        tooltip.appendMarkdown(
+          `\n\n$(warning) Its language server did not start (${this.fallback.reason}): the ${ENGINE_LABEL} serves the editor features.`,
+        );
       if (model.pin && model.pin.version !== runtime.version) {
         tooltip.appendMarkdown(
           `\n\nThe repository pins opentide ${model.pin.version} (\`${model.pin.source}\`).`,
@@ -149,8 +161,16 @@ export class StatusManager implements StatusService, vscode.Disposable {
       this.language.text = ENGINE_STATUS;
       this.language.detail = this.serverRunning
         ? `engine ${info?.engine ?? runtime.version} in a worker thread · catalog ${info?.catalog ?? "bundled"} · commands need opentide`
-        : "language server not running";
-      this.language.command = { title: "Install opentide", command: "opentide.installOpentide" };
+        : "the engine is not running: see the output";
+      this.language.command = this.serverRunning
+        ? { title: "Install opentide", command: "opentide.installOpentide" }
+        : { title: "Restart", command: "opentide.restartServer" };
+      return;
+    }
+    if (this.fallback) {
+      this.language.text = `opentide ${runtime.version} · language server: ${ENGINE_LABEL}`;
+      this.language.detail = `its own language server did not start (${this.fallback.reason}) · ${describeRuntime(runtime)}`;
+      this.language.severity = vscode.LanguageStatusSeverity.Warning;
       return;
     }
     if (!this.serverRunning) {

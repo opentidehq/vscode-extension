@@ -17,8 +17,9 @@ import { WEB_DOCUMENT_SELECTOR } from "../engine/languages";
 import { convertShowReferencesArgs } from "../engine/lsp";
 import { objectFolders } from "../engine/pathsToml";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../engine/protocol";
+import { planDelta } from "../engine/sync";
 import { type EnginePort, engineTransports } from "../engine/transport";
-import { isSuppliedPath, objectRoots, planDelta } from "../engine/workspace";
+import { isSuppliedPath, objectRoots } from "../engine/workspace";
 
 /** What the entry provides: the worker, and the client for this extension host. */
 export interface EngineHost {

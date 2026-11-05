@@ -44,6 +44,11 @@ export function requestId(text: string): string | number | undefined {
   }
 }
 
+/** `window/showMessage` (type 1 error) as JSON text. */
+export function showMessage(type: 1, message: string): string {
+  return JSON.stringify({ jsonrpc: "2.0", method: "window/showMessage", params: { type, message } });
+}
+
 /** `window/logMessage` (type 3 info, 1 error) as JSON text. */
 export function logMessage(type: 1 | 3, message: string): string {
   return JSON.stringify({ jsonrpc: "2.0", method: "window/logMessage", params: { type, message } });
@@ -51,9 +56,11 @@ export function logMessage(type: 1 | 3, message: string): string {
 
 /**
  * Serve the engine on `port` until the client sends `exit`. Messages that arrive while `load` runs wait
- * for it, in order. If it fails, or the module traps, every request is answered with an error saying so
- * (so the client's `initialize` fails at once instead of timing out); nothing is answered empty.
- * Resolves when the session ends.
+ * for it, in order. If it fails to load, every request is answered with an error saying so (so the
+ * client's `initialize` fails at once instead of timing out); nothing is answered empty. If the module
+ * traps, the request gets that error, the user is told (`window/showMessage`), and the port is closed:
+ * the worker ends, and the language client restarts it under its crash ceiling instead of talking to a
+ * dead module. Resolves when the session ends.
  */
 export function serveEngine(
   port: HostPort,
@@ -84,7 +91,13 @@ export function serveEngine(
     } catch (error) {
       failure = `the opentide engine stopped: ${error instanceof Error ? error.message : String(error)}`;
       port.postMessage(logMessage(1, failure));
+      port.postMessage(
+        showMessage(1, `${failure}. It restarts; Restart Server starts it again if it does not.`),
+      );
       refuse(text);
+      session = undefined;
+      port.close();
+      finished();
       return;
     }
     for (const reply of replies) port.postMessage(reply);

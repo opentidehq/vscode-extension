@@ -71,6 +71,15 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     return this.lastAttempts;
   }
 
+  /** Add what happened after the resolution (a language server that fell back to the engine). */
+  noteAttempts(attempts: readonly ResolveAttempt[]): void {
+    this.lastAttempts = [...this.lastAttempts, ...attempts];
+    for (const attempt of attempts)
+      this.log.info(
+        `runtime tier ${attempt.tier} (${attempt.source}): ${attempt.outcome}: ${attempt.detail}`,
+      );
+  }
+
   get pin(): RepoPin | undefined {
     return this.repoPin;
   }
@@ -82,6 +91,12 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   async restart(reason = "restart requested"): Promise<void> {
     if (this.restartHandler) await this.restartHandler(reason);
     else await this.resolve();
+  }
+
+  /** Resolve again from scratch: after the resolution in progress, if any, which may predate a change. */
+  async resolveAgain(): Promise<Runtime | undefined> {
+    if (this.resolving) await this.resolving.catch(() => undefined);
+    return this.resolve();
   }
 
   /** Resolve the runtime again. Concurrent calls share one resolution. */

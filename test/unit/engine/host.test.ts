@@ -94,21 +94,21 @@ describe("engine host (src/engine/host.ts)", () => {
     assert.equal(fake.posted.length, 2, "a notification gets no answer");
   });
 
-  it("fails the request and every later one when the module traps", async () => {
+  it("on a trap, fails the request, tells the user and ends the worker so the client restarts it", async () => {
     const fake = fakePort();
-    void serveEngine(fake.port, () => echoEngine());
+    const done = serveEngine(fake.port, () => echoEngine());
     fake.send({ jsonrpc: "2.0", id: 1, method: "trap" });
-    fake.send({ jsonrpc: "2.0", id: 2, method: "hover" });
-    await flush();
-    const errors = fake.posted.filter((m) => (m as { error?: unknown }).error) as {
-      id: number;
-      error: { message: string };
-    }[];
-    assert.deepEqual(
-      errors.map((e) => e.id),
-      [1, 2],
-    );
-    assert.match(errors[0]?.error.message ?? "", /stopped: RuntimeError: unreachable/);
+    await done;
+    assert.equal(fake.closed, true, "the port is closed: the worker exits");
+    const methods = fake.posted.map((m) => (m as { method?: string }).method);
+    assert.ok(methods.includes("window/showMessage"), JSON.stringify(fake.posted));
+    const shown = fake.posted.find((m) => (m as { method?: string }).method === "window/showMessage") as {
+      params: { type: number; message: string };
+    };
+    assert.equal(shown.params.type, 1);
+    assert.match(shown.params.message, /stopped: RuntimeError: unreachable/);
+    const error = fake.posted.find((m) => (m as { id?: number }).id === 1) as { error: { message: string } };
+    assert.match(error.error.message, /stopped: RuntimeError: unreachable/);
   });
 
   it("closes the port and resolves after exit", async () => {

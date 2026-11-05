@@ -132,6 +132,13 @@ export class WorkspaceMirror {
     return this.texts.has(uri);
   }
 
+  /** Whether the server has a file under the folder `uri` (no trailing slash). */
+  hasUnder(uri: string): boolean {
+    const prefix = `${uri.replace(/\/+$/, "")}/`;
+    for (const key of this.texts.keys()) if (key.startsWith(prefix)) return true;
+    return false;
+  }
+
   /** The workspace as it stands, for a new server. */
   snapshot(): SuppliedWorkspace {
     return {
@@ -172,21 +179,11 @@ export class WorkspaceMirror {
   }
 }
 
-/** What to do with a delta: send it, restart the engine with it, or wait for open files to close. */
-export type DeltaPlan =
-  | { readonly kind: "notify" }
-  | { readonly kind: "restart" }
-  | { readonly kind: "after-close"; readonly uris: readonly string[] };
-
 /**
- * An engine that takes `opentide/didChangeWorkspace` is sent the delta. Another (0.10.0) is restarted
- * with the new workspace, unless every file it touches is open in an editor: the server reads those
- * buffers, so their new text matters only once they are closed.
+ * Whether a watcher event that is no object file is a folder's: one the server has files under (it was
+ * deleted or moved away), or a folder there now (created or moved in). A folder's name may have a dot
+ * (`objects/threats/APT.29/`), so the name alone says nothing.
  */
-export function planDelta(delta: WorkspaceDelta, updates: boolean, open: ReadonlySet<string>): DeltaPlan {
-  if (updates) return { kind: "notify" };
-  const touched = [...delta.documents.map((document) => document.uri), ...delta.removed];
-  if (delta.visibility === undefined && touched.length > 0 && touched.every((uri) => open.has(uri)))
-    return { kind: "after-close", uris: touched };
-  return { kind: "restart" };
+export function isFolderEvent(uri: string, mirror: WorkspaceMirror, isDirectory: boolean): boolean {
+  return isDirectory || mirror.hasUnder(uri);
 }

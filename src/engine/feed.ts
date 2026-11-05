@@ -6,6 +6,7 @@ import * as vscode from "vscode";
 import {
   type Collected,
   collectDocuments,
+  isFolderEvent,
   isSuppliedPath,
   objectGlob,
   objectRoots,
@@ -51,6 +52,14 @@ export function relativeTo(
   const root = folder.endsWith("/") ? folder : `${folder}/`;
   const path = comparablePath(uri.path);
   return path.startsWith(root) ? path.slice(root.length) : undefined;
+}
+
+async function isDirectory(uri: vscode.Uri): Promise<boolean> {
+  try {
+    return ((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.Directory) !== 0;
+  } catch {
+    return false;
+  }
 }
 
 async function readText(uri: vscode.Uri): Promise<string | undefined> {
@@ -176,7 +185,8 @@ export class WorkspaceFeed {
         visibility = { text: await readText(uri) };
       } else if (isSuppliedPath(where.relative, where.folder.objectFolders)) {
         files.push({ uri: uri.toString(), text: await readText(uri) });
-      } else if (!/\.[A-Za-z0-9]+$/.test(where.relative)) {
+      } else if (isFolderEvent(uri.toString(), mirror, await isDirectory(uri))) {
+        // A folder created, deleted or moved: one event for all its files.
         rescan = true;
       }
     }
