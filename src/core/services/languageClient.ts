@@ -10,6 +10,7 @@ import {
   type LanguageClientOptions,
   type MessageTransports,
   RevealOutputChannelOn,
+  State,
 } from "vscode-languageclient/node";
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
@@ -106,8 +107,11 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     return this.fileEvents;
   }
 
+  /** Whether the server answers: false between an unexpected stop and the client's restart of it. */
+  private running = false;
+
   get current(): LanguageClient | undefined {
-    return this.client;
+    return this.running ? this.client : undefined;
   }
 
   get serverInfo(): OpentideServerInfo | undefined {
@@ -178,6 +182,20 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       );
     }
     this.client = client;
+    // A server that stops on its own (an engine trap ends its worker; a process that exits) is not
+    // running: the status says so, with Restart. The client restarts it under its crash ceiling.
+    client.onDidChangeState(({ newState }) => {
+      if (newState === State.Stopped && this.client === client) {
+        this.log.warn("language server: stopped; the client restarts it, or use opentide: Restart Server");
+        this.running = false;
+        this.emitter.fire(undefined);
+      } else if (newState === State.Running && this.client === client && !this.running) {
+        this.running = true;
+        this.log.info("language server: running again");
+        this.emitter.fire(client);
+      }
+    });
+    this.running = true;
     // The client's one handler for it, for every feature; disposed with the client.
     forwardNotification(client, SERVER_CATALOG_CHANGED, (params) => this.catalogChanged.fire(params));
     this.info = readServerInfo(client.initializeResult?.capabilities.experimental);
@@ -275,6 +293,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   async stop(): Promise<void> {
     const client = this.client;
     this.client = undefined;
+    this.running = false;
     this.info = undefined;
     if (!client) {
       this.endEngine();

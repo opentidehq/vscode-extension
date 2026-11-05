@@ -149,8 +149,10 @@ export class StatusManager implements StatusService, vscode.Disposable {
       this.language.text = ENGINE_STATUS;
       this.language.detail = this.serverRunning
         ? `engine ${info?.engine ?? runtime.version} in a worker thread · catalog ${info?.catalog ?? "bundled"} · commands need opentide`
-        : "language server not running";
-      this.language.command = { title: "Install opentide", command: "opentide.installOpentide" };
+        : "the engine is not running: see the output";
+      this.language.command = this.serverRunning
+        ? { title: "Install opentide", command: "opentide.installOpentide" }
+        : { title: "Restart", command: "opentide.restartServer" };
       return;
     }
     if (!this.serverRunning) {
