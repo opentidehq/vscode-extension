@@ -135,7 +135,7 @@ describe("package.json", () => {
     assert.equal(pkg.displayName, "opentide");
     assert.equal(pkg.license, "MIT");
     assert.deepEqual(pkg.extensionKind, ["workspace"]);
-    assert.deepEqual(pkg.categories, ["Programming Languages", "Linters", "Snippets", "AI"]);
+    assert.deepEqual(pkg.categories, ["Programming Languages", "Linters", "Snippets", "AI", "Visualization"]);
     assert.ok(existsSync(join(root, pkg.icon)));
   });
 

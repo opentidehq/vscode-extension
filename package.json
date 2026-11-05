@@ -27,7 +27,8 @@
     "Programming Languages",
     "Linters",
     "Snippets",
-    "AI"
+    "AI",
+    "Visualization"
   ],
   "keywords": [
     "detection engineering",
@@ -40,7 +41,17 @@
     "Splunk",
     "Elastic",
     "Falco",
-    "MITRE ATT&CK"
+    "MITRE ATT&CK",
+    "SIEM",
+    "threat detection",
+    "detection rules",
+    "Microsoft Sentinel",
+    "Microsoft Defender",
+    "CrowdStrike",
+    "SentinelOne",
+    "Carbon Black",
+    "Sysdig",
+    "security"
   ],
   "extensionKind": [
     "workspace"
