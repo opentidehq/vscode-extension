@@ -2,7 +2,7 @@
 // index: threats → objectives → rules by their references, an object's relations both ways, and the
 // objects to search. vscode-free, no Node built-ins. The desktop builds its views from `info catalog`
 // (src/features/sidebar/); this is the part the browser can have.
-import { type ServerObject, serverRelations } from "../engine/catalog";
+import { type ServerCatalog, type ServerObject, serverRelations } from "../engine/catalog";
 
 export type Family = "threat" | "objective" | "rule" | "signal" | "missing" | "other";
 
@@ -213,4 +213,32 @@ export function sameUri(a: string, b: string): boolean {
     }
   };
   return norm(a) === norm(b);
+}
+
+/**
+ * Every object of the index once: language-server 0.10.0 gives each root every file a host supplied, so
+ * with several folders each object comes once per root. An object is kept from the root whose folder
+ * holds it, else from the first root that lists it.
+ */
+export function uniqueObjects(catalog: ServerCatalog): ServerObject[] {
+  const norm = (uri: string) => {
+    try {
+      return decodeURIComponent(uri).replace(/\/+$/, "").toLowerCase();
+    } catch {
+      return uri.toLowerCase();
+    }
+  };
+  const owned = new Map<string, ServerObject>();
+  const listed = new Map<string, ServerObject>();
+  for (const root of catalog.roots) {
+    const prefix = root.root ? `${norm(root.root)}/` : undefined;
+    for (const object of root.objects) {
+      const key = norm(object.uri);
+      if (prefix && key.startsWith(prefix)) {
+        if (!owned.has(key)) owned.set(key, object);
+      } else if (!listed.has(key)) listed.set(key, object);
+    }
+  }
+  for (const [key, object] of listed) if (!owned.has(key)) owned.set(key, object);
+  return [...owned.values()];
 }

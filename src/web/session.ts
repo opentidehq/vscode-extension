@@ -25,6 +25,7 @@ import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../engine/protocol"
 import { EngineSync, initializationOptions, type SyncAction } from "../engine/sync";
 import { type EnginePort, engineTransports } from "../engine/transport";
 import { isSuppliedPath, objectRoots } from "../engine/workspace";
+import { uniqueObjects } from "./catalogueModel";
 
 /** What the entry provides: the worker, and the client for this extension host. */
 export interface EngineHost {
@@ -294,7 +295,10 @@ export class EngineSession implements vscode.Disposable {
     const client = this.client;
     if (!client) return Promise.resolve([]);
     this.catalogCache ??= client.sendRequest(SERVER_CATALOG, {}).then(
-      (value) => parseServerCatalog(value)?.roots.flatMap((root) => root.objects) ?? [],
+      (value) => {
+        const catalog = parseServerCatalog(value);
+        return catalog ? uniqueObjects(catalog) : [];
+      },
       (error: unknown) => {
         this.output.warn(`opentide/catalog: ${error instanceof Error ? error.message : String(error)}`);
         return [];

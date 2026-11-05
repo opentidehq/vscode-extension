@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 import type { ServerObject } from "../../../src/engine/catalog";
-import { sameUri, WebIndex, type WebNode } from "../../../src/web/catalogueModel";
+import { sameUri, uniqueObjects, WebIndex, type WebNode } from "../../../src/web/catalogueModel";
 import { serverObjects } from "../catalog/serverFixture";
 
 const labels = (nodes: readonly WebNode[]): unknown[] =>
@@ -67,5 +67,49 @@ describe("web catalogue (src/web/catalogueModel.ts)", () => {
     assert.equal(index.objectAt("vscode-vfs://github/org/repo/objects/threats/t 1.yaml")?.uuid, vfs.uuid);
     assert.equal(sameUri("file:///w/x.yaml", "file:///w/x.yaml/"), true);
     assert.equal(sameUri("file:///w/x.yaml", "file:///w/y.yaml"), false);
+  });
+});
+
+describe("web catalogue with several folders (multi-root)", () => {
+  const a = serverObjects().map((o) => ({ ...o, uri: o.uri.replace("file:///w/", "file:///a/") }));
+  const b = [
+    { ...(serverObjects()[0] as ServerObject), uuid: "tb", uri: "file:///b/objects/threats/tb.yaml" },
+  ];
+  // 0.10.0 lists every supplied file under every root.
+  const catalog = {
+    roots: [
+      { root: "file:///a", objects: [...a, ...b] },
+      { root: "file:///b", objects: [...a, ...b] },
+    ],
+  };
+
+  it("keeps each object once, from the root that holds it", () => {
+    const objects = uniqueObjects(catalog);
+    assert.equal(objects.length, a.length + b.length);
+    assert.equal(new Set(objects.map((o) => o.uri)).size, objects.length);
+    const index = new WebIndex(objects);
+    const ids = (nodes: readonly WebNode[]): string[] => nodes.flatMap((n) => [n.id, ...ids(n.children)]);
+    const all = ids(index.catalogue());
+    assert.equal(new Set(all).size, all.length, "tree item ids are unique");
+    assert.equal(index.search("Credential Dumping").length, 2, "a's threat and b's, once each");
+    assert.equal(
+      index.relations("o1").filter((r) => r.direction === "in").length,
+      2,
+      "relations count each rule once",
+    );
+  });
+
+  it("keeps an object no root holds once too (the documents outside every root)", () => {
+    const loose = { ...(serverObjects()[0] as ServerObject), uuid: "x", uri: "untitled:x.yaml" };
+    const objects = uniqueObjects({
+      roots: [
+        { root: "file:///a", objects: [loose] },
+        { root: null, objects: [loose] },
+      ],
+    });
+    assert.deepEqual(
+      objects.map((o) => o.uuid),
+      ["x"],
+    );
   });
 });
