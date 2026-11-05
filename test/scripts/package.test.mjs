@@ -20,11 +20,14 @@ import {
 } from "../../scripts/package-lib.mjs";
 import {
   bundledPython,
+  checkCatalog,
   checkDoctor,
   checkInitialize,
+  checkInterpreterPlatform,
   checkVersion,
   FrameReader,
   frame,
+  median,
   opentideArgs,
 } from "../../scripts/smoke-lib.mjs";
 
@@ -279,6 +282,74 @@ describe("smoke: checks", () => {
     );
     assert.equal(checkDoctor("Traceback").length, 1);
     assert.equal(checkDoctor(doc([])).length, 1);
+  });
+
+  it("the interpreter is of the runtime's architecture, not the machine's", () => {
+    const emulated = { target: "win32-arm64", runtime: "win32-x64" };
+    assert.deepEqual(checkInterpreterPlatform("win-amd64\r\n", emulated), []);
+    assert.match(
+      checkInterpreterPlatform("win-arm64", emulated)[0],
+      /"win-arm64", not the win32-x64 runtime's x64/,
+    );
+    assert.deepEqual(
+      checkInterpreterPlatform("win-arm64", { target: "win32-arm64", runtime: "win32-arm64" }),
+      [],
+    );
+    assert.deepEqual(
+      checkInterpreterPlatform("linux-x86_64", { target: "linux-x64" }),
+      [],
+      "no runtime: its target's",
+    );
+    assert.deepEqual(checkInterpreterPlatform("linux-aarch64", { target: "alpine-arm64" }), []);
+    assert.deepEqual(checkInterpreterPlatform("macosx-11.0-arm64", { target: "darwin-arm64" }), []);
+    assert.equal(checkInterpreterPlatform("macosx-11.0-arm64", { target: "darwin-x64" }).length, 1);
+    assert.equal(checkInterpreterPlatform("win-amd64", {}).length, 1);
+  });
+
+  it("times with the median", () => {
+    assert.equal(median([3, 1, 2]), 2);
+    assert.equal(median([4, 1, 2, 3]), 2.5);
+  });
+
+  it("info catalog lists the fixture's objective and rule, loaded and linked", () => {
+    const fixture = {
+      objective: { uuid: "o-1", type: "objective" },
+      rule: { uuid: "r-1", type: "rule" },
+    };
+    const objects = [
+      { uuid: "o-1", type: "objective", load_error: null },
+      { uuid: "r-1", type: "rule", load_error: null },
+    ];
+    const edges = [{ from: "r-1", to: "o-1", kind: "implements" }];
+    const doc = (fields) => JSON.stringify({ objects, edges, summary: { load_errors: 0 }, ...fields });
+    assert.deepEqual(checkCatalog(doc({}), fixture), []);
+    assert.deepEqual(checkCatalog(doc({ objects: [objects[0]] }), fixture), ["info catalog has no rule r-1"]);
+    assert.match(
+      checkCatalog(doc({ objects: [objects[0], { ...objects[1], type: "threat" }] }), fixture)[0],
+      /lists r-1 as threat, not rule/,
+    );
+    assert.match(
+      checkCatalog(
+        doc({ objects: [objects[0], { ...objects[1], load_error: { message: "bad" } }] }),
+        fixture,
+      )[0],
+      /r-1 failed to load/,
+    );
+    assert.match(
+      checkCatalog(doc({ edges: [] }), fixture)[0],
+      /no edge from the rule r-1 to the objective o-1/,
+    );
+    assert.match(checkCatalog(doc({ summary: { load_errors: 2 } }), fixture)[0], /2 load errors/);
+    assert.deepEqual(checkCatalog("Traceback", fixture).length, 1);
+    assert.deepEqual(checkCatalog("{}", fixture), ["info catalog has no objects and edges"]);
+  });
+
+  it("the smoke fixture's objects are the ones the catalogue check expects", () => {
+    const read = (file) => readFileSync(join(root, "test", "fixtures", "workspace", "objects", file), "utf8");
+    assert.match(read("objectives/detect-lsass-access.yaml"), /^\s+uuid:\s*\S+\s*$/m);
+    const rule = read("rules/suspicious-lsass-access.yaml");
+    const objective = /^\s+uuid:\s*(\S+)\s*$/m.exec(read("objectives/detect-lsass-access.yaml"))?.[1];
+    assert.ok(objective && rule.includes(objective), "the rule implements the objective");
   });
 
   it("initialize must name host opentide with the built version and the pinned engine", () => {

@@ -93,3 +93,57 @@ export function checkInitialize(response, expected) {
     errors.push(`engine is ${info.engine}, pins.json derives ${expected.engine}`);
   return errors;
 }
+
+/**
+ * The interpreter is of its runtime's architecture: `sysconfig.get_platform()` (`win-amd64`,
+ * `linux-aarch64`, `macosx-11.0-arm64`) against the CPU of BUILD-INFO's `runtime` (else `target`).
+ * An emulated target's interpreter is its runtime's, not the machine's: win32-arm64 runs `win-amd64`.
+ */
+export function checkInterpreterPlatform(stdout, info) {
+  const runtime = info.runtime ?? info.target ?? "";
+  const cpu = /-(x64|arm64)$/.exec(runtime)?.[1];
+  const platform = stdout.trim();
+  if (!cpu) return [`BUILD-INFO names no runtime target with a CPU: ${JSON.stringify(runtime)}`];
+  const pattern = cpu === "x64" ? /(?:amd64|x86_64)$/i : /(?:arm64|aarch64)$/i;
+  return pattern.test(platform)
+    ? []
+    : [`the bundled interpreter is ${JSON.stringify(platform)}, not the ${runtime} runtime's ${cpu}`];
+}
+
+/** The median of some durations, in milliseconds. */
+export function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? (sorted[mid] ?? 0) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+}
+
+/**
+ * The fixture's catalogue (test/fixtures/workspace/objects, copied into the smoke workspace): `opentide
+ * --json info catalog` lists its objective and its rule, both loaded, with the rule's edge to the
+ * objective.
+ */
+export function checkCatalog(stdout, fixture) {
+  let document;
+  try {
+    document = JSON.parse(stdout);
+  } catch {
+    return [`info catalog printed no JSON document: ${stdout.slice(0, 200)}`];
+  }
+  const objects = Array.isArray(document.objects) ? document.objects : undefined;
+  if (!objects || !Array.isArray(document.edges)) return ["info catalog has no objects and edges"];
+  const errors = [];
+  for (const { uuid, type } of [fixture.objective, fixture.rule]) {
+    const found = objects.find((object) => object.uuid === uuid);
+    if (!found) errors.push(`info catalog has no ${type} ${uuid}`);
+    else if (found.type !== type) errors.push(`info catalog lists ${uuid} as ${found.type}, not ${type}`);
+    else if (found.load_error)
+      errors.push(`info catalog: ${uuid} failed to load: ${JSON.stringify(found.load_error)}`);
+  }
+  if (!document.edges.some((edge) => edge.from === fixture.rule.uuid && edge.to === fixture.objective.uuid))
+    errors.push(
+      `info catalog has no edge from the rule ${fixture.rule.uuid} to the objective ${fixture.objective.uuid}`,
+    );
+  if (document.summary?.load_errors)
+    errors.push(`info catalog reports ${document.summary.load_errors} load errors`);
+  return errors;
+}
