@@ -61,6 +61,11 @@
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
       },
       {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: the catalogue needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
+      },
+      {
         "view": "opentide.sidebar.coverage",
         "when": "workspaceFolderCount == 0",
         "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
@@ -74,6 +79,11 @@
         "view": "opentide.sidebar.coverage",
         "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: ATT&CK coverage needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
       },
       {
         "view": "opentide.sidebar.platforms",
@@ -91,6 +101,11 @@
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
       },
       {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: the Platforms & Tenants view needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
+      },
+      {
         "view": "opentide.sidebar.health",
         "when": "workspaceFolderCount == 0",
         "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
@@ -104,6 +119,11 @@
         "view": "opentide.sidebar.health",
         "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: opentide doctor needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
       },
       {
         "view": "opentide.sidebar.coverage",

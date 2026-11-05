@@ -235,7 +235,8 @@ class MatrixPanel implements vscode.Disposable {
     }
     const named = { path: folder.path, name: folder.folder.name };
     const catalog: CatalogState = this.ctx.catalog.get(folder.path);
-    if (catalog.catalog) {
+    // A catalogue from the language server's index has no techniques: the matrix needs opentide.
+    if (catalog.catalog && catalog.source !== "server") {
       const filters = this.filtersFor(catalog.catalog);
       return {
         ...base,
@@ -248,7 +249,7 @@ class MatrixPanel implements vscode.Disposable {
           catalog.status === "error" ? `The last refresh failed: ${catalog.error ?? "unknown error"}` : null,
       };
     }
-    if (catalog.status === "unavailable") {
+    if (catalog.status === "unavailable" || catalog.source === "server") {
       const reason = catalog.unavailable?.reason;
       if (reason === "untrusted")
         return {
