@@ -6,6 +6,14 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Added
+
+- Windows on Arm gets the bundled runtime, running as x64 under Windows 11's emulation. The win32-arm64
+  package carries the win32-x64 runtime (cryptography has published no Windows on Arm wheel since
+  46.0.3), built and tested on a Windows 11 on Arm runner. Windows 10 on Arm cannot run x64 programs:
+  there the bundled runtime does not start, the opentide output channel says why, and the extension
+  uses an opentide of your own, as before.
+
 ## [0.1.0] - 2026-11-04
 
 The first pre-release of opentide for VS Code and its forks: live checks for Tide objects and their queries, new objects from templates, the catalogue with its Relations view, the graph and the ATT&CK coverage, query results and deploy previews beside the object, the setup wizard and an MCP server for agents. Each platform package bundles opentide 0.22.0 (engine: language server 0.10.0) on CPython 3.13, so it works offline on a machine without Python; a repository's own opentide is used when it has one.
