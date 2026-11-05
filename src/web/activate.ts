@@ -23,7 +23,15 @@ async function continueOnDesktop(): Promise<string | undefined> {
   return CONTINUE_ON_DESKTOP.find((command) => commands.has(command));
 }
 
-export function activateWeb(context: vscode.ExtensionContext, host: EngineHost): EngineSession {
+/** What web mode gives the tests (`ExtensionMode.Test`): the session, and what each command said. */
+export interface WebMode {
+  readonly session: EngineSession;
+  /** Every "needs opentide" message shown, newest last. */
+  readonly explained: readonly string[];
+}
+
+export function activateWeb(context: vscode.ExtensionContext, host: EngineHost): WebMode {
+  const explained: string[] = [];
   const packageJSON: unknown = context.extension.packageJSON;
   const docs = vscode.Uri.parse(WEB_DOCS_URL);
   const session = new EngineSession(host);
@@ -78,8 +86,10 @@ export function activateWeb(context: vscode.ExtensionContext, host: EngineHost):
     context.subscriptions.push(
       vscode.commands.registerCommand(command, async () => {
         const desktop = await continueOnDesktop();
+        const message = unavailableMessage(title);
+        explained.push(message);
         const choice = await vscode.window.showInformationMessage(
-          unavailableMessage(title),
+          message,
           ...(desktop ? [STATUS.openInDesktop] : []),
           STATUS.learnMore,
         );
@@ -89,5 +99,5 @@ export function activateWeb(context: vscode.ExtensionContext, host: EngineHost):
     );
   }
   void session.restart("activation", false);
-  return session;
+  return { session, explained };
 }

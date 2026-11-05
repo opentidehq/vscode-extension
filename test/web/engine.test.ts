@@ -21,12 +21,18 @@ async function waitFor<T>(
   }
 }
 
-async function session(): Promise<EngineSession> {
-  const extension = vscode.extensions.getExtension<{ session?: EngineSession }>("opentidehq.opentide");
+async function api(): Promise<{ session?: EngineSession; explained?: readonly string[] }> {
+  const extension = vscode.extensions.getExtension<{
+    session?: EngineSession;
+    explained?: readonly string[];
+  }>("opentidehq.opentide");
   ok(extension, "the extension is installed");
-  const api = await extension.activate();
-  ok(api?.session, "the test API exposes the engine session");
-  const current = api.session;
+  return extension.activate();
+}
+
+async function session(): Promise<EngineSession> {
+  const current = (await api()).session;
+  ok(current, "the test API exposes the engine session");
   await waitFor(() => current.current);
   return current;
 }
@@ -123,8 +129,31 @@ describe("the web extension: the engine (WASM) in a Web Worker", () => {
 
   it("explains a command that needs opentide instead of failing", async () => {
     await session();
-    const commands = await vscode.commands.getCommands(true);
-    ok(commands.includes("opentide.diagnostics.validateWorkspace"), "registered in web mode");
-    ok(commands.includes("opentide.search.open"), "Find Detection runs here");
+    const said = (await api()).explained ?? [];
+    const before = said.length;
+    // Not awaited: the message waits for its buttons.
+    void vscode.commands.executeCommand("opentide.diagnostics.validateWorkspace");
+    await waitFor(() => (said.length > before ? true : undefined), 10_000);
+    const message = said.at(-1) ?? "";
+    ok(/^opentide: Validate Workspace needs opentide, which runs in VS Code Desktop/.test(message), message);
+    ok(/engine \(WASM\)/.test(message), message);
+  });
+
+  it("follows an object file created and deleted through VS Code's file system", async () => {
+    const engine = await session();
+    const uri = fixture("objects", "objectives", "web-test-objective.yaml");
+    const names = async () => (await engine.catalog()).map((object) => object.name);
+    try {
+      await vscode.workspace.fs.writeFile(
+        uri,
+        new TextEncoder().encode(
+          "name: Web test objective\nmetadata:\n  uuid: 8d3f2e5a-4b6c-4d7e-9f0a-1b2c3d4e5f6a\n  schema: objective::1.0\n",
+        ),
+      );
+      await waitFor(async () => ((await names()).includes("Web test objective") ? true : undefined));
+    } finally {
+      await vscode.workspace.fs.delete(uri).then(undefined, () => undefined);
+    }
+    await waitFor(async () => ((await names()).includes("Web test objective") ? undefined : true));
   });
 });

@@ -61,18 +61,21 @@ export function webEnginePort(extensionUri: vscode.Uri): EnginePort {
   };
 }
 
-/** Only in tests (`ExtensionMode.Test`): the engine session, for the browser tests. */
+/** Only in tests (`ExtensionMode.Test`): the engine session and what web mode said, for the browser tests. */
 export interface WebApi {
   readonly session?: EngineSession;
+  readonly explained?: readonly string[];
 }
 
 export function activate(context: vscode.ExtensionContext): WebApi {
-  const session = activateWeb(context, {
+  const mode = activateWeb(context, {
     startEngine: () => webEnginePort(context.extensionUri),
     createClient: (serverOptions, clientOptions) =>
       new LanguageClient("opentide", "opentide Language Server", serverOptions, clientOptions),
   });
-  return context.extensionMode === vscode.ExtensionMode.Test ? { session } : {};
+  return context.extensionMode === vscode.ExtensionMode.Test
+    ? { session: mode.session, explained: mode.explained }
+    : {};
 }
 
 export function deactivate(): void {
