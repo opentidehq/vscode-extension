@@ -92,7 +92,7 @@ take a few minutes to show a new version.
 | `prepare` | The notes PR is missing or incomplete, or the tag exists | Fix in a PR. If the tag exists, the version is out: re-run failed jobs of its run, never retag |
 | `build` / `universal` / `attest` | A package, its smoke test, its size budget or its identity failed. Nothing is tagged | Fix on `main` through a PR, run again |
 | `release` | The Release may exist from this attempt, or the verify step failed | **Re-run failed jobs**: the job finishes an existing Release on the run's commit (`gh release upload --clobber`) instead of creating it again, and stops if the tag is on another commit. Ask the user before deleting a tag or Release |
-| `publish-marketplace` / `publish-openvsx` | One store refused. The other is independent | **Re-run failed jobs**: the job re-downloads the Release's assets and `--skip-duplicate` skips what is there. A trust error is a registration that no longer matches the workflow file or environment: tell the user (docs/RELEASING.md, one-time setup) |
+| `publish-marketplace` / `publish-openvsx` | One store refused, or (Marketplace) the gallery still lacks a package after the listing check republished it. The other store is independent | **Re-run failed jobs**: the job re-downloads the Release's assets and `--skip-duplicate` skips what is there. A trust error is a registration that no longer matches the workflow file or environment: tell the user (docs/RELEASING.md, one-time setup) |
 
 ## The bundled opentide
 

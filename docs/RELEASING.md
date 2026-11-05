@@ -204,7 +204,7 @@ pre-release first when it changes much.
 | `universal` | ubuntu | CI's checks, then `package -- --universal`: the package every target without a runtime, and the web, installs |
 | `attest` | ubuntu | Every VSIX is `opentidehq.opentide` at the version and channel, one universal and one per runtime target; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
 | `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and, when attested, their attestations |
-| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <every VSIX>`: one call, with one OIDC exchange per package (vsce asks for a token for each VSIX, skipped duplicates included) |
+| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <every VSIX>`: one call, with one OIDC exchange per package (vsce asks for a token for each VSIX, skipped duplicates included). Then `tools/publish/marketplace.mjs` waits until the Marketplace gallery lists every package of the Release, publishes the missing ones again, and fails naming them: vsce's "Published" is not the listing (0.1.0, the first publish, kept one package of eight) |
 | `publish-openvsx` | ubuntu, `production` | `ovsx publish --trusted-publishing --skip-duplicate --packagePath <every VSIX>`, or with `OVSX_PAT` when the secret is set |
 
 | Runtime target | Runner |
