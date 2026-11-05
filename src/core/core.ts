@@ -7,6 +7,7 @@ import { ActivityLog } from "./activity";
 import { Backend } from "./backend/backend";
 import { spawnRun } from "./backend/spawn";
 import { Capabilities, type CommandsCache } from "./capabilities/capabilities";
+import { parseServerCatalog, rootOf, SERVER_CATALOG, serverCatalogDocument } from "./catalog/serverCatalog";
 import { CatalogStore, INFO_CATALOG } from "./catalog/store";
 import { folderSymbols, type WorkspaceSymbol } from "./catalog/symbols";
 import type { FeatureContext, Logger, StatusMenuItem, TrustService } from "./context";
@@ -18,7 +19,7 @@ import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
 import { uvExecutable } from "./runtime/resolve";
-import { cliCommand, describeRuntime } from "./runtime/types";
+import { cliCommand, describeRuntime, ENGINE_LABEL, isEditorOnly } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
 import { LanguageClientManager } from "./services/languageClient";
 import { createLogger } from "./services/logger";
@@ -28,6 +29,7 @@ import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./serv
 import { StatusManager } from "./services/status";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
 import { menuSections, problemsText } from "./statusText";
+import { editorOnlyText, INSTALL_URL } from "./unavailable";
 import { Emitter } from "./util/event";
 import { serialized } from "./util/serial";
 import { createWebviewHelpers } from "./webview/panel";
@@ -127,7 +129,10 @@ export function createCore(context: vscode.ExtensionContext): Core {
     backend.onDidRun((run) => activity.record(run)),
   );
 
-  const client = new LanguageClientManager(log);
+  // The engine (WASM) has no filesystem: it is given each opentide folder's object files.
+  const client = new LanguageClientManager(log, () =>
+    folders.all.map((folder) => ({ uri: folder.folder.uri, objectFolders: folder.objectFolders })),
+  );
   subscriptions.push({ dispose: () => void client.dispose() });
 
   const catalog = new CatalogStore({
@@ -143,6 +148,18 @@ export function createCore(context: vscode.ExtensionContext): Core {
       const symbols = (await lc.sendRequest("workspace/symbol", { query: "" })) as WorkspaceSymbol[] | null;
       return folderSymbols(symbols, folder, process.platform, (file) => vscode.Uri.file(file).toString());
     },
+    // An editor-only runtime (the engine, opentide-lsp) has no `info catalog`: its server's index stands in.
+    serverCatalog: async (folder) => {
+      const lc = await client.ready();
+      if (!lc) return undefined;
+      const catalog = parseServerCatalog(await lc.sendRequest(SERVER_CATALOG, {}));
+      const root = catalog ? rootOf(catalog, folder) : undefined;
+      return root ? serverCatalogDocument(root, folder) : undefined;
+    },
+    unavailableMessage: (reason) =>
+      reason === "editor-only"
+        ? editorOnlyText(runtime.current, "the full catalogue (platforms, techniques, deployment)")
+        : undefined,
     log: (level, message) => log[level](message),
   });
   subscriptions.push(catalog);
@@ -214,6 +231,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
         backend.invalidate([document.uri.fsPath]);
     }),
     fileEvents.onDidChange(({ folder, uris }) => {
+      if (runtime.current?.kind === "engine") void client.filesChanged(uris);
       backend.invalidate(uris.map((uri) => uri.fsPath));
       if (catalog.folders().includes(folder.path)) void catalog.refresh(folder.path);
     }),
@@ -234,7 +252,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
       await restart("workspace trusted");
       grant.fire();
     }),
-    client.onDidChange(() => status.setServer(client.serverInfo, client.current !== undefined)),
+    client.onDidChange((started) => {
+      status.setServer(client.serverInfo, client.current !== undefined);
+      // The catalogue of an editor-only runtime is the server's index: read it from the new server.
+      if (started && isEditorOnly(runtime.current)) catalog.refreshAll({ immediate: true });
+    }),
+    client.onCatalogChanged(() => {
+      if (isEditorOnly(runtime.current)) catalog.refreshAll();
+    }),
     // The capability context keys ARCHITECTURE.md documents, for `when` clauses.
     capabilities.onDidChange(
       (tree) =>
@@ -308,6 +333,9 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
     }),
     status.addMenuItem({ label: "$(gear) Switch runtime…", command: "opentide.switchRuntime", order: 120 }),
     vscode.commands.registerCommand("opentide.showOutput", () => log.show()),
+    vscode.commands.registerCommand("opentide.installOpentide", () =>
+      vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL)),
+    ),
     vscode.commands.registerCommand("opentide.restartServer", () =>
       runtime.restart("opentide: Restart Server"),
     ),
@@ -316,6 +344,9 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
         .menuItems()
         .filter((item) => ctx.trust.isTrusted || item.order === 100 || item.order === 110);
       const pin = runtime.pin;
+      const install: StatusMenuItem[] = isEditorOnly(runtime.current)
+        ? [{ label: "$(cloud-download) Install opentide…", command: "opentide.installOpentide", order: 115 }]
+        : [];
       const extra: StatusMenuItem[] =
         runtime.pinMismatch && pin && ctx.trust.isTrusted
           ? [
@@ -339,7 +370,7 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
         order: 99,
       };
       type Item = vscode.QuickPickItem & { item?: StatusMenuItem };
-      const entries: Item[] = menuSections([problems, ...items, ...extra]).flatMap((section) => [
+      const entries: Item[] = menuSections([problems, ...items, ...install, ...extra]).flatMap((section) => [
         { label: section.label, kind: vscode.QuickPickItemKind.Separator },
         ...section.items.map((item) => ({
           label: item.label,
@@ -349,7 +380,12 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
       ]);
       const current = runtime.current;
       const picked = await vscode.window.showQuickPick(entries, {
-        title: current ? `opentide ${current.version}` : "opentide",
+        title:
+          current?.kind === "engine"
+            ? `${ENGINE_LABEL} ${current.version}`
+            : current
+              ? `opentide ${current.version}`
+              : "opentide",
         placeHolder: current ? `${describeRuntime(current)} · ${problemsText(counts)}` : "No runtime",
       });
       const chosen = picked?.item;
@@ -380,7 +416,8 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
   const items: (vscode.QuickPickItem & { run: () => Thenable<unknown> })[] = [
     {
       label: "Automatic",
-      detail: "opentide.path, then the workspace's environment, then the bundled runtime",
+      detail:
+        "opentide.path, then the workspace's environment, then the bundled runtime, then the opentide engine (WASM) for editor features",
       run: async () => {
         await config.update("runtime", undefined, vscode.ConfigurationTarget.Workspace);
         await config.update("path", undefined, vscode.ConfigurationTarget.Workspace);
@@ -418,6 +455,11 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
       },
     },
   ];
+  items.push({
+    label: "Install opentide…",
+    detail: "How to install opentide: pip, uv or pipx. Then restart the server, or pick it here",
+    run: () => vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL)),
+  });
   if (vscode.extensions.getExtension("ms-python.python")) {
     items.push({
       label: "Select the Python interpreter (Python extension)…",
@@ -427,7 +469,12 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
   }
   const current = ctx.runtime.current;
   const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: current ? `Now: opentide ${current.version} (${current.command})` : "No runtime",
+    placeHolder:
+      current?.kind === "engine"
+        ? `Now: the ${ENGINE_LABEL} ${current.version}: editor features only`
+        : current
+          ? `Now: opentide ${current.version} (${current.command})`
+          : "No runtime",
   });
   await picked?.run();
 }

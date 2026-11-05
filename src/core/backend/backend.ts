@@ -6,6 +6,7 @@ import type { Classification } from "../capabilities/classification";
 import type { CommandTree } from "../capabilities/tree";
 import { displayArgv, processEnv, redact } from "../runtime/env";
 import { cliCommand, hasCli, type Runtime } from "../runtime/types";
+import { editorOnlyText } from "../unavailable";
 import type { CancellationToken } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
 import { ServeClient } from "./serve";
@@ -136,7 +137,7 @@ export class Backend {
       const code = unavailable.available ? "no-runtime" : unavailable.code;
       const messages = {
         untrusted: "Trust this folder to run opentide commands.",
-        "editor-only": "opentide.path names opentide-lsp, which has no commands. Point it at opentide.",
+        "editor-only": editorOnlyText(runtime, "this command"),
         "no-runtime": "No opentide runtime: install opentide in the workspace or set opentide.path.",
       };
       throw new BackendError(code, messages[code]);

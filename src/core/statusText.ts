@@ -1,6 +1,6 @@
 // The status bar text, as pure functions. vscode-free.
 import type { RepoPin } from "./runtime/pins";
-import type { Runtime } from "./runtime/types";
+import { ENGINE_STATUS, type Runtime } from "./runtime/types";
 
 export interface ProblemCounts {
   readonly errors: number;
@@ -21,7 +21,9 @@ export interface StatusModel {
 export function statusText(model: StatusModel): string {
   if (model.resolving && !model.runtime) return "$(loading~spin) opentide";
   if (!model.runtime) return "$(shield) opentide: no runtime";
-  const parts = [`$(shield) ${model.runtime.version}`];
+  const parts = [
+    model.runtime.kind === "engine" ? `$(shield) ${ENGINE_STATUS}` : `$(shield) ${model.runtime.version}`,
+  ];
   if (model.serve) parts.push("$(zap)");
   if (model.counts.errors > 0) parts.push(`✗ ${model.counts.errors}`);
   if (model.counts.warnings > 0) parts.push(`! ${model.counts.warnings}`);
@@ -58,7 +60,11 @@ export function problemsText(counts: ProblemCounts): string {
 export function statusLabel(model: StatusModel): string {
   if (model.resolving && !model.runtime) return "opentide: starting";
   if (!model.runtime) return "opentide: no runtime";
-  const parts = [`opentide ${model.runtime.version}`];
+  const parts = [
+    model.runtime.kind === "engine"
+      ? `${ENGINE_STATUS}, engine ${model.runtime.version}`
+      : `opentide ${model.runtime.version}`,
+  ];
   if (model.serve) parts.push("warm backend");
   if (model.counts.errors || model.counts.warnings) parts.push(problemsText(model.counts));
   if (model.pin && model.runtime.kind === "opentide" && model.pin.version !== model.runtime.version)
@@ -71,6 +77,8 @@ export function serveText(model: Pick<StatusModel, "serve" | "runtime" | "truste
   if (!model.runtime) return "No backend: no runtime";
   if (!model.trusted || model.runtime.restricted)
     return "No backend in Restricted Mode: only the language server runs";
+  if (model.runtime.kind !== "opentide")
+    return "No backend: commands, validate, deploy and query need opentide";
   return model.serve
     ? "Warm backend: `opentide serve` answers commands"
     : "Backend: one opentide process per command";

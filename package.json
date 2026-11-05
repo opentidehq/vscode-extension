@@ -483,6 +483,11 @@
         "category": "opentide"
       },
       {
+        "command": "opentide.installOpentide",
+        "title": "Install opentide…",
+        "category": "opentide"
+      },
+      {
         "command": "opentide.statusMenu",
         "title": "Show Status Menu",
         "category": "opentide"
@@ -2248,6 +2253,7 @@
     "@dagrejs/dagre": "3.1.3",
     "@vscode/codicons": "0.0.45",
     "cytoscape": "3.34.4",
+    "vscode-jsonrpc": "9.0.3",
     "vscode-languageclient": "10.1.2"
   }
 }

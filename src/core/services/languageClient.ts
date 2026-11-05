@@ -1,4 +1,5 @@
-// One language client per window (#5): `opentide lsp start` (or `opentide-lsp --stdio`) from the runtime.
+// One language client per window (#5): `opentide lsp start` (or `opentide-lsp --stdio`) from the runtime,
+// or the engine built for WebAssembly in a worker thread, fed the workspace through VS Code (tier 5).
 // Pulled diagnostics stay on and nothing handles `publishDiagnostics`, so each finding shows once; the
 // server's refresh requests (diagnostics, semantic tokens, inlay hints, code lenses) are honoured by
 // vscode-languageclient itself.
@@ -7,8 +8,13 @@ import {
   type Executable,
   LanguageClient,
   type LanguageClientOptions,
+  type MessageTransports,
   RevealOutputChannelOn,
 } from "vscode-languageclient/node";
+import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
+import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
+import { type EnginePort, engineTransports } from "../../engine/transport";
+import type { SuppliedWorkspace } from "../../engine/workspace";
 import { SERVER_CATALOG_CHANGED } from "../catalog/serverCatalog";
 import type { LanguageClientService, Logger, OpentideServerInfo } from "../context";
 import {
@@ -21,6 +27,10 @@ import {
 import { processEnv } from "../runtime/env";
 import { languageServerCommand, type Runtime } from "../runtime/types";
 import { Emitter } from "../util/event";
+import { startEngineWorker } from "./engine";
+
+/** How long after the last file change the engine is restarted with the new workspace. */
+const ENGINE_RESTART_MS = 1000;
 
 /** The `executable` server options for a runtime. */
 export function serverExecutable(
@@ -62,11 +72,29 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private readonly catalogChanged = new Emitter<CatalogChanged>();
   readonly onCatalogChanged = this.catalogChanged.event;
 
-  constructor(private readonly log: Logger) {
+  /** Starts and stops run one after another. */
+  private chain: Promise<unknown> = Promise.resolve();
+  private last: { runtime: Runtime | undefined; cwd: string | undefined } | undefined;
+  /** The engine's worker, its workspace and whether it takes workspace updates, while it runs. */
+  private engine: { port: EnginePort | undefined; updates: boolean } | undefined;
+  private readonly feed: WorkspaceFeed;
+  private engineTimer: NodeJS.Timeout | undefined;
+  /** Files whose new text the engine lacks, open in an editor: the server reads the buffer until closed. */
+  private readonly staleWhileOpen = new Set<string>();
+
+  constructor(
+    private readonly log: Logger,
+    engineFolders: () => readonly FeedFolder[] = () => [],
+  ) {
+    this.feed = new WorkspaceFeed(engineFolders, (message) => this.log.warn(message));
     this.disposables.push(
       vscode.commands.registerCommand("opentide.showReferences", (...args: unknown[]) =>
         this.showReferences(args),
       ),
+      vscode.workspace.onDidCloseTextDocument((document) => {
+        if (this.staleWhileOpen.delete(document.uri.toString()))
+          this.scheduleEngineRestart("a file the engine had an older text of was closed");
+      }),
     );
   }
 
@@ -92,7 +120,16 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
 
   /** Start the window's client on `runtime` (stopping any running one first). */
   start(runtime: Runtime | undefined, cwd: string | undefined): Promise<LanguageClient | undefined> {
-    const starting = this.doStart(runtime, cwd);
+    return this.queue(runtime, cwd, false);
+  }
+
+  private queue(
+    runtime: Runtime | undefined,
+    cwd: string | undefined,
+    reuseWorkspace: boolean,
+  ): Promise<LanguageClient | undefined> {
+    const starting = this.chain.then(() => this.doStart(runtime, cwd, reuseWorkspace));
+    this.chain = starting.catch(() => undefined);
     this.starting = starting;
     void starting.finally(() => {
       if (this.starting === starting) this.starting = undefined;
@@ -103,8 +140,10 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private async doStart(
     runtime: Runtime | undefined,
     cwd: string | undefined,
+    reuseWorkspace = false,
   ): Promise<LanguageClient | undefined> {
     await this.stop();
+    this.last = { runtime, cwd };
     if (!runtime) return undefined;
     const clientOptions: LanguageClientOptions = {
       documentSelector: DOCUMENT_SELECTOR,
@@ -113,9 +152,11 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       synchronize: { fileEvents: this.watcher() },
     };
-    const executable = serverExecutable(runtime, cwd);
-    const client = new LanguageClient("opentide", "opentide Language Server", executable, clientOptions);
-    this.log.info(`language server: ${executable.command} ${(executable.args ?? []).join(" ")}`);
+    const started = Date.now();
+    const client =
+      runtime.kind === "engine"
+        ? await this.engineClient(runtime, clientOptions, reuseWorkspace)
+        : this.processClient(runtime, cwd, clientOptions);
     try {
       await client.start();
     } catch (error) {
@@ -123,8 +164,18 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
         `language server failed to start: ${error instanceof Error ? error.message : String(error)}`,
       );
       await client.dispose().then(undefined, () => undefined);
+      this.endEngine();
       this.emitter.fire(undefined);
       return undefined;
+    }
+    if (this.engine) {
+      this.engine.updates = takesWorkspaceUpdates(client.initializeResult?.capabilities.experimental);
+      this.log.info(
+        `engine: initialized in ${Date.now() - started} ms; ` +
+          (this.engine.updates
+            ? "file changes are sent as opentide/didChangeWorkspace"
+            : "this engine reads its workspace only on initialize: a file changed on disk restarts it"),
+      );
     }
     this.client = client;
     // The client's one handler for it, for every feature; disposed with the client.
@@ -139,11 +190,96 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     return client;
   }
 
+  private processClient(
+    runtime: Runtime,
+    cwd: string | undefined,
+    clientOptions: LanguageClientOptions,
+  ): LanguageClient {
+    const executable = serverExecutable(runtime, cwd);
+    this.log.info(`language server: ${executable.command} ${(executable.args ?? []).join(" ")}`);
+    return new LanguageClient("opentide", "opentide Language Server", executable, clientOptions);
+  }
+
+  /**
+   * The engine (WASM) in a worker thread, given the workspace on `initialize`: it has no filesystem. The
+   * watcher's events go to the feed, not the server, which could only read them from a disk it has not.
+   */
+  private async engineClient(
+    runtime: Runtime,
+    clientOptions: LanguageClientOptions,
+    reuseWorkspace: boolean,
+  ): Promise<LanguageClient> {
+    let workspace: SuppliedWorkspace | undefined = reuseWorkspace ? this.feed.snapshot() : undefined;
+    if (!workspace) {
+      const { workspace: collected, report } = await this.feed.collect();
+      workspace = collected;
+      this.log.info(
+        `engine: read ${report.files} object file(s), ${Math.round(report.bytes / 1024)} KiB, in ${report.ms} ms` +
+          (report.skipped.length > 0 ? `; left out ${report.skipped.length}` : ""),
+      );
+    }
+    const engine: { port: EnginePort | undefined; updates: boolean } = { port: undefined, updates: false };
+    this.engine = engine;
+    this.log.info(`language server: ${runtime.command} in a worker thread (engine ${runtime.version})`);
+    const transports = async (): Promise<MessageTransports> => {
+      const port = startEngineWorker(runtime.command);
+      engine.port = port;
+      return engineTransports(port);
+    };
+    return new LanguageClient("opentide", "opentide Language Server", transports, {
+      ...clientOptions,
+      synchronize: {},
+      initializationOptions: { workspace },
+      middleware: { workspace: { didChangeWatchedFile: () => Promise.resolve() } },
+    });
+  }
+
+  private endEngine(): void {
+    this.engine?.port?.terminate();
+    this.engine = undefined;
+  }
+
+  /** Object files or `.opentide/` changed on disk: give the engine the new workspace. */
+  async filesChanged(uris: readonly vscode.Uri[]): Promise<void> {
+    const engine = this.engine;
+    const client = this.client;
+    if (!engine || !client) return;
+    const delta = await this.feed.changed(uris);
+    if (!delta) return;
+    if (engine.updates) {
+      await client.sendNotification(DID_CHANGE_WORKSPACE, delta);
+      return;
+    }
+    // An open file is the editor's buffer to the server; its new text matters once it is closed.
+    const open = new Set(vscode.workspace.textDocuments.map((document) => document.uri.toString()));
+    const touched = [...delta.documents.map((document) => document.uri), ...delta.removed];
+    if (delta.visibility === undefined && touched.every((uri) => open.has(uri))) {
+      for (const uri of touched) this.staleWhileOpen.add(uri);
+      return;
+    }
+    this.scheduleEngineRestart("object files changed on disk");
+  }
+
+  private scheduleEngineRestart(reason: string): void {
+    if (this.engineTimer) clearTimeout(this.engineTimer);
+    this.engineTimer = setTimeout(() => {
+      this.engineTimer = undefined;
+      const last = this.last;
+      if (!this.engine || last?.runtime?.kind !== "engine") return;
+      this.log.info(`engine: restarting with the new workspace (${reason})`);
+      this.staleWhileOpen.clear();
+      void this.queue(last.runtime, last.cwd, true);
+    }, ENGINE_RESTART_MS);
+  }
+
   async stop(): Promise<void> {
     const client = this.client;
     this.client = undefined;
     this.info = undefined;
-    if (!client) return;
+    if (!client) {
+      this.endEngine();
+      return;
+    }
     this.emitter.fire(undefined);
     try {
       await client.stop(5000);
@@ -151,6 +287,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       this.log.warn(`language server did not stop cleanly: ${String(error)}`);
     }
     await client.dispose().then(undefined, () => undefined);
+    this.endEngine();
   }
 
   private async showReferences(args: unknown[]): Promise<void> {
@@ -169,6 +306,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   }
 
   async dispose(): Promise<void> {
+    if (this.engineTimer) clearTimeout(this.engineTimer);
     for (const disposable of this.disposables) disposable.dispose();
     await this.stop();
     this.outputChannel.dispose();

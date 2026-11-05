@@ -1,4 +1,4 @@
-// Runtime resolution in four tiers (SPEC §4, #3). vscode-free: every side effect is injected, so the tier
+// Runtime resolution in five tiers (SPEC §4, #3): four that run opentide, then the engine (WASM). vscode-free: every side effect is injected, so the tier
 // logic is unit-tested with fakes.
 import * as path from "node:path";
 import type { RepoPin } from "./pins";
@@ -58,6 +58,27 @@ export interface ResolveInput {
   pythonEnvironments(): Promise<string | undefined>;
   /** The interpreter the Python extension picked for `folder`, when installed. */
   pythonExtension(): Promise<string | undefined>;
+  /** Tier 5: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
+  readonly engine?: EngineLayout | undefined;
+}
+
+/** The engine (WASM) in the extension: its module and version (dist/engine/engine.json). */
+export interface EngineLayout {
+  readonly module: string;
+  readonly version: string;
+}
+
+/** `dist/engine/engine.json`'s fields, when they have the expected shape. */
+export function readEngineManifest(text: string | undefined, dir: string): EngineLayout | undefined {
+  if (!text) return undefined;
+  try {
+    const manifest = JSON.parse(text) as { version?: unknown; module?: unknown };
+    if (typeof manifest.version !== "string" || typeof manifest.module !== "string") return undefined;
+    if (manifest.module.includes("/") || manifest.module.includes("\\")) return undefined;
+    return { module: path.join(dir, manifest.module), version: manifest.version };
+  } catch {
+    return undefined;
+  }
 }
 
 const PROBE_TIMEOUT_MS = 20_000;
@@ -353,23 +374,57 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     }
   }
 
-  // Tier 4: the bundled runtime. The only tier in Restricted Mode.
+  // Tier 4: the bundled runtime. The only CLI tier in Restricted Mode.
   const layout = bundledLayout(input.extensionPath, input.platform);
   if (!input.exists(layout.python)) {
     missing(4, "bundled", "this package has no bundled runtime (universal package)");
+  } else {
+    const runtime = await check(
+      {
+        tier: 4,
+        source: "bundled",
+        command: layout.python,
+        args: bundledArgs(input.globalStoragePath),
+        kind: "opentide",
+        interpreter: layout.python,
+        binDirs: layout.binDirs,
+      },
+      !input.trusted,
+    );
+    if (runtime) return { runtime, attempts };
+  }
+
+  // Tier 5: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
+  // process and reads the workspace through VS Code, so Restricted Mode may run it too.
+  const engine = input.engine;
+  if (!engine) {
+    missing(5, "engine", "this build carries no engine (dist/engine/engine.json)");
     return { runtime: undefined, attempts };
   }
-  const runtime = await check(
-    {
-      tier: 4,
-      source: "bundled",
-      command: layout.python,
-      args: bundledArgs(input.globalStoragePath),
-      kind: "opentide",
-      interpreter: layout.python,
-      binDirs: layout.binDirs,
+  if (!input.exists(engine.module)) {
+    missing(5, "engine", `${engine.module} does not exist`);
+    return { runtime: undefined, attempts };
+  }
+  attempts.push({
+    tier: 5,
+    source: "engine",
+    outcome: "ok",
+    path: engine.module,
+    version: engine.version,
+    detail: `${engine.module} ${engine.version}`,
+  });
+  return {
+    runtime: {
+      tier: 5,
+      source: "engine",
+      kind: "engine",
+      command: engine.module,
+      args: [],
+      version: engine.version,
+      env: {},
+      restricted: !input.trusted,
+      binDirs: [],
     },
-    !input.trusted,
-  );
-  return { runtime, attempts };
+    attempts,
+  };
 }

@@ -24,6 +24,7 @@ import {
   statusText,
   sumCounts,
 } from "../../src/core/statusText";
+import { editorOnlyText, unavailableActions } from "../../src/core/unavailable";
 import { fakeRuntime } from "./helpers";
 
 const record = (id: number, status: RunRecord["status"], extra: Partial<RunRecord> = {}): RunRecord => ({
@@ -273,6 +274,42 @@ describe("status text", () => {
       statusText({ runtime: undefined, resolving: false, pin: undefined, counts, trusted: true }),
       "$(shield) opentide: no runtime",
     );
+  });
+});
+
+describe("status item: the engine (WASM)", () => {
+  const engine = fakeRuntime({ tier: 5, source: "engine", kind: "engine", version: "0.10.0" });
+  const counts = { errors: 1, warnings: 0 };
+
+  it("reads 'opentide engine (WASM): editor features only', and says there is no backend", () => {
+    const model = { runtime: engine, resolving: false, pin: undefined, counts, trusted: true };
+    assert.equal(statusText(model), "$(shield) opentide engine (WASM): editor features only ✗ 1");
+    assert.equal(statusLabel(model), "opentide engine (WASM): editor features only, engine 0.10.0, 1 error");
+    assert.match(serveText(model), /need opentide/);
+    assert.match(serveText({ ...model, trusted: false }), /Restricted Mode/);
+    // A repository pin is about opentide, which the engine is not.
+    assert.equal(
+      statusText({
+        ...model,
+        counts: { errors: 0, warnings: 0 },
+        pin: { version: "0.20.1", source: "uv.lock" },
+      }),
+      "$(shield) opentide engine (WASM): editor features only",
+    );
+  });
+
+  it("says why a command cannot run, with the way out", () => {
+    assert.match(
+      editorOnlyText(engine, "this command"),
+      /^The opentide engine \(WASM\) runs editor features only: this command needs opentide\. Install opentide/,
+    );
+    assert.match(
+      editorOnlyText(fakeRuntime({ kind: "opentide-lsp" }), "setup"),
+      /opentide\.path names opentide-lsp.*setup needs opentide/,
+    );
+    assert.deepEqual(unavailableActions("editor-only"), ["Install opentide", "Switch Runtime…"]);
+    assert.deepEqual(unavailableActions("no-runtime"), ["Install opentide", "Switch Runtime…"]);
+    assert.deepEqual(unavailableActions("untrusted"), []);
   });
 });
 
