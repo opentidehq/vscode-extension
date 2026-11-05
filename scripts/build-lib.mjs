@@ -117,3 +117,24 @@ export function webExtensionOptions(root, common = {}) {
     metafile: true,
   };
 }
+
+/**
+ * The esbuild options of the browser's engine worker: src/web/engineWorker.ts -> dist/web/engine-worker.js,
+ * a classic script (VS Code's web extension host starts a cross-origin worker through `importScripts`),
+ * with the pinned engine's wasm-bindgen glue (`glue`, from scripts/engine-lib.mjs) bundled in.
+ */
+export function webEngineWorkerOptions(root, glue, common = {}) {
+  return {
+    ...common,
+    bundle: true,
+    entryPoints: { "engine-worker": join(root, "src", "web", "engineWorker.ts") },
+    outdir: join(root, "dist", "web"),
+    platform: "browser",
+    format: "iife",
+    target: "es2022",
+    alias: { "opentide-wasm-glue": glue },
+    // The glue's default initialiser finds the module next to itself; the worker fetches it instead.
+    define: { "import.meta.url": JSON.stringify("file:///opentide_wasm.js") },
+    metafile: true,
+  };
+}

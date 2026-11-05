@@ -1,48 +1,78 @@
-// The `browser` entry (vscode.dev, github.dev), also used for desktop virtual workspaces: grammar-only
-// mode. Languages, TextMate grammars, language configuration and the workspace's own snippet files are
-// declarative and work without this code. It adds what the SPEC (§13, D2) asks of a session with no
-// Python: a language status item that says so, and an explanation, instead of "command not found", for
-// every command that needs a process.
+// The `browser` entry (vscode.dev, github.dev, VS Code for the Web): the opentide engine (WASM) in a Web
+// Worker, spoken to by vscode-languageclient/browser, with the Catalogue, Relations and Find Detection
+// from its index (src/web/activate.ts). Desktop virtual workspaces run the same web mode from the node
+// bundle, with a worker thread instead (src/extension.ts). Keep this bundle free of Node built-ins and of
+// src/core/ (test/scripts/web-bundle.test.mjs).
 //
-// TODO(#10, SPEC §13): in this order, each behind its own work item:
-//   1. Semantic tokens from the WASM highlighter: load `opentide-wasm-web` (`highlight`, `legend`) in a
-//      Worker, through `@opentide/lsp-worker` once it publishes (language-server#191; copy its worker
-//      until then), with the document selector widened to non-`file` schemes (language-server#197).
-//   2. The wasip1 language server, experimental and behind a setting until the runtime leaves preview:
-//      `opentide-lsp-wasm32-wasip1.wasm` under `ms-vscode.wasm-wasi-core` with `@vscode/wasm-wasi-lsp`,
-//      reading the virtual workspace's committed catalogs.
-//   3. The Catalogue, search and the graph, from the server's index (`opentide/catalog`,
-//      language-server#198, SPEC §15 L4) rather than from Python.
-// Keep this bundle free of Node built-ins (test/scripts/web-bundle.test.mjs) and of src/core/.
+// TODO(#10, SPEC §13), what the web lacks that the engine could give, in this order:
+//   1. Follow file changes without a restart: language-server#212 (`opentide/didChangeWorkspace`), sent
+//      once a release announces `experimental.opentide.workspaceUpdates` (the session already does).
+//   2. Problems for closed files: the engine indexes what it is given but checks only open documents.
+//   3. The graph on the web, from the same index (the desktop's graph panel is Node-bound today).
+//   4. Start before the workspace is read on a large repository (thousands of files over a slow file
+//      system), feeding the rest in batches with #1.
 import * as vscode from "vscode";
-import { contributedCommands, languageIds, STATUS, unavailableMessage, WEB_DOCS_URL } from "./mode";
+import { LanguageClient } from "vscode-languageclient/browser";
+import { engineInit } from "../engine/protocol";
+import type { EnginePort } from "../engine/transport";
+import { activateWeb } from "./activate";
+import type { EngineSession } from "./session";
 
-export function activate(context: vscode.ExtensionContext): void {
-  const packageJSON: unknown = context.extension.packageJSON;
-  const docs = vscode.Uri.parse(WEB_DOCS_URL);
+/** The browser's Worker, as much as this file uses (the build's lib has no DOM). */
+interface BrowserWorker {
+  postMessage(message: unknown): void;
+  addEventListener(
+    type: "message" | "error",
+    listener: (event: { data?: unknown; message?: string }) => void,
+  ): void;
+  removeEventListener(
+    type: "message" | "error",
+    listener: (event: { data?: unknown; message?: string }) => void,
+  ): void;
+  terminate(): void;
+}
+type WorkerConstructor = new (url: string) => BrowserWorker;
 
-  const status = vscode.languages.createLanguageStatusItem(
-    "opentide.web",
-    languageIds(packageJSON).map((language) => ({ language })),
-  );
-  status.name = STATUS.name;
-  status.text = STATUS.text;
-  status.detail = STATUS.detail;
-  status.severity = vscode.LanguageStatusSeverity.Information;
-  status.command = { title: STATUS.learnMore, command: "vscode.open", arguments: [docs] };
-  context.subscriptions.push(status);
+/** The engine in a Web Worker: dist/web/engine-worker.js, told where the module is. */
+export function webEnginePort(extensionUri: vscode.Uri): EnginePort {
+  const Worker = (globalThis as unknown as { Worker: WorkerConstructor }).Worker;
+  const script = vscode.Uri.joinPath(extensionUri, "dist", "web", "engine-worker.js").toString(true);
+  const module = vscode.Uri.joinPath(extensionUri, "dist", "engine", "opentide_wasm_bg.wasm").toString(true);
+  const worker = new Worker(script);
+  worker.postMessage(engineInit(module));
+  const exits = new Set<(detail: string) => void>();
+  const on = (type: "message" | "error", listener: (event: { data?: unknown; message?: string }) => void) => {
+    worker.addEventListener(type, listener);
+    return { dispose: () => worker.removeEventListener(type, listener) };
+  };
+  return {
+    post: (text) => worker.postMessage(text),
+    onMessage: (listener) => on("message", (event) => listener(event.data)),
+    onError: (listener) =>
+      on("error", (event) => listener(new Error(event.message ?? "the engine worker failed"))),
+    onExit: (listener) => {
+      exits.add(listener);
+      return { dispose: () => exits.delete(listener) };
+    },
+    terminate: () => {
+      worker.terminate();
+      for (const listener of exits) listener("the engine worker was terminated");
+    },
+  };
+}
 
-  for (const { command, title } of contributedCommands(packageJSON)) {
-    context.subscriptions.push(
-      vscode.commands.registerCommand(command, async () => {
-        const choice = await vscode.window.showInformationMessage(
-          unavailableMessage(title),
-          STATUS.learnMore,
-        );
-        if (choice === STATUS.learnMore) await vscode.env.openExternal(docs);
-      }),
-    );
-  }
+/** Only in tests (`ExtensionMode.Test`): the engine session, for the browser tests. */
+export interface WebApi {
+  readonly session?: EngineSession;
+}
+
+export function activate(context: vscode.ExtensionContext): WebApi {
+  const session = activateWeb(context, {
+    startEngine: () => webEnginePort(context.extensionUri),
+    createClient: (serverOptions, clientOptions) =>
+      new LanguageClient("opentide", "opentide Language Server", serverOptions, clientOptions),
+  });
+  return context.extensionMode === vscode.ExtensionMode.Test ? { session } : {};
 }
 
 export function deactivate(): void {

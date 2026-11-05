@@ -1,12 +1,15 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
+import { ENGINE_STATUS } from "../../src/engine/protocol";
 import {
+  CONTINUE_ON_DESKTOP,
   contributedCommands,
   isVirtualOnly,
   languageIds,
   STATUS,
   unavailableMessage,
+  WEB_COMMANDS,
   WEB_DOCS_URL,
 } from "../../src/web/mode";
 
@@ -48,13 +51,19 @@ describe("web mode", () => {
       ],
     );
     assert.match(
-      unavailableMessage("opentide: Restart Server"),
-      /^opentide: Restart Server needs opentide, which cannot run in the browser/,
+      unavailableMessage("opentide: Validate Workspace"),
+      /^opentide: Validate Workspace needs opentide, which runs in VS Code Desktop.*engine \(WASM\)/,
     );
   });
 
-  it("says what is missing in a short status", () => {
-    assert.equal(STATUS.text, "Highlighting only");
+  it("implements only commands the manifest contributes, and explains the others", () => {
+    const contributed = new Set(contributedCommands(pkg).map((c) => c.command));
+    for (const command of WEB_COMMANDS) assert.ok(contributed.has(command), command);
+    assert.ok(contributed.has(CONTINUE_ON_DESKTOP[0]) === false, "a VS Code command, not ours");
+  });
+
+  it("says what runs and what is missing in a short status", () => {
+    assert.equal(ENGINE_STATUS, "opentide engine (WASM): editor features only");
     assert.ok(STATUS.detail.length < 100);
   });
 

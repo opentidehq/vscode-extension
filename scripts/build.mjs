@@ -2,6 +2,7 @@
 // Bundles the extension host code and every webview entry.
 //   src/extension.ts        -> dist/extension.js     (node, CommonJS, `vscode` external)
 //   src/web/extension.ts    -> dist/web/extension.js (browser, CommonJS, `vscode` external; package.json `browser`)
+//   src/web/engineWorker.ts -> dist/web/engine-worker.js (browser, classic script: the engine in a Web Worker)
 //   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE)
 //   webview/shared/base.css -> dist/webview/base.css
 //   webview/panels-kit/kit.css -> dist/webview/kit.css
@@ -23,6 +24,7 @@ import {
   copiedAssets,
   mergeMetafiles,
   thirdPartyNotices,
+  webEngineWorkerOptions,
   webExtensionOptions,
   webviewEntries,
 } from "./build-lib.mjs";
@@ -89,7 +91,14 @@ writeFileSync(
   `${JSON.stringify(engineManifest(pins.engine, readFileSync(join(engineDir, WASM))), null, 2)}\n`,
 );
 
-const configs = [extension, web, engineWorker, ...(Object.keys(webviews).length > 0 ? [webview] : [])];
+const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), common);
+const configs = [
+  extension,
+  web,
+  engineWorker,
+  webEngineWorker,
+  ...(Object.keys(webviews).length > 0 ? [webview] : []),
+];
 if (watch) {
   for (const config of configs) await (await esbuild.context(config)).watch();
 } else {

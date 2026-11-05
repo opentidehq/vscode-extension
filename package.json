@@ -63,7 +63,7 @@
     },
     "virtualWorkspaces": {
       "supported": "limited",
-      "description": "In a virtual workspace (github.dev, vscode.dev, Remote Repositories) only highlighting, languages and language configuration work: opentide reads the workspace from disk."
+      "description": "In a virtual workspace (github.dev, vscode.dev, Remote Repositories) the opentide engine (WASM) gives the editor features: diagnostics, hover, completion, semantic tokens, quick fixes, navigation, the Catalogue, Relations and Find Detection. Commands, validate, deploy, query, panels and MCP need opentide, which reads the workspace from disk."
     }
   },
   "activationEvents": [
@@ -2016,22 +2016,22 @@
       {
         "view": "opentide.sidebar.catalogue",
         "when": "virtualWorkspace",
-        "contents": "The catalogue comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "No threat, objective or rule in objects/ or the paths.toml object folders. In this workspace the catalogue comes from the opentide engine (WASM)'s index; new objects, coverage and deploy previews need opentide in VS Code Desktop."
       },
       {
         "view": "opentide.sidebar.coverage",
         "when": "virtualWorkspace",
-        "contents": "ATT&CK coverage comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "ATT&CK coverage comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the opentide engine (WASM) gives the editor features, the Catalogue and Relations.\n[Open a Local Folder](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.platforms",
         "when": "virtualWorkspace",
-        "contents": "Platforms and tenants come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "Platforms and tenants come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the opentide engine (WASM) gives the editor features, the Catalogue and Relations.\n[Open a Local Folder](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.health",
         "when": "virtualWorkspace",
-        "contents": "The health checks come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "The health checks come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the opentide engine (WASM) gives the editor features, the Catalogue and Relations.\n[Open a Local Folder](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.relations",
@@ -2061,7 +2061,7 @@
       {
         "view": "opentide.sidebar.relations",
         "when": "virtualWorkspace",
-        "contents": "Relations come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "Open a threat, objective or rule. This view follows the editor and shows what the object points to (→) and what points to it (←), from the opentide engine (WASM)'s index.\n[Show Relations of the Active Editor](command:opentide.relations.show)"
       }
     ],
     "walkthroughs": [
