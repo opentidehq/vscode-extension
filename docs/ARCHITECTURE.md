@@ -11,7 +11,7 @@ contrib/                manifest fragments: core.json, grammars.json (generated)
 pins.json               bundled opentide, CPython, highlights and engine zips (+SHA-256), runtime targets and archives, VSIX size budget
 runtime/                requirements.in and locks/<target>.txt (committed); the built runtime (not committed), see PACKAGING.md
 src/extension.ts        activate(): the core, then every feature (a virtual workspace gets src/web/ instead)
-src/web/                the `browser` entry (vscode.dev, github.dev): grammar-only mode, no Node built-ins
+src/web/                web mode (vscode.dev, github.dev, virtual workspaces): the engine, its views; no Node built-ins
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts
 src/engine/             the engine (WASM), shared by both bundles: its worker host, the client transport and the
                         workspace feed; no Node built-ins (src/core/engine/worker.ts is the desktop worker)
@@ -29,6 +29,7 @@ test/scripts/           tests of scripts/*.mjs
 test/integration/       @vscode/test-cli, label `integration` (needs a VS Code download)
 test/restricted/        scripts/test-restricted.mjs (Restricted Mode, workspace trust on)
 test/engine/            @vscode/test-cli, label `engine`: no opentide anywhere, the engine (WASM) tier
+test/web/               @vscode/test-web in Chromium (npm run test:web): web mode on a virtual folder
 test/fixtures/          fake-opentide.mjs (CLI and `serve`), commands-0.20.1.json, a workspace
 ```
 
@@ -44,10 +45,16 @@ background. Nothing on that path starts a process (SPEC §14: activation < 300 m
   synchronously in `activate` and read `.current` when an event fires; never assume a runtime exists.
 - Features activate in **Restricted Mode too**. The backend refuses to run there (`untrusted`); show
   "Trust this folder…" states instead of commands (`when` clause `isWorkspaceTrusted`).
-- **Web and virtual workspaces** (vscode.dev, github.dev, Remote Repositories) run `src/web/extension.ts`
-  instead: no core and no feature activates. Languages, grammars and language configuration are
-  declarative and still work; a language status item says "Highlighting only", and every contributed
-  command answers with an explanation instead of "command not found". Hide what needs a runtime with
+- **Web and virtual workspaces** (vscode.dev, github.dev, Remote Repositories) run web mode instead
+  (`src/web/activate.ts`): no core and no feature activates. It runs the engine (WASM) in a Web Worker
+  (`dist/web/engine-worker.js`, with vscode-languageclient/browser; in a desktop virtual workspace a
+  worker thread and the node client, from `src/extension.ts`), feeds it each opentide folder's object
+  files through `vscode.workspace.fs` (any scheme: `vscode-vfs:`, `vscode-test-web:`), and registers its
+  own Catalogue and Relations views and Find Detection on the same ids, from `opentide/catalog`
+  (`src/web/catalogueModel.ts`). The status items read "opentide engine (WASM): editor features only";
+  every other contributed command answers with an explanation instead of "command not found", with
+  "Open in VS Code Desktop" where the window has Continue Working On (`src/web/mode.ts` `WEB_COMMANDS`
+  lists what web mode implements). Hide what needs a runtime with
   `opentide.runtimeReady` (never set there) or `!virtualWorkspace` in `when` clauses, never `!isWeb`,
 which is false in a desktop virtual workspace (Remote Repositories) that runs the same web mode. The web bundle must not import
   `src/core/` or a Node built-in (`test/scripts/web-bundle.test.mjs`).

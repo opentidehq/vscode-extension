@@ -810,10 +810,10 @@ Revises #8 and #10.
   - Credentials live in SecretStorage, per workspace, and are never synced.
 - **Optional `.env` file:** `opentide.envFile` (trusted only, default none) loads `$VAR`s for tenant credentials, because opentide reads only the process environment.
 - **Telemetry:** none.
-- **Web** (vscode.dev, github.dev):
-  - The universal package's `browser` entry gives languages, grammars and language configuration. Semantic tokens from the WASM highlighter and the wasip1 language server behind a setting come later, as in #10.
-  - No Python means no commands and no panels ([D2](#d2-almost-every-action-runs-opentide-in-python-so-one-warm-process-serves-them)). The status item says so.
-  - A later `opentide/catalog` request in the language server would bring the Catalogue, search and the graph to the web.
+- **Web** (vscode.dev, github.dev, VS Code for the Web, and desktop virtual workspaces such as Remote Repositories):
+  - The universal package's `browser` entry runs the engine (WASM), the tier-5 runtime of the desktop ([§4](#4-the-runtime-resolution-processes-status)), in a Web Worker (`dist/web/engine-worker.js`) with `vscode-languageclient/browser`. It is the real `opentide-lsp` server, so the browser gets what the desktop engine gives: diagnostics, hover, completion, semantic tokens, quick fixes, definitions, references, outline, inlay hints, links and lenses. The document selector matches by language and by file pattern with no scheme (`vscode-vfs:` and other virtual URIs, language-server#197). The wasip1 build and `ms-vscode.wasm-wasi-core` are not needed.
+  - The workspace is read through VS Code's file system (`findFiles`, else `readDirectory` where the file system has no search provider) and given to the engine as on the desktop; a paths.toml object folder's YAML gets `opentide-yaml` on open.
+  - The Catalogue and Relations views and Find Detection come from `opentide/catalog` (L4), on the desktop's view and command ids. Coverage, Platforms, Health, the graph, the matrix and every command that runs opentide need Python ([D2](#d2-almost-every-action-runs-opentide-in-python-so-one-warm-process-serves-them)): each says so, with **Open in VS Code Desktop** where the window can continue there. The status items read `opentide engine (WASM): editor features only`.
 
 ---
 
@@ -893,7 +893,7 @@ language-server 0.10.0, the engine in opentide 0.22.0, ships L1 (its highlights 
 |---|--------|-----|-----------|
 | L1 [language-server#195](https://github.com/opentidehq/language-server/issues/195) | ES\|QL grammar scope `source.opentide.esql`, as `docs/EDITORS.md` says. The generated grammar uses `source.esql`, Elastic's scope | Collides with Elastic's ES\|QL extension | M1 *nice* (build-time rename) |
 | L2 [language-server#196](https://github.com/opentidehq/language-server/issues/196) | SHA-256 sums, and ideally attestations, for release assets | The grammar build verifies the zip; today the extension records its own hashes | M1 *nice* |
-| L3 [language-server#197](https://github.com/opentidehq/language-server/issues/197) | `DOCUMENT_SELECTOR` gains `opentide-config`, and non-`file` schemes for the web | Consistency with `EDITORS.md`; web mode | M4 |
+| L3 [language-server#197](https://github.com/opentidehq/language-server/issues/197) | `DOCUMENT_SELECTOR` gains `opentide-config`, and non-`file` schemes for the web | Consistency with `EDITORS.md`; web mode (the extension's `WEB_DOCUMENT_SELECTOR`, in 0.10.0) | M4 |
 | L4 [language-server#198](https://github.com/opentidehq/language-server/issues/198) | An `opentide/catalog` (index) request: per object `{uuid, object_type, name, uri, range, refs[]}`, with a change notification | A live, keystroke-fresh graph, and the Catalogue and graph on the web. The body is already in memory | M4 |
 | L5 [language-server#212](https://github.com/opentidehq/language-server/pull/212) | `opentide/didChangeWorkspace`: update the workspace a host supplied on `initialize` (documents added, changed and removed, `visibility.toml`), announced as `experimental.opentide.workspaceUpdates` | The engine (WASM) follows file changes without a restart, on the desktop and the web | *nice* (the extension restarts the engine until then) |
 

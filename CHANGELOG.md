@@ -20,6 +20,13 @@ pre-releases odd ones.
   deploy previews, queries, setup, tasks and MCP say they need opentide, with Install opentide and Switch
   Runtime…. Every package carries the engine (3.4 MiB compressed). It also runs in Restricted Mode, where
   it spawns nothing.
+- VS Code for the Web: on vscode.dev, github.dev and in desktop virtual workspaces the extension runs
+  the same engine (WASM) in a Web Worker, where it had highlighting only. You get diagnostics, hover,
+  completion, semantic tokens, quick fixes, definitions, references, the outline, and the Catalogue,
+  Relations and Find Detection from the engine's index. The engine reads the repository's object files
+  through VS Code's file system, any scheme (`vscode-vfs:` and the like), and a YAML file in a
+  paths.toml object folder opens as Tide YAML there too. Every command that needs opentide says so, with
+  Open in VS Code Desktop where the browser can continue there.
 - **opentide: Install opentide…** opens the installation guide, from the status menu, Switch Runtime…
   and the sidebar on an editor-only runtime.
 
@@ -28,7 +35,9 @@ pre-releases odd ones.
 - An editor-only runtime (the engine, or `opentide-lsp` in `opentide.path`) gets one message for every
   action that needs opentide, naming the runtime, instead of one about `opentide-lsp` alone, and the
   Platforms, Health and Coverage views say what they need instead of "No opentide runtime".
-- `npm run smoke` checks the engine in every package, the universal one included.
+- `npm run smoke` checks the engine in every package, the universal one included, and that each
+  carries the web extension (`browser` and the engine's Web Worker), which the Marketplace needs to
+  offer it on vscode.dev.
 
 ## [0.1.0] - 2026-11-04
 
