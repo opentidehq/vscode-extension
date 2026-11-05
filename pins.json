@@ -1,5 +1,5 @@
 {
-  "$comment": "What this extension builds from and bundles. A bump is a PR; docs/PACKAGING.md says how. The highlights zip version follows the engine inside the bundled opentide. runtimeTargets get a bundled runtime, universalTargets say why the others do not. runtimeArchives record each python-build-standalone archive and its SHA-256 (npm run runtime:build fills an empty one from the release SHA256SUMS and checks against it afterwards).",
+  "$comment": "What this extension builds from and bundles. A bump is a PR; docs/PACKAGING.md says how. The highlights zip version follows the engine inside the bundled opentide. runtimeTargets get a bundled runtime, universalTargets say why the others do not, and emulatedTargets name a runtime target whose package bundles another target's runtime, which the OS runs under emulation (its lock, native licences and interpreter archive are that target's; docs/PACKAGING.md). runtimeArchives record each python-build-standalone archive and its SHA-256 (npm run runtime:build fills an empty one from the release SHA256SUMS and checks against it afterwards).",
   "opentide": {
     "version": "0.22.0"
   },
@@ -29,6 +29,7 @@
   },
   "runtimeTargets": [
     "win32-x64",
+    "win32-arm64",
     "linux-x64",
     "linux-arm64",
     "alpine-x64",
@@ -36,17 +37,17 @@
     "darwin-x64",
     "darwin-arm64"
   ],
-  "universalTargets": {
-    "win32-arm64": "opentide 0.22.0 publishes a win_arm64 wheel (opentide#748), but cryptography publishes none after 46.0.3: the closure resolves wheels-only only by falling back to 46.0.3 while every other target locks cryptography 50.x, so win32-arm64 gets the universal package until cryptography publishes a Windows on Arm wheel again"
+  "universalTargets": {},
+  "emulatedTargets": {
+    "win32-arm64": {
+      "runtime": "win32-x64",
+      "reason": "cryptography publishes no win_arm64 wheel after 46.0.3 (the 50.x every other target locks has none), so a native closure would hold a cryptography with seven advisories; Windows 11 on Arm runs the x64 runtime under its emulation (Prism). Windows 10 on Arm cannot run x64 programs: there the bundled runtime does not start and the extension needs an opentide of its own"
+    }
   },
   "runtimeArchives": {
     "win32-x64": {
       "archive": "cpython-3.13.14+20260718-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
       "sha256": "91ea0cd883295458fa766eae36241df3ecc21f7029814189707d54b450e55c69"
-    },
-    "win32-arm64": {
-      "archive": "cpython-3.13.14+20260718-aarch64-pc-windows-msvc-install_only_stripped.tar.gz",
-      "sha256": "763720ff29b017e282101a77d7ad3d2324691eedc40528d916c248905924be2a"
     },
     "linux-x64": {
       "archive": "cpython-3.13.14+20260718-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",

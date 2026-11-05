@@ -21,7 +21,7 @@ The human procedure, the one-time setup and the failure table are in
 | Release | **Run workflow** on `.github/workflows/publish.yml`, ref `main`, no inputs |
 | Channel | odd minor = pre-release (`--pre-release` at package and publish), even minor = stable: `node scripts/release.mjs prerelease` |
 | Auth | Marketplace: `vsce publish --oidc` (policy: owner `opentidehq`, repo `vscode-extension`, `.github/workflows/publish.yml`, environment `production`). Open VSX: `ovsx publish --trusted-publishing` (same workflow file and environment); `OVSX_PAT` only for the very first publish |
-| Packages | One per `pins.json` `runtimeTargets` entry plus the universal one, from `npm run package`; checked by `node scripts/release.mjs assets` |
+| Packages | One per `pins.json` `runtimeTargets` entry plus the universal one, from `npm run package`; checked by `node scripts/release.mjs assets`. win32-arm64 bundles win32-x64's runtime (`emulatedTargets`) and builds on `windows-11-arm` |
 | Never | rename `publish.yml` or the `production` environment (both stores' trust names them); add a workflow input that publishes from another ref; publish from a laptop |
 
 ## When not to release

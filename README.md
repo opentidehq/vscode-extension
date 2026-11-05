@@ -42,8 +42,10 @@ The extension for your platform ships with its own opentide (0.22.0 on CPython 3
 offline on a machine with no Python, the graph, the ATT&CK matrix and Relations included. An older
 opentide of your own may have no `info catalog`; the features that need it say so and offer Switch
 Runtime. The first time the bundled opentide runs, it prepares itself in the background. Each package includes an SBOM (`runtime/sbom.cdx.json`) and the
-licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). On Windows on Arm, and on
-platforms without a dedicated package, the extension needs an opentide of your own ([Runtime](#runtime)).
+licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). Windows on Arm gets the Windows
+x64 runtime, which Windows 11 runs under its x64 emulation; Windows 10 on Arm cannot run it, so there,
+and on platforms without a dedicated package, the extension needs an opentide of your own
+([Runtime](#runtime)).
 
 ### Languages
 
@@ -328,7 +330,9 @@ The first that answers wins:
 2. The workspace's environment: `opentide.interpreter`, the Python Environments or Python extension's
    interpreter, `.venv`, then `PATH`.
 3. With `opentide.uv.usePin`: `uv tool run --from opentide==<pin>`.
-4. The bundled runtime.
+4. The bundled runtime. On Windows on Arm it is the x64 one, run under Windows 11's emulation: the
+   cryptography opentide needs has no Windows on Arm build. On Windows 10 on Arm, which cannot run x64
+   programs, it does not start, and the opentide output channel says why: use tiers 1 to 3.
 
 ## Restricted Mode
 
