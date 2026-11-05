@@ -15,6 +15,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   budgetFor,
+  buildInfoProblem,
   formatReport,
   isPreReleaseVersion,
   mib,
@@ -25,7 +26,7 @@ import {
   vsixName,
   zipEntries,
 } from "./package-lib.mjs";
-import { RuntimeError, requireRuntimeTarget } from "./runtime-lib.mjs";
+import { RuntimeError, requireRuntimeTarget, runtimeOf } from "./runtime-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -54,16 +55,13 @@ function main() {
       throw new PackageError(`runtime/ has no build: run npm run runtime:build -- --target ${target}`);
     }
     const info = JSON.parse(readFileSync(infoPath, "utf8"));
-    if (
-      info.target !== target ||
-      info.opentide !== pins.opentide.version ||
-      info.cpython !== pins.python.cpython
-    ) {
-      throw new PackageError(
-        `runtime/ holds ${info.target} (opentide ${info.opentide}, CPython ${info.cpython}), not ${target} ` +
-          `(opentide ${pins.opentide.version}, CPython ${pins.python.cpython}): run npm run runtime:build -- --target ${target}`,
-      );
-    }
+    const problem = buildInfoProblem(info, {
+      target,
+      runtime: runtimeOf(pins, target),
+      opentide: pins.opentide.version,
+      cpython: pins.python.cpython,
+    });
+    if (problem) throw new PackageError(`${problem}: run npm run runtime:build -- --target ${target}`);
     vsceArgs.push("--target", target);
   } else {
     scratch = mkdtempSync(join(tmpdir(), "opentide-package-"));

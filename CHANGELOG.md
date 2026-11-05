@@ -9,7 +9,7 @@ pre-releases odd ones.
 ### Added
 
 - The opentide engine (WASM): editor features with nothing installed, on every platform VS Code runs
-  on. When no opentide answers (the universal package without opentide, Windows on Arm among others, or a
+  on. When no opentide answers (the universal package without opentide, Windows 10 on Arm, or a
   bundled runtime that does not start), the extension runs the language server built for WebAssembly
   (language-server 0.10.0's `opentide-wasm-web`, pinned by SHA-256 in `pins.json`) in a worker thread:
   diagnostics, hover, completion, semantic tokens, quick fixes, definitions, references, the outline, and
@@ -22,6 +22,11 @@ pre-releases odd ones.
   it spawns nothing.
 - **opentide: Install opentide…** opens the installation guide, from the status menu, Switch Runtime…
   and the sidebar on an editor-only runtime.
+- Windows on Arm gets the bundled runtime, running as x64 under Windows 11's emulation. The win32-arm64
+  package carries the win32-x64 runtime (cryptography has published no Windows on Arm wheel since
+  46.0.3), built and tested on a Windows 11 on Arm runner. Windows 10 on Arm cannot run x64 programs:
+  there the bundled runtime does not start, the opentide output channel says why, and the extension
+  uses an opentide of your own or, without one, the opentide engine (WASM).
 
 ### Changed
 

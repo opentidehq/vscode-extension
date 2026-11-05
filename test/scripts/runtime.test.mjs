@@ -1,6 +1,14 @@
 import * as assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
@@ -14,6 +22,7 @@ import {
   checkNativeLicenses,
   cyclonedx,
   downloadEntry,
+  emulatedTargets,
   expectedArchiveSha,
   fullArchive,
   hostTarget,
@@ -24,6 +33,8 @@ import {
   licenseFiles,
   licenseOf,
   lockArgs,
+  lockPath,
+  lockTargets,
   nativeComponents,
   nativeLicensesPath,
   nativeSections,
@@ -40,6 +51,7 @@ import {
   requirementsIn,
   requireRuntimeTarget,
   runtimeNotices,
+  runtimeOf,
   runtimeTargets,
   serialNumber,
   shouldRemove,
@@ -92,7 +104,116 @@ describe("runtime build: targets and pins", () => {
       if (!targets.includes(name))
         assert.ok(pins.universalTargets?.[name], `${name} needs a universalTargets reason`);
     }
-    assert.throws(() => requireRuntimeTarget(pins, "win32-arm64"), /universal package.*win_arm64/);
+  });
+
+  it("the committed pins: win32-arm64 gets a package that bundles the win32-x64 runtime", () => {
+    assert.ok(runtimeTargets(pins).includes("win32-arm64"));
+    assert.equal(pins.universalTargets?.["win32-arm64"], undefined);
+    assert.doesNotThrow(() => requireRuntimeTarget(pins, "win32-arm64"));
+    assert.equal(runtimeOf(pins, "win32-arm64"), "win32-x64");
+    assert.equal(runtimeOf(pins, "win32-x64"), "win32-x64");
+    assert.equal(runtimeOf(pins, "darwin-arm64"), "darwin-arm64");
+    assert.match(emulatedTargets(pins)["win32-arm64"].reason, /Windows 11/);
+    // One lock per runtime: win32-arm64 adds none of its own.
+    assert.deepEqual(
+      lockTargets(pins),
+      runtimeTargets(pins).filter((name) => name !== "win32-arm64"),
+    );
+  });
+
+  it("emulatedTargets: a runtime target bundling another runtime target's runtime of the same OS", () => {
+    const emulated = {
+      ...testPins,
+      runtimeTargets: ["win32-x64", "win32-arm64", "linux-x64"],
+      universalTargets: {},
+      emulatedTargets: { "win32-arm64": { runtime: "win32-x64", reason: "Windows 11 emulates x64" } },
+    };
+    assert.equal(runtimeOf(emulated, "win32-arm64"), "win32-x64");
+    assert.deepEqual(lockTargets(emulated), ["win32-x64", "linux-x64"]);
+    // Its runtime need not be a runtime target itself: the lock is still written for it.
+    const only = { ...emulated, runtimeTargets: ["win32-arm64"] };
+    assert.deepEqual(lockTargets(only), ["win32-x64"]);
+    assert.deepEqual(lockTargets({ ...testPins, emulatedTargets: undefined }), ["linux-x64", "win32-x64"]);
+
+    const bad = (entry, extra = {}) => ({
+      ...emulated,
+      ...extra,
+      emulatedTargets: { "win32-arm64": entry },
+    });
+    const reason = "r";
+    assert.throws(() => runtimeTargets(bad({ runtime: "win32-x64" })), /has no reason/);
+    assert.throws(() => runtimeTargets(bad({ runtime: "win32-ia32", reason })), /\.runtime is not one of/);
+    assert.throws(() => runtimeTargets(bad({ runtime: "win32-arm64", reason })), /itself/);
+    assert.throws(
+      () => runtimeTargets(bad({ runtime: "linux-x64", reason })),
+      /a linux runtime for a windows target/,
+    );
+    assert.throws(
+      () => runtimeTargets(bad({ runtime: "win32-x64", reason }, { runtimeTargets: ["win32-x64"] })),
+      /win32-arm64 is not in runtimeTargets/,
+    );
+    assert.throws(
+      () =>
+        runtimeTargets(bad({ runtime: "win32-x64", reason }, { universalTargets: { "win32-arm64": "x" } })),
+      /also in universalTargets/,
+    );
+    assert.throws(
+      () =>
+        runtimeTargets({
+          ...emulated,
+          runtimeTargets: ["win32-x64", "win32-arm64", "linux-x64", "linux-arm64"],
+          emulatedTargets: {
+            "win32-arm64": { runtime: "win32-x64", reason },
+            "win32-x64": { runtime: "win32-arm64", reason },
+          },
+        }),
+      /itself emulated/,
+    );
+    assert.throws(() => runtimeTargets({ ...emulated, emulatedTargets: [] }), /is not an object/);
+    assert.throws(() => runtimeOf(emulated, "win32-ia32"), /unknown target/);
+  });
+
+  it("an emulated target's BUILD-INFO, SBOM and notices name both the package and the runtime", () => {
+    const emulated = {
+      ...testPins,
+      runtimeTargets: ["win32-x64", "win32-arm64"],
+      universalTargets: {},
+      emulatedTargets: { "win32-arm64": { runtime: "win32-x64", reason: "Windows 11 emulates x64" } },
+    };
+    const info = buildInfo({ pins: emulated, name: "win32-arm64", archiveSha256: "a", lockSha256: "b" });
+    assert.equal(info.target, "win32-arm64");
+    assert.equal(info.runtime, "win32-x64");
+    assert.equal(info.platform, "x86_64-pc-windows-msvc");
+    assert.equal(info.archive, archiveName(emulated, "win32-x64"));
+    assert.equal(info.lock, lockPath("win32-x64"));
+    assert.equal(info.python, "python.exe");
+    assert.notEqual(
+      info.buildId,
+      buildInfo({ pins: emulated, name: "win32-x64", archiveSha256: "a", lockSha256: "b" }).buildId,
+    );
+    const native = buildInfo({ pins: emulated, name: "win32-x64", archiveSha256: "a", lockSha256: "b" });
+    assert.equal(native.runtime, "win32-x64");
+
+    const sbom = cyclonedx({ info, dists: [], extensionVersion: "0.1.0" });
+    assert.equal(sbom.metadata.component.name, "opentide-vscode-runtime-win32-arm64");
+    assert.match(
+      sbom.metadata.component.description,
+      /win32-arm64 \(the win32-x64 runtime, under emulation\)/,
+    );
+    assert.match(
+      sbom.components[0].description,
+      /for win32-arm64 \(the win32-x64 runtime, under emulation\)/,
+    );
+    assert.ok(
+      sbom.metadata.properties.some((p) => p.name === "opentide:runtimeTarget" && p.value === "win32-x64"),
+    );
+    const plain = cyclonedx({ info: native, dists: [], extensionVersion: "0.1.0" });
+    assert.ok(!plain.metadata.properties.some((p) => p.name === "opentide:runtimeTarget"));
+    assert.match(plain.components[0].description, /for win32-x64$/);
+    assert.match(
+      runtimeNotices(info, []),
+      /^Third-party software in the bundled opentide runtime \(win32-arm64: the win32-x64 runtime, under emulation\)\n/,
+    );
   });
 
   it("an empty runtimeTargets means universal only", () => {
@@ -141,11 +262,14 @@ describe("runtime build: targets and pins", () => {
     assert.throws(() => expectedArchiveSha(bumped, "linux-x64", sums), /set its archive and sha256 to null/);
   });
 
-  it("the committed pins record every archive for the pinned python-build-standalone", () => {
-    for (const name of Object.keys(TARGETS)) {
+  it("the committed pins record every bundled archive for the pinned python-build-standalone", () => {
+    for (const name of lockTargets(pins)) {
       const expected = expectedArchiveSha(pins, name);
       assert.match(expected?.sha256 ?? "", /^[0-9a-f]{64}$/, name);
     }
+    // An emulated target bundles its runtime's archive: a record of its own would be one nothing builds.
+    for (const name of Object.keys(emulatedTargets(pins)))
+      assert.equal(pins.runtimeArchives[name], undefined, `runtimeArchives.${name}`);
   });
 
   it("records an archive's SHA-256 in pins.json without touching the rest", () => {
@@ -217,11 +341,19 @@ describe("runtime build: locks", () => {
     assert.throws(() => parseLock("six==1.17.0\n"), /has no hash/);
   });
 
-  it("every committed lock is hashed, pins the bundled opentide, and exists for each runtime target", () => {
-    for (const name of runtimeTargets(pins)) {
-      const lock = parseLock(readFileSync(join(root, "runtime", "locks", `${name}.txt`), "utf8"));
+  it("every committed lock is hashed, pins the bundled opentide, and exists for each runtime", () => {
+    for (const name of lockTargets(pins)) {
+      const lock = parseLock(readFileSync(join(root, lockPath(name)), "utf8"));
       assert.equal(lock.find((pkg) => pkg.name === "opentide")?.version, pins.opentide.version, name);
     }
+  });
+
+  it("the committed locks are exactly the runtimes': no second copy for an emulated target", () => {
+    const committed = readdirSync(join(root, "runtime", "locks"))
+      .filter((file) => file.endsWith(".txt"))
+      .map((file) => file.replace(/\.txt$/, ""))
+      .sort();
+    assert.deepEqual(committed, [...lockTargets(pins)].sort());
   });
 });
 
@@ -642,8 +774,13 @@ describe("runtime build: the native libraries inside CPython", () => {
     assert.throws(() => checkNativeLicenses(testPins, "linux-x64", undefined), /is missing/);
   });
 
-  it("every runtime target has its committed native licences, for the pinned CPython", () => {
-    for (const name of runtimeTargets(pins)) {
+  it("every runtime has its committed native licences, for the pinned CPython, and only those", () => {
+    const committed = readdirSync(join(root, "runtime-licenses"))
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => file.replace(/\.json$/, ""))
+      .sort();
+    assert.deepEqual(committed, [...lockTargets(pins)].sort());
+    for (const name of lockTargets(pins)) {
       const file = join(root, nativeLicensesPath(name));
       assert.ok(existsSync(file), `${nativeLicensesPath(name)}: run npm run runtime:licenses`);
       const record = checkNativeLicenses(pins, name, JSON.parse(readFileSync(file, "utf8")));
@@ -704,7 +841,7 @@ describe("runtime build: the native libraries inside CPython", () => {
 describe("runtime build: committed pins.json", () => {
   it("re-recording an archive leaves pins.json as it is (the format Biome keeps)", () => {
     let text = pinsText;
-    for (const name of Object.keys(TARGETS)) {
+    for (const name of lockTargets(pins)) {
       const recorded = pins.runtimeArchives[name];
       text = recordArchiveSha(text, name, recorded.archive, recorded.sha256);
     }

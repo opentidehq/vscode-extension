@@ -42,7 +42,57 @@ export function runtimeTargets(pins) {
   const list = pins.runtimeTargets;
   if (!Array.isArray(list)) throw new RuntimeError("pins.json has no runtimeTargets list");
   for (const name of list) target(name);
+  emulatedTargets(pins, list);
   return list;
+}
+
+/**
+ * pins.json `emulatedTargets`: a runtime target whose package bundles another target's runtime, which
+ * the OS runs under emulation (win32-arm64 carries the win32-x64 runtime: Windows 11 on Arm runs x64
+ * programs). `{ <target>: { runtime, reason } }`. Each is a runtime target, not a universal one; its
+ * runtime is another target with the same interpreter layout that is not itself emulated.
+ */
+export function emulatedTargets(pins, list = pins.runtimeTargets ?? []) {
+  const map = pins.emulatedTargets ?? {};
+  if (typeof map !== "object" || map === null || Array.isArray(map))
+    throw new RuntimeError("pins.json emulatedTargets is not an object of { <target>: { runtime, reason } }");
+  for (const [name, entry] of Object.entries(map)) {
+    const where = `pins.json emulatedTargets.${name}`;
+    target(name);
+    if (!list.includes(name)) throw new RuntimeError(`${where}: ${name} is not in runtimeTargets`);
+    if (pins.universalTargets?.[name] !== undefined)
+      throw new RuntimeError(`${where}: ${name} is also in universalTargets`);
+    const runtime = entry?.runtime;
+    if (typeof runtime !== "string" || !TARGETS[runtime])
+      throw new RuntimeError(`${where}.runtime is not one of ${Object.keys(TARGETS).join(", ")}`);
+    if (runtime === name) throw new RuntimeError(`${where}.runtime is ${name} itself`);
+    if (map[runtime] !== undefined)
+      throw new RuntimeError(`${where}.runtime is ${runtime}, which is itself emulated`);
+    if (TARGETS[runtime].os !== TARGETS[name].os)
+      throw new RuntimeError(
+        `${where}.runtime is ${runtime}, a ${TARGETS[runtime].os} runtime for a ${TARGETS[name].os} target`,
+      );
+    if (typeof entry.reason !== "string" || entry.reason.trim() === "")
+      throw new RuntimeError(`${where} has no reason`);
+  }
+  return map;
+}
+
+/**
+ * The target whose runtime a target's package bundles: its own, or the one pins.json `emulatedTargets`
+ * names. The interpreter archive, the lock, the native licences and uv's platform are that target's.
+ */
+export function runtimeOf(pins, name) {
+  target(name);
+  return emulatedTargets(pins)[name]?.runtime ?? name;
+}
+
+/**
+ * The targets that have a lock and native licences of their own: the runtime of each runtime target,
+ * once each (win32-arm64 adds none: it bundles win32-x64's).
+ */
+export function lockTargets(pins) {
+  return [...new Set(runtimeTargets(pins).map((name) => runtimeOf(pins, name)))];
 }
 
 /** Why a target gets the universal package instead of a runtime (pins.json `universalTargets`). */
@@ -657,24 +707,37 @@ export function buildId({ target: name, archiveSha256, lockSha256, opentide }) {
   return sha256(Buffer.from([name, archiveSha256, lockSha256, opentide].join("\n"))).slice(0, 16);
 }
 
+/**
+ * runtime/BUILD-INFO.json. `target` is the package's VS Code target, `runtime` the target whose
+ * interpreter and closure it bundles (`runtimeOf`): they differ for an emulated target.
+ */
 export function buildInfo({ pins, name, archiveSha256, lockSha256, staticInterpreter }) {
+  const runtime = runtimeOf(pins, name);
   return {
     schema: 1,
     buildId: buildId({ target: name, archiveSha256, lockSha256, opentide: pins.opentide.version }),
     target: name,
-    platform: target(name).uv,
+    runtime,
+    platform: target(runtime).uv,
     opentide: pins.opentide.version,
     engine: pins.highlights?.version,
     cpython: pins.python.cpython,
     pythonBuildStandalone: pins.python.pythonBuildStandalone,
     flavor: pins.python.flavor,
-    archive: archiveName(pins, name),
+    archive: archiveName(pins, runtime),
     archiveSha256,
-    lock: lockPath(name),
+    lock: lockPath(runtime),
     lockSha256,
     staticInterpreter,
-    python: layout(name, pins.python.cpython).python,
+    python: layout(runtime, pins.python.cpython).python,
   };
+}
+
+/** `win32-arm64 (the win32-x64 runtime, under emulation)`, or the target alone. */
+function runtimeLabel(info) {
+  return info.runtime && info.runtime !== info.target
+    ? `${info.target} (the ${info.runtime} runtime, under emulation)`
+    : info.target;
 }
 
 /** A deterministic RFC 4122 (version 5 layout) URN from a hex digest. */
@@ -703,7 +766,7 @@ export function cyclonedx({ info, dists, extensionVersion, native = [] }) {
     "bom-ref": `cpython@${info.cpython}`,
     name: "cpython",
     version: info.cpython,
-    description: `python-build-standalone ${info.pythonBuildStandalone} ${info.flavor} for ${info.target}`,
+    description: `python-build-standalone ${info.pythonBuildStandalone} ${info.flavor} for ${runtimeLabel(info)}`,
     licenses: [{ license: { id: "PSF-2.0" } }],
     purl: `pkg:github/astral-sh/python-build-standalone@${info.pythonBuildStandalone}#${info.archive}`,
     hashes: [{ alg: "SHA-256", content: info.archiveSha256 }],
@@ -773,10 +836,13 @@ export function cyclonedx({ info, dists, extensionVersion, native = [] }) {
         "bom-ref": `opentide-vscode-runtime@${extensionVersion}`,
         name: `opentide-vscode-runtime-${info.target}`,
         version: extensionVersion,
-        description: `The opentide ${info.opentide} runtime bundled in the ${info.target} package of opentidehq.opentide`,
+        description: `The opentide ${info.opentide} runtime bundled in the ${runtimeLabel(info)} package of opentidehq.opentide`,
       },
       properties: [
         { name: "opentide:buildId", value: info.buildId },
+        ...(info.runtime && info.runtime !== info.target
+          ? [{ name: "opentide:runtimeTarget", value: info.runtime }]
+          : []),
         { name: "opentide:lockSha256", value: info.lockSha256 },
       ],
     },
@@ -796,7 +862,9 @@ export function cyclonedx({ info, dists, extensionVersion, native = [] }) {
  */
 export function runtimeNotices(info, sections) {
   const out = [
-    `Third-party software in the bundled opentide runtime (${info.target})`,
+    info.runtime && info.runtime !== info.target
+      ? `Third-party software in the bundled opentide runtime (${info.target}: the ${info.runtime} runtime, under emulation)`
+      : `Third-party software in the bundled opentide runtime (${info.target})`,
     "",
     "The extension (MIT) runs this runtime as a separate program. Each component keeps its own licence:",
     "opentide and its analysis engine are EUPL-1.2, CPython is PSF-2.0, and the rest are listed below.",
