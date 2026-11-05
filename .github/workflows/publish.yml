@@ -42,6 +42,8 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
+  # @vscode/test-web's Playwright Chromium (CI's browser tests): no package needs it.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
 jobs:
   prepare:

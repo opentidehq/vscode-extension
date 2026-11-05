@@ -10,3 +10,4 @@ node_modules/
 /dist-vsix/
 /src/features/index.generated.ts
 /coverage/
+/.vscode-test-web/

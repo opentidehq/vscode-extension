@@ -5,7 +5,9 @@
 //   3. `opentide setup --path <tmp> --yes`, then `opentide --json doctor --offline` in it;
 //   4. `opentide lsp start`: `initialize` reports host.name "opentide" and the pinned engine;
 //   5. every package, the universal one too: the engine (WASM) worker, dist/engine/worker.js, answers
-//      `initialize` with the version engine.json records and no host.
+//      `initialize` with the version engine.json records and no host, and the web extension is there
+//      (package.json `browser` and its Web Worker, dist/web/engine-worker.js), so the Marketplace
+//      offers the package on vscode.dev and github.dev.
 //   node scripts/smoke.mjs <file.vsix> [--keep]
 // Exits non-zero on any failure. A universal VSIX has no runtime: it checks there is none, and the engine.
 import { spawn, spawnSync } from "node:child_process";
@@ -21,6 +23,7 @@ import {
   checkEngineInitialize,
   checkInitialize,
   checkVersion,
+  checkWebEntry,
   FrameReader,
   frame,
   opentideArgs,
@@ -161,6 +164,13 @@ async function main() {
     step(`unpacking ${vsix}`);
     const count = unpack(resolve(vsix), join(temp, "vsix"));
     const extension = join(temp, "vsix", "extension");
+
+    step("the web extension: package.json browser and the engine's Web Worker");
+    errors.push(
+      ...checkWebEntry(JSON.parse(readFileSync(join(extension, "package.json"), "utf8")), (file) =>
+        existsSync(join(extension, ...file.split("/"))),
+      ),
+    );
 
     step("engine (WASM): initialize in a worker thread");
     const engine = await engineInitialize(extension);

@@ -111,3 +111,21 @@ export function checkEngineInitialize(response, version, exitCode) {
   if (exitCode !== 0) errors.push(`the engine worker exited with ${exitCode} after exit`);
   return errors;
 }
+
+/**
+ * The web extension in an unpacked package: package.json's `browser` entry, the engine's Web Worker and
+ * the module it fetches (`exists` takes a path relative to the extension folder). Without `browser`, the
+ * Marketplace does not offer the package on the web.
+ */
+export function checkWebEntry(pkg, exists) {
+  const errors = [];
+  if (typeof pkg.browser !== "string") errors.push("package.json has no browser entry");
+  else if (!exists(pkg.browser.replace(/^\.\//, "")))
+    errors.push(`package.json browser names ${pkg.browser}, which the package lacks`);
+  for (const file of ["dist/web/engine-worker.js", "dist/engine/opentide_wasm_bg.wasm"]) {
+    if (!exists(file)) errors.push(`the package has no ${file}`);
+  }
+  if (pkg.capabilities?.virtualWorkspaces?.supported === false)
+    errors.push("package.json says it does not support virtual workspaces");
+  return errors;
+}
