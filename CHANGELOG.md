@@ -59,7 +59,7 @@ The first pre-release of opentide for VS Code and its forks: live checks for Tid
   replaces the finding), "Fix all safe opentide problems in this file", and
   "Fix All Safe Problems in the Workspace…", which shows the `validate --fix --dry-run` diff before
   applying.
-- "Explain <code>" on every opentide problem, and "opentide: Explain a Code…": `opentide explain` in a
+- "Explain &lt;code&gt;" on every opentide problem, and "opentide: Explain a Code…": `opentide explain` in a
   Markdown preview, offline.
 - The status bar counts errors and warnings from the language server, validate and lint.
 
@@ -72,7 +72,7 @@ The first pre-release of opentide for VS Code and its forks: live checks for Tid
 - Placeholder lines (`# opentide:placeholder`) are highlighted in the editor, the gutter and the
   overview ruler. "Next/Previous Placeholder" (Ctrl+Alt+. / Ctrl+Alt+, in Tide YAML) moves between
   them, the status bar shows `N placeholders left`, and "Mark as done" removes a marker.
-- The workspace's `tide-*` snippets complete in Tide YAML, and "Add <platform> block" on
+- The workspace's `tide-*` snippets complete in Tide YAML, and "Add &lt;platform&gt; block" on
   `configurations:`.
 - "opentide: Regenerate Templates, Schemas and Snippets".
 
@@ -161,7 +161,7 @@ The first pre-release of opentide for VS Code and its forks: live checks for Tid
 #### Panels
 
 - Query lenses above each platform query in a rule, and in `.kql`, `.spl`, `.esql`, `.eql`, `.kuery`
-  and `.lucene` files: **Run on <tenant>**, **Validate live** (where opentide can validate the
+  and `.lucene` files: **Run on &lt;tenant&gt;**, **Validate live** (where opentide can validate the
   platform) and **Compiled query** (from the language server). Sysdig gets no run lens, and Elastic
   Kuery says it writes preview alerts.
 - The query results panel: progress per tenant with Cancel and Re-run, then one tab per tenant (with

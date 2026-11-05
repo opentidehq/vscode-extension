@@ -77,7 +77,7 @@ and `opentide lint` add what only the CLI checks, for every file, open or not:
 
 A problem shows once: a validate or lint finding the language server already reports (same file, code and
 line) is left out. Editing a file clears its validate and lint problems until the next run. Each problem
-links its code to its page. **Explain <code>** (and *opentide: Explain a Code…*) opens `opentide explain`
+links its code to its page. **Explain &lt;code&gt;** (and *opentide: Explain a Code…*) opens `opentide explain`
 in a Markdown preview, offline. Suggested fixes are quick fixes; safe ones can be applied together for the
 file, or for the workspace after the `validate --fix --dry-run` diff. The status bar counts errors and
 warnings from all three.
@@ -93,7 +93,7 @@ Lines ending in `# opentide:placeholder` are highlighted. **Next/Previous Placeh
 status bar counts what is left. After you change a value, **Mark as done** removes its marker.
 
 The workspace's `tide-*` snippets (`opentide generate snippets`) complete in Tide YAML files. On a rule's
-`configurations:` line, **Add <platform> block** inserts that platform's block.
+`configurations:` line, **Add &lt;platform&gt; block** inserts that platform's block.
 
 ### The opentide sidebar
 
