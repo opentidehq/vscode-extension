@@ -2225,6 +2225,7 @@
     "test": "npm run compile-tests && mocha",
     "test:integration": "npm run build && npm run compile-tests && vscode-test --label integration",
     "test:restricted": "npm run build && npm run compile-tests && node scripts/test-restricted.mjs",
+    "test:bundled": "npm run build && npm run compile-tests && vscode-test --label bundled",
     "vscode:prepublish": "npm run build:production",
     "runtime:lock": "node scripts/runtime-lock.mjs",
     "runtime:build": "node scripts/runtime-build.mjs",
