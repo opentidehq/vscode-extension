@@ -33,11 +33,24 @@ export interface FeedReport {
 const CONCURRENCY = 32;
 const MAX_FILES = 20_000;
 
+/**
+ * A URI's path with a Windows drive letter in lower case: `Uri.path` keeps the case it was made with
+ * (`/D:/a` from a file watcher, `/d:/a` from the workspace folder), while `toString()` lowers it.
+ */
+export function comparablePath(path: string): string {
+  return /^\/[A-Za-z]:/.test(path) ? `/${path.charAt(1).toLowerCase()}${path.slice(2)}` : path;
+}
+
 /** `relative` under `base`, with forward slashes, or undefined when it is not inside. */
-function relativeTo(base: vscode.Uri, uri: vscode.Uri): string | undefined {
+export function relativeTo(
+  base: { scheme: string; authority: string; path: string },
+  uri: { scheme: string; authority: string; path: string },
+): string | undefined {
   if (base.scheme !== uri.scheme || base.authority !== uri.authority) return undefined;
-  const root = base.path.endsWith("/") ? base.path : `${base.path}/`;
-  return uri.path.startsWith(root) ? uri.path.slice(root.length) : undefined;
+  const folder = comparablePath(base.path);
+  const root = folder.endsWith("/") ? folder : `${folder}/`;
+  const path = comparablePath(uri.path);
+  return path.startsWith(root) ? path.slice(root.length) : undefined;
 }
 
 async function readText(uri: vscode.Uri): Promise<string | undefined> {
