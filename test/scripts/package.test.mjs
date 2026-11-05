@@ -20,6 +20,7 @@ import {
 import {
   bundledPython,
   checkDoctor,
+  checkEngineInitialize,
   checkInitialize,
   checkVersion,
   FrameReader,
@@ -247,6 +248,31 @@ describe("smoke: checks", () => {
     );
     assert.equal(checkDoctor("Traceback").length, 1);
     assert.equal(checkDoctor(doc([])).length, 1);
+  });
+
+  it("the engine (WASM) worker must answer as opentide-lsp at engine.json's version, with no host", () => {
+    const answer = (opentide, name = "opentide-lsp") => ({
+      jsonrpc: "2.0",
+      id: 1,
+      result: { serverInfo: { name }, capabilities: { experimental: { opentide } } },
+    });
+    assert.deepEqual(checkEngineInitialize(answer({ host: null, engine: "0.10.0" }), "0.10.0", 0), []);
+    assert.deepEqual(checkEngineInitialize(answer({ host: null, engine: "0.9.1" }), "0.10.0", 0), [
+      "engine is 0.9.1, engine.json says 0.10.0",
+    ]);
+    assert.equal(
+      checkEngineInitialize(answer({ host: { name: "opentide" }, engine: "0.10.0" }), "0.10.0", 0).length,
+      1,
+    );
+    assert.equal(checkEngineInitialize(answer({ host: null, engine: "0.10.0" }), "0.10.0", 1).length, 1);
+    assert.match(
+      checkEngineInitialize(
+        { jsonrpc: "2.0", id: 1, error: { code: -32603, message: "did not load" } },
+        "0.10.0",
+        0,
+      )[0],
+      /did not load/,
+    );
   });
 
   it("initialize must name host opentide with the built version and the pinned engine", () => {

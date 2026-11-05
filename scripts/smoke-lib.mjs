@@ -93,3 +93,21 @@ export function checkInitialize(response, expected) {
     errors.push(`engine is ${info.engine}, pins.json derives ${expected.engine}`);
   return errors;
 }
+
+/**
+ * The engine (WASM) worker's `initialize`: the server is opentide-lsp at the version dist/engine/engine.json
+ * records, hosted by nothing, and the worker ended after `exit`.
+ */
+export function checkEngineInitialize(response, version, exitCode) {
+  const errors = [];
+  const result = response?.result;
+  if (!result)
+    return [`engine initialize failed: ${JSON.stringify(response?.error ?? response).slice(0, 300)}`];
+  if (result.serverInfo?.name !== "opentide-lsp")
+    errors.push(`engine serverInfo.name is ${result.serverInfo?.name}`);
+  const info = result.capabilities?.experimental?.opentide;
+  if (info?.engine !== version) errors.push(`engine is ${info?.engine}, engine.json says ${version}`);
+  if (info?.host !== null) errors.push(`engine host is ${JSON.stringify(info?.host)}, expected none`);
+  if (exitCode !== 0) errors.push(`the engine worker exited with ${exitCode} after exit`);
+  return errors;
+}

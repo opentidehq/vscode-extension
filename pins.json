@@ -18,6 +18,16 @@
     "url": "https://github.com/opentidehq/language-server/releases/download/v0.10.0/highlights-v0.10.0.zip",
     "sha256": "c1dfda2b794a27f98f49fd91fe286b9ab0fa85d18e55ee16a8c37b1e4bc1a70a"
   },
+  "engine": {
+    "$comment": "The opentide language server built for WebAssembly (wasm-bindgen --target web): the lowest runtime tier, editor features with nothing installed, and the engine of the web extension. From the same language-server release as the highlights zip.",
+    "version": "0.10.0",
+    "url": "https://github.com/opentidehq/language-server/releases/download/v0.10.0/opentide-wasm-web-v0.10.0.zip",
+    "sha256": "8a34a4d1aafc312ab2af14a241d9a1df4c701869cbe489ca419016d270bb546c",
+    "thirdPartyLicenses": {
+      "url": "https://github.com/opentidehq/language-server/releases/download/v0.10.0/THIRD-PARTY-LICENSES.html",
+      "sha256": "6f32bf1878f77a9df7fa2c62281c3841e787573d0416fb043f4b618322a749f5"
+    }
+  },
   "tomlGrammar": {
     "source": "tamasfe/taplo, editors/vscode/toml.tmLanguage.json (Even Better TOML), MIT",
     "url": "https://raw.githubusercontent.com/tamasfe/taplo/release-even-better-toml-0.21.2/editors/vscode/toml.tmLanguage.json",
