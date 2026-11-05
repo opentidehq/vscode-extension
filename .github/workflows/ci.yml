@@ -282,14 +282,18 @@ jobs:
       - name: Sizes
         if: ${{ !cancelled() }}
         run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
-      # The bundled runtime's own closure, installed with uv into a venv of the bundled interpreter, for
-      # the tests that run an `opentide` executable (OPENTIDE_TEST_BIN), and a workspace for them.
+      # The bundled runtime's own closure, installed with uv into a venv of a copy of the bundled
+      # interpreter, for the tests that run an `opentide` executable (OPENTIDE_TEST_BIN), and a workspace
+      # for them. A copy: a venv's Python writes bytecode next to its base's stdlib, and runtime/ must stay
+      # as the package has it (the precompile test checks nothing is written there).
       - name: An opentide of the bundled runtime, and a workspace
         run: |
           set -euo pipefail
           lock="$(node -p 'require("./runtime/BUILD-INFO.json").lock')"
+          base="${RUNNER_TEMP}/opentide-python"
+          cp -R runtime "${base}"
           venv="${RUNNER_TEMP}/opentide-venv"
-          uv venv --python runtime/python.exe "${venv}"
+          uv venv --python "${base}/python.exe" "${venv}"
           uv pip install --python "${venv}/Scripts/python.exe" --require-hashes --only-binary :all: -r "${lock}"
           bin="${venv}/Scripts/opentide.exe"
           "${bin}" --version
