@@ -294,6 +294,15 @@ describe("release: build matrix", () => {
   it("is empty when no target bundles a runtime", () => {
     assert.deepEqual(buildMatrix({ runtimeTargets: [] }), { include: [] });
   });
+  it("the committed pins build win32-arm64 on the Windows on Arm runner, as every other target natively", () => {
+    const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
+    const matrix = buildMatrix(committed);
+    assert.deepEqual(
+      matrix.include.find((entry) => entry.target === "win32-arm64"),
+      { target: "win32-arm64", os: "windows-11-arm", container: "" },
+    );
+    assert.equal(matrix.include.length, 8);
+  });
 });
 
 describe("release: assets", () => {

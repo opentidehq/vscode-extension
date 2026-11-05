@@ -6,6 +6,7 @@ import { deflateRawSync } from "node:zlib";
 import { commonOptions } from "../../scripts/build-lib.mjs";
 import {
   budgetFor,
+  buildInfoProblem,
   formatReport,
   isPreReleaseVersion,
   largestDirectories,
@@ -92,6 +93,37 @@ describe("package: names, ignore file and pre-release", () => {
     assert.doesNotMatch(universal, /^!\s*runtime/m);
     assert.match(universal, /^runtime\/\*\*\n$/m);
     assert.match(universal, /^!dist\/\*\*$/m);
+  });
+});
+
+describe("package: the runtime/ build a target needs", () => {
+  const want = { target: "win32-arm64", runtime: "win32-x64", opentide: "0.22.0", cpython: "3.13.14" };
+  const info = { target: "win32-arm64", runtime: "win32-x64", opentide: "0.22.0", cpython: "3.13.14" };
+
+  it("accepts the target's build of its runtime, the pinned opentide and CPython", () => {
+    assert.equal(buildInfoProblem(info, want), undefined);
+    const native = { ...want, target: "linux-x64", runtime: "linux-x64" };
+    assert.equal(buildInfoProblem({ ...native }, native), undefined);
+    assert.equal(
+      buildInfoProblem({ ...native, runtime: undefined }, native),
+      undefined,
+      "a build before `runtime`",
+    );
+  });
+
+  it("refuses another target, another runtime, opentide or CPython", () => {
+    assert.match(
+      buildInfoProblem({ ...info, target: "win32-x64" }, want),
+      /^runtime\/ holds win32-x64 \(opentide 0\.22\.0, CPython 3\.13\.14\), not win32-arm64 with the win32-x64 runtime/,
+    );
+    // The universal-era native arm64 build, or one from before BUILD-INFO had `runtime`.
+    assert.match(
+      buildInfoProblem({ ...info, runtime: undefined }, want),
+      /holds win32-arm64 \(opentide.*not win32-arm64 with the win32-x64 runtime/,
+    );
+    assert.match(buildInfoProblem({ ...info, runtime: "win32-arm64" }, want), /holds win32-arm64 \(/);
+    assert.match(buildInfoProblem({ ...info, opentide: "0.21.0" }, want), /opentide 0\.21\.0/);
+    assert.match(buildInfoProblem({ ...info, cpython: "3.12.9" }, want), /CPython 3\.12\.9/);
   });
 });
 

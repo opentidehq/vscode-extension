@@ -3,9 +3,12 @@
 // from pins.json, then runtime/locks/<target>.txt with `uv pip compile --python-platform <triple>
 // --generate-hashes --only-binary :all:`. The locks are committed; an existing lock's versions are kept
 // unless requirements.in no longer allows them.
-//   node scripts/runtime-lock.mjs                    every target in pins.json runtimeTargets
-//   node scripts/runtime-lock.mjs --target <t>       one target (also one outside runtimeTargets, to see
-//                                                    whether its closure has wheels yet)
+//   node scripts/runtime-lock.mjs                    the runtime of every target in pins.json runtimeTargets,
+//                                                    once each: an emulatedTargets target has no lock of
+//                                                    its own (win32-arm64 bundles win32-x64's)
+//   node scripts/runtime-lock.mjs --target <t>       one target, natively (also one outside runtimeTargets
+//                                                    or an emulated one, to see whether its closure has
+//                                                    wheels yet)
 //   node scripts/runtime-lock.mjs --upgrade          re-resolve to the newest versions
 //   node scripts/runtime-lock.mjs --check            fail when requirements.in or a lock is stale
 import { spawnSync } from "node:child_process";
@@ -17,11 +20,13 @@ import {
   lf,
   lockArgs,
   lockPath,
+  lockTargets,
   noWheelsError,
   parseLock,
   REQUIREMENTS_IN,
   RuntimeError,
   requirementsIn,
+  runtimeOf,
   runtimeTargets,
   target,
   universalReason,
@@ -56,7 +61,7 @@ function compile(pins, name, output) {
 function main() {
   const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
   const only = option("--target");
-  const names = only ? [only] : runtimeTargets(pins);
+  const names = only ? [only] : lockTargets(pins);
   for (const name of names) target(name);
 
   // The lock is uv's output: another uv may write it differently (CI installs pins.json uv.version).
@@ -99,9 +104,12 @@ function main() {
       mkdirSync(dirname(file), { recursive: true });
       compile(pins, name, file);
       const count = parseLock(readFileSync(file, "utf8")).length;
-      const note = runtimeTargets(pins).includes(name)
-        ? ""
-        : ` (not in runtimeTargets: ${universalReason(pins, name)}; it resolves now, so it can get a runtime)`;
+      const note = !runtimeTargets(pins).includes(name)
+        ? ` (not in runtimeTargets: ${universalReason(pins, name)}; it resolves now, so it can get a runtime)`
+        : runtimeOf(pins, name) !== name
+          ? ` (pins.json emulatedTargets gives it the ${runtimeOf(pins, name)} runtime; this lock is not used: ` +
+            "check its versions match the other targets' before dropping the emulation)"
+          : "";
       console.log(`${lockPath(name)}: ${count} packages${note}`);
     }
   } finally {
