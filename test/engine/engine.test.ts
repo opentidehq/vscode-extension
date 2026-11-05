@@ -139,6 +139,32 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
     await waitFor(() => !names().includes("Engine test objective"), 30_000);
   });
 
+  it("reads a folder that paths.toml names after a paths.toml edit", async () => {
+    const api = await activated();
+    const folder = api.ctx.folders.all[0];
+    assert.ok(folder);
+    const toml = path.join(folder.path, ".opentide", "configurations", "paths.toml");
+    const before = await fs.readFile(toml, "utf8");
+    const extra = path.join(folder.path, "extra-rules");
+    const names = () => api.ctx.catalog.get(folder.path).catalog?.objects.map((o) => o.name) ?? [];
+    try {
+      // A rule outside every object folder: no file event of the engine's folders reports it.
+      await fs.mkdir(extra, { recursive: true });
+      await fs.writeFile(
+        path.join(extra, "extra-rule.yaml"),
+        "name: Extra folder rule\nmetadata:\n  uuid: 7c2e1d4f-3a5b-4c6d-8e9f-0a1b2c3d4e5f\n  schema: rule::1.1\n",
+      );
+      await waitFor(() => names().length > 0, 30_000);
+      assert.equal(names().includes("Extra folder rule"), false);
+      await fs.writeFile(toml, before.replace('rule = "detections/rules/"', 'rule = "extra-rules/"'));
+      await waitFor(() => names().includes("Extra folder rule"), 30_000);
+    } finally {
+      await fs.writeFile(toml, before);
+      await fs.rm(extra, { recursive: true, force: true });
+    }
+    await waitFor(() => !names().includes("Extra folder rule") && names().includes("Misspelled TLP"), 30_000);
+  });
+
   it("says commands need opentide, offering to install it", async () => {
     const api = await activated();
     const folder = api.ctx.folders.all[0];

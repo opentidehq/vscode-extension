@@ -238,11 +238,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
     folders.onDidChange((all) => {
       // A removed folder's catalogue goes, so a restart's refreshAll does not run `info catalog` there.
       catalog.retain(all.map((folder) => folder.path));
-      // A new primary folder changes the runtime; a paths.toml edit only changes object folders.
+      // A new primary folder changes the runtime; a paths.toml edit only changes object folders, which
+      // the engine (WASM) is given as files: it reads them again (a fresh read, not the mirror).
       const primary = all[0]?.path;
       if (primary !== lastPrimary) {
         lastPrimary = primary;
         void restart("workspace folders changed");
+      } else if (runtime.current?.kind === "engine") {
+        void restart("opentide folders changed: the engine reads them again");
       }
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
