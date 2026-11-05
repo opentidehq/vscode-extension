@@ -71,6 +71,15 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     return this.lastAttempts;
   }
 
+  /** Add what happened after the resolution (a language server that fell back to the engine). */
+  noteAttempts(attempts: readonly ResolveAttempt[]): void {
+    this.lastAttempts = [...this.lastAttempts, ...attempts];
+    for (const attempt of attempts)
+      this.log.info(
+        `runtime tier ${attempt.tier} (${attempt.source}): ${attempt.outcome}: ${attempt.detail}`,
+      );
+  }
+
   get pin(): RepoPin | undefined {
     return this.repoPin;
   }

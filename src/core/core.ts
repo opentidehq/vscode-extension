@@ -15,16 +15,17 @@ import { CredentialStore } from "./credentials";
 import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
+import { fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
-import { uvExecutable } from "./runtime/resolve";
+import { engineRuntime, uvExecutable } from "./runtime/resolve";
 import { cliCommand, describeRuntime, ENGINE_LABEL, isEditorOnly } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
 import { LanguageClientManager } from "./services/languageClient";
 import { createLogger } from "./services/logger";
 import { onDidChangePythonEnvironment } from "./services/python";
-import { RuntimeManager } from "./services/runtime";
+import { RuntimeManager, readEngine } from "./services/runtime";
 import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./services/settings";
 import { StatusManager } from "./services/status";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
@@ -130,8 +131,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
   );
 
   // The engine (WASM) has no filesystem: it is given each opentide folder's object files.
-  const client = new LanguageClientManager(log, () =>
-    folders.all.map((folder) => ({ uri: folder.folder.uri, objectFolders: folder.objectFolders })),
+  // It is also the language server of a runtime whose own does not start (fallback.ts).
+  const client = new LanguageClientManager(
+    log,
+    () => folders.all.map((folder) => ({ uri: folder.folder.uri, objectFolders: folder.objectFolders })),
+    (restricted) => {
+      const engine = readEngine(context.extensionPath);
+      return engine ? engineRuntime(engine, restricted) : undefined;
+    },
   );
   subscriptions.push({ dispose: () => void client.dispose() });
 
@@ -199,6 +206,20 @@ export function createCore(context: vscode.ExtensionContext): Core {
     if (!trust.isTrusted)
       await fs.promises.mkdir(context.globalStorageUri.fsPath, { recursive: true }).catch(() => undefined);
     await client.start(rt, cwd);
+    const fallback = client.fallback;
+    const server = client.serverRuntime;
+    if (fallback && server) {
+      runtime.noteAttempts(fallbackAttempts(fallback, server));
+      void vscode.window
+        .showWarningMessage(
+          `The language server of opentide ${fallback.from.version} did not start (${fallback.reason}). The opentide engine (WASM) gives the editor features instead.`,
+          "Show Output",
+        )
+        .then((choice) => {
+          if (choice) log.show();
+        });
+    }
+    status.setFallback(fallback);
     status.setServer(client.serverInfo, client.current !== undefined);
     void precompiler.ensure(rt);
     catalog.refreshAll({ immediate: true });
@@ -231,7 +252,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
         backend.invalidate([document.uri.fsPath]);
     }),
     fileEvents.onDidChange(({ folder, uris }) => {
-      if (runtime.current?.kind === "engine") void client.filesChanged(uris);
+      // The engine's, also when it serves a runtime whose own server did not start.
+      void client.filesChanged(uris);
       backend.invalidate(uris.map((uri) => uri.fsPath));
       if (catalog.folders().includes(folder.path)) void catalog.refresh(folder.path);
     }),
