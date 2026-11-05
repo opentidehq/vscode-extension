@@ -14,6 +14,15 @@ gets live checks, templates, the catalogue, the graph, the ATT&CK matrix, querie
 offline. When the repository has its own opentide (a `.venv`, the Python extension's interpreter,
 `opentide` on `PATH`, or `opentide.path`), the extension uses it, so the editor checks what CI checks.
 
+![The Relations view following an objective: what it covers, its signals and technique, and the rules that implement it](docs/images/relations.png)
+
+| | |
+|---|---|
+| ![The graph beside a rule: outgoing links in orange, incoming in blue, with a details pane](docs/images/graph.png) | ![A deploy plan beside the rule: what each platform and tenant would create or update](docs/images/deploy-plan.png) |
+| **Graph:** what an object points to and what points to it | **Deploy plan:** a dry run per platform and tenant |
+| ![ATT&CK coverage: techniques covered by rules, with the rules behind a cell](docs/images/attack-coverage.png) | |
+| **ATT&CK coverage:** what your rules cover, cell by cell | |
+
 ## Install
 
 Releases are on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide)
