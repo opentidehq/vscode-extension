@@ -118,6 +118,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     const result = await resolveRuntime({
       trusted,
       platform: process.platform,
+      arch: process.arch,
       extensionPath: this.context.extensionPath,
       globalStoragePath: this.context.globalStorageUri.fsPath,
       folder: folderPath,
@@ -142,6 +143,9 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     for (const attempt of result.attempts) {
       if (attempt.outcome === "too-old" || (attempt.outcome === "failed" && attempt.tier === 1))
         this.warn(attempt);
+      // A package's own runtime that does not start (Windows 10 on Arm: an x64 runtime it cannot run).
+      if (attempt.outcome === "failed" && attempt.tier === 4)
+        this.log.warn(`runtime: the bundled runtime did not start: ${attempt.detail}`);
       if (attempt.note) this.log.info(`runtime: ${attempt.note}`);
     }
     this.runtime = result.runtime;

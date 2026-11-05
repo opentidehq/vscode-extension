@@ -1,6 +1,7 @@
 // Runtime resolution in five tiers (SPEC §4, #3): four that run opentide, then the engine (WASM). vscode-free: every side effect is injected, so the tier
 // logic is unit-tested with fakes.
 import * as path from "node:path";
+import { bundledEmulationHint } from "./emulation";
 import type { RepoPin } from "./pins";
 import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier } from "./types";
 import {
@@ -42,6 +43,8 @@ export interface RuntimeSettings {
 export interface ResolveInput {
   readonly trusted: boolean;
   readonly platform: NodeJS.Platform;
+  /** `process.arch`: on Windows on Arm the bundled runtime is x64 (`bundledEmulationHint`). */
+  readonly arch?: string;
   readonly extensionPath: string;
   readonly globalStoragePath: string;
   /** The folder the window's runtime is resolved for (the first opentide folder). */
@@ -392,6 +395,11 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       !input.trusted,
     );
     if (runtime) return { runtime, attempts };
+    // Windows 10 on Arm cannot emulate the x64 runtime win32-arm64 bundles: say so, then try tier 5.
+    const hint = bundledEmulationHint(input.platform, input.arch);
+    const failed = attempts.at(-1);
+    if (hint && failed?.tier === 4 && failed.outcome === "failed")
+      attempts[attempts.length - 1] = { ...failed, detail: `${failed.detail}. ${hint}` };
   }
 
   // Tier 5: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no

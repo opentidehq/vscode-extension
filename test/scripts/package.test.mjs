@@ -6,6 +6,7 @@ import { deflateRawSync } from "node:zlib";
 import { commonOptions } from "../../scripts/build-lib.mjs";
 import {
   budgetFor,
+  buildInfoProblem,
   formatReport,
   isPreReleaseVersion,
   largestDirectories,
@@ -19,13 +20,16 @@ import {
 } from "../../scripts/package-lib.mjs";
 import {
   bundledPython,
+  checkCatalog,
   checkDoctor,
   checkEngineInitialize,
   checkInitialize,
+  checkInterpreterPlatform,
   checkVersion,
   checkWebEntry,
   FrameReader,
   frame,
+  median,
   opentideArgs,
 } from "../../scripts/smoke-lib.mjs";
 
@@ -94,6 +98,37 @@ describe("package: names, ignore file and pre-release", () => {
     assert.doesNotMatch(universal, /^!\s*runtime/m);
     assert.match(universal, /^runtime\/\*\*\n$/m);
     assert.match(universal, /^!dist\/\*\*$/m);
+  });
+});
+
+describe("package: the runtime/ build a target needs", () => {
+  const want = { target: "win32-arm64", runtime: "win32-x64", opentide: "0.22.0", cpython: "3.13.14" };
+  const info = { target: "win32-arm64", runtime: "win32-x64", opentide: "0.22.0", cpython: "3.13.14" };
+
+  it("accepts the target's build of its runtime, the pinned opentide and CPython", () => {
+    assert.equal(buildInfoProblem(info, want), undefined);
+    const native = { ...want, target: "linux-x64", runtime: "linux-x64" };
+    assert.equal(buildInfoProblem({ ...native }, native), undefined);
+    assert.equal(
+      buildInfoProblem({ ...native, runtime: undefined }, native),
+      undefined,
+      "a build before `runtime`",
+    );
+  });
+
+  it("refuses another target, another runtime, opentide or CPython", () => {
+    assert.match(
+      buildInfoProblem({ ...info, target: "win32-x64" }, want),
+      /^runtime\/ holds win32-x64 \(opentide 0\.22\.0, CPython 3\.13\.14\), not win32-arm64 with the win32-x64 runtime/,
+    );
+    // The universal-era native arm64 build, or one from before BUILD-INFO had `runtime`.
+    assert.match(
+      buildInfoProblem({ ...info, runtime: undefined }, want),
+      /holds win32-arm64 \(opentide.*not win32-arm64 with the win32-x64 runtime/,
+    );
+    assert.match(buildInfoProblem({ ...info, runtime: "win32-arm64" }, want), /holds win32-arm64 \(/);
+    assert.match(buildInfoProblem({ ...info, opentide: "0.21.0" }, want), /opentide 0\.21\.0/);
+    assert.match(buildInfoProblem({ ...info, cpython: "3.12.9" }, want), /CPython 3\.12\.9/);
   });
 });
 
@@ -299,6 +334,74 @@ describe("smoke: checks", () => {
       )[0],
       /did not load/,
     );
+  });
+
+  it("the interpreter is of the runtime's architecture, not the machine's", () => {
+    const emulated = { target: "win32-arm64", runtime: "win32-x64" };
+    assert.deepEqual(checkInterpreterPlatform("win-amd64\r\n", emulated), []);
+    assert.match(
+      checkInterpreterPlatform("win-arm64", emulated)[0],
+      /"win-arm64", not the win32-x64 runtime's x64/,
+    );
+    assert.deepEqual(
+      checkInterpreterPlatform("win-arm64", { target: "win32-arm64", runtime: "win32-arm64" }),
+      [],
+    );
+    assert.deepEqual(
+      checkInterpreterPlatform("linux-x86_64", { target: "linux-x64" }),
+      [],
+      "no runtime: its target's",
+    );
+    assert.deepEqual(checkInterpreterPlatform("linux-aarch64", { target: "alpine-arm64" }), []);
+    assert.deepEqual(checkInterpreterPlatform("macosx-11.0-arm64", { target: "darwin-arm64" }), []);
+    assert.equal(checkInterpreterPlatform("macosx-11.0-arm64", { target: "darwin-x64" }).length, 1);
+    assert.equal(checkInterpreterPlatform("win-amd64", {}).length, 1);
+  });
+
+  it("times with the median", () => {
+    assert.equal(median([3, 1, 2]), 2);
+    assert.equal(median([4, 1, 2, 3]), 2.5);
+  });
+
+  it("info catalog lists the fixture's objective and rule, loaded and linked", () => {
+    const fixture = {
+      objective: { uuid: "o-1", type: "objective" },
+      rule: { uuid: "r-1", type: "rule" },
+    };
+    const objects = [
+      { uuid: "o-1", type: "objective", load_error: null },
+      { uuid: "r-1", type: "rule", load_error: null },
+    ];
+    const edges = [{ from: "r-1", to: "o-1", kind: "implements" }];
+    const doc = (fields) => JSON.stringify({ objects, edges, summary: { load_errors: 0 }, ...fields });
+    assert.deepEqual(checkCatalog(doc({}), fixture), []);
+    assert.deepEqual(checkCatalog(doc({ objects: [objects[0]] }), fixture), ["info catalog has no rule r-1"]);
+    assert.match(
+      checkCatalog(doc({ objects: [objects[0], { ...objects[1], type: "threat" }] }), fixture)[0],
+      /lists r-1 as threat, not rule/,
+    );
+    assert.match(
+      checkCatalog(
+        doc({ objects: [objects[0], { ...objects[1], load_error: { message: "bad" } }] }),
+        fixture,
+      )[0],
+      /r-1 failed to load/,
+    );
+    assert.match(
+      checkCatalog(doc({ edges: [] }), fixture)[0],
+      /no edge from the rule r-1 to the objective o-1/,
+    );
+    assert.match(checkCatalog(doc({ summary: { load_errors: 2 } }), fixture)[0], /2 load errors/);
+    assert.deepEqual(checkCatalog("Traceback", fixture).length, 1);
+    assert.deepEqual(checkCatalog("{}", fixture), ["info catalog has no objects and edges"]);
+  });
+
+  it("the smoke fixture's objects are the ones the catalogue check expects", () => {
+    const read = (file) => readFileSync(join(root, "test", "fixtures", "workspace", "objects", file), "utf8");
+    assert.match(read("objectives/detect-lsass-access.yaml"), /^\s+uuid:\s*\S+\s*$/m);
+    const rule = read("rules/suspicious-lsass-access.yaml");
+    const objective = /^\s+uuid:\s*(\S+)\s*$/m.exec(read("objectives/detect-lsass-access.yaml"))?.[1];
+    assert.ok(objective && rule.includes(objective), "the rule implements the objective");
   });
 
   it("initialize must name host opentide with the built version and the pinned engine", () => {

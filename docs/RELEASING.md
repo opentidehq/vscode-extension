@@ -209,7 +209,7 @@ pre-release first when it changes much.
 
 | Runtime target | Runner |
 |----------------|--------|
-| win32-x64 / win32-arm64 | `windows-latest` / `windows-11-arm` |
+| win32-x64 / win32-arm64 | `windows-latest` / `windows-11-arm` (win32-arm64 bundles win32-x64's runtime, `pins.json` `emulatedTargets`) |
 | linux-x64 / linux-arm64 | `ubuntu-latest` / `ubuntu-24.04-arm` |
 | alpine-x64 / alpine-arm64 | `ubuntu-latest` / `ubuntu-24.04-arm`, smoke test in Alpine |
 | darwin-x64 / darwin-arm64 | `macos-15-intel` / `macos-latest` |

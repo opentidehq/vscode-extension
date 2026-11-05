@@ -375,10 +375,11 @@ through the host.
 | `npm run grammars` / `grammars:check` | syntaxes/ and contrib/grammars.json from the pinned zip (SHA-256 checked) |
 | `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
 | `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
-| `npm run runtime:lock` / `-- --check` | runtime/locks/<target>.txt from runtime/requirements.in (pins.json) |
+| `npm run test:bundled` | @vscode/test-cli label `bundled`: the extension on the checkout's built `runtime/` (tier 4, language server, `info catalog`); fails without one |
+| `npm run runtime:lock` / `-- --check` | runtime/locks/<target>.txt from runtime/requirements.in (pins.json), one per runtime (an `emulatedTargets` target uses its runtime's) |
 | `npm run runtime:build -- --target <t>` | runtime/ for one target: interpreter, closure, BUILD-INFO, SBOM, notices |
 | `npm run package -- --target <t>` / `-- --universal` | dist-vsix/opentide-<t>-<version>.vsix (+ `.size.json`), size gate |
-| `npm run smoke -- <vsix>` | runs the package's bundled opentide (`--version`, `doctor --offline`, LSP `initialize`) |
+| `npm run smoke -- <vsix>` | runs the package's bundled opentide (its architecture, `--version` timed, `doctor --offline`, `info catalog` on a fixture, LSP `initialize`) |
 | `npx @vscode/vsce package` | a VSIX of the working tree (use `npm run package -- --universal` for the universal one) |
 | `node scripts/release.mjs <command>` | release helpers for publish.yml: `version`, `check`, `notes`, `matrix`, `assets`, `sums`, `sizes` ([RELEASING.md](RELEASING.md)) |
 

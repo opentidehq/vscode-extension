@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import {
   type ProbeOptions,
@@ -9,6 +10,7 @@ import {
   resolveRuntime,
   uvExecutable,
 } from "../../src/core/runtime/resolve";
+import { ROOT } from "./helpers";
 
 const EXT = "/ext";
 const FOLDER = "/work/detections";
@@ -251,6 +253,61 @@ describe("runtime resolution", () => {
     const { runtime } = await resolveRuntime(value);
     assert.equal(runtime?.command, python);
     assert.deepEqual(runtime?.binDirs, [path.join(EXT, "runtime"), path.join(EXT, "runtime", "Scripts")]);
+  });
+
+  it("Windows on Arm: the same python.exe, whatever its architecture (the package's x64 runtime)", async () => {
+    const python = path.join(EXT, "runtime", "python.exe");
+    const { value } = input(
+      { platform: "win32", arch: "arm64" },
+      {},
+      { files: new Set([python]), versions: { [python]: "opentide 0.22.0" } },
+    );
+    const { runtime, attempts } = await resolveRuntime(value);
+    assert.equal(runtime?.tier, 4);
+    assert.equal(runtime?.command, python);
+    assert.doesNotMatch(attempts.at(-1)?.detail ?? "", /emulation/);
+  });
+
+  it("Windows on Arm: a bundled runtime that does not start says Windows 10 on Arm cannot run it", async () => {
+    const python = path.join(EXT, "runtime", "python.exe");
+    const failing = (platform: NodeJS.Platform, arch: string) =>
+      input(
+        { platform, arch },
+        {},
+        {
+          files: new Set([python, BUNDLED]),
+          versions: {
+            [python]: { code: null, stdout: "", stderr: "", error: "spawn UNKNOWN" },
+            [BUNDLED]: { code: null, stdout: "", stderr: "", error: "spawn UNKNOWN" },
+          },
+        },
+      ).value;
+    const arm = await resolveRuntime(failing("win32", "arm64"));
+    assert.equal(arm.runtime, undefined);
+    // Tier 5 (the engine) follows: the hint is on tier 4's attempt, wherever it sits.
+    const last = arm.attempts.find((attempt) => attempt.tier === 4);
+    assert.equal(last?.tier, 4);
+    assert.equal(last?.outcome, "failed");
+    assert.match(
+      last?.detail ?? "",
+      /spawn UNKNOWN\. This package's runtime is x64: .*Windows 10 on Arm cannot/,
+    );
+    for (const [platform, arch] of [
+      ["win32", "x64"],
+      ["linux", "arm64"],
+    ] as const) {
+      const other = await resolveRuntime(failing(platform, arch));
+      const bundled = other.attempts.find((attempt) => attempt.tier === 4);
+      assert.doesNotMatch(bundled?.detail ?? "", /Windows 10 on Arm/, `${platform}-${arch}`);
+    }
+  });
+
+  it("Windows on Arm: the hint's premise is pins.json's, an x64 runtime in the win32-arm64 package", () => {
+    const pins = JSON.parse(readFileSync(path.join(ROOT, "pins.json"), "utf8")) as {
+      emulatedTargets?: Record<string, { runtime: string }>;
+    };
+    // When win32-arm64 bundles a native runtime again, remove bundledEmulationHint (src/core/runtime/emulation.ts).
+    assert.equal(pins.emulatedTargets?.["win32-arm64"]?.runtime, "win32-x64");
   });
 
   it("Restricted Mode: only tier 4, restricted, and no restricted setting is read", async () => {

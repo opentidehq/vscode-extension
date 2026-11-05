@@ -8,6 +8,8 @@
 //      with the native libraries linked into CPython from runtime-licenses/<target>.json
 //      (npm run runtime:licenses).
 //   node scripts/runtime-build.mjs --target <vscode-target> [--archive <file>]
+// A target pins.json emulatedTargets maps to another (win32-arm64 -> win32-x64) gets that target's
+// interpreter, lock and native licences; BUILD-INFO records both (`target` and `runtime`).
 // Downloads are cached in .cache/pbs/. runtime/requirements.in and runtime/locks/ are kept.
 import { spawnSync } from "node:child_process";
 import {
@@ -54,6 +56,7 @@ import {
   recordArchiveSha,
   requireRuntimeTarget,
   runtimeNotices,
+  runtimeOf,
   sha256,
   sha256SumsUrl,
   shouldRemove,
@@ -214,41 +217,45 @@ async function main() {
   let pinsText = readFileSync(pinsPath, "utf8");
   const pins = JSON.parse(pinsText);
   requireRuntimeTarget(pins, name);
+  // The target whose interpreter and closure this package bundles: its own, or an emulated one's.
+  const runtime = runtimeOf(pins, name);
+  if (runtime !== name) log(`${name} bundles the ${runtime} runtime (pins.json emulatedTargets)`);
   const { cpython } = pins.python;
-  const dirs = layout(name, cpython);
+  const dirs = layout(runtime, cpython);
 
-  const lockFile = join(root, lockPath(name));
-  if (!existsSync(lockFile)) throw new RuntimeError(`${lockPath(name)} is missing: run npm run runtime:lock`);
+  const lockFile = join(root, lockPath(runtime));
+  if (!existsSync(lockFile))
+    throw new RuntimeError(`${lockPath(runtime)} is missing: run npm run runtime:lock`);
   const lockText = readFileSync(lockFile, "utf8");
   const lock = parseLock(lockText);
   // Checked first: a python-build-standalone or CPython bump without new native licences fails at once.
-  const licensesFile = join(root, nativeLicensesPath(name));
+  const licensesFile = join(root, nativeLicensesPath(runtime));
   const nativeLicenses = checkNativeLicenses(
     pins,
-    name,
+    runtime,
     existsSync(licensesFile) ? JSON.parse(readFileSync(licensesFile, "utf8")) : undefined,
   );
 
   // 1. The interpreter archive, checked.
-  const archive = archiveName(pins, name);
+  const archive = archiveName(pins, runtime);
   const archivePath = option("--archive")
     ? resolve(option("--archive"))
     : join(root, ".cache", "pbs", archive);
-  if (!existsSync(archivePath)) await download(archiveUrl(pins, name), archivePath);
-  let expected = expectedArchiveSha(pins, name);
+  if (!existsSync(archivePath)) await download(archiveUrl(pins, runtime), archivePath);
+  let expected = expectedArchiveSha(pins, runtime);
   if (!expected) {
     const response = await fetch(sha256SumsUrl(pins), { redirect: "follow" });
     if (!response.ok) throw new RuntimeError(`GET ${sha256SumsUrl(pins)}: HTTP ${response.status}`);
-    expected = expectedArchiveSha(pins, name, parseSha256Sums(await response.text()));
+    expected = expectedArchiveSha(pins, runtime, parseSha256Sums(await response.text()));
   }
   const archiveSha256 = sha256(readFileSync(archivePath));
   if (archiveSha256 !== expected.sha256) {
     throw new RuntimeError(`${archive}: SHA-256 is ${archiveSha256}, expected ${expected.sha256}`);
   }
   if (expected.record) {
-    pinsText = recordArchiveSha(pinsText, name, archive, archiveSha256);
+    pinsText = recordArchiveSha(pinsText, runtime, archive, archiveSha256);
     writeFileSync(pinsPath, pinsText);
-    log(`recorded ${archive} (${archiveSha256}) in pins.json runtimeArchives.${name}`);
+    log(`recorded ${archive} (${archiveSha256}) in pins.json runtimeArchives.${runtime}`);
   }
 
   // 2. Unpack into runtime/, keeping requirements.in and locks/.
@@ -270,27 +277,28 @@ async function main() {
   dereferenceLinks(dirs.python);
   const pythonPath = join(runtimeDir, dirs.python);
   if (!existsSync(pythonPath)) throw new RuntimeError(`${archive} has no ${dirs.python}`);
-  const staticInterpreter = isStaticInterpreter(name, cpython, readFileSync(pythonPath));
-  const context = { name, cpython, staticInterpreter };
+  const staticInterpreter = isStaticInterpreter(runtime, cpython, readFileSync(pythonPath));
+  const context = { name: runtime, cpython, staticInterpreter };
   const before = dirSize(runtimeDir);
   removeMatching(context);
   log(
     `interpreter: ${(before.bytes / 1048576).toFixed(1)} MiB unpacked, ${(dirSize(runtimeDir).bytes / 1048576).toFixed(1)} MiB trimmed${staticInterpreter ? " (static binary: shared libpython removed)" : ""}`,
   );
 
-  // 3. The closure, for the target's platform.
+  // 3. The closure, for the runtime's platform. uv runs the interpreter only on a machine of the
+  // runtime's own target; elsewhere (an emulated target's runner too) it installs for --python-platform.
   const sitePackages = join(runtimeDir, dirs.sitePackages);
   mkdirSync(sitePackages, { recursive: true });
-  const native = hostTarget(process.platform, process.arch, existsSync("/etc/alpine-release")) === name;
+  const native = hostTarget(process.platform, process.arch, existsSync("/etc/alpine-release")) === runtime;
   const install = spawnSync(
     uv,
-    installArgs(pins, name, lockFile, sitePackages, native ? pythonPath : undefined),
-    { cwd: root, encoding: "utf8", env: { ...process.env, ...uvEnv(pins, name) } },
+    installArgs(pins, runtime, lockFile, sitePackages, native ? pythonPath : undefined),
+    { cwd: root, encoding: "utf8", env: { ...process.env, ...uvEnv(pins, runtime) } },
   );
   if (install.error) throw new RuntimeError(`could not run ${uv}: ${install.error.message}`);
   if (install.status !== 0) {
     throw (
-      noWheelsError(name, install.stderr) ??
+      noWheelsError(runtime, install.stderr) ??
       new RuntimeError(`uv pip install for ${name} failed:\n${install.stderr}`)
     );
   }
@@ -306,7 +314,7 @@ async function main() {
   const extra = [...got.keys()].filter((pkg) => !want.has(pkg));
   if (missing.length > 0 || extra.length > 0) {
     throw new RuntimeError(
-      `installed closure differs from ${lockPath(name)}: missing ${missing.join(", ") || "none"}, extra ${extra.join(", ") || "none"}`,
+      `installed closure differs from ${lockPath(runtime)}: missing ${missing.join(", ") || "none"}, extra ${extra.join(", ") || "none"}`,
     );
   }
   if (!got.has("opentide")) throw new RuntimeError("opentide is not in the closure");
@@ -362,7 +370,7 @@ async function main() {
 
   const total = dirSize(runtimeDir);
   log(
-    `${name}: opentide ${pins.opentide.version}, CPython ${cpython}, ${dists.length} distributions, ` +
+    `${name}${runtime !== name ? ` (${runtime} runtime)` : ""}: opentide ${pins.opentide.version}, CPython ${cpython}, ${dists.length} distributions, ` +
       `${total.files} files, ${(total.bytes / 1048576).toFixed(1)} MiB in runtime/ (build ${info.buildId})`,
   );
 }
