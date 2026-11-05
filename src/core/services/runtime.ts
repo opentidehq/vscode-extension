@@ -93,6 +93,12 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     else await this.resolve();
   }
 
+  /** Resolve again from scratch: after the resolution in progress, if any, which may predate a change. */
+  async resolveAgain(): Promise<Runtime | undefined> {
+    if (this.resolving) await this.resolving.catch(() => undefined);
+    return this.resolve();
+  }
+
   /** Resolve the runtime again. Concurrent calls share one resolution. */
   resolve(): Promise<Runtime | undefined> {
     if (this.resolving) return this.resolving;

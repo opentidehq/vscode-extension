@@ -19,6 +19,7 @@ import { fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
 import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
+import { shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
 import { engineRuntime, uvExecutable } from "./runtime/resolve";
 import { cliCommand, describeRuntime, ENGINE_LABEL, isEditorOnly } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
@@ -301,6 +302,35 @@ export function createCore(context: vscode.ExtensionContext): Core {
     runtime.onDidChange(
       () => void vscode.commands.executeCommand("setContext", "opentide.trusted", trust.isTrusted),
     ),
+  );
+  // On the engine tier: an opentide that appears later replaces it without a Restart Server.
+  let lastRecheck: number | undefined;
+  const recheck = async (reason: string, force: boolean): Promise<void> => {
+    const now = Date.now();
+    if (!force && !shouldRecheck(runtime.current, lastRecheck, now)) return;
+    if (runtime.current?.kind !== "engine") return;
+    lastRecheck = now;
+    const attempts = runtime.attempts;
+    const rt = await runtime.resolveAgain();
+    if (rt?.kind !== "engine") await restart(reason);
+    else if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
+      log.debug(`runtime: looked again (${reason}); still the engine`);
+  };
+  // Anything created under a .venv, a second after the last: a file made right after its new folder
+  // can slip past a recursive watcher, and an install creates thousands at once.
+  const venvWatcher = vscode.workspace.createFileSystemWatcher(`**/${VENV_GLOB}`, false, true, true);
+  let venvTimer: NodeJS.Timeout | undefined;
+  subscriptions.push(
+    venvWatcher,
+    venvWatcher.onDidCreate(() => {
+      if (runtime.current?.kind !== "engine") return;
+      if (venvTimer) clearTimeout(venvTimer);
+      venvTimer = setTimeout(() => void recheck("something appeared in a .venv", true), VENV_SETTLE_MS);
+    }),
+    { dispose: () => venvTimer && clearTimeout(venvTimer) },
+    vscode.window.onDidChangeWindowState((state) => {
+      if (state.focused) void recheck("the window got the focus back", false);
+    }),
   );
   void onDidChangePythonEnvironment(() => {
     if (trust.isTrusted && runtime.current && runtime.current.tier >= 2)

@@ -165,6 +165,30 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
     await waitFor(() => !names().includes("Extra folder rule") && names().includes("Misspelled TLP"), 30_000);
   });
 
+  it("looks again when an opentide appears in the folder's .venv", async () => {
+    const api = await activated();
+    const folder = api.ctx.folders.all[0];
+    assert.ok(folder);
+    const bin = path.join(folder.path, ".venv", process.platform === "win32" ? "Scripts" : "bin");
+    const venv = (): string | undefined => api.ctx.runtime.attempts.find((a) => a.source === "venv")?.outcome;
+    // The previous test's paths.toml edit restarts the engine: let that settle.
+    await waitFor(() => api.ctx.client.current);
+    await api.ctx.runtime.ready();
+    assert.equal(venv(), "missing");
+    try {
+      await fs.mkdir(bin, { recursive: true });
+      // Not a working opentide: the tier is tried (failed, not missing) and the engine stays.
+      await fs.writeFile(
+        path.join(bin, process.platform === "win32" ? "opentide.exe" : "opentide"),
+        "not a program",
+      );
+      await waitFor(() => venv() === "failed", 30_000);
+      assert.equal(api.ctx.runtime.current?.kind, "engine");
+    } finally {
+      await fs.rm(path.join(folder.path, ".venv"), { recursive: true, force: true });
+    }
+  });
+
   it("says commands need opentide, offering to install it", async () => {
     const api = await activated();
     const folder = api.ctx.folders.all[0];
