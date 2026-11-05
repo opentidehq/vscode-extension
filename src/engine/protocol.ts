@@ -1,6 +1,10 @@
 // What the client says to the engine beyond LSP. vscode-free, no Node built-ins.
 import type { WorkspaceDelta } from "./workspace";
 
+/** The status bar's and language status item's words for the engine, on the desktop and the web. */
+export const ENGINE_LABEL = "opentide engine (WASM)";
+export const ENGINE_STATUS = `${ENGINE_LABEL}: editor features only`;
+
 /**
  * The notification that updates the workspace a host supplied on `initialize`, for a server that says
  * it takes it (`capabilities.experimental.opentide.workspaceUpdates`, language-server#212). A server

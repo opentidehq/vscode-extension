@@ -2,21 +2,10 @@
 // `opentide.showReferences` argument conversion. vscode-free (types only).
 import type * as vscode from "vscode";
 import type { Location as LspLocation, Position as LspPosition } from "vscode-languageclient";
+import { LANGUAGES } from "../engine/languages";
 import type { OpentideServerInfo } from "./context";
 
-/** Every language the server handles, by id and by file pattern (copied from `@opentide/lsp-client`,
- * language-server#191, plus `opentide-config`, language-server#197). */
-export const LANGUAGES: readonly { id: string; patterns: readonly string[] }[] = [
-  { id: "opentide-yaml", patterns: ["**/objects/**/*.yaml", "**/objects/**/*.yml"] },
-  { id: "opentide-config", patterns: ["**/.opentide/configurations/**/*.toml"] },
-  { id: "kql", patterns: ["**/*.kql"] },
-  { id: "spl", patterns: ["**/*.spl"] },
-  { id: "esql", patterns: ["**/*.esql"] },
-  { id: "eql", patterns: ["**/*.eql"] },
-  { id: "kuery", patterns: ["**/*.kuery"] },
-  { id: "lucene", patterns: ["**/*.lucene"] },
-  { id: "falco", patterns: ["**/*.falco"] },
-];
+export { LANGUAGES } from "../engine/languages";
 
 export const DOCUMENT_SELECTOR: ({ language: string } | { scheme: string; pattern: string })[] =
   LANGUAGES.flatMap((language) => [
