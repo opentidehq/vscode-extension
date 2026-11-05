@@ -61,7 +61,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In Restricted Mode only the language server runs, from the bundled runtime. Commands, tasks, panels, MCP and the workspace's own opentide need a trusted folder.",
+      "description": "In Restricted Mode only the language server runs, from the bundled runtime or, without one, the opentide engine (WASM). Commands, tasks, panels, MCP and the workspace's own opentide need a trusted folder.",
       "restrictedConfigurations": [
         "opentide.path",
         "opentide.interpreter",
@@ -74,7 +74,7 @@
     },
     "virtualWorkspaces": {
       "supported": "limited",
-      "description": "In a virtual workspace (github.dev, vscode.dev, Remote Repositories) only highlighting, languages and language configuration work: opentide reads the workspace from disk."
+      "description": "In a virtual workspace (github.dev, vscode.dev, Remote Repositories) the opentide engine (WASM) gives the editor features: diagnostics, hover, completion, semantic tokens, quick fixes, navigation, the Catalogue, Relations and Find Detection. Commands, validate, deploy, query, panels and MCP need opentide, which reads the workspace from disk."
     }
   },
   "activationEvents": [
@@ -491,6 +491,11 @@
       {
         "command": "opentide.switchRuntime",
         "title": "Switch Runtime…",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.installOpentide",
+        "title": "Install opentide…",
         "category": "opentide"
       },
       {
@@ -1057,7 +1062,7 @@
         },
         {
           "command": "opentide.graph.open",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly)"
         },
         {
           "command": "opentide.graph.reveal",
@@ -1065,7 +1070,7 @@
         },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml"
         },
         {
           "command": "opentide.matrix.open",
@@ -1361,7 +1366,7 @@
         },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
           "group": "navigation@20"
         },
         {
@@ -1378,7 +1383,7 @@
         },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         },
         {
@@ -1395,7 +1400,7 @@
       "editor/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && opentide.hasInfoCatalog && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
           "group": "opentide@10"
         },
         {
@@ -1906,6 +1911,11 @@
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
       },
       {
+        "view": "opentide.sidebar.catalogue",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: the catalogue needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
+      },
+      {
         "view": "opentide.sidebar.coverage",
         "when": "workspaceFolderCount == 0",
         "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
@@ -1919,6 +1929,11 @@
         "view": "opentide.sidebar.coverage",
         "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.coverage",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: ATT&CK coverage needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
       },
       {
         "view": "opentide.sidebar.platforms",
@@ -1936,6 +1951,11 @@
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
       },
       {
+        "view": "opentide.sidebar.platforms",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: the Platforms & Tenants view needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
+      },
+      {
         "view": "opentide.sidebar.health",
         "when": "workspaceFolderCount == 0",
         "contents": "Open a folder with a detection repository, or a folder to create one in.\n[Open Folder](command:vscode.openFolder)"
@@ -1949,6 +1969,11 @@
         "view": "opentide.sidebar.health",
         "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.noRuntime",
         "contents": "No opentide runtime. Install opentide in the workspace's environment, or point opentide.path at one.\n[Switch Runtime…](command:opentide.switchRuntime)\n[Show Output](command:opentide.showOutput)"
+      },
+      {
+        "view": "opentide.sidebar.health",
+        "when": "workspaceFolderCount > 0 && opentide.hasWorkspace && isWorkspaceTrusted && opentide.sidebar.editorOnly",
+        "contents": "This runtime runs editor features only: opentide doctor needs opentide.\n[Install opentide](command:opentide.installOpentide)\n[Switch Runtime…](command:opentide.switchRuntime)"
       },
       {
         "view": "opentide.sidebar.coverage",
@@ -2002,22 +2027,22 @@
       {
         "view": "opentide.sidebar.catalogue",
         "when": "virtualWorkspace",
-        "contents": "The catalogue comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "No threat, objective or rule in objects/ or the paths.toml object folders. In this workspace the catalogue comes from the opentide engine (WASM)'s index; new objects, coverage and deploy previews need opentide in VS Code Desktop."
       },
       {
         "view": "opentide.sidebar.coverage",
         "when": "virtualWorkspace",
-        "contents": "ATT&CK coverage comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "ATT&CK coverage comes from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the opentide engine (WASM) gives the editor features, the Catalogue and Relations.\n[Open a Local Folder](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.platforms",
         "when": "virtualWorkspace",
-        "contents": "Platforms and tenants come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "Platforms and tenants come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the opentide engine (WASM) gives the editor features, the Catalogue and Relations.\n[Open a Local Folder](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.health",
         "when": "virtualWorkspace",
-        "contents": "The health checks come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "The health checks come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the opentide engine (WASM) gives the editor features, the Catalogue and Relations.\n[Open a Local Folder](command:vscode.openFolder)"
       },
       {
         "view": "opentide.sidebar.relations",
@@ -2047,7 +2072,7 @@
       {
         "view": "opentide.sidebar.relations",
         "when": "virtualWorkspace",
-        "contents": "Relations come from opentide, which runs only on a local folder in VS Code Desktop. In this workspace the extension highlights Tide YAML and its queries.\n[Open a Local Folder](command:vscode.openFolder)"
+        "contents": "Open a threat, objective or rule. This view follows the editor and shows what the object points to (→) and what points to it (←), from the opentide engine (WASM)'s index.\n[Show Relations of the Active Editor](command:opentide.relations.show)"
       }
     ],
     "walkthroughs": [
@@ -2236,6 +2261,9 @@
     "test": "npm run compile-tests && mocha",
     "test:integration": "npm run build && npm run compile-tests && vscode-test --label integration",
     "test:restricted": "npm run build && npm run compile-tests && node scripts/test-restricted.mjs",
+    "test:engine": "npm run build && npm run compile-tests && vscode-test --label engine",
+    "test:bundled": "npm run build && npm run compile-tests && vscode-test --label bundled",
+    "test:web": "npm run build && node scripts/test-web.mjs",
     "vscode:prepublish": "npm run build:production",
     "runtime:lock": "node scripts/runtime-lock.mjs",
     "runtime:build": "node scripts/runtime-build.mjs",
@@ -2250,6 +2278,7 @@
     "@types/vscode": "1.91.0",
     "@vscode/test-cli": "0.0.15",
     "@vscode/test-electron": "3.1.0",
+    "@vscode/test-web": "0.0.81",
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "mocha": "12.0.3",
@@ -2259,6 +2288,11 @@
     "@dagrejs/dagre": "3.1.3",
     "@vscode/codicons": "0.0.45",
     "cytoscape": "3.34.4",
+    "vscode-jsonrpc": "9.0.3",
     "vscode-languageclient": "10.1.2"
+  },
+  "overrides": {
+    "playwright": "1.63.0",
+    "@playwright/browser-chromium": "1.63.0"
   }
 }

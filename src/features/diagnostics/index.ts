@@ -11,6 +11,8 @@ import { defineFeature } from "../../core/feature";
 import { isFamilyFile } from "../../core/folders";
 import { DOCUMENT_SELECTOR } from "../../core/lsp";
 import { cliRange, type LineSource, linesOf } from "../../core/positions";
+import { explainUnavailable } from "../../core/services/unavailable";
+import { editorOnlyText } from "../../core/unavailable";
 import { dryRunFixes, explainCodes, explainMarkdown, isCode } from "./explain";
 import {
   diagnosticMessage,
@@ -410,12 +412,17 @@ class Diagnostics implements vscode.Disposable {
   private canRun(): boolean {
     const availability = this.ctx.backend.availability();
     if (availability.available) return true;
-    const messages = {
-      untrusted: "Trust this folder to run opentide.",
-      "no-runtime": "No opentide runtime: install opentide in the workspace or set opentide.path.",
-      "editor-only": "opentide.path names opentide-lsp, which has no commands. Point it at opentide.",
-    };
-    void vscode.window.showInformationMessage(messages[availability.code]);
+    if (availability.code === "untrusted") {
+      void vscode.window.showInformationMessage("Trust this folder to run opentide.");
+      return false;
+    }
+    void explainUnavailable(
+      availability.code,
+      availability.code === "editor-only"
+        ? editorOnlyText(this.ctx.runtime.current, "opentide validate and lint")
+        : "No opentide runtime: install opentide in the workspace or set opentide.path.",
+      "information",
+    );
     return false;
   }
 

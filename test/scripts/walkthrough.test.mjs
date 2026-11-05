@@ -32,12 +32,22 @@ describe("welcome views in virtual and web workspaces", () => {
   });
 
   it("say instead that the views need a local folder in VS Code Desktop", () => {
-    for (const view of ["catalogue", "coverage", "platforms", "health"]) {
+    for (const view of ["coverage", "platforms", "health"]) {
       const welcome = welcomes.find(
         (w) => w.view === `opentide.sidebar.${view}` && w.when === "virtualWorkspace",
       );
       assert.ok(welcome, view);
       assert.match(welcome.contents, /local folder in VS Code Desktop/);
+    }
+  });
+
+  it("say the Catalogue and Relations come from the engine (WASM) there", () => {
+    for (const view of ["catalogue", "relations"]) {
+      const welcome = welcomes.find(
+        (w) => w.view === `opentide.sidebar.${view}` && w.when === "virtualWorkspace",
+      );
+      assert.ok(welcome, view);
+      assert.match(welcome.contents, /opentide engine \(WASM\)'s index/);
     }
   });
 });

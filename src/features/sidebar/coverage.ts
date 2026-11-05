@@ -191,7 +191,8 @@ export function buildCoverageView(
     const state = folder.state;
     const prefix = multi ? `${folder.path}|` : "";
     let inner: TreeNode[];
-    if (state.catalog) {
+    // A catalogue from the language server's index has no techniques: coverage needs opentide.
+    if (state.catalog && state.source !== "server") {
       ready++;
       const coverage = computeCoverage(state.catalog);
       techniques += coverage.summary.techniques;

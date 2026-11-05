@@ -6,12 +6,24 @@ import * as vscode from "vscode";
 import type { Logger, RuntimeService } from "../context";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
 import { isFile, probe, which } from "../runtime/process";
-import { resolveRuntime } from "../runtime/resolve";
+import { type EngineLayout, readEngineManifest, resolveRuntime } from "../runtime/resolve";
 import type { ResolveAttempt, Runtime } from "../runtime/types";
-import { describeRuntime } from "../runtime/types";
+import { describeRuntime, ENGINE_LABEL } from "../runtime/types";
 import { Emitter } from "../util/event";
 import { pythonEnvironmentsInterpreter, pythonExtensionInterpreter } from "./python";
 import { httpProxy, runtimeSettings } from "./settings";
+
+/** The engine (WASM) the extension carries (`dist/engine/engine.json`), if it has one. */
+export function readEngine(extensionPath: string): EngineLayout | undefined {
+  const dir = path.join(extensionPath, "dist", "engine");
+  let text: string | undefined;
+  try {
+    text = fs.readFileSync(path.join(dir, "engine.json"), "utf8");
+  } catch {
+    return undefined;
+  }
+  return readEngineManifest(text, dir);
+}
 
 /** Read the pin files at the top of a folder. */
 export function readPin(folder: string | undefined): RepoPin | undefined {
@@ -59,6 +71,15 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     return this.lastAttempts;
   }
 
+  /** Add what happened after the resolution (a language server that fell back to the engine). */
+  noteAttempts(attempts: readonly ResolveAttempt[]): void {
+    this.lastAttempts = [...this.lastAttempts, ...attempts];
+    for (const attempt of attempts)
+      this.log.info(
+        `runtime tier ${attempt.tier} (${attempt.source}): ${attempt.outcome}: ${attempt.detail}`,
+      );
+  }
+
   get pin(): RepoPin | undefined {
     return this.repoPin;
   }
@@ -70,6 +91,12 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   async restart(reason = "restart requested"): Promise<void> {
     if (this.restartHandler) await this.restartHandler(reason);
     else await this.resolve();
+  }
+
+  /** Resolve again from scratch: after the resolution in progress, if any, which may predate a change. */
+  async resolveAgain(): Promise<Runtime | undefined> {
+    if (this.resolving) await this.resolving.catch(() => undefined);
+    return this.resolve();
   }
 
   /** Resolve the runtime again. Concurrent calls share one resolution. */
@@ -91,6 +118,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     const result = await resolveRuntime({
       trusted,
       platform: process.platform,
+      arch: process.arch,
       extensionPath: this.context.extensionPath,
       globalStoragePath: this.context.globalStorageUri.fsPath,
       folder: folderPath,
@@ -103,6 +131,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       probe: (command, args, options) => probe(command, args, options),
       pythonEnvironments: () => pythonEnvironmentsInterpreter(folder?.uri),
       pythonExtension: () => pythonExtensionInterpreter(folder?.uri),
+      engine: readEngine(this.context.extensionPath),
     });
     this.lastAttempts = result.attempts;
     for (const attempt of result.attempts) {
@@ -114,10 +143,18 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     for (const attempt of result.attempts) {
       if (attempt.outcome === "too-old" || (attempt.outcome === "failed" && attempt.tier === 1))
         this.warn(attempt);
+      // A package's own runtime that does not start (Windows 10 on Arm: an x64 runtime it cannot run).
+      if (attempt.outcome === "failed" && attempt.tier === 4)
+        this.log.warn(`runtime: the bundled runtime did not start: ${attempt.detail}`);
       if (attempt.note) this.log.info(`runtime: ${attempt.note}`);
     }
     this.runtime = result.runtime;
-    if (result.runtime) {
+    if (result.runtime?.kind === "engine") {
+      this.log.warn(
+        `runtime: ${ENGINE_LABEL} ${result.runtime.version}: editor features only. No opentide answered ` +
+          "(opentide.path, the workspace's environment, the bundled runtime): install opentide for commands, validate, deploy and query.",
+      );
+    } else if (result.runtime) {
       this.log.info(
         `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}) ${result.runtime.command}` +
           `${result.runtime.restricted ? " [Restricted Mode: language server only]" : ""}`,
@@ -172,6 +209,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
         this.runtime !== undefined && this.runtime.kind === "opentide" && !this.runtime.restricted,
       ),
       set("opentide.runtimeTier", this.runtime?.tier ?? 0),
+      set("opentide.editorOnly", this.runtime !== undefined && this.runtime.kind !== "opentide"),
       set("opentide.pinMismatch", this.pinMismatch),
     ]);
   }

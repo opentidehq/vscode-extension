@@ -6,6 +6,44 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Added
+
+- The opentide engine (WASM): editor features with nothing installed, on every platform VS Code runs
+  on. When no opentide answers (the universal package without opentide, Windows 10 on Arm, or a
+  bundled runtime that does not start), the extension runs the language server built for WebAssembly
+  (language-server 0.10.0's `opentide-wasm-web`, pinned by SHA-256 in `pins.json`) in a worker thread:
+  diagnostics, hover, completion, semantic tokens, quick fixes, definitions, references, the outline, and
+  the Catalogue, Relations, the graph and Find Detection from its `opentide/catalog` index. The client
+  reads the object files (`objects/` and the paths.toml object folders) and `visibility.toml` through VS
+  Code and gives them to the engine, which has no filesystem, and restarts it when one changes on disk.
+  The status bar reads **opentide engine (WASM): editor features only**; validate and lint, new objects,
+  deploy previews, queries, setup, tasks and MCP say they need opentide, with Install opentide and Switch
+  Runtime…. Every package carries the engine (3.4 MiB compressed). It also runs in Restricted Mode, where
+  it spawns nothing.
+- VS Code for the Web: on vscode.dev, github.dev and in desktop virtual workspaces the extension runs
+  the same engine (WASM) in a Web Worker, where it had highlighting only. You get diagnostics, hover,
+  completion, semantic tokens, quick fixes, definitions, references, the outline, and the Catalogue,
+  Relations and Find Detection from the engine's index. The engine reads the repository's object files
+  through VS Code's file system, any scheme (`vscode-vfs:` and the like), and a YAML file in a
+  paths.toml object folder opens as Tide YAML there too. Every command that needs opentide says so, with
+  Open in VS Code Desktop where the browser can continue there.
+- **opentide: Install opentide…** opens the installation guide, from the status menu, Switch Runtime…
+  and the sidebar on an editor-only runtime.
+- Windows on Arm gets the bundled runtime, running as x64 under Windows 11's emulation. The win32-arm64
+  package carries the win32-x64 runtime (cryptography has published no Windows on Arm wheel since
+  46.0.3), built and tested on a Windows 11 on Arm runner. Windows 10 on Arm cannot run x64 programs:
+  there the bundled runtime does not start, the opentide output channel says why, and the extension
+  uses an opentide of your own or, without one, the opentide engine (WASM).
+
+### Changed
+
+- An editor-only runtime (the engine, or `opentide-lsp` in `opentide.path`) gets one message for every
+  action that needs opentide, naming the runtime, instead of one about `opentide-lsp` alone, and the
+  Platforms, Health and Coverage views say what they need instead of "No opentide runtime".
+- `npm run smoke` checks the engine in every package, the universal one included, and that each
+  carries the web extension (`browser` and the engine's Web Worker), which the Marketplace needs to
+  offer it on vscode.dev.
+
 ## [0.1.0] - 2026-11-04
 
 The first pre-release of opentide for VS Code and its forks: live checks for Tide objects and their queries, new objects from templates, the catalogue with its Relations view, the graph and the ATT&CK coverage, query results and deploy previews beside the object, the setup wizard and an MCP server for agents. Each platform package bundles opentide 0.22.0 (engine: language server 0.10.0) on CPython 3.13, so it works offline on a machine without Python; a repository's own opentide is used when it has one.

@@ -31,6 +31,27 @@ export function universalIgnore(text) {
 }
 
 /**
+ * Why runtime/BUILD-INFO.json is not the build a target's package needs, or undefined: the target, the
+ * runtime it bundles (pins.json emulatedTargets: win32-arm64 bundles win32-x64's; a build from before
+ * BUILD-INFO had `runtime` is its target's own), the pinned opentide and CPython.
+ */
+export function buildInfoProblem(info, want) {
+  const runtime = info.runtime ?? info.target;
+  if (
+    info.target === want.target &&
+    runtime === want.runtime &&
+    info.opentide === want.opentide &&
+    info.cpython === want.cpython
+  )
+    return undefined;
+  const of = (t, r) => (r && r !== t ? `${t} with the ${r} runtime` : t);
+  return (
+    `runtime/ holds ${of(info.target, runtime)} (opentide ${info.opentide}, CPython ${info.cpython}), ` +
+    `not ${of(want.target, want.runtime)} (opentide ${want.opentide}, CPython ${want.cpython})`
+  );
+}
+
+/**
  * The size gate. `vsix.budgetBytes` (SPEC §3: 100 MB), unless `vsix.budgetOverrideBytes` names the
  * pinned opentide version: an explicit, temporary allowance with its reason, dropped by the next bump.
  */

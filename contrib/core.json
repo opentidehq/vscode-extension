@@ -233,6 +233,11 @@
         "category": "opentide"
       },
       {
+        "command": "opentide.installOpentide",
+        "title": "Install opentide…",
+        "category": "opentide"
+      },
+      {
         "command": "opentide.statusMenu",
         "title": "Show Status Menu",
         "category": "opentide"

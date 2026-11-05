@@ -197,15 +197,16 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 | Package | Contents | Who gets it |
 |---------|----------|-------------|
-| 8 per-platform VSIX (`vsce package --target`) | Extension, grammars, the **bundled opentide runtime** for that target, licences and SBOM | win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64 |
-| 1 universal VSIX | Extension and grammars, no runtime. Uses the workspace's opentide or `opentide.path`, and says plainly when there is none | Every other target, and the web entry ([§13](#13-trust-remote-and-web)) |
+| 8 per-platform VSIX (`vsce package --target`) | Extension, grammars, the **bundled opentide runtime** for that target, the engine (WASM), licences and SBOM | win32-x64, win32-arm64, linux-x64, linux-arm64, alpine-x64, alpine-arm64, darwin-x64, darwin-arm64 |
+| 1 universal VSIX | Extension, grammars and the engine (WASM), no runtime. Uses the workspace's opentide or `opentide.path`, else the engine for editor features, and says plainly which | Every other target, and the web entry ([§13](#13-trust-remote-and-web)) |
 
-- **win32-arm64:** opentide publishes a `win_arm64` wheel since 0.22.0 ([§15](#15-what-this-needs-from-opentide-and-language-server), O2), but cryptography publishes none after 46.0.3, so a wheels-only closure resolves there only with cryptography 46.0.3, behind the 50.x every other target locks. Until cryptography publishes one again that target gets the universal package, so 0.1 ships 7 per-platform packages (`pins.json` `universalTargets`, [PACKAGING.md](PACKAGING.md#why-a-target-gets-the-universal-package)).
+- **win32-arm64 bundles the win32-x64 runtime**, which Windows 11 on Arm runs under its x64 emulation (Prism). opentide publishes a `win_arm64` wheel since 0.22.0 ([§15](#15-what-this-needs-from-opentide-and-language-server), O2), but cryptography published `win_arm64` wheels only for 46.0.0 to 46.0.3: a native closure would ship 46.0.3, behind the 50.x every other target locks and with seven advisories 50.x fixes. The package is still `vsce package --target win32-arm64`; `pins.json` `emulatedTargets` says which runtime it bundles, and its lock, licences and archive are win32-x64's ([PACKAGING.md](PACKAGING.md#emulated-targets-win32-arm64)). CI builds and tests it on a `windows-11-arm` runner. Windows 10 on Arm cannot run x64 programs: there the bundled runtime does not start and the extension needs an opentide of the user's own, as with the universal package. 0.1.0 shipped 7 per-platform packages, with win32-arm64 universal; the next release ships all 8.
 - **No `opentide-lsp` binary** in the per-platform packages. The bundled opentide contains the same engine, so a second copy would be about 20 MB for nothing. `opentide.path` may still name an `opentide-lsp` binary for people who want the bare server.
+- **The engine (WASM) in every package.** language-server's `opentide-wasm-web` zip (`pins.json` `engine`, pinned by URL and SHA-256 like the highlights zip, from the same release) is the runtime of tier 5: the language server, with nothing installed, on every platform VS Code runs on. It costs 3.4 MiB compressed (15.7 MiB installed), about 6% of a per-platform package, which stays under the 70 MiB target. The per-platform packages carry it too, as the safety net for a bundled runtime that does not start (an interpreter blocked by an endpoint agent or AppLocker, a library missing on an unusual Linux, a broken update): editor features survive what breaks Python. It is one platform-independent copy, so the universal package carries the same file ([PACKAGING.md](PACKAGING.md#the-packages)).
 
 ### Building the runtime
 
-- **Interpreter:** python-build-standalone `install_only_stripped`, less what opentide never loads: the duplicate shared `libpython` (the `python` binary is static), Tk and Tcl, headers, `pip`, `idlelib`, `ensurepip`, `turtledemo`. The version is the newest CPython for which every closure package has a wheel on all eight targets (3.13 at the time of writing).
+- **Interpreter:** python-build-standalone `install_only_stripped`, less what opentide never loads: the duplicate shared `libpython` (the `python` binary is static), Tk and Tcl, headers, `pip`, `idlelib`, `ensurepip`, `turtledemo`. The version is the newest CPython for which every closure package has a wheel on every runtime target (3.13 at the time of writing; win32-arm64 bundles win32-x64's).
 - **Closure:** resolved per target from a committed, hashed lock:
   - `uv pip compile --python-platform <target> --generate-hashes`;
   - installed with `--require-hashes --only-binary :all:`. An sdist is never built; a missing wheel fails the build.
@@ -228,10 +229,11 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
   - `THIRD-PARTY-NOTICES` generated from the closure;
   - a GitHub artifact attestation.
 - **Licences:** the extension is MIT. The bundled opentide and engine are EUPL-1.2, and CPython is under the PSF licence. They ship as separate programs that the extension runs, each with its own licence files. This needs the licence review that #6 already calls for.
-- **Smoke test** each package on a clean runner of its target (Alpine in a container):
+- **Smoke test** each package on a clean runner of its target (Alpine in a container; win32-arm64 on Windows 11 on Arm, under emulation):
   1. install the VSIX;
-  2. run the bundled `opentide --version` and `opentide --json doctor --offline`;
-  3. start `opentide lsp start` and check `capabilities.experimental.opentide.host.name == "opentide"` and that `engine` equals the pin.
+  2. check the interpreter is of its runtime's architecture, and run the bundled `opentide --version` (timed cold and warm) and `opentide --json doctor --offline`;
+  3. run `opentide --json info catalog` on a small fixture workspace;
+  4. start `opentide lsp start` and check `capabilities.experimental.opentide.host.name == "opentide"` and that `engine` equals the pin.
 
 ### Store listing
 
@@ -250,16 +252,20 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Resolution (revises #3)
 
-The first tier that answers wins, in the order 1, 2, 3, 4, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
+The first tier that answers wins, in the order 1, 2, 3, 4, 5, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
 
 | Tier | Source | Trust | Features |
 |-----:|--------|-------|----------|
 | 1 | `opentide.path`: an `opentide` executable (`lsp start`), or an `opentide-lsp` executable (`--stdio`, editor features only) | Trusted only | All, or editor only for `opentide-lsp` |
 | 2 | The workspace's environment: Python Environments API, else the Python extension API, else `.venv`, else `PATH`. Re-resolved on `onDidChangeEnvironment` | Trusted only | All |
 | 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in** (`opentide.uv.usePin`, then tried before tier 2): offered when the repository pins a version the bundled runtime does not match | Trusted only | All |
-| 4 | **The bundled runtime** | Always; the only tier in Restricted Mode | All when trusted; the language server only in Restricted Mode |
+| 4 | **The bundled runtime** | Always; the only CLI tier in Restricted Mode | All when trusted; the language server only in Restricted Mode |
+| 5 | **The engine (WASM)**: language-server's `opentide-wasm` in a `worker_threads` Worker, used when no other tier answers (the universal package; a bundled runtime that is missing or does not start) | Always: it spawns nothing and reads the workspace through VS Code | Editor features only: diagnostics, hover, completion, semantic tokens, code actions, definitions, references, outline, lenses, the Catalogue, Relations, the graph and Find Detection (from `opentide/catalog`). Not configuration TOML checks, commands, validate and lint, deploy, query, setup, tasks or MCP |
 
 - **Minimum versions:** tiers 1–3 must be an opentide released after opentide#734. An older one is refused with the upgrade command, and tier 4 takes over.
+- **Editor-only runtimes** (tier 5, and an `opentide-lsp` named by `opentide.path`) degrade the same way: every action that needs opentide says so in one line, with **Install opentide** and **Switch Runtime…**; the status item and the language status read `opentide engine (WASM): editor features only`, and the sidebar's opentide-only views say what they need.
+- **The engine's workspace.** It has no filesystem, so the client gives it each opentide folder's object files (`objects/` and the paths.toml object folders, read with `findFiles` and `workspace.fs` in batches of 32) and the primary folder's `visibility.toml` on `initialize` (`initializationOptions.workspace`, language-server `docs/EDITORS.md`). A change on disk goes to the engine as `opentide/didChangeWorkspace` when it says it takes it (`experimental.opentide.workspaceUpdates`, [§15](#15-what-this-needs-from-opentide-and-language-server) L5); 0.10.0 does not, so it is restarted with the new workspace a second after the last change (a file open in an editor counts once it is closed: until then the server reads the buffer). Its findings cover open documents: 0.10.0 does not check the files it is given, only indexes them.
+- **Several folders on the engine (0.10.0):** every root's index holds every folder's supplied files, so a reference from one folder to an object of another resolves (the CLI reports `invalid_ref`), and every root uses the primary folder's `visibility.toml`. The desktop catalogue keeps each folder's own objects (`serverCatalogDocument` filters by path), and the web views keep one copy of each. language-server#212 scopes supplied files to the root that holds them; the extension sends each folder's `visibility.toml` once a release carries it.
 - **Pin mismatch:** when the repository pins opentide (`pyproject.toml`, `requirements*.txt`, `uv.lock`) and the active tier's version differs, the status item shows `0.21.0 · repo pins 0.20.1`. It offers "Use the pinned version" (tier 3) and "Create .venv with the pinned version" (`uv venv` + install, or the Python extension's create-environment command).
 
 ### Processes
@@ -806,10 +812,10 @@ Revises #8 and #10.
   - Credentials live in SecretStorage, per workspace, and are never synced.
 - **Optional `.env` file:** `opentide.envFile` (trusted only, default none) loads `$VAR`s for tenant credentials, because opentide reads only the process environment.
 - **Telemetry:** none.
-- **Web** (vscode.dev, github.dev):
-  - The universal package's `browser` entry gives languages, grammars and language configuration. Semantic tokens from the WASM highlighter and the wasip1 language server behind a setting come later, as in #10.
-  - No Python means no commands and no panels ([D2](#d2-almost-every-action-runs-opentide-in-python-so-one-warm-process-serves-them)). The status item says so.
-  - A later `opentide/catalog` request in the language server would bring the Catalogue, search and the graph to the web.
+- **Web** (vscode.dev, github.dev, VS Code for the Web, and desktop virtual workspaces such as Remote Repositories):
+  - The universal package's `browser` entry runs the engine (WASM), the tier-5 runtime of the desktop ([§4](#4-the-runtime-resolution-processes-status)), in a Web Worker (`dist/web/engine-worker.js`) with `vscode-languageclient/browser`. It is the real `opentide-lsp` server, so the browser gets what the desktop engine gives: diagnostics, hover, completion, semantic tokens, quick fixes, definitions, references, outline, inlay hints, links and lenses. The document selector matches by language and by file pattern with no scheme (`vscode-vfs:` and other virtual URIs, language-server#197). The wasip1 build and `ms-vscode.wasm-wasi-core` are not needed.
+  - The workspace is read through VS Code's file system (`findFiles`, else `readDirectory` where the file system has no search provider) and given to the engine as on the desktop; a paths.toml object folder's YAML gets `opentide-yaml` on open.
+  - The Catalogue and Relations views and Find Detection come from `opentide/catalog` (L4), on the desktop's view and command ids. Coverage, Platforms, Health, the graph, the matrix and every command that runs opentide need Python ([D2](#d2-almost-every-action-runs-opentide-in-python-so-one-warm-process-serves-them)): each says so, with **Open in VS Code Desktop** where the window can continue there. The status items read `opentide engine (WASM): editor features only`.
 
 ---
 
@@ -867,7 +873,7 @@ opentide 0.22.0, the version the 0.1 packages bundle, has every item: O11 came i
 | # | Change | Why | Needed by |
 |---|--------|-----|-----------|
 | O1 [opentide#747](https://github.com/opentidehq/opentide/issues/747) | Move pandas, numpy and openpyxl out of the required dependencies: replace `deployment/planning.py`'s `_json_normalize`, and drop or move the deprecated playbook-map export. Check whether the Carbon Black SDK works for opentide's calls without boto3 and botocore (31 MB, never imported by opentide) | pandas and numpy are about 15 MiB of each compressed package and botocore another 15 MiB; without them the packages approach the 70 MiB target. Every package already fits the 100 MiB budget with them (D1) | M0 *nice* (the target, not the budget) |
-| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | The win32-arm64 package, which also waits for a cryptography `win_arm64` wheel newer than 46.0.3 | M0 *nice* (universal package until then) |
+| O2 [opentide#748](https://github.com/opentidehq/opentide/issues/748) | Build `win_arm64` wheels | A native win32-arm64 runtime, which also waits for a cryptography `win_arm64` wheel newer than 46.0.3; until then the win32-arm64 package bundles the win32-x64 runtime under emulation (§3) | M0 *nice* (done: 0.22.0) |
 | O3 [opentide#749](https://github.com/opentidehq/opentide/issues/749) | `opentide --json info catalog`: one row per object (uuid, type, schema, name, path and line, platforms with status and deployment state, own and inherited techniques, tactics, actors, tlp, author, modified, reviewed, load errors), plus `edges[]` (`from`, `to`, `kind`, `field_path`) from `CoverageGraph` and the chaining network, plus the ATT&CK skeleton (tactics, techniques, names) for gaps | One document feeds the Catalogue, Coverage, search, graph and matrix. Today `info` returns UUID lists only, and the explorer bundle is undocumented and O(n²) | M2 |
 | O4 [opentide#751](https://github.com/opentidehq/opentide/issues/751) | `opentide setup --plan` (a dry run: the files each step would write), and the MCP and skills choices as flags on the parent `setup` | Wizard step ⑥ Review; one command instead of three | M2 |
 | O5 [opentide#752](https://github.com/opentidehq/opentide/issues/752) | Generated snippets use `scope: "yaml,opentide-yaml"` | Snippets vanish in `opentide-yaml` files | M1 *nice* (client workaround) |
@@ -889,8 +895,9 @@ language-server 0.10.0, the engine in opentide 0.22.0, ships L1 (its highlights 
 |---|--------|-----|-----------|
 | L1 [language-server#195](https://github.com/opentidehq/language-server/issues/195) | ES\|QL grammar scope `source.opentide.esql`, as `docs/EDITORS.md` says. The generated grammar uses `source.esql`, Elastic's scope | Collides with Elastic's ES\|QL extension | M1 *nice* (build-time rename) |
 | L2 [language-server#196](https://github.com/opentidehq/language-server/issues/196) | SHA-256 sums, and ideally attestations, for release assets | The grammar build verifies the zip; today the extension records its own hashes | M1 *nice* |
-| L3 [language-server#197](https://github.com/opentidehq/language-server/issues/197) | `DOCUMENT_SELECTOR` gains `opentide-config`, and non-`file` schemes for the web | Consistency with `EDITORS.md`; web mode | M4 |
+| L3 [language-server#197](https://github.com/opentidehq/language-server/issues/197) | `DOCUMENT_SELECTOR` gains `opentide-config`, and non-`file` schemes for the web | Consistency with `EDITORS.md`; web mode (the extension's `WEB_DOCUMENT_SELECTOR`, in 0.10.0) | M4 |
 | L4 [language-server#198](https://github.com/opentidehq/language-server/issues/198) | An `opentide/catalog` (index) request: per object `{uuid, object_type, name, uri, range, refs[]}`, with a change notification | A live, keystroke-fresh graph, and the Catalogue and graph on the web. The body is already in memory | M4 |
+| L5 [language-server#212](https://github.com/opentidehq/language-server/pull/212) | `opentide/didChangeWorkspace`: update the workspace a host supplied on `initialize` (documents added, changed and removed, `visibility.toml`), announced as `experimental.opentide.workspaceUpdates` | The engine (WASM) follows file changes without a restart, on the desktop and the web | *nice* (the extension restarts the engine until then) |
 
 ---
 

@@ -51,8 +51,10 @@ The extension for your platform ships with its own opentide (0.22.0 on CPython 3
 offline on a machine with no Python, the graph, the ATT&CK matrix and Relations included. An older
 opentide of your own may have no `info catalog`; the features that need it say so and offer Switch
 Runtime. The first time the bundled opentide runs, it prepares itself in the background. Each package includes an SBOM (`runtime/sbom.cdx.json`) and the
-licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). On Windows on Arm, and on
-platforms without a dedicated package, the extension needs an opentide of your own ([Runtime](#runtime)).
+licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). Windows on Arm gets the Windows
+x64 runtime, which Windows 11 runs under its x64 emulation; Windows 10 on Arm cannot run it, so there,
+and on platforms without a dedicated package, the extension needs an opentide of your own
+([Runtime](#runtime)).
 
 ### Languages
 
@@ -323,11 +325,18 @@ opentide, it says so and offers the pinned version.
 
 ### Web and virtual workspaces
 
-In vscode.dev, github.dev and virtual workspaces (Remote Repositories), the extension highlights Tide
-YAML, opentide configuration and every query language, with comments, brackets and your workspace's
-snippet files. There is no opentide there: checks, commands, panels and MCP need a local folder in VS
-Code Desktop, and the status item says so. Diagnostics in the browser come later, from the language
-server built for WebAssembly.
+On vscode.dev, github.dev and in virtual workspaces (Remote Repositories), the extension runs the
+opentide engine (WASM), the language server built for WebAssembly, in the browser: nothing to install.
+You get the editor features: diagnostics, hover, completion, semantic tokens, quick fixes, go to
+definition, references and the outline. You also get the **Catalogue**, **Relations** and **Find
+Detection** from the engine's index of the repository's `objects/` and paths.toml object folders. The
+status bar reads **opentide engine (WASM): editor features only**.
+
+What runs opentide stays in VS Code Desktop: validate and lint, new objects, coverage, platforms,
+health, the graph, the ATT&CK matrix, queries, deploy previews, setup, tasks and MCP. Each of those
+commands says so, with **Open in VS Code Desktop** where the browser can continue there. The engine
+checks the files you open. Files you have not opened are indexed, so their references resolve, but
+are not checked.
 
 ## Runtime
 
@@ -337,7 +346,20 @@ The first that answers wins:
 2. The workspace's environment: `opentide.interpreter`, the Python Environments or Python extension's
    interpreter, `.venv`, then `PATH`.
 3. With `opentide.uv.usePin`: `uv tool run --from opentide==<pin>`.
-4. The bundled runtime.
+4. The bundled runtime. On Windows on Arm it is the x64 one, run under Windows 11's emulation: the
+   cryptography opentide needs has no Windows on Arm build. On Windows 10 on Arm, which cannot run x64
+   programs, it does not start, and the opentide output channel says why: use tiers 1 to 3.
+5. The opentide engine (WASM): the language server built for WebAssembly, which every package carries.
+
+The engine is what runs where nothing else does: the universal package (platforms without a bundled runtime) with no opentide installed, Windows 10 on
+Arm, or a bundled runtime that does not start. It gives the editor features with nothing installed: diagnostics, hover, completion, semantic
+tokens, quick fixes, go to definition, references, the outline, and, from its index of the workspace,
+the Catalogue, Relations, the graph and Find Detection. The status bar then reads **opentide engine
+(WASM): editor features only**. Everything that runs opentide (validate and lint, new objects, deploy
+previews, queries, setup, tasks, the terminal, MCP, ATT&CK coverage and the configuration TOML checks)
+says so in one line, with **Install opentide** and **Switch Runtime…**. It runs in a worker thread, so
+it never blocks the editor, and reads the workspace's object files through VS Code: about a second for
+3,000 objects, then under 300 ms to the first diagnostics of an opened file.
 
 ## Restricted Mode
 

@@ -6,7 +6,9 @@
 // runtime-licenses/<target>.json, which runtime:build reads and checks against pins.json. A library whose
 // licence asks for a source offer (Berkeley DB's Sleepycat) also gets its source's version, URL and
 // SHA-256 from the release's pythonbuild/downloads.py, for the notices.
-//   node scripts/runtime-licenses.mjs [--target <t>]   every runtimeTargets target by default
+//   node scripts/runtime-licenses.mjs [--target <t>]   the runtime of every runtimeTargets target by
+//                                                       default, once each; an emulatedTargets target's
+//                                                       is its runtime's (win32-arm64: win32-x64)
 //   node scripts/runtime-licenses.mjs --check           each target's file is there and matches the pins
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,13 +21,14 @@ import {
   checkNativeLicenses,
   downloadEntry,
   fullArchive,
+  lockTargets,
   nativeComponents,
   nativeLicensesPath,
   needsSourceOffer,
   parseSha256Sums,
   pbsDownloadsUrl,
   RuntimeError,
-  runtimeTargets,
+  runtimeOf,
   sha256SumsUrl,
 } from "./runtime-lib.mjs";
 import { TarReader } from "./tar-lib.mjs";
@@ -115,7 +118,10 @@ async function record(pins, name, sums) {
 
 async function main() {
   const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
-  const targets = option("--target") ? [option("--target")] : runtimeTargets(pins);
+  const only = option("--target");
+  if (only && runtimeOf(pins, only) !== only)
+    log(`${only} bundles the ${runtimeOf(pins, only)} runtime (pins.json emulatedTargets): recording that`);
+  const targets = only ? [runtimeOf(pins, only)] : lockTargets(pins);
   if (args.includes("--check")) {
     for (const name of targets) checkNativeLicenses(pins, name, read(nativeLicensesPath(name)));
     log(`${targets.length} targets match pins.json`);

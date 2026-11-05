@@ -42,6 +42,8 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
+  # @vscode/test-web's Playwright Chromium (CI's browser tests): no package needs it.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
 jobs:
   prepare:
@@ -376,6 +378,17 @@ jobs:
           flags=(--oidc --skip-duplicate)
           if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
           tools/publish/node_modules/.bin/vsce publish "${flags[@]}" --packagePath release/*.vsix
+      # vsce reporting "Published" is not the Marketplace listing the package: 0.1.0, the extension's first
+      # publish, kept only its first package of eight. Wait until the gallery lists every package of the
+      # Release, publish the missing ones again, and fail naming them if they still do not appear.
+      - name: The Marketplace lists every package
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          flags=()
+          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
+          node tools/publish/marketplace.mjs opentidehq.opentide "${VERSION}" release "${flags[@]}"
 
   publish-openvsx:
     name: Publish to Open VSX

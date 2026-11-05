@@ -5,8 +5,11 @@ import {
   isMethodNotFound,
   parseServerCatalog,
   rootOf,
+  type ServerRoot,
+  serverCatalogDocument,
   serverRelations,
 } from "../../../src/core/catalog/serverCatalog";
+import { isCatalogDocument } from "../../../src/core/catalog/types";
 import { serverObjects } from "./serverFixture";
 
 describe("the language server's opentide/catalog", () => {
@@ -130,6 +133,38 @@ describe("the language server's opentide/catalog", () => {
     const posix = { roots: [{ root: "file:///w/", objects: [] }] };
     assert.equal(rootOf(posix, "/w", "linux"), posix.roots[0]);
     assert.equal(rootOf(posix, "/W", "linux"), undefined);
+  });
+
+  it("builds the folder's catalogue document from its root, with only what the index knows", () => {
+    const root = {
+      root: "file:///w",
+      objects: [...serverObjects(), { ...serverObjects()[0], uuid: "x", uri: "file:///elsewhere/x.yaml" }],
+    } as ServerRoot;
+    const doc = serverCatalogDocument(root, "/w", "linux");
+    assert.equal(isCatalogDocument(doc), true);
+    assert.equal(doc.command, "opentide/catalog");
+    assert.equal(doc.objects.length, serverObjects().length, "an object outside the folder is left out");
+    const o1 = doc.objects.find((o) => o.uuid === "o1");
+    assert.deepEqual(
+      o1 && { type: o1.type, path: o1.path, file: o1.file_path, line: o1.line, platforms: o1.platforms },
+      {
+        type: "objective",
+        path: "objects/objectives/o1.yaml",
+        file: "/w/objects/objectives/o1.yaml",
+        line: 1,
+        platforms: [],
+      },
+    );
+    assert.deepEqual(doc.edges, serverRelations(serverObjects()).edges);
+    assert.deepEqual(
+      doc.signals.map((s) => s.uuid),
+      ["s1", "s2"],
+    );
+    assert.equal("line" in (doc.signals[0] ?? {}), false);
+    assert.deepEqual(doc.attack, { tactics: [], techniques: {} });
+    assert.equal(doc.summary.objects, doc.objects.length);
+    assert.equal(doc.summary.threats, 2);
+    assert.equal(doc.summary.edges, doc.edges.length);
   });
 
   it("tells MethodNotFound from other failures", () => {

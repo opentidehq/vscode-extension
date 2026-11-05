@@ -28,7 +28,8 @@ describe("setup (#16)", () => {
 
   it("opens the wizard on the fixture repository (an existing workspace)", async () => {
     const api = await activated();
-    if (!api.ctx.runtime.current) return;
+    // The wizard runs opentide setup: not on the engine (WASM), nor with no runtime at all.
+    if (!api.ctx.backend.availability().available) return;
     await vscode.commands.executeCommand("opentide.setup.open", api.ctx.folders.all[0]?.path);
     // The extension host hears of the new tab after the command returns.
     const tab = await waitFor(() =>

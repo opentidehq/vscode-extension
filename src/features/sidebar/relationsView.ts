@@ -206,7 +206,8 @@ export class RelationsView implements vscode.Disposable {
   /** The folder's graph, or the state to show instead. */
   private async graphOf(folder: string): Promise<RelationGraph | RelationsState> {
     const state = this.ctx.catalog.get(folder);
-    if (state.catalog) return graphFromCatalog(state.catalog, folder);
+    // A catalogue built from the server's index is read from the index itself, with what it lacks said.
+    if (state.catalog && state.source !== "server") return graphFromCatalog(state.catalog, folder);
     if (state.status === "empty" || state.status === "loading") return { kind: "loading" };
     const fetched = this.fetchServer();
     if (!fetched) {
@@ -418,8 +419,10 @@ export class RelationsView implements vscode.Disposable {
         if (!vscode.workspace.getConfiguration().get<boolean>(CODE_LENS_SETTING, true)) return [];
         const folder = this.ctx.folders.folderOf(document.uri);
         if (!folder) return [];
-        // Only from `info catalog`: the language server's own lens covers the rest.
-        const catalog = this.ctx.catalog.get(folder.path).catalog;
+        // Only from `info catalog`: the language server's own lens covers the rest, a catalogue built
+        // from its index included.
+        const state = this.ctx.catalog.get(folder.path);
+        const catalog = state.source === "cli" ? state.catalog : undefined;
         if (!catalog) return [];
         const graph = graphFromCatalog(catalog, folder.path);
         const object = graph.objectAt(document.uri.fsPath);

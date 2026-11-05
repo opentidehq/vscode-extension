@@ -1,4 +1,5 @@
 // The resolved opentide runtime. vscode-free.
+import { ENGINE_LABEL } from "../../engine/protocol";
 
 /** Where the runtime came from. The tier is the order of SPEC §4. */
 export type RuntimeSource =
@@ -9,16 +10,20 @@ export type RuntimeSource =
   | "venv" // tier 2: <folder>/.venv
   | "path" // tier 2: opentide on PATH
   | "uv" // tier 3: uv tool run --from opentide==<pin>
-  | "bundled"; // tier 4: <extensionPath>/runtime
+  | "bundled" // tier 4: <extensionPath>/runtime
+  | "engine"; // tier 5: <extensionPath>/dist/engine, the language server built for WebAssembly
 
-export type RuntimeTier = 1 | 2 | 3 | 4;
+export type RuntimeTier = 1 | 2 | 3 | 4 | 5;
 
 export interface Runtime {
   readonly tier: RuntimeTier;
   readonly source: RuntimeSource;
-  /** `opentide` runs every feature; a bare `opentide-lsp` serves editor features only. */
-  readonly kind: "opentide" | "opentide-lsp";
-  /** The executable to spawn. */
+  /**
+   * `opentide` runs every feature; a bare `opentide-lsp`, and the engine built for WebAssembly
+   * (`engine`, run in a worker thread), serve editor features only.
+   */
+  readonly kind: "opentide" | "opentide-lsp" | "engine";
+  /** The executable to spawn; for `engine`, the WebAssembly module. */
   readonly command: string;
   /** Arguments before opentide's own argv (`-I -m opentide` for the bundled interpreter). */
   readonly args: readonly string[];
@@ -60,7 +65,14 @@ export function hasCli(runtime: Runtime | undefined): runtime is Runtime {
   return runtime !== undefined && runtime.kind === "opentide" && !runtime.restricted;
 }
 
-/** `{command, args}` that start the language server on stdio. */
+/** Whether the runtime serves editor features only (a bare `opentide-lsp`, or the engine). */
+export function isEditorOnly(runtime: Runtime | undefined): boolean {
+  return runtime !== undefined && runtime.kind !== "opentide";
+}
+
+export { ENGINE_LABEL, ENGINE_STATUS } from "../../engine/protocol";
+
+/** `{command, args}` that start the language server on stdio (not the engine, which runs in a worker). */
 export function languageServerCommand(runtime: Runtime): { command: string; args: string[] } {
   return runtime.kind === "opentide-lsp"
     ? { command: runtime.command, args: [...runtime.args, "--stdio"] }
@@ -82,6 +94,7 @@ export function describeRuntime(runtime: Runtime): string {
     path: "PATH",
     uv: "uv (repository pin)",
     bundled: "bundled runtime",
+    engine: ENGINE_LABEL,
   };
   return `tier ${runtime.tier} · ${names[runtime.source]}`;
 }

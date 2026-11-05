@@ -4,7 +4,8 @@
 import * as vscode from "vscode";
 import type { OpentideServerInfo, ProblemCounts, StatusMenuItem, StatusService } from "../context";
 import { DOCUMENT_SELECTOR } from "../lsp";
-import { describeRuntime } from "../runtime/types";
+import type { Fallback } from "../runtime/fallback";
+import { describeRuntime, ENGINE_LABEL, ENGINE_STATUS } from "../runtime/types";
 import { problemsText, type StatusModel, serveText, statusLabel, statusText, sumCounts } from "../statusText";
 
 export class StatusManager implements StatusService, vscode.Disposable {
@@ -25,6 +26,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
   };
   private serverInfo: OpentideServerInfo | undefined;
   private serverRunning = false;
+  private fallback: Fallback | undefined;
 
   constructor() {
     this.item.name = "opentide";
@@ -68,6 +70,12 @@ export class StatusManager implements StatusService, vscode.Disposable {
     return sumCounts(this.counts.values());
   }
 
+  /** The runtime's own language server did not start: the engine serves the editor features. */
+  setFallback(fallback: Fallback | undefined): void {
+    this.fallback = fallback;
+    this.render();
+  }
+
   setServer(info: OpentideServerInfo | undefined, running: boolean): void {
     this.serverInfo = info;
     this.serverRunning = running;
@@ -87,9 +95,25 @@ export class StatusManager implements StatusService, vscode.Disposable {
         "opentide.switchRuntime",
         "opentide.restartServer",
         "opentide.showOutput",
+        "opentide.installOpentide",
       ],
     };
-    if (runtime) {
+    if (runtime?.kind === "engine") {
+      tooltip.appendMarkdown(`**${ENGINE_STATUS}** · engine ${runtime.version}\n\n`);
+      tooltip.appendMarkdown(
+        "No opentide answered (`opentide.path`, the workspace's environment, the bundled runtime), so the " +
+          "language server built for WebAssembly runs in the extension: diagnostics, hover, completion, " +
+          "code actions, navigation, the Catalogue and Relations. Commands, validate and lint, deploy, query, " +
+          "setup and MCP need opentide.",
+      );
+      tooltip.appendMarkdown(
+        `\n\n$(${counts.errors ? "error" : counts.warnings ? "warning" : "pass"}) ${problemsText(counts)}`,
+      );
+      if (runtime.restricted) tooltip.appendMarkdown("\n\nRestricted Mode: only the language server runs.");
+      tooltip.appendMarkdown(
+        "\n\n---\n\n[Install opentide](command:opentide.installOpentide) · [Switch Runtime…](command:opentide.switchRuntime) · [Restart](command:opentide.restartServer) · [Output](command:opentide.showOutput)",
+      );
+    } else if (runtime) {
       tooltip.appendMarkdown(`**opentide ${runtime.version}** · ${describeRuntime(runtime)}\n\n`);
       tooltip.appendText(runtime.command);
       tooltip.appendMarkdown(`\n\n${model.serve ? "$(zap)" : "$(circle-large-outline)"} ${serveText(model)}`);
@@ -100,6 +124,10 @@ export class StatusManager implements StatusService, vscode.Disposable {
             : ""),
       );
       if (runtime.restricted) tooltip.appendMarkdown("\n\nRestricted Mode: only the language server runs.");
+      if (this.fallback)
+        tooltip.appendMarkdown(
+          `\n\n$(warning) Its language server did not start (${this.fallback.reason}): the ${ENGINE_LABEL} serves the editor features.`,
+        );
       if (model.pin && model.pin.version !== runtime.version) {
         tooltip.appendMarkdown(
           `\n\nThe repository pins opentide ${model.pin.version} (\`${model.pin.source}\`).`,
@@ -129,6 +157,22 @@ export class StatusManager implements StatusService, vscode.Disposable {
       ? vscode.LanguageStatusSeverity.Information
       : vscode.LanguageStatusSeverity.Warning;
     this.language.command = { title: "Restart", command: "opentide.restartServer" };
+    if (runtime.kind === "engine") {
+      this.language.text = ENGINE_STATUS;
+      this.language.detail = this.serverRunning
+        ? `engine ${info?.engine ?? runtime.version} in a worker thread · catalog ${info?.catalog ?? "bundled"} · commands need opentide`
+        : "the engine is not running: see the output";
+      this.language.command = this.serverRunning
+        ? { title: "Install opentide", command: "opentide.installOpentide" }
+        : { title: "Restart", command: "opentide.restartServer" };
+      return;
+    }
+    if (this.fallback) {
+      this.language.text = `opentide ${runtime.version} · language server: ${ENGINE_LABEL}`;
+      this.language.detail = `its own language server did not start (${this.fallback.reason}) · ${describeRuntime(runtime)}`;
+      this.language.severity = vscode.LanguageStatusSeverity.Warning;
+      return;
+    }
     if (!this.serverRunning) {
       this.language.text = `opentide ${runtime.version}`;
       this.language.detail = "language server not running";

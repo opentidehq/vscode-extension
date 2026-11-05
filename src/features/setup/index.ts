@@ -7,6 +7,8 @@ import type { RunResult } from "../../core/backend/backend";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { explainUnavailable } from "../../core/services/unavailable";
+import { editorOnlyText } from "../../core/unavailable";
 import type { OpentidePanel } from "../../core/webview/panel";
 import { platformName } from "../sidebar/platformNames";
 import { parsePlatforms } from "../sidebar/platforms";
@@ -137,13 +139,12 @@ async function ready(ctx: FeatureContext, command = "setup"): Promise<boolean> {
   await ctx.runtime.ready();
   const availability = ctx.backend.availability();
   if (!availability.available) {
-    const choice = await vscode.window.showWarningMessage(
+    await explainUnavailable(
+      availability.code,
       availability.code === "editor-only"
-        ? "opentide.path names opentide-lsp, which cannot set up a repository. Point it at opentide."
+        ? editorOnlyText(ctx.runtime.current, "setting up a repository")
         : "No opentide runtime to run setup with.",
-      "Switch Runtime…",
     );
-    if (choice) await vscode.commands.executeCommand("opentide.switchRuntime");
     return false;
   }
   await ctx.capabilities.ready();

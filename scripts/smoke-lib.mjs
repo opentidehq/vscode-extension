@@ -93,3 +93,93 @@ export function checkInitialize(response, expected) {
     errors.push(`engine is ${info.engine}, pins.json derives ${expected.engine}`);
   return errors;
 }
+
+/**
+ * The engine (WASM) worker's `initialize`: the server is opentide-lsp at the version dist/engine/engine.json
+ * records, hosted by nothing, and the worker ended after `exit`.
+ */
+export function checkEngineInitialize(response, version, exitCode) {
+  const errors = [];
+  const result = response?.result;
+  if (!result)
+    return [`engine initialize failed: ${JSON.stringify(response?.error ?? response).slice(0, 300)}`];
+  if (result.serverInfo?.name !== "opentide-lsp")
+    errors.push(`engine serverInfo.name is ${result.serverInfo?.name}`);
+  const info = result.capabilities?.experimental?.opentide;
+  if (info?.engine !== version) errors.push(`engine is ${info?.engine}, engine.json says ${version}`);
+  if (info?.host !== null) errors.push(`engine host is ${JSON.stringify(info?.host)}, expected none`);
+  if (exitCode !== 0) errors.push(`the engine worker exited with ${exitCode} after exit`);
+  return errors;
+}
+
+/**
+ * The web extension in an unpacked package: package.json's `browser` entry, the engine's Web Worker and
+ * the module it fetches (`exists` takes a path relative to the extension folder). Without `browser`, the
+ * Marketplace does not offer the package on the web.
+ */
+export function checkWebEntry(pkg, exists) {
+  const errors = [];
+  if (typeof pkg.browser !== "string") errors.push("package.json has no browser entry");
+  else if (!exists(pkg.browser.replace(/^\.\//, "")))
+    errors.push(`package.json browser names ${pkg.browser}, which the package lacks`);
+  for (const file of ["dist/web/engine-worker.js", "dist/engine/opentide_wasm_bg.wasm"]) {
+    if (!exists(file)) errors.push(`the package has no ${file}`);
+  }
+  if (pkg.capabilities?.virtualWorkspaces?.supported === false)
+    errors.push("package.json says it does not support virtual workspaces");
+  return errors;
+}
+
+/**
+ * The interpreter is of its runtime's architecture: `sysconfig.get_platform()` (`win-amd64`,
+ * `linux-aarch64`, `macosx-11.0-arm64`) against the CPU of BUILD-INFO's `runtime` (else `target`).
+ * An emulated target's interpreter is its runtime's, not the machine's: win32-arm64 runs `win-amd64`.
+ */
+export function checkInterpreterPlatform(stdout, info) {
+  const runtime = info.runtime ?? info.target ?? "";
+  const cpu = /-(x64|arm64)$/.exec(runtime)?.[1];
+  const platform = stdout.trim();
+  if (!cpu) return [`BUILD-INFO names no runtime target with a CPU: ${JSON.stringify(runtime)}`];
+  const pattern = cpu === "x64" ? /(?:amd64|x86_64)$/i : /(?:arm64|aarch64)$/i;
+  return pattern.test(platform)
+    ? []
+    : [`the bundled interpreter is ${JSON.stringify(platform)}, not the ${runtime} runtime's ${cpu}`];
+}
+
+/** The median of some durations, in milliseconds. */
+export function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? (sorted[mid] ?? 0) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+}
+
+/**
+ * The fixture's catalogue (test/fixtures/workspace/objects, copied into the smoke workspace): `opentide
+ * --json info catalog` lists its objective and its rule, both loaded, with the rule's edge to the
+ * objective.
+ */
+export function checkCatalog(stdout, fixture) {
+  let document;
+  try {
+    document = JSON.parse(stdout);
+  } catch {
+    return [`info catalog printed no JSON document: ${stdout.slice(0, 200)}`];
+  }
+  const objects = Array.isArray(document.objects) ? document.objects : undefined;
+  if (!objects || !Array.isArray(document.edges)) return ["info catalog has no objects and edges"];
+  const errors = [];
+  for (const { uuid, type } of [fixture.objective, fixture.rule]) {
+    const found = objects.find((object) => object.uuid === uuid);
+    if (!found) errors.push(`info catalog has no ${type} ${uuid}`);
+    else if (found.type !== type) errors.push(`info catalog lists ${uuid} as ${found.type}, not ${type}`);
+    else if (found.load_error)
+      errors.push(`info catalog: ${uuid} failed to load: ${JSON.stringify(found.load_error)}`);
+  }
+  if (!document.edges.some((edge) => edge.from === fixture.rule.uuid && edge.to === fixture.objective.uuid))
+    errors.push(
+      `info catalog has no edge from the rule ${fixture.rule.uuid} to the objective ${fixture.objective.uuid}`,
+    );
+  if (document.summary?.load_errors)
+    errors.push(`info catalog reports ${document.summary.load_errors} load errors`);
+  return errors;
+}

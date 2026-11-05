@@ -1,12 +1,16 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
+import { ENGINE_STATUS } from "../../src/engine/protocol";
 import {
+  CONTINUE_ON_DESKTOP,
   contributedCommands,
+  engineStatus,
   isVirtualOnly,
   languageIds,
   STATUS,
   unavailableMessage,
+  WEB_COMMANDS,
   WEB_DOCS_URL,
 } from "../../src/web/mode";
 
@@ -48,13 +52,50 @@ describe("web mode", () => {
       ],
     );
     assert.match(
-      unavailableMessage("opentide: Restart Server"),
-      /^opentide: Restart Server needs opentide, which cannot run in the browser/,
+      unavailableMessage("opentide: Validate Workspace"),
+      /^opentide: Validate Workspace needs opentide, which runs in VS Code Desktop.*engine \(WASM\)/,
     );
   });
 
-  it("says what is missing in a short status", () => {
-    assert.equal(STATUS.text, "Highlighting only");
+  it("implements only commands the manifest contributes, and explains the others", () => {
+    const contributed = new Set(contributedCommands(pkg).map((c) => c.command));
+    for (const command of WEB_COMMANDS) assert.ok(contributed.has(command), command);
+    assert.ok(contributed.has(CONTINUE_ON_DESKTOP[0]) === false, "a VS Code command, not ours");
+  });
+
+  it("runs every Catalogue and Relations menu command that can show on the web", () => {
+    // Keys web mode never sets: a menu that needs one never shows there.
+    const neverOnTheWeb =
+      /opentide\.(hasCli|hasInfoCatalog|editorOnly|runtimeReady|relations\.(hasTarget|pinned))\b/;
+    const menus = (pkg as { contributes: { menus: Record<string, { command: string; when?: string }[]> } })
+      .contributes.menus;
+    const shown = ["view/title", "view/item/context"].flatMap((where) =>
+      (menus[where] ?? []).filter(
+        (m) =>
+          /opentide\.sidebar\.(catalogue|relations)\b/.test(m.when ?? "") &&
+          !neverOnTheWeb.test(m.when ?? ""),
+      ),
+    );
+    assert.ok(shown.length > 0);
+    const missing = [...new Set(shown.map((m) => m.command))].filter((command) => !WEB_COMMANDS.has(command));
+    assert.deepEqual(missing, [], "these menus answer 'needs opentide' on the web");
+  });
+
+  it("warns, with Restart, when the engine does not run in an opentide workspace", () => {
+    assert.deepEqual(engineStatus(true, true), {
+      severity: "information",
+      detail: STATUS.detail,
+      restart: false,
+    });
+    assert.equal(engineStatus(false, false).restart, false, "no opentide folder: nothing to restart");
+    const stopped = engineStatus(false, true);
+    assert.equal(stopped.severity, "warning");
+    assert.equal(stopped.restart, true);
+    assert.match(stopped.detail, /not running/);
+  });
+
+  it("says what runs and what is missing in a short status", () => {
+    assert.equal(ENGINE_STATUS, "opentide engine (WASM): editor features only");
     assert.ok(STATUS.detail.length < 100);
   });
 
