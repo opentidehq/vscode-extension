@@ -17,7 +17,7 @@ import { WEB_DOCUMENT_SELECTOR } from "../engine/languages";
 import { convertShowReferencesArgs } from "../engine/lsp";
 import { objectFolders } from "../engine/pathsToml";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../engine/protocol";
-import { planDelta } from "../engine/sync";
+import { EngineSync, initializationOptions, type SyncAction } from "../engine/sync";
 import { type EnginePort, engineTransports } from "../engine/transport";
 import { isSuppliedPath, objectRoots } from "../engine/workspace";
 
@@ -88,6 +88,8 @@ export class EngineSession implements vscode.Disposable {
   private restartTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly staleWhileOpen = new Set<string>();
   private chain: Promise<unknown> = Promise.resolve();
+  /** What changed while no engine answered, replayed once one does. */
+  private readonly sync = new EngineSync();
   private catalogCache: Promise<readonly ServerObject[]> | undefined;
   readonly output: vscode.LogOutputChannel;
 
@@ -160,10 +162,8 @@ export class EngineSession implements vscode.Disposable {
       for (const document of vscode.workspace.textDocuments) this.associate(document);
     }
     void vscode.commands.executeCommand("setContext", "opentide.hasWorkspace", this.folders.length > 0);
-    let workspace = reuse ? this.feed.snapshot() : undefined;
-    if (!workspace) {
-      const { workspace: collected, report } = await this.feed.collect();
-      workspace = collected;
+    if (!reuse || !this.feed.snapshot()) {
+      const { report } = await this.feed.collect();
       this.output.info(
         `engine: read ${report.files} object file(s) of ${this.folders.length} folder(s), ` +
           `${Math.round(report.bytes / 1024)} KiB, in ${report.ms} ms`,
@@ -177,7 +177,8 @@ export class EngineSession implements vscode.Disposable {
       {
         documentSelector: WEB_DOCUMENT_SELECTOR,
         outputChannel: this.output,
-        initializationOptions: { workspace },
+        // Read at each initialize, the client's own restarts included: the workspace as it stands then.
+        initializationOptions: initializationOptions(() => this.feed.snapshot(), this.sync),
         // The engine has no files to read again: the session feeds it instead.
         middleware: { workspace: { didChangeWatchedFile: () => Promise.resolve() } },
       },
@@ -195,6 +196,7 @@ export class EngineSession implements vscode.Disposable {
     this.updates = takesWorkspaceUpdates(client.initializeResult?.capabilities.experimental);
     client.onNotification(SERVER_CATALOG_CHANGED, () => this.fire());
     this.output.info(`engine: initialized in ${Date.now() - started} ms`);
+    await this.apply(this.sync.ready(this.updates));
     this.fire();
   }
 
@@ -232,15 +234,24 @@ export class EngineSession implements vscode.Disposable {
       await this.restart("paths.toml changed", false);
       return;
     }
-    const client = this.client;
-    if (!client) return;
+    // The mirror takes the change even while no engine answers (it starts or restarts); the engine
+    // gets it now, or once it answers.
     const delta = await this.feed.changed(uris);
     if (!delta) return;
     const open = new Set(vscode.workspace.textDocuments.map((document) => document.uri.toString()));
-    const plan = planDelta(delta, this.updates, open);
-    if (plan.kind === "notify") await client.sendNotification(DID_CHANGE_WORKSPACE, delta);
-    else if (plan.kind === "after-close") for (const uri of plan.uris) this.staleWhileOpen.add(uri);
-    else this.scheduleRestart("object files changed");
+    const action = this.sync.changed(delta, open);
+    if (action) await this.apply([action]);
+  }
+
+  private async apply(actions: readonly SyncAction[]): Promise<void> {
+    for (const action of actions) {
+      if (action.kind === "notify")
+        await this.client
+          ?.sendNotification(DID_CHANGE_WORKSPACE, action.delta)
+          .catch(() => this.scheduleRestart("a workspace change could not be sent"));
+      else if (action.kind === "after-close") for (const uri of action.uris) this.staleWhileOpen.add(uri);
+      else this.scheduleRestart("object files changed");
+    }
   }
 
   private scheduleRestart(reason: string): void {
@@ -280,6 +291,7 @@ export class EngineSession implements vscode.Disposable {
   async stop(): Promise<void> {
     const client = this.client;
     this.client = undefined;
+    this.sync.down();
     if (client) {
       this.fire();
       await client.stop(5000).catch(() => undefined);
