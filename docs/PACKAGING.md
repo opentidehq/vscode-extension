@@ -175,8 +175,9 @@ same packages were 80.5 MiB for linux-x64 (224.7 MiB installed, the same extensi
 With the engine (WASM), measured on 2026-11-05 with language-server 0.10.0's `opentide-wasm-web`: the
 universal package is 4.0 MiB (17.6 MiB installed), its largest directory `dist/engine` at 3.4 MiB
 compressed (15.7 MiB installed: the 15.5 MiB module, its worker and licences). Each per-platform package
-grows by the same 3.4 MiB, about 6%: linux-x64 61.1 MiB, darwin-arm64 53.6 MiB, win32-x64 59.5 MiB,
-all under the 70 MiB target.
+grows by the same 3.4 MiB, about 6%: linux-x64 61.1 MiB (measured in CI, 166.3 MiB installed, its
+smoke test running the engine too), darwin-arm64 about 53.6 MiB and win32-x64 about 59.5 MiB, all under
+the 70 MiB target.
 
 Every package carries the production build (`vscode:prepublish`: minified, no source maps). With every
 feature merged: `dist/extension.js` 746 KiB and `dist/webview/graph.js` 520 KiB (Cytoscape), against
