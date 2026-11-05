@@ -4,6 +4,7 @@ import {
   isSuppliedPath,
   objectGlob,
   objectRoots,
+  planDelta,
   WorkspaceMirror,
 } from "../../../src/engine/workspace";
 
@@ -112,5 +113,38 @@ describe("engine workspace (src/engine/workspace.ts)", () => {
       ],
     });
     assert.equal(mirror.size, 2);
+  });
+});
+
+describe("what a workspace change does to the engine (planDelta)", () => {
+  const delta = (uris: string[], visibility?: string | null) => ({
+    documents: uris.map((uri) => ({ uri, text: "x" })),
+    removed: [],
+    ...(visibility !== undefined ? { visibility } : {}),
+  });
+
+  it("sends it to an engine that takes opentide/didChangeWorkspace", () => {
+    assert.deepEqual(planDelta(delta(["file:///w/objects/a.yaml"]), true, new Set()), { kind: "notify" });
+  });
+
+  it("restarts 0.10.0, unless every file it touches is open", () => {
+    assert.deepEqual(planDelta(delta(["file:///w/objects/a.yaml"]), false, new Set()), { kind: "restart" });
+    assert.deepEqual(
+      planDelta(delta(["file:///w/objects/a.yaml"]), false, new Set(["file:///w/objects/a.yaml"])),
+      { kind: "after-close", uris: ["file:///w/objects/a.yaml"] },
+    );
+    assert.deepEqual(
+      planDelta(
+        delta(["file:///w/objects/a.yaml", "file:///w/objects/b.yaml"]),
+        false,
+        new Set(["file:///w/objects/a.yaml"]),
+      ),
+      { kind: "restart" },
+    );
+    // visibility.toml is read by every analysis: restart at once.
+    assert.deepEqual(
+      planDelta(delta(["file:///w/objects/a.yaml"], "x"), false, new Set(["file:///w/objects/a.yaml"])),
+      { kind: "restart" },
+    );
   });
 });

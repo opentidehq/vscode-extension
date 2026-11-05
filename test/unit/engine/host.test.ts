@@ -6,6 +6,8 @@ import {
   requestId,
   serveEngine,
 } from "../../../src/engine/host";
+import { WEB_DOCUMENT_SELECTOR } from "../../../src/engine/languages";
+import { engineInit, moduleUrlOf, takesWorkspaceUpdates } from "../../../src/engine/protocol";
 
 /** A port the test drives: `send` is the client posting, `posted` what the worker posted back. */
 function fakePort() {
@@ -129,5 +131,34 @@ describe("engine host (src/engine/host.ts)", () => {
       method: "window/logMessage",
       params: { type: 1, message: "boom" },
     });
+  });
+});
+
+describe("the browser worker's first message (src/engine/protocol.ts)", () => {
+  it("names the module, and nothing else is taken for it", () => {
+    assert.equal(
+      moduleUrlOf(engineInit("https://cdn/x/opentide_wasm_bg.wasm")),
+      "https://cdn/x/opentide_wasm_bg.wasm",
+    );
+    assert.equal(moduleUrlOf('{"jsonrpc":"2.0","id":1,"method":"initialize"}'), undefined);
+    assert.equal(moduleUrlOf({ opentideEngine: {} }), undefined);
+    assert.equal(moduleUrlOf(null), undefined);
+  });
+
+  it("tells a server that takes workspace updates", () => {
+    assert.equal(takesWorkspaceUpdates({ opentide: { workspaceUpdates: true } }), true);
+    assert.equal(takesWorkspaceUpdates({ opentide: { engine: "0.10.0" } }), false);
+    assert.equal(takesWorkspaceUpdates(undefined), false);
+  });
+
+  it("selects every language on any scheme on the web", () => {
+    assert.ok(
+      WEB_DOCUMENT_SELECTOR.some((filter) => "language" in filter && filter.language === "opentide-yaml"),
+    );
+    assert.ok(WEB_DOCUMENT_SELECTOR.some((filter) => "pattern" in filter && filter.pattern === "**/*.kql"));
+    assert.equal(
+      WEB_DOCUMENT_SELECTOR.some((filter) => "scheme" in filter),
+      false,
+    );
   });
 });

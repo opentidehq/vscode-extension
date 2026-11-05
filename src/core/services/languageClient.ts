@@ -14,7 +14,7 @@ import {
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
 import { type EnginePort, engineTransports } from "../../engine/transport";
-import type { SuppliedWorkspace } from "../../engine/workspace";
+import { planDelta, type SuppliedWorkspace } from "../../engine/workspace";
 import { SERVER_CATALOG_CHANGED } from "../catalog/serverCatalog";
 import type { LanguageClientService, Logger, OpentideServerInfo } from "../context";
 import {
@@ -246,18 +246,11 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     if (!engine || !client) return;
     const delta = await this.feed.changed(uris);
     if (!delta) return;
-    if (engine.updates) {
-      await client.sendNotification(DID_CHANGE_WORKSPACE, delta);
-      return;
-    }
-    // An open file is the editor's buffer to the server; its new text matters once it is closed.
     const open = new Set(vscode.workspace.textDocuments.map((document) => document.uri.toString()));
-    const touched = [...delta.documents.map((document) => document.uri), ...delta.removed];
-    if (delta.visibility === undefined && touched.every((uri) => open.has(uri))) {
-      for (const uri of touched) this.staleWhileOpen.add(uri);
-      return;
-    }
-    this.scheduleEngineRestart("object files changed on disk");
+    const plan = planDelta(delta, engine.updates, open);
+    if (plan.kind === "notify") await client.sendNotification(DID_CHANGE_WORKSPACE, delta);
+    else if (plan.kind === "after-close") for (const uri of plan.uris) this.staleWhileOpen.add(uri);
+    else this.scheduleEngineRestart("object files changed on disk");
   }
 
   private scheduleEngineRestart(reason: string): void {

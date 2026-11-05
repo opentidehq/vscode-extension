@@ -171,3 +171,22 @@ export class WorkspaceMirror {
     return { documents, removed, ...(changedVisibility ?? {}) };
   }
 }
+
+/** What to do with a delta: send it, restart the engine with it, or wait for open files to close. */
+export type DeltaPlan =
+  | { readonly kind: "notify" }
+  | { readonly kind: "restart" }
+  | { readonly kind: "after-close"; readonly uris: readonly string[] };
+
+/**
+ * An engine that takes `opentide/didChangeWorkspace` is sent the delta. Another (0.10.0) is restarted
+ * with the new workspace, unless every file it touches is open in an editor: the server reads those
+ * buffers, so their new text matters only once they are closed.
+ */
+export function planDelta(delta: WorkspaceDelta, updates: boolean, open: ReadonlySet<string>): DeltaPlan {
+  if (updates) return { kind: "notify" };
+  const touched = [...delta.documents.map((document) => document.uri), ...delta.removed];
+  if (delta.visibility === undefined && touched.length > 0 && touched.every((uri) => open.has(uri)))
+    return { kind: "after-close", uris: touched };
+  return { kind: "restart" };
+}
