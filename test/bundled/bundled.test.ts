@@ -48,7 +48,10 @@ describe("the bundled runtime in VS Code", () => {
     assert.ok(runtime, JSON.stringify(api.ctx.runtime.attempts));
     assert.equal(runtime.tier, 4);
     assert.equal(runtime.source, "bundled");
-    assert.equal(runtime.command, bundledLayout(extensionPath, process.platform).python);
+    // The same file: VS Code may give the extension's path with another drive-letter case (d:\ and D:\),
+    // which path.relative ignores on Windows.
+    const python = bundledLayout(extensionPath, process.platform).python;
+    assert.equal(path.relative(python, runtime.command), "", `${runtime.command} is ${python}`);
     assert.equal(runtime.version, info?.opentide);
   });
 
