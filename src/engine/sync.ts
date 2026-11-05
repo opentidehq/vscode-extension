@@ -2,7 +2,7 @@
 // mirror takes while no server answers (it starts, restarts, or the client restarts it) is queued and
 // replayed once one does: sent to an engine that takes `opentide/didChangeWorkspace`, else one more
 // restart. vscode-free, no Node built-ins: the desktop and the web share it.
-import type { WorkspaceDelta } from "./workspace";
+import type { SuppliedWorkspace, WorkspaceDelta } from "./workspace";
 
 /** What to do with a change. */
 export type SyncAction =
@@ -56,4 +56,19 @@ export class EngineSync {
     }
     return planDelta(delta, this.updates, open);
   }
+}
+
+/**
+ * `initializationOptions` as the language client takes it, a function: read at each `initialize`, the
+ * client's own restarts after a crash included, so each gets the workspace as it stands then, and the
+ * sync knows the server has it.
+ */
+export function initializationOptions(
+  snapshot: () => SuppliedWorkspace | undefined,
+  sync: EngineSync,
+): () => { workspace: SuppliedWorkspace } {
+  return () => {
+    sync.given();
+    return { workspace: snapshot() ?? { documents: [] } };
+  };
 }

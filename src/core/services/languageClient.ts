@@ -14,7 +14,7 @@ import {
 } from "vscode-languageclient/node";
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
-import { EngineSync, type SyncAction } from "../../engine/sync";
+import { EngineSync, initializationOptions, type SyncAction } from "../../engine/sync";
 import { type EnginePort, engineTransports } from "../../engine/transport";
 import type { WorkspaceDelta } from "../../engine/workspace";
 import { SERVER_CATALOG_CHANGED } from "../catalog/serverCatalog";
@@ -251,10 +251,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     return new LanguageClient("opentide", "opentide Language Server", transports, {
       ...clientOptions,
       synchronize: {},
-      initializationOptions: (() => {
-        this.sync.given();
-        return { workspace: this.feed.snapshot() ?? { documents: [] } };
-      })(),
+      // Read at each initialize, the client's own restarts included: the workspace as it stands then.
+      initializationOptions: initializationOptions(() => this.feed.snapshot(), this.sync),
       middleware: { workspace: { didChangeWatchedFile: () => Promise.resolve() } },
     });
   }

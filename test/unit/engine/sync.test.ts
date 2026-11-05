@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
-import { EngineSync, planDelta } from "../../../src/engine/sync";
+import { EngineSync, initializationOptions, planDelta } from "../../../src/engine/sync";
+import { WorkspaceMirror } from "../../../src/engine/workspace";
 
 const delta = (uri: string, visibility?: string | null) => ({
   documents: [{ uri, text: "x" }],
@@ -64,5 +65,26 @@ describe("engine sync across starts (src/engine/sync.ts)", () => {
         kind: "restart",
       },
     );
+  });
+});
+
+describe("the engine's initializationOptions", () => {
+  it("are read at each initialize: a client's own restart gets the workspace as it stands then", () => {
+    const mirror = new WorkspaceMirror({ documents: [{ uri: "file:///w/objects/a.yaml", text: "a" }] });
+    const sync = new EngineSync();
+    const options = initializationOptions(() => mirror.snapshot(), sync);
+    assert.equal(typeof options, "function");
+    assert.deepEqual(options().workspace.documents, [{ uri: "file:///w/objects/a.yaml", text: "a" }]);
+    sync.ready(false);
+    // The server crashes; a file changes; the client restarts it.
+    sync.down();
+    mirror.apply([{ uri: "file:///w/objects/b.yaml", text: "b" }]);
+    sync.changed({ documents: [{ uri: "file:///w/objects/b.yaml", text: "b" }], removed: [] }, new Set());
+    assert.deepEqual(
+      options().workspace.documents.map((d) => d.uri),
+      ["file:///w/objects/a.yaml", "file:///w/objects/b.yaml"],
+    );
+    assert.deepEqual(sync.ready(false), [], "the restart carried it: nothing to replay");
+    assert.deepEqual(initializationOptions(() => undefined, sync)(), { workspace: { documents: [] } });
   });
 });
