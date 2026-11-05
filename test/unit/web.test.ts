@@ -63,6 +63,24 @@ describe("web mode", () => {
     assert.ok(contributed.has(CONTINUE_ON_DESKTOP[0]) === false, "a VS Code command, not ours");
   });
 
+  it("runs every Catalogue and Relations menu command that can show on the web", () => {
+    // Keys web mode never sets: a menu that needs one never shows there.
+    const neverOnTheWeb =
+      /opentide\.(hasCli|hasInfoCatalog|editorOnly|runtimeReady|relations\.(hasTarget|pinned))\b/;
+    const menus = (pkg as { contributes: { menus: Record<string, { command: string; when?: string }[]> } })
+      .contributes.menus;
+    const shown = ["view/title", "view/item/context"].flatMap((where) =>
+      (menus[where] ?? []).filter(
+        (m) =>
+          /opentide\.sidebar\.(catalogue|relations)\b/.test(m.when ?? "") &&
+          !neverOnTheWeb.test(m.when ?? ""),
+      ),
+    );
+    assert.ok(shown.length > 0);
+    const missing = [...new Set(shown.map((m) => m.command))].filter((command) => !WEB_COMMANDS.has(command));
+    assert.deepEqual(missing, [], "these menus answer 'needs opentide' on the web");
+  });
+
   it("warns, with Restart, when the engine does not run in an opentide workspace", () => {
     assert.deepEqual(engineStatus(true, true), {
       severity: "information",

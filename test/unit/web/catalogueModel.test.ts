@@ -1,6 +1,13 @@
 import * as assert from "node:assert/strict";
 import type { ServerObject } from "../../../src/engine/catalog";
-import { sameUri, uniqueObjects, WebIndex, type WebNode } from "../../../src/web/catalogueModel";
+import {
+  filterNodes,
+  objectOf,
+  sameUri,
+  uniqueObjects,
+  WebIndex,
+  type WebNode,
+} from "../../../src/web/catalogueModel";
 import { serverObjects } from "../catalog/serverFixture";
 
 const labels = (nodes: readonly WebNode[]): unknown[] =>
@@ -111,5 +118,46 @@ describe("web catalogue with several folders (multi-root)", () => {
       objects.map((o) => o.uuid),
       ["x"],
     );
+  });
+});
+
+describe("web Catalogue: Group By, Filter and the item menus", () => {
+  const index = new WebIndex(serverObjects());
+
+  it("groups by type", () => {
+    assert.deepEqual(labels(index.byType()), [
+      ["Threats", ["Credential Dumping", "Lateral Movement"]],
+      ["Objectives", ["Detect LSASS access"]],
+      ["Rules", ["Dangling rule", "LSASS dump via comsvcs", "Suspicious LSASS Access"]],
+    ]);
+  });
+
+  it("filters by name or UUID, keeping a match's ancestors and children", () => {
+    assert.deepEqual(labels(filterNodes(index.catalogue(), "comsvcs")), [
+      ["Credential Dumping", [["Detect LSASS access", ["LSASS dump via comsvcs"]]]],
+    ]);
+    assert.deepEqual(labels(filterNodes(index.catalogue(), "o1")), [
+      [
+        "Credential Dumping",
+        [["Detect LSASS access", ["LSASS dump via comsvcs", "Suspicious LSASS Access"]]],
+      ],
+    ]);
+    assert.deepEqual(filterNodes(index.catalogue(), "nothing like it"), []);
+    assert.equal(filterNodes(index.catalogue(), "  ").length, index.catalogue().length);
+  });
+
+  it("finds the object of a Catalogue node, a Relations object row and a relation row", () => {
+    const node = index.catalogue()[0];
+    assert.deepEqual(objectOf(node), { uri: "file:///w/objects/threats/t1.yaml", line: 0, uuid: "t1" });
+    const object = serverObjects()[2] as ServerObject;
+    assert.deepEqual(objectOf({ kind: "object", object }), { uri: object.uri, line: 0, uuid: "o1" });
+    const relation = index.relations("o1")[0];
+    assert.deepEqual(objectOf({ kind: "relation", relation }), {
+      uri: "file:///w/objects/threats/t1.yaml",
+      line: 0,
+      uuid: "t1",
+    });
+    assert.equal(objectOf({ kind: "heading", label: "x", rows: [] }), undefined);
+    assert.equal(objectOf(undefined), undefined);
   });
 });

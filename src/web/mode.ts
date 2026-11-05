@@ -23,6 +23,12 @@ export const WEB_COMMANDS: ReadonlySet<string> = new Set([
   "opentide.showOutput",
   "opentide.showReferences",
   "opentide.installOpentide",
+  "opentide.relations.openToSide",
+  "opentide.sidebar.filter",
+  "opentide.sidebar.clearFilter",
+  "opentide.sidebar.groupBy",
+  "opentide.sidebar.copyUuid",
+  "opentide.sidebar.revealInExplorer",
 ]);
 
 /**

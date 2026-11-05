@@ -3,7 +3,14 @@
 // the palette are the ones people know.
 import * as vscode from "vscode";
 import type { ServerObject } from "../engine/catalog";
-import { type Family, WebIndex, type WebNode, type WebRelation } from "./catalogueModel";
+import {
+  type Family,
+  filterNodes,
+  objectOf,
+  WebIndex,
+  type WebNode,
+  type WebRelation,
+} from "./catalogueModel";
 import type { EngineSession } from "./session";
 
 const ICONS: Record<Family, string> = {
@@ -61,6 +68,10 @@ class CatalogueProvider implements vscode.TreeDataProvider<WebNode> {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changed.event;
 
+  /** The Catalogue's Filter and Group By, as on the desktop (the web groups by chain or by type). */
+  filter: string | undefined;
+  groupBy: "chain" | "type" = "chain";
+
   constructor(private readonly session: EngineSession) {}
 
   refresh(): void {
@@ -68,12 +79,16 @@ class CatalogueProvider implements vscode.TreeDataProvider<WebNode> {
   }
 
   getTreeItem(node: WebNode): vscode.TreeItem {
-    return nodeItem(node);
+    const item = nodeItem(node);
+    if (this.filter && node.children.length > 0)
+      item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+    return item;
   }
 
   async getChildren(node?: WebNode): Promise<WebNode[]> {
     if (node) return [...node.children];
-    return new WebIndex(await this.session.catalog()).catalogue();
+    const index = new WebIndex(await this.session.catalog());
+    return filterNodes(this.groupBy === "type" ? index.byType() : index.catalogue(), this.filter);
   }
 }
 
@@ -96,6 +111,7 @@ class RelationsProvider implements vscode.TreeDataProvider<RelationRow> {
         ICONS[(row.object.object_type as Family) ?? "other"] ?? "symbol-misc",
       );
       item.command = openCommand(row.object.uri, row.object.range.start.line);
+      item.contextValue = `object.${row.object.object_type}`;
       return item;
     }
     if (row.kind === "heading") {
@@ -113,6 +129,7 @@ class RelationsProvider implements vscode.TreeDataProvider<RelationRow> {
     } else if (relation.uri) {
       item.description = relation.family;
       item.command = openCommand(relation.uri, relation.line);
+      item.contextValue = `object.${relation.family}`;
     }
     return item;
   }
@@ -182,9 +199,71 @@ export function registerViews(session: EngineSession): vscode.Disposable {
     }),
     vscode.window.onDidChangeActiveTextEditor(follow),
     vscode.commands.registerCommand("opentide.sidebar.refreshCatalogue", update),
-    vscode.commands.registerCommand("opentide.relations.show", async () => {
-      follow(vscode.window.activeTextEditor);
+    vscode.commands.registerCommand("opentide.relations.show", async (arg?: unknown) => {
+      const object = objectOf(arg);
+      if (object) {
+        relations.target = vscode.Uri.parse(object.uri);
+        relationsView.description = `Following: ${relations.target.path.split("/").pop() ?? ""}`;
+        relations.refresh();
+      } else follow(vscode.window.activeTextEditor);
       await vscode.commands.executeCommand("opentide.sidebar.relations.focus");
+    }),
+    vscode.commands.registerCommand("opentide.relations.openToSide", async (arg?: unknown) => {
+      const object = objectOf(arg);
+      if (!object) return;
+      const position = new vscode.Position(object.line, 0);
+      await vscode.window.showTextDocument(vscode.Uri.parse(object.uri), {
+        viewColumn: vscode.ViewColumn.Beside,
+        selection: new vscode.Range(position, position),
+        preview: true,
+      });
+    }),
+    vscode.commands.registerCommand("opentide.sidebar.copyUuid", async (arg?: unknown) => {
+      const uuid = objectOf(arg)?.uuid;
+      if (uuid) await vscode.env.clipboard.writeText(uuid);
+    }),
+    vscode.commands.registerCommand("opentide.sidebar.revealInExplorer", async (arg?: unknown) => {
+      const object = objectOf(arg);
+      if (object) await vscode.commands.executeCommand("revealInExplorer", vscode.Uri.parse(object.uri));
+    }),
+    vscode.commands.registerCommand("opentide.sidebar.filter", async (text?: unknown) => {
+      const value =
+        typeof text === "string"
+          ? text
+          : await vscode.window.showInputBox({
+              title: "Filter the Catalogue",
+              prompt: "Words in an object's name or UUID",
+              value: catalogue.filter ?? "",
+            });
+      if (value === undefined) return;
+      catalogue.filter = value.trim() || undefined;
+      catalogueView.description = catalogue.filter ? `filter: ${catalogue.filter}` : undefined;
+      void vscode.commands.executeCommand(
+        "setContext",
+        "opentide.sidebar.filtered",
+        Boolean(catalogue.filter),
+      );
+      catalogue.refresh();
+    }),
+    vscode.commands.registerCommand("opentide.sidebar.clearFilter", () =>
+      vscode.commands.executeCommand("opentide.sidebar.filter", ""),
+    ),
+    vscode.commands.registerCommand("opentide.sidebar.groupBy", async (choice?: unknown) => {
+      const picked =
+        choice === "chain" || choice === "type"
+          ? choice
+          : (
+              await vscode.window.showQuickPick(
+                [
+                  { label: "Threat chain", value: "chain" as const },
+                  { label: "Type", value: "type" as const },
+                ],
+                { title: "Group the Catalogue by" },
+              )
+            )?.value;
+      if (!picked) return;
+      catalogue.groupBy = picked;
+      catalogue.refresh();
     }),
     vscode.commands.registerCommand("opentide.search.open", () => findDetection(session)),
   );

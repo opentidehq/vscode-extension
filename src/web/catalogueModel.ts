@@ -192,6 +192,38 @@ export class WebIndex {
     ];
   }
 
+  /** Threats, objectives and rules, each in its group (Group By: Type). */
+  byType(): WebNode[] {
+    const groups: [Family, string][] = [
+      ["threat", "Threats"],
+      ["objective", "Objectives"],
+      ["rule", "Rules"],
+      ["other", "Other objects"],
+    ];
+    return groups.flatMap(([family, label]) => {
+      const objects = this.objects.filter((object) => familyOf(object) === family);
+      if (objects.length === 0) return [];
+      return [
+        {
+          id: `type/${family}`,
+          label,
+          description: String(objects.length),
+          family,
+          children: objects.map((object) => ({
+            id: `type/${family}/${object.uuid}`,
+            label: object.name || object.uuid,
+            tooltip: `${object.object_type} · ${object.schema} · ${object.uuid}`,
+            family,
+            uri: object.uri,
+            line: object.range.start.line,
+            uuid: object.uuid,
+            children: [],
+          })),
+        },
+      ];
+    });
+  }
+
   /** Find Detection: objects whose name, UUID or file contains every word of `query`, ignoring case. */
   search(query: string): ServerObject[] {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -241,4 +273,47 @@ export function uniqueObjects(catalog: ServerCatalog): ServerObject[] {
   }
   for (const [key, object] of listed) if (!owned.has(key)) owned.set(key, object);
   return [...owned.values()];
+}
+
+/**
+ * The nodes whose label or UUID contains every word of `filter` (ignoring case), with their ancestors,
+ * and every child of a match: the Catalogue's Filter.
+ */
+export function filterNodes(nodes: readonly WebNode[], filter: string | undefined): WebNode[] {
+  const words = (filter ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...nodes];
+  const matches = (node: WebNode) => {
+    const text = `${node.label}\n${node.uuid ?? ""}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  };
+  return nodes.flatMap((node): WebNode[] => {
+    if (matches(node)) return [node];
+    const children = filterNodes(node.children, filter);
+    return children.length > 0 ? [{ ...node, children }] : [];
+  });
+}
+
+/** The object a view item's menu command is about: its UUID and file, if the item is an object's. */
+export function objectOf(arg: unknown): { uuid?: string; uri: string; line: number } | undefined {
+  const value = arg as
+    | {
+        uri?: unknown;
+        line?: unknown;
+        uuid?: unknown;
+        relation?: { uri?: unknown; line?: unknown; uuid?: unknown };
+      }
+    | { object?: { uri?: unknown; uuid?: unknown; range?: { start?: { line?: unknown } } } }
+    | null
+    | undefined;
+  if (!value || typeof value !== "object") return undefined;
+  const pick = (uri: unknown, line: unknown, uuid: unknown) =>
+    typeof uri === "string"
+      ? { uri, line: typeof line === "number" ? line : 0, ...(typeof uuid === "string" ? { uuid } : {}) }
+      : undefined;
+  if ("relation" in value && value.relation)
+    return pick(value.relation.uri, value.relation.line, value.relation.uuid);
+  if ("object" in value && value.object)
+    return pick(value.object.uri, value.object.range?.start?.line, value.object.uuid);
+  if ("uri" in value) return pick(value.uri, value.line, value.uuid);
+  return undefined;
 }
