@@ -187,6 +187,7 @@ export class EngineSession implements vscode.Disposable {
       await client.start();
     } catch (error) {
       this.output.error(`engine: did not start: ${error instanceof Error ? error.message : String(error)}`);
+      await client.dispose().catch(() => undefined);
       this.port?.terminate();
       this.port = undefined;
       this.fire();
