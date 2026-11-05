@@ -50,7 +50,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In Restricted Mode only the language server runs, from the bundled runtime. Commands, tasks, panels, MCP and the workspace's own opentide need a trusted folder.",
+      "description": "In Restricted Mode only the language server runs, from the bundled runtime or, without one, the opentide engine (WASM). Commands, tasks, panels, MCP and the workspace's own opentide need a trusted folder.",
       "restrictedConfigurations": [
         "opentide.path",
         "opentide.interpreter",

@@ -247,3 +247,12 @@ describe("README settings table", () => {
     assert.match(readFileSync(join(root, "README.md"), "utf8"), /^### Web and virtual workspaces$/m);
   });
 });
+
+describe("manifest: Restricted Mode", () => {
+  it("says which language server runs untrusted: the bundled runtime's, or else the engine's", () => {
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    const text = pkg.capabilities.untrustedWorkspaces.description;
+    assert.match(text, /bundled runtime/);
+    assert.match(text, /opentide engine \(WASM\)/);
+  });
+});
