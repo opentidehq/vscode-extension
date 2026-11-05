@@ -316,11 +316,18 @@ opentide, it says so and offers the pinned version.
 
 ### Web and virtual workspaces
 
-In vscode.dev, github.dev and virtual workspaces (Remote Repositories), the extension highlights Tide
-YAML, opentide configuration and every query language, with comments, brackets and your workspace's
-snippet files. There is no opentide there: checks, commands, panels and MCP need a local folder in VS
-Code Desktop, and the status item says so. Diagnostics in the browser come later, from the language
-server built for WebAssembly.
+On vscode.dev, github.dev and in virtual workspaces (Remote Repositories), the extension runs the
+opentide engine (WASM), the language server built for WebAssembly, in the browser: nothing to install.
+You get the editor features: diagnostics, hover, completion, semantic tokens, quick fixes, go to
+definition, references and the outline. You also get the **Catalogue**, **Relations** and **Find
+Detection** from the engine's index of the repository's `objects/` and paths.toml object folders. The
+status bar reads **opentide engine (WASM): editor features only**.
+
+What runs opentide stays in VS Code Desktop: validate and lint, new objects, coverage, platforms,
+health, the graph, the ATT&CK matrix, queries, deploy previews, setup, tasks and MCP. Each of those
+commands says so, with **Open in VS Code Desktop** where the browser can continue there. The engine
+checks the files you open. Files you have not opened are indexed, so their references resolve, but
+are not checked.
 
 ## Runtime
 

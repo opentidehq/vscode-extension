@@ -26,6 +26,7 @@ import {
   checkInitialize,
   checkInterpreterPlatform,
   checkVersion,
+  checkWebEntry,
   FrameReader,
   frame,
   median,
@@ -283,6 +284,31 @@ describe("smoke: checks", () => {
     );
     assert.equal(checkDoctor("Traceback").length, 1);
     assert.equal(checkDoctor(doc([])).length, 1);
+  });
+
+  it("every package carries the web extension: browser, the engine's Web Worker and the module", () => {
+    const pkg = {
+      browser: "./dist/web/extension.js",
+      capabilities: { virtualWorkspaces: { supported: "limited" } },
+    };
+    const files = new Set([
+      "dist/web/extension.js",
+      "dist/web/engine-worker.js",
+      "dist/engine/opentide_wasm_bg.wasm",
+    ]);
+    assert.deepEqual(
+      checkWebEntry(pkg, (file) => files.has(file)),
+      [],
+    );
+    assert.deepEqual(
+      checkWebEntry({}, () => false),
+      [
+        "package.json has no browser entry",
+        "the package has no dist/web/engine-worker.js",
+        "the package has no dist/engine/opentide_wasm_bg.wasm",
+      ],
+    );
+    assert.match(checkWebEntry(pkg, (file) => file !== "dist/web/extension.js")[0], /lacks/);
   });
 
   it("the engine (WASM) worker must answer as opentide-lsp at engine.json's version, with no host", () => {

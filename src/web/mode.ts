@@ -1,15 +1,41 @@
-// Grammar-only mode: what the extension offers where no opentide can run (vscode.dev, github.dev, and
-// desktop virtual workspaces). vscode-free, and free of Node built-ins: the web bundle imports it.
+// Web mode: what the extension offers where no opentide can run (vscode.dev, github.dev, and desktop
+// virtual workspaces): the engine (WASM)'s editor features, and an explanation for every command that
+// needs opentide. vscode-free, and free of Node built-ins: the web bundle imports it.
 
 /** Where the README explains what works in the browser. */
 export const WEB_DOCS_URL = "https://github.com/opentidehq/vscode-extension#web-and-virtual-workspaces";
 
 export const STATUS = {
   name: "opentide",
-  text: "Highlighting only",
-  detail: "No opentide runtime here: checks, commands and panels need a local folder in VS Code Desktop",
+  detail: "Commands, validate, deploy and query need opentide in VS Code Desktop",
+  tooltip:
+    "The language server built for WebAssembly runs here: checks, hover, completion, the Catalogue, Relations and Find Detection. Commands, validate and lint, deploy, query and the panels need opentide in VS Code Desktop",
   learnMore: "Learn More",
+  openInDesktop: "Open in VS Code Desktop",
 } as const;
+
+/** The commands web mode implements itself; every other contributed command explains why it cannot run. */
+export const WEB_COMMANDS: ReadonlySet<string> = new Set([
+  "opentide.search.open",
+  "opentide.relations.show",
+  "opentide.sidebar.refreshCatalogue",
+  "opentide.restartServer",
+  "opentide.showOutput",
+  "opentide.showReferences",
+  "opentide.installOpentide",
+  "opentide.relations.openToSide",
+  "opentide.sidebar.filter",
+  "opentide.sidebar.clearFilter",
+  "opentide.sidebar.groupBy",
+  "opentide.sidebar.copyUuid",
+  "opentide.sidebar.revealInExplorer",
+]);
+
+/**
+ * The commands that open the workspace in VS Code Desktop, as vscode.dev and github.dev name them: the
+ * first one the window has is offered ("Continue Working On…", whose choices include VS Code Desktop).
+ */
+export const CONTINUE_ON_DESKTOP = ["workbench.editSessions.actions.continueEditSession"] as const;
 
 interface Contributions {
   contributes?: {
@@ -49,7 +75,7 @@ export function contributedCommands(packageJSON: unknown): ContributedCommand[] 
 
 /** What a command says when it runs where opentide cannot. */
 export function unavailableMessage(title: string): string {
-  return `${title} needs opentide, which cannot run in the browser or a virtual workspace. Open a local folder in VS Code Desktop to use it.`;
+  return `${title} needs opentide, which runs in VS Code Desktop on a local folder. Here the opentide engine (WASM) gives the editor features only.`;
 }
 
 /**
@@ -59,4 +85,20 @@ export function unavailableMessage(title: string): string {
  */
 export function isVirtualOnly(schemes: readonly string[]): boolean {
   return schemes.length > 0 && !schemes.includes("file");
+}
+
+/**
+ * The language status of web mode: the engine runs; or it does not (a trap ended its worker, or it did
+ * not start), a warning with Restart. Before any opentide folder is found, nothing to warn about.
+ */
+export function engineStatus(
+  running: boolean,
+  hasWorkspace: boolean,
+): { severity: "information" | "warning"; detail: string; restart: boolean } {
+  if (running || !hasWorkspace) return { severity: "information", detail: STATUS.detail, restart: false };
+  return {
+    severity: "warning",
+    detail: "The opentide engine is not running: Restart, or see the output",
+    restart: true,
+  };
 }

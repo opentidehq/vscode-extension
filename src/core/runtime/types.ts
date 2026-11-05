@@ -1,4 +1,5 @@
 // The resolved opentide runtime. vscode-free.
+import { ENGINE_LABEL } from "../../engine/protocol";
 
 /** Where the runtime came from. The tier is the order of SPEC §4. */
 export type RuntimeSource =
@@ -69,9 +70,7 @@ export function isEditorOnly(runtime: Runtime | undefined): boolean {
   return runtime !== undefined && runtime.kind !== "opentide";
 }
 
-/** The status bar's and language status item's words for the engine tier. */
-export const ENGINE_LABEL = "opentide engine (WASM)";
-export const ENGINE_STATUS = `${ENGINE_LABEL}: editor features only`;
+export { ENGINE_LABEL, ENGINE_STATUS } from "../../engine/protocol";
 
 /** `{command, args}` that start the language server on stdio (not the engine, which runs in a worker). */
 export function languageServerCommand(runtime: Runtime): { command: string; args: string[] } {

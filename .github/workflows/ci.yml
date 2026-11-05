@@ -25,6 +25,8 @@ concurrency:
 env:
   NODE_VERSION: "22"
   PYTHON_VERSION: "3.13"
+  # @vscode/test-web's Chromium: only the web job downloads it.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
 jobs:
   check:
@@ -191,6 +193,25 @@ jobs:
             echo "::endgroup::"
           done
 
+  web:
+    name: VS Code for the Web (Chromium)
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # npm ci installs @vscode/test-web's Playwright Chromium here.
+      - run: npm ci
+      # The engine (WASM) in a Web Worker, on test/fixtures/workspace mounted as a virtual folder.
+      - name: Browser tests
+        run: npm run test:web
+
   package:
     name: Packages (universal, linux-x64)
     runs-on: ubuntu-latest
@@ -211,6 +232,9 @@ jobs:
           enable-cache: false
       - name: Universal package
         run: npm run package -- --universal
+      # The engine (WASM) answers from it, and it carries the web extension.
+      - name: Universal package smoke test
+        run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
       # The per-platform package exists only for a target pins.json gives a runtime.
       - name: linux-x64 package and smoke test
         run: |

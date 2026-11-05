@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import type { Message } from "vscode-jsonrpc";
+import { exitNotice } from "../../../src/engine/host";
 import { engineTransports, parseMessage } from "../../../src/engine/transport";
 import { fakeEnginePort } from "./fakes";
 
@@ -51,6 +52,22 @@ describe("engine transport (src/engine/transport.ts)", () => {
     assert.equal(readerClosed, 1);
     assert.equal(writerClosed, 1);
     await assert.rejects(writer.write({ jsonrpc: "2.0" } as Message), /exited/);
+  });
+
+  it("ends at the worker's exit notice, which a Web Worker that closes itself needs (no exit event)", () => {
+    const fake = fakeEnginePort();
+    const { reader } = engineTransports(fake.port);
+    const got: Message[] = [];
+    let closed = 0;
+    reader.onClose(() => {
+      closed += 1;
+    });
+    reader.listen((message) => got.push(message));
+    fake.message(exitNotice("the opentide engine stopped: RuntimeError: unreachable"));
+    assert.equal(closed, 1);
+    assert.deepEqual(got, [], "not a JSON-RPC message");
+    fake.exit();
+    assert.equal(closed, 1, "closed once, though the Node worker's exit event follows");
   });
 
   it("lets go of the port when disposed", () => {

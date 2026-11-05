@@ -44,6 +44,25 @@ export function requestId(text: string): string | number | undefined {
   }
 }
 
+/**
+ * The worker's last message before it closes, which is not JSON-RPC: a Web Worker that closes itself
+ * fires no event in the page, so the client's reader takes this for the channel's end.
+ */
+export function exitNotice(reason: string): string {
+  return JSON.stringify({ opentideEngine: { exited: reason } });
+}
+
+/** The reason of an exit notice, if `data` is one. */
+export function exitReasonOf(data: unknown): string | undefined {
+  try {
+    const value: unknown = typeof data === "string" ? JSON.parse(data) : data;
+    const exited = (value as { opentideEngine?: { exited?: unknown } } | null)?.opentideEngine?.exited;
+    return typeof exited === "string" ? exited : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** `window/showMessage` (type 1 error) as JSON text. */
 export function showMessage(type: 1, message: string): string {
   return JSON.stringify({ jsonrpc: "2.0", method: "window/showMessage", params: { type, message } });
@@ -96,6 +115,7 @@ export function serveEngine(
       );
       refuse(text);
       session = undefined;
+      port.postMessage(exitNotice(failure));
       port.close();
       finished();
       return;
@@ -105,6 +125,7 @@ export function serveEngine(
       session.free?.();
       session = undefined;
       failure = "the opentide engine has exited";
+      port.postMessage(exitNotice(failure));
       port.close();
       finished();
     }

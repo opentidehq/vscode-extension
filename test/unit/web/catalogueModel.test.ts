@@ -1,0 +1,163 @@
+import * as assert from "node:assert/strict";
+import type { ServerObject } from "../../../src/engine/catalog";
+import {
+  filterNodes,
+  objectOf,
+  sameUri,
+  uniqueObjects,
+  WebIndex,
+  type WebNode,
+} from "../../../src/web/catalogueModel";
+import { serverObjects } from "../catalog/serverFixture";
+
+const labels = (nodes: readonly WebNode[]): unknown[] =>
+  nodes.map((node) => (node.children.length > 0 ? [node.label, labels(node.children)] : node.label));
+
+describe("web catalogue (src/web/catalogueModel.ts)", () => {
+  it("nests threats → objectives → rules by their references, and groups the rest", () => {
+    const index = new WebIndex(serverObjects());
+    const tree = index.catalogue();
+    assert.deepEqual(labels(tree), [
+      [
+        "Credential Dumping",
+        [["Detect LSASS access", ["LSASS dump via comsvcs", "Suspicious LSASS Access"]]],
+      ],
+      "Lateral Movement",
+      ["Rules without an objective", ["Dangling rule"]],
+    ]);
+    const objective = tree[0]?.children[0];
+    assert.equal(objective?.description, "2 rules");
+    assert.equal(objective?.uri, "file:///w/objects/objectives/o1.yaml");
+    assert.equal(objective?.family, "objective");
+    assert.equal(tree[1]?.description, "no objective");
+  });
+
+  it("lists an object's relations both ways, signals as their objective", () => {
+    const index = new WebIndex(serverObjects());
+    const of = (uuid: string) =>
+      index.relations(uuid).map((r) => [r.direction, r.kind, r.name, r.missing ? "missing" : r.family]);
+    assert.deepEqual(of("o1"), [
+      ["out", "covers", "Credential Dumping", "threat"],
+      ["in", "implements", "Suspicious LSASS Access", "rule"],
+      // Through its signal: a rule whose detection_model names one of the objective's signals.
+      ["in", "implements", "LSASS dump via comsvcs", "rule"],
+    ]);
+    assert.deepEqual(of("r2"), [["out", "implements", "Detect LSASS access", "objective"]]);
+    assert.deepEqual(of("t1"), [
+      ["out", "chains", "Lateral Movement", "threat"],
+      ["in", "covers", "Detect LSASS access", "objective"],
+    ]);
+    assert.deepEqual(of("r3"), [["out", "implements", "gone", "missing"]]);
+  });
+
+  it("finds objects by every word of a query, and the object of a file", () => {
+    const index = new WebIndex(serverObjects());
+    assert.deepEqual(
+      index.search("lsass").map((o) => o.uuid),
+      ["o1", "r2", "r1"],
+    );
+    assert.deepEqual(
+      index.search("RULE dump").map((o) => o.uuid),
+      ["r2"],
+    );
+    assert.equal(index.objectAt("file:///w/objects/rules/r1.yaml")?.uuid, "r1");
+    assert.equal(index.objectAt("file:///w/objects/rules/nothing.yaml"), undefined);
+  });
+
+  it("keeps the URIs a virtual workspace has, and compares them whatever their encoding", () => {
+    const vfs: ServerObject = {
+      ...(serverObjects()[0] as ServerObject),
+      uri: "vscode-vfs://github/org/repo/objects/threats/t%201.yaml",
+    };
+    const index = new WebIndex([vfs]);
+    assert.equal(index.catalogue()[0]?.uri, vfs.uri);
+    assert.equal(index.objectAt("vscode-vfs://github/org/repo/objects/threats/t 1.yaml")?.uuid, vfs.uuid);
+    assert.equal(sameUri("file:///w/x.yaml", "file:///w/x.yaml/"), true);
+    assert.equal(sameUri("file:///w/x.yaml", "file:///w/y.yaml"), false);
+  });
+});
+
+describe("web catalogue with several folders (multi-root)", () => {
+  const a = serverObjects().map((o) => ({ ...o, uri: o.uri.replace("file:///w/", "file:///a/") }));
+  const b = [
+    { ...(serverObjects()[0] as ServerObject), uuid: "tb", uri: "file:///b/objects/threats/tb.yaml" },
+  ];
+  // 0.10.0 lists every supplied file under every root.
+  const catalog = {
+    roots: [
+      { root: "file:///a", objects: [...a, ...b] },
+      { root: "file:///b", objects: [...a, ...b] },
+    ],
+  };
+
+  it("keeps each object once, from the root that holds it", () => {
+    const objects = uniqueObjects(catalog);
+    assert.equal(objects.length, a.length + b.length);
+    assert.equal(new Set(objects.map((o) => o.uri)).size, objects.length);
+    const index = new WebIndex(objects);
+    const ids = (nodes: readonly WebNode[]): string[] => nodes.flatMap((n) => [n.id, ...ids(n.children)]);
+    const all = ids(index.catalogue());
+    assert.equal(new Set(all).size, all.length, "tree item ids are unique");
+    assert.equal(index.search("Credential Dumping").length, 2, "a's threat and b's, once each");
+    assert.equal(
+      index.relations("o1").filter((r) => r.direction === "in").length,
+      2,
+      "relations count each rule once",
+    );
+  });
+
+  it("keeps an object no root holds once too (the documents outside every root)", () => {
+    const loose = { ...(serverObjects()[0] as ServerObject), uuid: "x", uri: "untitled:x.yaml" };
+    const objects = uniqueObjects({
+      roots: [
+        { root: "file:///a", objects: [loose] },
+        { root: null, objects: [loose] },
+      ],
+    });
+    assert.deepEqual(
+      objects.map((o) => o.uuid),
+      ["x"],
+    );
+  });
+});
+
+describe("web Catalogue: Group By, Filter and the item menus", () => {
+  const index = new WebIndex(serverObjects());
+
+  it("groups by type", () => {
+    assert.deepEqual(labels(index.byType()), [
+      ["Threats", ["Credential Dumping", "Lateral Movement"]],
+      ["Objectives", ["Detect LSASS access"]],
+      ["Rules", ["Dangling rule", "LSASS dump via comsvcs", "Suspicious LSASS Access"]],
+    ]);
+  });
+
+  it("filters by name or UUID, keeping a match's ancestors and children", () => {
+    assert.deepEqual(labels(filterNodes(index.catalogue(), "comsvcs")), [
+      ["Credential Dumping", [["Detect LSASS access", ["LSASS dump via comsvcs"]]]],
+    ]);
+    assert.deepEqual(labels(filterNodes(index.catalogue(), "o1")), [
+      [
+        "Credential Dumping",
+        [["Detect LSASS access", ["LSASS dump via comsvcs", "Suspicious LSASS Access"]]],
+      ],
+    ]);
+    assert.deepEqual(filterNodes(index.catalogue(), "nothing like it"), []);
+    assert.equal(filterNodes(index.catalogue(), "  ").length, index.catalogue().length);
+  });
+
+  it("finds the object of a Catalogue node, a Relations object row and a relation row", () => {
+    const node = index.catalogue()[0];
+    assert.deepEqual(objectOf(node), { uri: "file:///w/objects/threats/t1.yaml", line: 0, uuid: "t1" });
+    const object = serverObjects()[2] as ServerObject;
+    assert.deepEqual(objectOf({ kind: "object", object }), { uri: object.uri, line: 0, uuid: "o1" });
+    const relation = index.relations("o1")[0];
+    assert.deepEqual(objectOf({ kind: "relation", relation }), {
+      uri: "file:///w/objects/threats/t1.yaml",
+      line: 0,
+      uuid: "t1",
+    });
+    assert.equal(objectOf({ kind: "heading", label: "x", rows: [] }), undefined);
+    assert.equal(objectOf(undefined), undefined);
+  });
+});

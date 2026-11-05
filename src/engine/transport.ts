@@ -11,6 +11,7 @@ import {
   type MessageReader,
   type MessageWriter,
 } from "vscode-jsonrpc";
+import { exitReasonOf } from "./host";
 
 /** The client's end of the channel to the engine worker. */
 export interface EnginePort {
@@ -43,6 +44,10 @@ export class PortMessageReader extends AbstractMessageReader implements MessageR
     super();
     this.subscriptions = [
       port.onMessage((data) => {
+        if (exitReasonOf(data) !== undefined) {
+          this.close();
+          return;
+        }
         let message: Message;
         try {
           message = parseMessage(data);
@@ -54,8 +59,17 @@ export class PortMessageReader extends AbstractMessageReader implements MessageR
         else this.queue.push(message);
       }),
       port.onError((error) => this.fireError(error)),
-      port.onExit(() => this.fireClose()),
+      port.onExit(() => this.close()),
     ];
+  }
+
+  private closed = false;
+
+  /** The channel ended: the worker exited, or said it is about to. Once. */
+  private close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.fireClose();
   }
 
   listen(callback: DataCallback): Disposable {

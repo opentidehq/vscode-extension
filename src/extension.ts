@@ -1,12 +1,16 @@
 // Entry point: the core, then every feature in src/features/ (index.generated.ts), each isolated so one
-// failing feature never stops the others. A virtual workspace (no folder on disk) gets the web entry's
-// grammar-only mode instead: opentide reads the workspace from disk.
+// failing feature never stops the others. A virtual workspace (no folder on disk) gets the web mode
+// instead, as in the browser: opentide reads the workspace from disk, the engine (WASM) through VS Code,
+// here in a worker thread.
+import * as path from "node:path";
 import * as vscode from "vscode";
+import { LanguageClient } from "vscode-languageclient/node";
 import type { FeatureContext } from "./core/context";
 import { createCore } from "./core/core";
 import { activateFeatures } from "./core/featureHost";
+import { startEngineWorker } from "./core/services/engine";
 import { features } from "./features/index.generated";
-import { activate as activateGrammarOnly } from "./web/extension";
+import { activateWeb } from "./web/activate";
 import { isVirtualOnly } from "./web/mode";
 
 export interface ExtensionApi {
@@ -18,7 +22,12 @@ export interface ExtensionApi {
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionApi> {
   if (isVirtualOnly((vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.scheme))) {
-    activateGrammarOnly(context);
+    const module = path.join(context.extensionPath, "dist", "engine", "opentide_wasm_bg.wasm");
+    activateWeb(context, {
+      startEngine: () => startEngineWorker(module),
+      createClient: (serverOptions, clientOptions) =>
+        new LanguageClient("opentide", "opentide Language Server", serverOptions, clientOptions),
+    });
     return { started: Promise.resolve() };
   }
   const core = createCore(context);

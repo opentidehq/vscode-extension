@@ -113,6 +113,24 @@ export function checkEngineInitialize(response, version, exitCode) {
 }
 
 /**
+ * The web extension in an unpacked package: package.json's `browser` entry, the engine's Web Worker and
+ * the module it fetches (`exists` takes a path relative to the extension folder). Without `browser`, the
+ * Marketplace does not offer the package on the web.
+ */
+export function checkWebEntry(pkg, exists) {
+  const errors = [];
+  if (typeof pkg.browser !== "string") errors.push("package.json has no browser entry");
+  else if (!exists(pkg.browser.replace(/^\.\//, "")))
+    errors.push(`package.json browser names ${pkg.browser}, which the package lacks`);
+  for (const file of ["dist/web/engine-worker.js", "dist/engine/opentide_wasm_bg.wasm"]) {
+    if (!exists(file)) errors.push(`the package has no ${file}`);
+  }
+  if (pkg.capabilities?.virtualWorkspaces?.supported === false)
+    errors.push("package.json says it does not support virtual workspaces");
+  return errors;
+}
+
+/**
  * The interpreter is of its runtime's architecture: `sysconfig.get_platform()` (`win-amd64`,
  * `linux-aarch64`, `macosx-11.0-arm64`) against the CPU of BUILD-INFO's `runtime` (else `target`).
  * An emulated target's interpreter is its runtime's, not the machine's: win32-arm64 runs `win-amd64`.

@@ -4,8 +4,7 @@ import { ENGINE_LABEL, type Runtime } from "./runtime/types";
 
 export type UnavailableCode = "no-runtime" | "untrusted" | "editor-only";
 
-/** Where installing opentide is explained. */
-export const INSTALL_URL = "https://opentide.org/docs/usage/installation/";
+export { INSTALL_URL } from "../engine/protocol";
 export const INSTALL_ACTION = "Install opentide";
 export const SWITCH_ACTION = "Switch Runtime…";
 

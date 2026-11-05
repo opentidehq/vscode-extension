@@ -9,6 +9,7 @@ import {
   isFolderEvent,
   isSuppliedPath,
   objectGlob,
+  objectRoots,
   type SuppliedWorkspace,
   VISIBILITY,
   type WorkspaceDelta,
@@ -69,6 +70,29 @@ async function readText(uri: vscode.Uri): Promise<string | undefined> {
   }
 }
 
+/** The YAML files under a folder's object roots, read with `readDirectory` (no search provider needed). */
+export async function walkObjectFiles(folder: FeedFolder, limit = MAX_FILES + 1): Promise<vscode.Uri[]> {
+  const found: vscode.Uri[] = [];
+  const walk = async (dir: vscode.Uri, depth: number): Promise<void> => {
+    if (found.length >= limit || depth > 16) return;
+    let entries: [string, vscode.FileType][];
+    try {
+      entries = await vscode.workspace.fs.readDirectory(dir);
+    } catch {
+      return;
+    }
+    for (const [name, type] of entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+      const uri = vscode.Uri.joinPath(dir, name);
+      if (type & vscode.FileType.Directory) {
+        if (!(type & vscode.FileType.SymbolicLink)) await walk(uri, depth + 1);
+      } else if (/\.ya?ml$/i.test(name) && found.length < limit) found.push(uri);
+    }
+  };
+  for (const root of objectRoots(folder.objectFolders))
+    await walk(vscode.Uri.joinPath(folder.uri, ...root.split("/").filter(Boolean)), 0);
+  return found;
+}
+
 export class WorkspaceFeed {
   private mirror: WorkspaceMirror | undefined;
 
@@ -94,11 +118,18 @@ export class WorkspaceFeed {
     const folders = this.folders();
     const uris: vscode.Uri[] = [];
     for (const folder of folders) {
-      const found = await vscode.workspace.findFiles(
-        new vscode.RelativePattern(folder.uri, objectGlob(folder.objectFolders)),
-        undefined,
-        MAX_FILES + 1,
-      );
+      let found: readonly vscode.Uri[] = [];
+      try {
+        found = await vscode.workspace.findFiles(
+          new vscode.RelativePattern(folder.uri, objectGlob(folder.objectFolders)),
+          undefined,
+          MAX_FILES + 1,
+        );
+      } catch (error) {
+        this.log(`engine: findFiles in ${folder.uri.toString()}: ${String(error)}`);
+      }
+      // A file system with no search provider (some virtual ones) finds nothing: walk the folders.
+      if (found.length === 0) found = await walkObjectFiles(folder);
       uris.push(...found);
     }
     const byString = new Map(uris.map((uri) => [uri.toString(), uri]));
