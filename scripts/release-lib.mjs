@@ -318,7 +318,8 @@ const mb = (bytes) => `${(bytes / MB).toFixed(1)} MB`;
 
 /**
  * A job-summary table of package sizes from the `<name>.size.json` reports (`[{ name, report }]`,
- * report `{ bytes, largestDirs: [{ path, bytes }] }`) against the budget and target in pins.json.
+ * report `{ bytes, largest: [{ path, bytes }] }`, as package-lib's `sizeReport` writes it) against
+ * the budget and target in pins.json.
  */
 export function sizeSummary(reports, { budgetBytes, targetBytes }) {
   const lines = [
@@ -332,7 +333,7 @@ export function sizeSummary(reports, { budgetBytes, targetBytes }) {
   for (const { name, report } of [...reports].sort((a, b) => (a.name < b.name ? -1 : 1))) {
     const verdict =
       report.bytes > budgetBytes ? "over budget" : report.bytes > targetBytes ? "over target" : "ok";
-    const dirs = (report.largestDirs ?? [])
+    const dirs = (report.largest ?? [])
       .slice(0, 5)
       .map((dir) => `\`${dir.path}\` ${mb(dir.bytes)}`)
       .join(", ");
