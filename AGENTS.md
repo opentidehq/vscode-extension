@@ -47,7 +47,8 @@ npm run package -- --universal               # universal VSIX in dist-vsix/
   `ctx.capabilities.hasCommand` / `hasOption`, never with version numbers.
 - The UI never writes workspace files itself (SPEC D3). Nothing deploys for real (D6).
 - Logic goes in vscode-free modules with unit tests; `index.ts` is glue. Every fix has a regression
-  test; every user-visible change has a `## [Unreleased]` bullet in CHANGELOG.md.
+  test; every user-visible change has a `## [Unreleased]` bullet in CHANGELOG.md, written as
+  [`.agents/skills/release-notes/SKILL.md`](.agents/skills/release-notes/SKILL.md) says.
 - TypeScript strict, no `any`, no `console.log`, no non-null assertions. No telemetry.
 - npm only; commit `package-lock.json`. Pin exact dependency versions.
 - Commits: Conventional Commits (`feat`, `fix`, `refactor`, `docs`, `chore`, `test`, `ci`, `build`).

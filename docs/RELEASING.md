@@ -130,8 +130,10 @@ A `docs:` (or `chore:`) PR to `main`, alone:
    - The opening paragraph and the lists below it become the GitHub Release notes, unwrapped, with
      relative links pointed at the tag, followed by install and verify instructions
      (`node scripts/release.mjs notes` prints them).
-   - The sections follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): `Added`,
-     `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+   - The sections are `Upgrade` and `Breaking`, then [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)'s
+     `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, in that order, each left out
+     when empty. How to write the summary and the entries:
+     [`.agents/skills/release-notes/SKILL.md`](../.agents/skills/release-notes/SKILL.md).
    - Version link definitions at the bottom (`[0.3.0]: …`) are optional and left out of the notes.
 2. **`package.json`:** `"version": "0.3.0"`, and the same in `package-lock.json`
    (`npm version 0.3.0 --no-git-tag-version`).
