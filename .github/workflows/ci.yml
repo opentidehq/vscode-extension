@@ -85,7 +85,8 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p 'require("./pins.json").opentide.version')"
-          python -m pip install "opentide==${version}"
+          # typer 0.29.0 removed modules opentide <= 0.24.0 imports; opentide's next release caps it (opentidehq/opentide cfe3c18).
+          python -m pip install "opentide==${version}" "typer<0.29"
           echo "OPENTIDE_TEST_BIN=$(python -c 'import shutil; print(shutil.which("opentide"))')" >> "$GITHUB_ENV"
       - name: A workspace with an objective and a rule
         run: |
@@ -135,7 +136,7 @@ jobs:
           venv="${RUNNER_TEMP}/opentide-venv"
           python -m venv "${venv}"
           if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="${venv}/Scripts"; else bin="${venv}/bin"; fi
-          "${bin}/python" -m pip install "opentide==${version}"
+          "${bin}/python" -m pip install "opentide==${version}" "typer<0.29"
           echo "OPENTIDE_TEST_BIN=$("${bin}/python" -c 'import shutil, sys; print(shutil.which("opentide", path=sys.argv[1]))' "${bin}")" >> "$GITHUB_ENV"
       - name: The VS Code version
         env:
