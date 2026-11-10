@@ -14,7 +14,7 @@ import {
 
 const EXT = "/ext";
 const FOLDER = "/work/detections";
-const VENV_PYTHON = path.join(FOLDER, ".venv", "bin", "python");
+const VENV_PYTHON = path.posix.join(FOLDER, ".venv", "bin", "python");
 const BLOCKED: ProbeResult = {
   code: null,
   stdout: "",
@@ -101,7 +101,7 @@ describe("runtime resolution", () => {
   });
 
   it("falls through a failing tier 1 to the workspace's .venv", async () => {
-    const venv = path.join(FOLDER, ".venv", "bin", "opentide");
+    const venv = path.posix.join(FOLDER, ".venv", "bin", "opentide");
     const { value } = input(
       {},
       { path: () => "/missing/opentide" },
@@ -267,7 +267,7 @@ describe("runtime resolution", () => {
     });
 
     it("the .venv's python runs `-m opentide` when its opentide script is blocked", async () => {
-      const script = path.join(FOLDER, ".venv", "bin", "opentide");
+      const script = path.posix.join(FOLDER, ".venv", "bin", "opentide");
       const { value } = input(
         {},
         {},
@@ -500,7 +500,7 @@ describe("runtime resolution", () => {
   });
 
   it("opentide.interpreter replaces the Python extensions and .venv lookup", async () => {
-    const venv = path.join(FOLDER, ".venv", "bin", "opentide");
+    const venv = path.posix.join(FOLDER, ".venv", "bin", "opentide");
     const { value } = input(
       { pythonEnvironments: throwing("python") },
       { interpreter: () => ["$", "{workspaceFolder}/py/bin/python"].join("") },

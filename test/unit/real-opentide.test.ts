@@ -18,6 +18,13 @@ import { CancellationTokenSource } from "../../src/core/util/cancellation";
 import { sleep } from "./helpers";
 
 const BIN = process.env.OPENTIDE_TEST_BIN;
+
+/** Whether two paths name the same file: Windows paths ignore case. */
+function samePath(a: string, b: string): boolean {
+  const norm = (p: string) =>
+    process.platform === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p);
+  return norm(a) === norm(b);
+}
 const WORKSPACE = process.env.OPENTIDE_TEST_WORKSPACE;
 const available = Boolean(BIN && WORKSPACE && existsSync(BIN) && existsSync(WORKSPACE));
 
@@ -94,7 +101,7 @@ describe("real opentide (OPENTIDE_TEST_BIN)", function () {
       which: (name) => which(name, process.env.PATH, process.platform),
       // The script is blocked, as an application-control policy would: it fails to start.
       probe: (command, args, options) =>
-        path.resolve(command) === path.resolve(bin)
+        samePath(command, bin)
           ? Promise.resolve({ code: null, stdout: "", stderr: "", error: "spawn EPERM" })
           : probe(command, args, options),
       pythonEnvironments: async () => undefined,

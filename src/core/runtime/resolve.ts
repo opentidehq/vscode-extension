@@ -342,10 +342,11 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     }
     if (!interpreterSetting) {
       if (input.folder) {
+        // The paths of `platform`, as opentideForInterpreter builds the script's beside it.
         const venvPython =
           input.platform === "win32"
-            ? path.join(input.folder, ".venv", "Scripts", "python.exe")
-            : path.join(input.folder, ".venv", "bin", "python");
+            ? path.win32.join(input.folder, ".venv", "Scripts", "python.exe")
+            : path.posix.join(input.folder, ".venv", "bin", "python");
         if (input.exists(venvPython)) {
           for (const { command, args } of opentideForInterpreter(venvPython, input.platform, input.exists)) {
             const runtime = await check(
