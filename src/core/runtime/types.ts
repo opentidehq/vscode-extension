@@ -9,11 +9,11 @@ export type RuntimeSource =
   | "python-extension" // tier 2: the Python extension
   | "venv" // tier 2: <folder>/.venv
   | "path" // tier 2: opentide on PATH
+  | "python" // tier 2: python on PATH, `python -m opentide`
   | "uv" // tier 3: uv tool run --from opentide==<pin>
-  | "bundled" // tier 4: <extensionPath>/runtime
-  | "engine"; // tier 5: <extensionPath>/dist/engine, the language server built for WebAssembly
+  | "engine"; // tier 4: <extensionPath>/dist/engine, the language server built for WebAssembly
 
-export type RuntimeTier = 1 | 2 | 3 | 4 | 5;
+export type RuntimeTier = 1 | 2 | 3 | 4;
 
 export interface Runtime {
   readonly tier: RuntimeTier;
@@ -25,7 +25,7 @@ export interface Runtime {
   readonly kind: "opentide" | "opentide-lsp" | "engine";
   /** The executable to spawn; for `engine`, the WebAssembly module. */
   readonly command: string;
-  /** Arguments before opentide's own argv (`-I -m opentide` for the bundled interpreter). */
+  /** Arguments before opentide's own argv (`-m opentide` when opentide runs as a module). */
   readonly args: readonly string[];
   /** The opentide version, or the engine version for `opentide-lsp`. */
   readonly version: string;
@@ -33,9 +33,9 @@ export interface Runtime {
   readonly interpreter?: string;
   /** Extra environment for every process of this runtime (uv's proxy and certificates). */
   readonly env: Readonly<Record<string, string>>;
-  /** Restricted Mode: only the language server may run, with PATH limited to `binDirs`. */
+  /** Restricted Mode: no opentide process runs; only the engine (WASM) serves editor features. */
   readonly restricted: boolean;
-  /** The runtime's own executable folders (the bundled runtime's `bin`). */
+  /** The runtime's own executable folders. */
   readonly binDirs: readonly string[];
 }
 
@@ -92,8 +92,8 @@ export function describeRuntime(runtime: Runtime): string {
     "python-extension": "Python extension",
     venv: ".venv",
     path: "PATH",
+    python: "python -m opentide",
     uv: "uv (repository pin)",
-    bundled: "bundled runtime",
     engine: ENGINE_LABEL,
   };
   return `tier ${runtime.tier} · ${names[runtime.source]}`;

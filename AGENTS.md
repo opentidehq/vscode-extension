@@ -1,7 +1,8 @@
 # opentide for VS Code: agent guide
 
 The VS Code extension **`opentidehq.opentide`**: the opentide workbench (live checks, templates,
-catalogue, ATT&CK coverage, query results, deploy previews, MCP) with a bundled opentide runtime.
+catalogue, ATT&CK coverage, query results, deploy previews, MCP) on the user's own opentide (`opentide`, or
+`python -m opentide`), with the opentide engine (WASM) for editor features when none is installed.
 
 Read, in order:
 
@@ -21,12 +22,11 @@ npm run typecheck
 npm run lint             # Biome; `npm run format` fixes formatting
 npm test                 # unit + script tests, plain node, no VS Code
 npm run build
-npm run package -- --universal               # universal VSIX in dist-vsix/
+npm run package                              # the VSIX in dist-vsix/
 ```
 
-- Per-platform packages (bundled runtime, locks, size gate, SBOM, smoke test): [`docs/PACKAGING.md`](docs/PACKAGING.md).
-  `npm run runtime:lock -- --check`, `npm run runtime:build -- --target <t>`, `npm run package -- --target <t>`,
-  `npm run smoke -- <vsix>`. Bumping opentide or CPython is a `pins.json` change plus `npm run runtime:lock`.
+- One universal package, no bundled runtime (size gate, smoke test, pins): [`docs/PACKAGING.md`](docs/PACKAGING.md).
+  `npm run package`, `npm run smoke -- <vsix>`. Bumping the opentide CI tests against is `pins.json` `opentide.version`.
 
 - Integration tests (`npm run test:integration`, `npm run test:restricted`) download VS Code; they
   run in CI.

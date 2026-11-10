@@ -1,2 +1,0 @@
-# The bundled runtime's closure. Generated from pins.json by `npm run runtime:lock`; do not edit.
-opentide==0.22.0

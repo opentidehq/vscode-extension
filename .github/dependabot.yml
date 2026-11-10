@@ -1,7 +1,6 @@
 # Dependabot version updates. Every PR runs CI; merge green ones after reading the release notes.
 #
-# Not covered: the Alpine smoke-test image digest in scripts/release-lib.mjs (ALPINE_IMAGE); bump it by
-# hand. The bundled opentide (pins.json) is a release decision: docs/RELEASING.md.
+# Not covered: pins.json (the opentide CI tests against, the engine and grammars): docs/PACKAGING.md.
 version: 2
 updates:
   # Dependencies and the dev toolchain in package.json / package-lock.json (exact pins).

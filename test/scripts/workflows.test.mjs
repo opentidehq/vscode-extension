@@ -2,7 +2,6 @@ import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { RUNNERS } from "../../scripts/release-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (file) => readFileSync(join(root, file), "utf8");
@@ -22,69 +21,17 @@ const firstIndex = (text, pattern) => {
   return match ? match.index : -1;
 };
 
-describe("workflows: the bundled runtime", () => {
+describe("workflows: one universal package, no bundled runtime", () => {
   for (const file of WORKFLOWS) {
-    for (const [name, job] of jobs(read(file))) {
-      if (!/npm run (package|runtime:)/.test(job)) continue;
-      it(`${file} ${name}: a per-target package is built after the runtime, and uv is installed first`, () => {
-        const flagsTarget = /flags=\(--target /.test(job);
-        const packages = [...job.matchAll(/npm run package -- [^\n]*/g)].filter(
-          (match) => /--target/.test(match[0]) || (flagsTarget && /flags\[@\]/.test(match[0])),
-        );
-        const build = firstIndex(job, /npm run runtime:build -- --target/);
-        for (const pkg of packages) {
-          assert.ok(build >= 0 && build < pkg.index, `${name} packages a target without runtime:build first`);
-        }
-        const uv = firstIndex(job, /uses: astral-sh\/setup-uv@[0-9a-f]{40} # v/);
-        for (const use of job.matchAll(/npm run runtime:(lock|build)/g)) {
-          assert.ok(uv >= 0 && uv < use.index, `${name} runs runtime:${use[1]} before installing uv`);
-        }
-        if (uv >= 0) assert.match(job, /version: \$\{\{ env\.UV_VERSION \}\}/);
-      });
-    }
+    it(`${file} builds no runtime and no per-platform package`, () => {
+      const text = read(file);
+      assert.doesNotMatch(text, /runtime:(build|lock)|npm run package -- --target|setup-uv/);
+      assert.match(text, /npm run package -- (--universal|"\$\{flags\[@\]\}")/);
+      for (const [name, job] of jobs(text))
+        if (/npm run package/.test(job))
+          assert.match(job, /npm run smoke -- dist-vsix\/opentide-universal-/, name);
+    });
   }
-
-  it("pins.json names the uv the workflows install", () => {
-    assert.match(JSON.parse(read("pins.json")).uv.version, /^\d+\.\d+\.\d+$/);
-  });
-});
-
-describe("ci.yml: the Windows packages, win32-arm64 on Windows on Arm", () => {
-  const job = jobs(read(".github/workflows/ci.yml")).get("package-windows") ?? "";
-  const matrix = [...job.matchAll(/- target: (\S+)\n\s+os: (\S+)/g)].map(([, target, os]) => ({
-    target,
-    os,
-  }));
-
-  it("builds each Windows target on its release runner, win32-arm64 on windows-11-arm", () => {
-    assert.deepEqual(matrix, [
-      { target: "win32-x64", os: RUNNERS["win32-x64"].os },
-      { target: "win32-arm64", os: RUNNERS["win32-arm64"].os },
-    ]);
-    assert.equal(RUNNERS["win32-arm64"].os, "windows-11-arm");
-    // The arm runner builds the package whose runtime is win32-x64's (pins.json emulatedTargets).
-    assert.equal(JSON.parse(read("pins.json")).emulatedTargets["win32-arm64"].runtime, "win32-x64");
-  });
-
-  it("smoke-tests the package, then runs the unit, integration, bundled and Restricted Mode tests on it", () => {
-    const order = [
-      /npm run runtime:build -- --target "\$\{TARGET\}"/,
-      /npm run package -- --target "\$\{TARGET\}"/,
-      /npm run smoke -- "dist-vsix\/opentide-\$\{TARGET\}-/,
-      /OPENTIDE_TEST_BUNDLED="\$\(cygpath -w "\$\{PWD\}"\)" npm test/,
-      /npm run test:integration/,
-      /npm run test:bundled/,
-      /npm run test:restricted/,
-    ].map((pattern) => firstIndex(job, pattern));
-    assert.ok(
-      order.every((index) => index >= 0),
-      String(order),
-    );
-    assert.deepEqual(
-      [...order].sort((a, b) => a - b),
-      order,
-    );
-  });
 });
 
 describe("publish.yml: the release job can be re-run", () => {

@@ -278,7 +278,7 @@ describe("status text", () => {
 });
 
 describe("status item: the engine (WASM)", () => {
-  const engine = fakeRuntime({ tier: 5, source: "engine", kind: "engine", version: "0.10.0" });
+  const engine = fakeRuntime({ tier: 4, source: "engine", kind: "engine", version: "0.10.0" });
   const counts = { errors: 1, warnings: 0 };
 
   it("reads 'opentide engine (WASM): editor features only', and says there is no backend", () => {

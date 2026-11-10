@@ -118,9 +118,6 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     const result = await resolveRuntime({
       trusted,
       platform: process.platform,
-      arch: process.arch,
-      extensionPath: this.context.extensionPath,
-      globalStoragePath: this.context.globalStorageUri.fsPath,
       folder: folderPath,
       settings: runtimeSettings(folder?.uri),
       pin: this.repoPin,
@@ -143,16 +140,13 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     for (const attempt of result.attempts) {
       if (attempt.outcome === "too-old" || (attempt.outcome === "failed" && attempt.tier === 1))
         this.warn(attempt);
-      // A package's own runtime that does not start (Windows 10 on Arm: an x64 runtime it cannot run).
-      if (attempt.outcome === "failed" && attempt.tier === 4)
-        this.log.warn(`runtime: the bundled runtime did not start: ${attempt.detail}`);
       if (attempt.note) this.log.info(`runtime: ${attempt.note}`);
     }
     this.runtime = result.runtime;
     if (result.runtime?.kind === "engine") {
       this.log.warn(
         `runtime: ${ENGINE_LABEL} ${result.runtime.version}: editor features only. No opentide answered ` +
-          "(opentide.path, the workspace's environment, the bundled runtime): install opentide for commands, validate, deploy and query.",
+          "(opentide.path, the workspace's environment, python -m opentide): install opentide for commands, validate, deploy and query.",
       );
     } else if (result.runtime) {
       this.log.info(
@@ -161,7 +155,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       );
     } else {
       this.log.warn(
-        "runtime: none. Install opentide in the workspace, set opentide.path, or use a platform package.",
+        "runtime: none. Install opentide (pip install opentide) in the workspace's environment or set opentide.path.",
       );
     }
     await this.setContextKeys();

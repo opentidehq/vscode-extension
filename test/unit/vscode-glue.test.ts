@@ -25,14 +25,13 @@ describe("settings and trust", () => {
 
   it("reads no restricted setting in Restricted Mode", () => {
     stubState.trusted = false;
-    stubState.config = { "opentide.path": "/evil/opentide", "opentide.runtime": "auto" };
+    stubState.config = { "opentide.path": "/evil/opentide" };
     const settings = runtimeSettings(undefined);
     assert.equal(settings.path(), undefined);
     assert.equal(settings.interpreter(), undefined);
     assert.equal(settings.uvUsePin(), undefined);
     for (const key of RESTRICTED_SETTINGS) assert.equal(readSetting(key), undefined);
-    assert.equal(settings.runtime(), "auto");
-    assert.deepEqual(stubState.readKeys, ["opentide.runtime"], "only the unrestricted key was read");
+    assert.deepEqual(stubState.readKeys, [], "no restricted key was read");
   });
 
   it("reads them when trusted", () => {

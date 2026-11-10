@@ -148,7 +148,7 @@
           "type": "boolean",
           "default": true,
           "scope": "window",
-          "markdownDescription": "When the bundled runtime is active and no `opentide` is on `PATH`, put the bundled `opentide` on new integrated terminals' `PATH`. Ignored in Restricted Mode."
+          "markdownDescription": "When opentide runs as `python -m opentide` and no `opentide` is on `PATH`, put an `opentide` command that runs it on new integrated terminals' `PATH`. Ignored in Restricted Mode."
         }
       }
     }

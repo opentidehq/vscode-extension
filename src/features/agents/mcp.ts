@@ -17,8 +17,8 @@ import { parseJsonc } from "./jsonc";
 export const MCP_LABEL = "opentide";
 
 /**
- * The label when the workspace file whose `opentide` VS Code keeps cannot start (`opentide` with only the
- * bundled runtime): a label VS Code does not group with `opentide`, so the extension's server stays
+ * The label when the workspace file whose `opentide` VS Code keeps cannot start (`opentide` with opentide
+ * run as `python -m opentide`): a label VS Code does not group with `opentide`, so the extension's server stays
  * enabled beside the file's instead of being disabled in its favour.
  */
 export const MCP_SEPARATE_LABEL = "opentide (VS Code)";
@@ -236,7 +236,7 @@ export function expandEnvironment(value: string, env: (name: string) => string |
 /**
  * Whether VS Code can start a workspace entry's command: an absolute path that exists, a name on PATH,
  * or (in `.vscode/mcp.json`) one with `${…}` variables VS Code resolves itself. `setup mcp` writes
- * `opentide`, which a user with only the bundled runtime does not have. In the root `.mcp.json` only
+ * `opentide`, which a user who runs `python -m opentide` does not have. In the root `.mcp.json` only
  * environment references are expanded first, and in `.cursor/mcp.json` nothing is: a `${` left in the
  * command is spawned as written, so it counts only as an absolute path that exists.
  */

@@ -8,8 +8,7 @@ cross-repository interfaces are [`CONTRACTS.md`](CONTRACTS.md).
 ```text
 package.json            manifest; `contributes` and `activationEvents` are GENERATED (npm run manifest)
 contrib/                manifest fragments: core.json, grammars.json (generated), <feature>.json
-pins.json               bundled opentide, CPython, highlights and engine zips (+SHA-256), runtime targets and archives, VSIX size budget
-runtime/                requirements.in and locks/<target>.txt (committed); the built runtime (not committed), see PACKAGING.md
+pins.json               the opentide CI tests against, highlights and engine zips (+SHA-256), VSIX size budget (PACKAGING.md)
 src/extension.ts        activate(): the core, then every feature (a virtual workspace gets src/web/ instead)
 src/web/                web mode (vscode.dev, github.dev, virtual workspaces): the engine, its views; no Node built-ins
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts
@@ -21,8 +20,8 @@ webview/<name>/main.ts  a webview entry, bundled to dist/webview/<name>.js
 webview/shared/         base.css (theme variables) and channel.ts (the webview end of the message channel)
 syntaxes/               TextMate grammars, copied by scripts/grammars.mjs (never hand-written)
 language-configuration/ comment tokens, brackets and pairs per language (hand-written)
-scripts/                manifest.mjs, features-index.mjs, grammars.mjs, engine-lib.mjs, build.mjs, release.mjs, runtime-lock.mjs,
-                        runtime-build.mjs, package.mjs, smoke.mjs (+ *-lib.mjs, tested)
+scripts/                manifest.mjs, features-index.mjs, grammars.mjs, engine-lib.mjs, build.mjs, release.mjs,
+                        package.mjs, smoke.mjs (+ *-lib.mjs, tested)
 .github/workflows/      ci.yml (every PR and push to main), publish.yml (releases: docs/RELEASING.md)
 test/unit/              mocha in plain node (npm test); test/stubs/vscode.ts stands in for `vscode`
 test/scripts/           tests of scripts/*.mjs
@@ -130,7 +129,7 @@ backend already logs every run (command line with secrets redacted, folder, dura
 
 | Member | |
 |--------|-|
-| `current: Runtime \| undefined` | The resolved runtime (`src/core/runtime/types.ts`): `tier` 1–5, `source`, `kind` (`opentide`, a bare `opentide-lsp`, or `engine`: the WebAssembly build), `command` (for `engine`, its module), `args`, `version`, `interpreter`, `restricted`, `binDirs` |
+| `current: Runtime \| undefined` | The resolved runtime (`src/core/runtime/types.ts`): `tier` 1–4, `source`, `kind` (`opentide`, a bare `opentide-lsp`, or `engine`: the WebAssembly build), `command` (for `engine`, its module), `args`, `version`, `interpreter`, `restricted`, `binDirs` |
 | `attempts` | How each tier answered (for diagnostics UIs) |
 | `pin` | The repository's exact opentide pin (`uv.lock`, `requirements*.txt`, `pyproject.toml`), if any |
 | `onDidChange` | After every resolution |
@@ -138,22 +137,21 @@ backend already logs every run (command line with secrets redacted, folder, dura
 | `restart(reason)` | Re-resolve and restart the language server and the backend ("opentide: Restart Server") |
 
 Tiers (SPEC §4): 1 `opentide.path`; 2 the workspace environment (`opentide.interpreter`, else Python
-Environments, else the Python extension, else `.venv`, else `PATH`); 3 `uv tool run --from
-opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier 2); 4 the bundled
-`<extension>/runtime` (`python -I -X utf8 -X pycache_prefix=<globalStorage>/pycache -m opentide`; tiers 1–3 get
-`PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` in their `env`; built as
-[PACKAGING.md](PACKAGING.md) says). The first time tier 4 runs, after the language server starts, the
-core compiles the runtime's bytecode into that prefix in the background (`src/core/runtime/precompile.ts`:
-`compileall -q`, low priority, cancelled on deactivation, once per `runtime/BUILD-INFO.json` `buildId`
-and resolved runtime folder; the bytecode of runtime folders that are gone is deleted). A tier older
-than `MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command, except
-an untagged dev build (`0.1.devN+g<sha>`, what hatch-vcs reports for a checkout with no release tag), which
-cannot be ordered and is used with a note in the output channel. In
-Restricted Mode only tier 4 resolves, `restricted: true`, and its processes get `PATH` = the runtime's
-`bin` only.
+Environments, else the Python extension, else `.venv`, else `opentide` on `PATH`, else `python` on
+`PATH`); 3 `uv tool run --from opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier
+2). The extension bundles no opentide (SPEC D1). For an interpreter, `opentideForInterpreter`
+(`src/core/runtime/resolve.ts`) gives its `opentide` script, then `python -m opentide`: a script that
+fails to run (blocked by an application-control policy, a stale shebang) is retried as the module, one
+that answers is not. `python` on `PATH` (`pythonsOnPath`: `python3`, `python`; on Windows `python`,
+`py -3`) runs `-m opentide`, for a `pip install --user` whose scripts folder is not on `PATH`. Every
+opentide process gets `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` in its `env`. A tier older than
+`MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command, except an
+untagged dev build (`0.1.devN+g<sha>`, what hatch-vcs reports for a checkout with no release tag), which
+cannot be ordered and is used with a note in the output channel. In Restricted Mode no opentide tier is
+tried: the engine (tier 4) runs, `restricted: true`.
 
-Tier 5, when no other answers (a universal package, a bundled runtime that is missing or does not start,
-`opentide.path` naming nothing): the engine, language-server's `opentide-wasm` built for WebAssembly
+Tier 4, when no other answers (no opentide installed, one that does not start, `opentide.path` naming
+nothing, Restricted Mode): the engine, language-server's `opentide-wasm` built for WebAssembly
 (`pins.json` `engine`, unpacked by `scripts/engine-lib.mjs` into `dist/engine/`). It is `kind: "engine"`
 and editor-only, like a bare `opentide-lsp`: `hasCli` is false and `backend.availability()` is
 `editor-only`. The language client runs it in a `worker_threads` Worker (`dist/engine/worker.js`) through
@@ -168,10 +166,11 @@ command cannot run with `editorOnlyText(runtime, what)` and `explainUnavailable`
 `src/core/services/unavailable.ts`): Install opentide and Switch Runtime….
 
 To start opentide yourself (a terminal, a task, an MCP server definition), use the runtime as it is:
-`cliCommand(runtime, ["mcp", "start"])` gives `{ command, args }` (the bundled runtime's command is its
-interpreter with `-I … -m opentide`), and `processEnv(process.env, runtime, process.platform, extra)`
-its environment (`src/core/runtime/types.ts`, `src/core/runtime/env.ts`). `runtime.binDirs` are the
-folders to prepend to a terminal's `PATH`.
+`cliCommand(runtime, ["mcp", "start"])` gives `{ command, args }` (for `python -m opentide`, the
+interpreter with `-m opentide`), and `processEnv(process.env, runtime, process.platform, extra)`
+its environment (`src/core/runtime/types.ts`, `src/core/runtime/env.ts`). A runtime that runs as a module
+has no `opentide` command: the runner feature writes a launcher for terminals
+(`src/features/runner/launcher.ts`, `runsAsModule`).
 
 ### `ctx.backend`
 
@@ -375,13 +374,10 @@ through the host.
 | `npm run grammars` / `grammars:check` | syntaxes/ and contrib/grammars.json from the pinned zip (SHA-256 checked) |
 | `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
 | `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
-| `npm run test:bundled` | @vscode/test-cli label `bundled`: the extension on the checkout's built `runtime/` (tier 4, language server, `info catalog`); fails without one |
-| `npm run runtime:lock` / `-- --check` | runtime/locks/<target>.txt from runtime/requirements.in (pins.json), one per runtime (an `emulatedTargets` target uses its runtime's) |
-| `npm run runtime:build -- --target <t>` | runtime/ for one target: interpreter, closure, BUILD-INFO, SBOM, notices |
-| `npm run package -- --target <t>` / `-- --universal` | dist-vsix/opentide-<t>-<version>.vsix (+ `.size.json`), size gate |
-| `npm run smoke -- <vsix>` | runs the package's bundled opentide (its architecture, `--version` timed, `doctor --offline`, `info catalog` on a fixture, LSP `initialize`) |
-| `npx @vscode/vsce package` | a VSIX of the working tree (use `npm run package -- --universal` for the universal one) |
-| `node scripts/release.mjs <command>` | release helpers for publish.yml: `version`, `check`, `notes`, `matrix`, `assets`, `sums`, `sizes` ([RELEASING.md](RELEASING.md)) |
+| `npm run test:engine` | @vscode/test-cli label `engine`: no opentide anywhere, the engine (WASM) tier |
+| `npm run package` | dist-vsix/opentide-universal-<version>.vsix (+ `.size.json`), size gate, no `runtime/` |
+| `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the web entry is there, no `runtime/` |
+| `node scripts/release.mjs <command>` | release helpers for publish.yml: `version`, `check`, `notes`, `assets`, `sums`, `sizes` ([RELEASING.md](RELEASING.md)) |
 
 Unit tests import vscode-free modules directly. A module that touches a little of the VS Code API
 loads against `test/stubs/vscode.ts` (registered by `.mocharc.json`); extend the stub when needed, and

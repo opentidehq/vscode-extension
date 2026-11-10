@@ -31,11 +31,8 @@ describe("real opentide (OPENTIDE_TEST_BIN)", function () {
     const result = await resolveRuntime({
       trusted: true,
       platform: process.platform,
-      extensionPath: "/nonexistent-extension",
-      globalStoragePath: "/tmp",
       folder: WORKSPACE,
       settings: {
-        runtime: () => "auto",
         path: () => BIN,
         interpreter: () => undefined,
         uvUsePin: () => false,
@@ -66,6 +63,55 @@ describe("real opentide (OPENTIDE_TEST_BIN)", function () {
   it("resolves opentide.path (tier 1) and reads its version", () => {
     assert.equal(runtime.tier, 1);
     assert.match(runtime.version, /^\d+\.\d+\.\d+/);
+  });
+
+  it("runs `python -m opentide` with the interpreter beside it when its opentide script does not run", async function () {
+    const bin = BIN ?? "";
+    // A venv's or a Unix install's python is beside the script; a Windows install's is above Scripts.
+    const dir = path.dirname(bin);
+    const python = (
+      process.platform === "win32"
+        ? [path.join(dir, "python.exe"), path.join(dir, "..", "python.exe")]
+        : [path.join(dir, "python"), path.join(dir, "python3")]
+    )
+      .map((file) => path.resolve(file))
+      .find((file) => existsSync(file));
+    if (!python) this.skip();
+    const result = await resolveRuntime({
+      trusted: true,
+      platform: process.platform,
+      folder: WORKSPACE,
+      settings: {
+        path: () => undefined,
+        interpreter: () => python,
+        uvUsePin: () => false,
+        uvPath: () => undefined,
+      },
+      pin: undefined,
+      proxy: undefined,
+      homeDir: "/root",
+      exists: isFile,
+      which: (name) => which(name, process.env.PATH, process.platform),
+      // The script is blocked, as an application-control policy would: it fails to start.
+      probe: (command, args, options) =>
+        path.resolve(command) === path.resolve(bin)
+          ? Promise.resolve({ code: null, stdout: "", stderr: "", error: "spawn EPERM" })
+          : probe(command, args, options),
+      pythonEnvironments: async () => undefined,
+      pythonExtension: async () => undefined,
+    });
+    assert.equal(result.runtime?.command, python, JSON.stringify(result.attempts));
+    assert.deepEqual(result.runtime?.args, ["-m", "opentide"]);
+    assert.equal(result.runtime?.version, runtime.version);
+    const tree = await spawnRun({
+      command: python,
+      args: ["-m", "opentide", "--json", "commands"],
+      commandName: "commands",
+      env: processEnv(process.env, result.runtime as Runtime, process.platform, { NO_COLOR: "1" }),
+      cwd: WORKSPACE ?? ".",
+      platform: process.platform,
+    });
+    assert.equal(CommandTree.parse(tree.document).version, runtime.version);
   });
 
   it("parses its command tree, which matches its version", () => {

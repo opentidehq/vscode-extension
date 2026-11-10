@@ -1,6 +1,7 @@
-// The `opentide` launcher the terminal's PATH carries (SPEC §11). The bundled runtime runs as
-// `python -I … -m opentide`, and its console-script shebang names the build machine's path, so the
-// extension writes a small script that runs the active runtime exactly as the extension does. vscode-free.
+// The `opentide` launcher the terminal's PATH carries (SPEC §11). A runtime that runs as
+// `python -m opentide` (no console script on PATH, or one a policy does not let run) has no `opentide`
+// command, so the extension writes a small script that runs the active runtime exactly as the extension
+// does. vscode-free.
 import { createHash } from "node:crypto";
 import * as path from "node:path";
 
@@ -143,20 +144,21 @@ export function prependPath(
   return { key, value: current ? `${dir}${delimiter}${current}` : dir };
 }
 
+/** Whether a runtime runs opentide as a module of its interpreter (`python -m opentide`). */
+export function runsAsModule(args: readonly string[] | undefined): boolean {
+  return args !== undefined && args.length >= 2 && args.at(-2) === "-m" && args.at(-1) === "opentide";
+}
+
 /**
- * Whether new integrated terminals get the launcher on PATH (`environmentVariableCollection`): only for the
- * bundled runtime, when no `opentide` is on PATH already, with `opentide.terminal.addToPath` on, trusted.
+ * Whether new integrated terminals get the launcher on PATH (`environmentVariableCollection`): only for a
+ * runtime that runs as `python -m opentide`, when no `opentide` is on PATH already, with
+ * `opentide.terminal.addToPath` on, trusted.
  */
 export function shouldAddToPath(options: {
-  readonly source: string | undefined;
+  readonly module: boolean;
   readonly restricted: boolean;
   readonly setting: boolean | undefined;
   readonly opentideOnPath: boolean;
 }): boolean {
-  return (
-    options.setting !== false &&
-    options.source === "bundled" &&
-    !options.restricted &&
-    !options.opentideOnPath
-  );
+  return options.setting !== false && options.module && !options.restricted && !options.opentideOnPath;
 }

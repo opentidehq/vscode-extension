@@ -6,6 +6,41 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Upgrade
+
+1. Install opentide where the repository's checks run, if you relied on the bundled one: `pip
+   install opentide` (or `uv tool install opentide`, or a `.venv` with opentide in it).
+2. If the `opentide` command is blocked on your machine and `python` is not on `PATH`, set
+   `opentide.interpreter` to a Python with opentide installed.
+
+### Breaking
+
+- **The extension no longer bundles opentide or Python.** It runs the opentide you install
+  ([Runtime](https://github.com/opentidehq/vscode-extension#runtime)); with none, the opentide engine
+  (WASM) gives the editor features. One package now serves every platform, at about 4 MiB instead of
+  50 to 60 MiB.
+- **`opentide.runtime` is removed.** Its `bundled` value has nothing left to choose; set
+  `opentide.path` or `opentide.interpreter` to pin a runtime.
+- **In Restricted Mode only the opentide engine (WASM) runs.** It was the bundled runtime's language
+  server; the engine gives the same editor features and starts no process.
+
+### Added
+
+- **`python -m opentide` where the `opentide` command cannot run.** When an interpreter's `opentide`
+  script does not start (an application-control policy that blocks it but allows Python, a stale
+  launcher), the extension runs `python -m opentide` with the same interpreter, for the language
+  server, commands and MCP.
+- **A `python` on `PATH` with opentide installed is found.** `python3` or `python`, and `py -3` on
+  Windows, after `opentide` on `PATH`: a `pip install --user` whose scripts folder is not on `PATH`
+  now works.
+- **An `opentide` command in terminals for `python -m opentide`.** New integrated terminals get it on
+  `PATH` when opentide runs as a module (`opentide.terminal.addToPath`).
+
+### Fixed
+
+- **A `.venv` whose `opentide` script does not run is used through its `python`.** The extension
+  tried the script only, and fell back to the engine (WASM).
+
 ## [0.1.1] - 2026-11-05
 
 VS Code installs the extension from the Marketplace on every platform, and the opentide engine

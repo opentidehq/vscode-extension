@@ -29,7 +29,7 @@ publishing) is [`release`](../release/SKILL.md) and [`docs/RELEASING.md`](../../
 - Every user-visible change adds its entries under `## [Unreleased]` in the same pull request
   (AGENTS.md).
 - The notes pull request moves them into `## [x.y.z] - YYYY-MM-DD` and writes the summary
-  (`release`, step 1). The summary names the opentide the release bundles.
+  (`release`, step 1).
 - The file wraps at 100 columns; a wrapped line of a list item is indented two spaces.
 
 ## What a reader wants
@@ -55,7 +55,7 @@ would be empty; never add another.
 | **Upgrade** | The steps a user takes after installing this version, in order. Only when there is something to do |
 | **Breaking** | What stops working the way it did, each with what replaces it |
 | **Added** | Something users can do that they could not before: a command, flag, setting, view, diagnostic, API |
-| **Changed** | Existing behaviour that is different, and is neither new nor broken. A bundled or pinned version users see |
+| **Changed** | Existing behaviour that is different, and is neither new nor broken. A pinned version users see (the engine) |
 | **Deprecated** | Still works, and will be removed. Say what to use instead |
 | **Removed** | Gone, and nobody relied on it. If someone could have, it is **Breaking** |
 | **Fixed** | Behaviour that did not match the documentation or the intent, and now does |
@@ -165,8 +165,8 @@ People who use the extension in VS Code, Cursor, VSCodium and other forks. So:
 
 - Name a command by its palette title ("opentide: Validate Workspace"), a setting by its id
   (`opentide.path`), and a view by the name in the sidebar.
-- The bundled versions are a **Changed** entry each time they move: "**Bundles opentide 0.22.0**
-  (engine: language server 0.10.0)".
+- The engine's version is a **Changed** entry each time it moves: "**The opentide engine (WASM) is
+  language server 0.10.0**". The extension bundles no opentide.
 - Build scripts, smoke tests, package-size gates and CI are not changes users see.
 
 ## One standard, four products

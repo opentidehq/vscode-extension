@@ -7,13 +7,10 @@ import { fileURLToPath } from "node:url";
 import { deflateRawSync } from "node:zlib";
 import { sizeReport } from "../../scripts/package-lib.mjs";
 import {
-  ALPINE_IMAGE,
   absoluteLinks,
   assetProblems,
-  buildMatrix,
   isPreRelease,
   problems,
-  RUNNERS,
   releasedVersion,
   releaseNotes,
   sha256sums,
@@ -237,7 +234,7 @@ describe("release: notes", () => {
     assert.match(notes, /code --install-extension opentidehq\.opentide --pre-release/);
     assert.match(
       notes,
-      /gh attestation verify opentide-<platform>-0\.3\.0\.vsix --repo opentidehq\/vscode-extension/,
+      /gh attestation verify opentide-universal-0\.3\.0\.vsix --repo opentidehq\/vscode-extension/,
     );
     assert.doesNotMatch(
       notes,
@@ -258,54 +255,6 @@ describe("release: notes", () => {
   });
 });
 
-describe("release: build matrix", () => {
-  it("maps each runtime target to its native runner, Alpine in a container", () => {
-    assert.deepEqual(buildMatrix({ runtimeTargets: ["linux-x64", "alpine-arm64", "darwin-x64"] }), {
-      include: [
-        { target: "linux-x64", os: "ubuntu-latest", container: "" },
-        { target: "alpine-arm64", os: "ubuntu-24.04-arm", container: ALPINE_IMAGE },
-        { target: "darwin-x64", os: "macos-15-intel", container: "" },
-      ],
-    });
-  });
-
-  it("smoke-tests Alpine in a digest-pinned Alpine image", () => {
-    assert.match(ALPINE_IMAGE, /^node:\d+-alpine@sha256:[0-9a-f]{64}$/);
-  });
-
-  it("covers the eight targets of SPEC §3", () => {
-    assert.deepEqual(Object.keys(RUNNERS).sort(), [
-      "alpine-arm64",
-      "alpine-x64",
-      "darwin-arm64",
-      "darwin-x64",
-      "linux-arm64",
-      "linux-x64",
-      "win32-arm64",
-      "win32-x64",
-    ]);
-  });
-
-  it("refuses a missing list, an unknown target and a duplicate", () => {
-    assert.throws(() => buildMatrix({}), /no runtimeTargets/);
-    assert.throws(() => buildMatrix({ runtimeTargets: ["linux-armhf"] }), /"linux-armhf" is not one of/);
-    assert.throws(() => buildMatrix({ runtimeTargets: ["linux-x64", "linux-x64"] }), /twice/);
-  });
-
-  it("is empty when no target bundles a runtime", () => {
-    assert.deepEqual(buildMatrix({ runtimeTargets: [] }), { include: [] });
-  });
-  it("the committed pins build win32-arm64 on the Windows on Arm runner, as every other target natively", () => {
-    const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
-    const matrix = buildMatrix(committed);
-    assert.deepEqual(
-      matrix.include.find((entry) => entry.target === "win32-arm64"),
-      { target: "win32-arm64", os: "windows-11-arm", container: "" },
-    );
-    assert.equal(matrix.include.length, 8);
-  });
-});
-
 describe("release: assets", () => {
   const files = (specs) => specs.map((spec, i) => ({ name: spec.name ?? `p${i}.vsix`, buffer: vsix(spec) }));
 
@@ -320,9 +269,8 @@ describe("release: assets", () => {
     assert.throws(() => vsixIdentity(zip({ "a.txt": "x" })), /not a VSIX/);
   });
 
-  it("accepts the universal package plus one per runtime target", () => {
-    const set = files([{}, { target: "linux-x64" }, { target: "win32-x64" }]);
-    assert.deepEqual(assetProblems(set, { version: "0.1.0", targets: ["linux-x64", "win32-x64"] }), []);
+  it("accepts the universal package alone", () => {
+    assert.deepEqual(assetProblems(files([{}]), { version: "0.1.0" }), []);
   });
 
   it("names what is missing, extra, duplicated or of the wrong version or channel", () => {
@@ -334,22 +282,23 @@ describe("release: assets", () => {
       { name: "e.vsix", target: "alpine-x64", preRelease: false },
       { name: "f.vsix", target: "alpine-arm64", publisher: "someone" },
     ]);
-    const found = assetProblems(set, {
-      version: "0.1.0",
-      targets: ["linux-x64", "win32-x64", "alpine-x64", "alpine-arm64"],
-    });
+    const found = assetProblems(set, { version: "0.1.0" });
     assert.deepEqual(found, [
       "b.vsix and a.vsix are both linux-x64",
       "d.vsix is version 0.0.9, not 0.1.0",
       "e.vsix is not packaged as a pre-release, but 0.1.0 is a pre-release (odd minor)",
       "f.vsix is someone.opentide, not opentidehq.opentide",
       "no universal package",
-      "c.vsix is darwin-arm64, which pins.json runtimeTargets does not list",
+      "b.vsix is linux-x64: the release has the universal package only",
+      "c.vsix is darwin-arm64: the release has the universal package only",
+      "d.vsix is win32-x64: the release has the universal package only",
+      "e.vsix is alpine-x64: the release has the universal package only",
+      "f.vsix is alpine-arm64: the release has the universal package only",
     ]);
   });
 
   it("refuses a pre-release package for a stable version", () => {
-    const found = assetProblems(files([{ version: "0.2.0" }]), { version: "0.2.0", targets: [] });
+    const found = assetProblems(files([{ version: "0.2.0" }]), { version: "0.2.0" });
     assert.deepEqual(found, ["p0.vsix is packaged as a pre-release, but 0.2.0 is stable (even minor)"]);
   });
 });
@@ -439,21 +388,15 @@ describe("release.mjs (the command line)", () => {
     dir = mkdtempSync(join(tmpdir(), "release-"));
     writeFileSync(join(dir, "CHANGELOG.md"), CHANGELOG);
     writeFileSync(join(dir, "package.json"), JSON.stringify({ version: "0.3.0" }));
-    writeFileSync(
-      join(dir, "pins.json"),
-      JSON.stringify({ runtimeTargets: ["linux-x64"], vsix: { budgetBytes: 100, targetBytes: 70 } }),
-    );
+    writeFileSync(join(dir, "pins.json"), JSON.stringify({ vsix: { budgetBytes: 100, targetBytes: 70 } }));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it("prints the version, the channel, the notes and the matrix", () => {
+  it("prints the version, the channel and the notes", () => {
     assert.equal(run("version").stdout, "0.3.0\n");
     assert.equal(run("prerelease").stdout, "true\n");
     assert.equal(run("prerelease", "v0.2.0").stdout, "false\n");
     assert.match(run("notes").stdout, /The first pre-release on both stores/);
-    assert.deepEqual(JSON.parse(run("matrix").stdout), {
-      include: [{ target: "linux-x64", os: "ubuntu-latest", container: "" }],
-    });
   });
 
   it("check exits 0 when ready and 1 with each problem otherwise", () => {
@@ -477,17 +420,13 @@ describe("release.mjs (the command line)", () => {
     const assets = join(dir, "dist");
     mkdirSync(assets);
     writeFileSync(join(assets, "opentide-universal-0.3.0.vsix"), vsix({ version: "0.3.0" }));
-    writeFileSync(
-      join(assets, "opentide-linux-x64-0.3.0.vsix"),
-      vsix({ version: "0.3.0", target: "linux-x64" }),
-    );
     const checked = run("assets", assets);
     assert.equal(checked.status, 0, checked.stderr);
-    assert.match(checked.stdout, /2 packages of 0\.3\.0/);
+    assert.match(checked.stdout, /1 packages of 0\.3\.0/);
 
     assert.equal(run("sums", assets).status, 0);
     const sums = readFileSync(join(assets, "SHA256SUMS"), "utf8");
-    assert.equal(sums.split("\n").filter(Boolean).length, 2);
+    assert.equal(sums.split("\n").filter(Boolean).length, 1);
     assert.equal(run("sums", assets).status, 0, "a second run replaces SHA256SUMS instead of summing it");
     assert.equal(readFileSync(join(assets, "SHA256SUMS"), "utf8"), sums);
     const check = spawnSync("sha256sum", ["--check", "--strict", "SHA256SUMS"], {
@@ -496,10 +435,16 @@ describe("release.mjs (the command line)", () => {
     });
     if (!check.error) assert.equal(check.status, 0, check.stderr);
 
-    writeFileSync(join(dir, "pins.json"), JSON.stringify({ runtimeTargets: ["linux-x64", "win32-x64"] }));
-    const missing = run("assets", assets);
-    assert.equal(missing.status, 1);
-    assert.match(missing.stderr, /error: no win32-x64 package/);
+    writeFileSync(
+      join(assets, "opentide-linux-x64-0.3.0.vsix"),
+      vsix({ version: "0.3.0", target: "linux-x64" }),
+    );
+    const extra = run("assets", assets);
+    assert.equal(extra.status, 1);
+    assert.match(
+      extra.stderr,
+      /error: opentide-linux-x64-0\.3\.0\.vsix is linux-x64: the release has the universal package only/,
+    );
   });
 
   it("assets and sums refuse a subfolder", () => {
@@ -520,7 +465,7 @@ describe("release.mjs (the command line)", () => {
   it("an unknown command exits 1 and lists the commands", () => {
     const result = run("publish");
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /version, check, prerelease, notes, matrix, assets, sums or sizes/);
+    assert.match(result.stderr, /version, check, prerelease, notes, assets, sums or sizes/);
   });
 });
 

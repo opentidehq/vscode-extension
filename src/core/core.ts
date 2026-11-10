@@ -17,7 +17,6 @@ import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
 import { fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
-import { nodePrecompileDeps, Precompiler } from "./runtime/precompile";
 import { which } from "./runtime/process";
 import { shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
 import { engineRuntime, uvExecutable } from "./runtime/resolve";
@@ -175,14 +174,6 @@ export function createCore(context: vscode.ExtensionContext): Core {
   const status = new StatusManager();
   subscriptions.push(status);
 
-  // The bundled runtime's bytecode, compiled once per runtime build after the server is up.
-  const precompiler = new Precompiler(
-    nodePrecompileDeps(context.extensionUri.fsPath, context.globalStorageUri.fsPath, (level, message) =>
-      log[level](message),
-    ),
-  );
-  subscriptions.push(precompiler);
-
   const grant = new Emitter<void>();
   const trust: TrustService = {
     get isTrusted() {
@@ -222,7 +213,6 @@ export function createCore(context: vscode.ExtensionContext): Core {
     }
     status.setFallback(fallback);
     status.setServer(client.serverInfo, client.current !== undefined);
-    void precompiler.ensure(rt);
     catalog.refreshAll({ immediate: true });
   };
   const restart = serialized((reason) =>
@@ -463,7 +453,7 @@ function registerCoreCommands(ctx: FeatureContext, status: StatusManager, runtim
 async function switchRuntime(ctx: FeatureContext): Promise<void> {
   if (!ctx.trust.isTrusted) {
     void vscode.window.showInformationMessage(
-      "Restricted Mode uses the bundled runtime. Trust this folder to choose another.",
+      "Restricted Mode runs no opentide, only the opentide engine (WASM). Trust this folder to choose a runtime.",
     );
     return;
   }
@@ -472,16 +462,8 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
     {
       label: "Automatic",
       detail:
-        "opentide.path, then the workspace's environment, then the bundled runtime, then the opentide engine (WASM) for editor features",
-      run: async () => {
-        await config.update("runtime", undefined, vscode.ConfigurationTarget.Workspace);
-        await config.update("path", undefined, vscode.ConfigurationTarget.Workspace);
-      },
-    },
-    {
-      label: "Bundled runtime",
-      detail: "The opentide that ships with the extension",
-      run: () => config.update("runtime", "bundled", vscode.ConfigurationTarget.Workspace),
+        "opentide.path, then the workspace's environment (its opentide, else python -m opentide), then the opentide engine (WASM) for editor features",
+      run: () => config.update("path", undefined, vscode.ConfigurationTarget.Workspace),
     },
     {
       label: "Choose an opentide executable…",
@@ -491,10 +473,7 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
           canSelectMany: false,
           openLabel: "Use this opentide",
         });
-        if (picked?.[0]) {
-          await config.update("runtime", undefined, vscode.ConfigurationTarget.Workspace);
-          await config.update("path", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
-        }
+        if (picked?.[0]) await config.update("path", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
       },
     },
     {

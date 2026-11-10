@@ -176,69 +176,20 @@ export function releaseNotes(changelog, version, { attested = true } = {}) {
     "",
     `- **VS Code:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=${EXTENSION_ID}), or \`code --install-extension ${EXTENSION_ID}${pre ? " --pre-release" : ""}\`.`,
     `- **Cursor, Windsurf, VSCodium and other editors:** [Open VSX](https://open-vsx.org/extension/opentidehq/opentide).`,
-    `- **Offline or a private gallery:** download your platform's VSIX below (\`opentide-<platform>-${version}.vsix\`; \`opentide-universal-${version}.vsix\` has no bundled runtime) and run \`code --install-extension <file>\`.`,
+    `- **Offline or a private gallery:** download \`opentide-universal-${version}.vsix\` below and run \`code --install-extension <file>\`.`,
+    "- **opentide itself:** `pip install opentide` (or `uv tool install opentide`) in the workspace's environment. The extension runs that opentide, or `python -m opentide` where the `opentide` command cannot run; without one it gives the editor features only.",
     "",
     "### Verify",
     "",
     "```bash",
     `sha256sum --check --ignore-missing ${SUMS}`,
     ...(attested
-      ? [`gh attestation verify opentide-<platform>-${version}.vsix --repo opentidehq/vscode-extension`]
+      ? [`gh attestation verify opentide-universal-${version}.vsix --repo opentidehq/vscode-extension`]
       : []),
     "```",
     "",
   );
   return lines.join("\n");
-}
-
-/** The Alpine image the Alpine packages are smoke-tested in (multi-arch index digest). */
-export const ALPINE_IMAGE =
-  "node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914";
-
-/**
- * The native runner each runtime target builds and smoke-tests on. Alpine builds on the Linux runner of
- * its architecture and smoke-tests in ALPINE_IMAGE with `docker run`: GitHub runs JavaScript actions in
- * an Alpine job container only on x64, so the job itself never runs in one.
- */
-export const RUNNERS = {
-  "win32-x64": { os: "windows-latest" },
-  "win32-arm64": { os: "windows-11-arm" },
-  "linux-x64": { os: "ubuntu-latest" },
-  "linux-arm64": { os: "ubuntu-24.04-arm" },
-  "alpine-x64": { os: "ubuntu-latest", container: ALPINE_IMAGE },
-  "alpine-arm64": { os: "ubuntu-24.04-arm", container: ALPINE_IMAGE },
-  "darwin-x64": { os: "macos-15-intel" },
-  "darwin-arm64": { os: "macos-latest" },
-};
-
-/** pins.json `runtimeTargets`: the targets whose package bundles a runtime. */
-export function runtimeTargets(pins) {
-  const targets = pins.runtimeTargets;
-  if (!Array.isArray(targets)) {
-    throw new ReleaseError("pins.json has no runtimeTargets list (the targets that bundle a runtime)");
-  }
-  const seen = new Set();
-  for (const target of targets) {
-    if (typeof target !== "string" || !(target in RUNNERS)) {
-      throw new ReleaseError(
-        `pins.json runtimeTargets: ${JSON.stringify(target)} is not one of ${Object.keys(RUNNERS).join(", ")}`,
-      );
-    }
-    if (seen.has(target)) throw new ReleaseError(`pins.json runtimeTargets lists ${target} twice`);
-    seen.add(target);
-  }
-  return targets;
-}
-
-/** The `strategy.matrix` of the build job: one entry per runtime target. */
-export function buildMatrix(pins) {
-  return {
-    include: runtimeTargets(pins).map((target) => ({
-      target,
-      os: RUNNERS[target].os,
-      container: RUNNERS[target].container ?? "",
-    })),
-  };
 }
 
 /** A VSIX's identity, read from its `extension.vsixmanifest`. */
@@ -259,9 +210,10 @@ export function vsixIdentity(buffer) {
 /**
  * What is wrong with a release's VSIX files (`[{ name, buffer }]`): each is this extension at
  * `version`, with the pre-release flag the version's minor gives, and together they are exactly one
- * universal package plus one per runtime target. Empty when they are right.
+ * universal package (the extension carries no runtime, so there is no per-platform one). Empty when
+ * they are right.
  */
-export function assetProblems(files, { version, targets }) {
+export function assetProblems(files, { version }) {
   const found = [];
   const preRelease = isPreRelease(version);
   const byTarget = new Map();
@@ -285,14 +237,10 @@ export function assetProblems(files, { version, targets }) {
     }
     byTarget.set(identity.target, name);
   }
-  const expected = ["universal", ...targets];
-  for (const target of expected) {
-    if (!byTarget.has(target)) found.push(`no ${target} package`);
-  }
+  if (!byTarget.has("universal")) found.push("no universal package");
   for (const [target, name] of byTarget) {
-    if (!expected.includes(target)) {
-      found.push(`${name} is ${target}, which pins.json runtimeTargets does not list`);
-    }
+    if (target !== "universal")
+      found.push(`${name} is ${target}: the release has the universal package only`);
   }
   return found;
 }
