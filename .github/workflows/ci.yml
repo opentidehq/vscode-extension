@@ -138,6 +138,9 @@ jobs:
           if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="${venv}/Scripts"; else bin="${venv}/bin"; fi
           "${bin}/python" -m pip install "opentide==${version}" "typer<0.29"
           echo "OPENTIDE_TEST_BIN=$("${bin}/python" -c 'import shutil, sys; print(shutil.which("opentide", path=sys.argv[1]))' "${bin}")" >> "$GITHUB_ENV"
+          # The integration and Restricted Mode steps put it on PATH, as a user's install is; the engine step does not.
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="$(cygpath -u "${bin}")"; fi
+          echo "OPENTIDE_TEST_PATH=${bin}" >> "$GITHUB_ENV"
       - name: The VS Code version
         env:
           VSCODE: ${{ matrix.vscode }}
@@ -151,6 +154,7 @@ jobs:
       - name: Integration tests
         run: |
           set -euo pipefail
+          export PATH="${OPENTIDE_TEST_PATH}:${PATH}"
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
             xvfb-run -a npm run test:integration -- --code-version "${CODE_VERSION}"
           else
@@ -159,6 +163,7 @@ jobs:
       - name: Restricted Mode tests
         run: |
           set -euo pipefail
+          export PATH="${OPENTIDE_TEST_PATH}:${PATH}"
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
             xvfb-run -a npm run test:restricted -- --code-version "${CODE_VERSION}"
           else
