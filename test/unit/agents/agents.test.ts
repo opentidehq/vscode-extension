@@ -81,25 +81,17 @@ describe("agents: MCP server", () => {
     });
   });
 
-  it("runs the bundled interpreter as the extension does", () => {
-    const bundled = fakeRuntime({
-      tier: 4,
-      source: "bundled",
-      command: "/ext/runtime/bin/python3",
-      args: ["-I", "-X", "pycache_prefix=/gs/pycache", "-m", "opentide"],
+  it("runs `python -m opentide` as the extension does", () => {
+    const runtime = fakeRuntime({
+      tier: 2,
+      source: "python",
+      command: "/usr/bin/python3",
+      args: ["-m", "opentide"],
     });
-    const decision = decideMcp(inputs({ runtime: bundled }));
+    const decision = decideMcp(inputs({ runtime }));
     assert.ok(decision.provide);
-    assert.equal(decision.server.command, "/ext/runtime/bin/python3");
-    assert.deepEqual(decision.server.args, [
-      "-I",
-      "-X",
-      "pycache_prefix=/gs/pycache",
-      "-m",
-      "opentide",
-      "mcp",
-      "start",
-    ]);
+    assert.equal(decision.server.command, "/usr/bin/python3");
+    assert.deepEqual(decision.server.args, ["-m", "opentide", "mcp", "start"]);
   });
 
   it("provides nothing in Restricted Mode, with `never`, or without a runtime that has `mcp start`", () => {
@@ -325,7 +317,7 @@ describe("agents: MCP server", () => {
       exists: (file: string) => files.includes(file),
       which: (name: string) => (onPath.includes(name) ? `/usr/bin/${name}` : undefined),
     });
-    // `setup mcp --vscode` writes `opentide`; with only the bundled runtime it is on no PATH.
+    // `setup mcp --vscode` writes `opentide`; with opentide run as `python -m opentide` it is on no PATH.
     assert.equal(entryUsable("opentide", lookup([])), false);
     assert.equal(entryUsable("opentide", lookup(["opentide"])), true);
     assert.equal(entryUsable("/venv/bin/opentide", lookup([], ["/venv/bin/opentide"])), true);

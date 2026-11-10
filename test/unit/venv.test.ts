@@ -54,7 +54,7 @@ describe("runtime: Use the pinned version", () => {
     let enabled = false;
     const order: string[] = [];
     const runtime = {
-      current: fakeRuntime({ source: "bundled", tier: 4 }) as Runtime | undefined,
+      current: fakeRuntime({ source: "path", tier: 2 }) as Runtime | undefined,
       attempts: [off] as readonly ResolveAttempt[],
       async restart() {
         order.push(enabled ? "restart with usePin" : "restart without usePin");
@@ -83,7 +83,7 @@ describe("runtime: Use the pinned version", () => {
 
   it("warns with the new resolution's reason, never the stale 'usePin is off'", async () => {
     const { runtime, enable } = runtimeWith({
-      current: fakeRuntime({ source: "bundled", tier: 4 }),
+      current: fakeRuntime({ source: "path", tier: 2 }),
       attempts: [{ tier: 3, source: "uv", outcome: "missing", detail: "uv is not on PATH" }],
     });
     assert.equal(

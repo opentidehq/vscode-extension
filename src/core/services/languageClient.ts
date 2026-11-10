@@ -1,5 +1,5 @@
 // One language client per window (#5): `opentide lsp start` (or `opentide-lsp --stdio`) from the runtime,
-// or the engine built for WebAssembly in a worker thread, fed the workspace through VS Code (tier 5).
+// or the engine built for WebAssembly in a worker thread, fed the workspace through VS Code (tier 4).
 // Pulled diagnostics stay on and nothing handles `publishDiagnostics`, so each finding shows once; the
 // server's refresh requests (diagnostics, semantic tokens, inlay hints, code lenses) are honoured by
 // vscode-languageclient itself.

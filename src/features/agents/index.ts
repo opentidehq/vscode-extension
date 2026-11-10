@@ -247,7 +247,7 @@ async function addToForkMcp(ctx: FeatureContext): Promise<void> {
     return;
   }
   const picked = await vscode.window.showInformationMessage(
-    `Add opentide to ${target.editor}'s MCP settings (${shown})? It runs ${path.basename(command)} from ${runtime.source === "bundled" ? "the bundled runtime" : path.dirname(command)}.`,
+    `Add opentide to ${target.editor}'s MCP settings (${shown})? It runs ${path.basename(command)} from ${path.dirname(command)}.`,
     "Add",
   );
   if (picked !== "Add") return;
@@ -259,10 +259,7 @@ async function addToForkMcp(ctx: FeatureContext): Promise<void> {
     return;
   }
   ctx.log.info(`added opentide (${command}) to ${target.file}`);
-  const open = await vscode.window.showInformationMessage(
-    `Added opentide to ${shown}. ${runtime.source === "bundled" ? "It points at this extension version's runtime: run this again after an update." : ""}`.trim(),
-    "Open File",
-  );
+  const open = await vscode.window.showInformationMessage(`Added opentide to ${shown}.`, "Open File");
   if (open) await vscode.window.showTextDocument(vscode.Uri.file(target.file));
 }
 

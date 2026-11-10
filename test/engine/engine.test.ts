@@ -1,6 +1,6 @@
-// Desktop VS Code with no opentide anywhere: opentide.path names nothing, the extension carries no bundled
-// runtime (a development checkout, like the universal package), and .vscode-test.mjs's `engine` label
-// takes every folder holding an opentide executable off PATH. The engine (WASM) is the runtime.
+// Desktop VS Code with no opentide anywhere: opentide.path names nothing, .vscode-test.mjs's `engine`
+// label takes every folder holding an opentide executable off PATH, and CI installs opentide in a venv
+// off PATH, so no python on PATH runs `-m opentide`. The engine (WASM) is the runtime.
 import * as assert from "node:assert/strict";
 import { promises as fs, readFileSync } from "node:fs";
 import * as path from "node:path";
@@ -26,20 +26,17 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
       .update("path", undefined, vscode.ConfigurationTarget.Global);
   });
 
-  it("resolves tier 5 once opentide.path, the environment and the bundled runtime fail", async () => {
+  it("resolves tier 4 once opentide.path and the environment fail", async () => {
     const api = await activated();
     const runtime = api.ctx.runtime.current;
     assert.equal(runtime?.kind, "engine", JSON.stringify(api.ctx.runtime.attempts));
-    assert.equal(runtime?.tier, 5);
+    assert.equal(runtime?.tier, 4);
     assert.equal(runtime?.version, pins.engine.version);
     const outcome = (tier: number) =>
       api.ctx.runtime.attempts.filter((a) => a.tier === tier).map((a) => a.outcome);
     assert.deepEqual(outcome(1), ["failed"]);
-    assert.ok(
-      outcome(2).every((o) => o === "missing"),
-      JSON.stringify(api.ctx.runtime.attempts),
-    );
-    assert.deepEqual(outcome(4), ["missing"]);
+    // A python on PATH without opentide is tried and fails; none answers.
+    assert.ok(!outcome(2).includes("ok"), JSON.stringify(api.ctx.runtime.attempts));
     const client = await api.ctx.client.ready();
     assert.ok(client, "the engine's language client runs");
     assert.equal(api.ctx.client.serverInfo?.host, null);
@@ -178,10 +175,10 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
     try {
       await fs.mkdir(bin, { recursive: true });
       // Not a working opentide: the tier is tried (failed, not missing) and the engine stays.
-      await fs.writeFile(
-        path.join(bin, process.platform === "win32" ? "opentide.exe" : "opentide"),
-        "not a program",
-      );
+      for (const name of process.platform === "win32"
+        ? ["python.exe", "opentide.exe"]
+        : ["python", "opentide"])
+        await fs.writeFile(path.join(bin, name), "not a program");
       await waitFor(() => venv() === "failed", 30_000);
       assert.equal(api.ctx.runtime.current?.kind, "engine");
     } finally {

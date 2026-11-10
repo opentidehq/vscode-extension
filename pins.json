@@ -1,17 +1,8 @@
 {
-  "$comment": "What this extension builds from and bundles. A bump is a PR; docs/PACKAGING.md says how. The highlights zip version follows the engine inside the bundled opentide. runtimeTargets get a bundled runtime, universalTargets say why the others do not, and emulatedTargets name a runtime target whose package bundles another target's runtime, which the OS runs under emulation (its lock, native licences and interpreter archive are that target's; docs/PACKAGING.md). runtimeArchives record each python-build-standalone archive and its SHA-256 (npm run runtime:build fills an empty one from the release SHA256SUMS and checks against it afterwards).",
+  "$comment": "What this extension builds from. A bump is a PR; docs/PACKAGING.md says how. opentide.version is the opentide CI tests the extension against (the extension bundles none: it runs the user's own). The highlights zip and the engine come from the same language-server release.",
   "opentide": {
+    "$comment": "The opentide CI's real-opentide and integration tests install (pip install opentide==<version>).",
     "version": "0.22.0"
-  },
-  "uv": {
-    "$comment": "The uv that writes runtime/locks and installs the closure; CI and publish.yml install this version, so runtime:lock --check compares like with like.",
-    "version": "0.11.32"
-  },
-  "python": {
-    "pythonBuildStandalone": "20260718",
-    "cpython": "3.13.14",
-    "flavor": "install_only_stripped",
-    "macosDeploymentTarget": "11.0"
   },
   "highlights": {
     "version": "0.10.0",
@@ -34,54 +25,7 @@
     "sha256": "535d51829eee1b852589f501344d88348aa0b8a630285406f004cc51de656a33"
   },
   "vsix": {
-    "budgetBytes": 104857600,
-    "targetBytes": 73400320
-  },
-  "runtimeTargets": [
-    "win32-x64",
-    "win32-arm64",
-    "linux-x64",
-    "linux-arm64",
-    "alpine-x64",
-    "alpine-arm64",
-    "darwin-x64",
-    "darwin-arm64"
-  ],
-  "universalTargets": {},
-  "emulatedTargets": {
-    "win32-arm64": {
-      "runtime": "win32-x64",
-      "reason": "cryptography publishes no win_arm64 wheel after 46.0.3 (the 50.x every other target locks has none), so a native closure would hold a cryptography with seven advisories; Windows 11 on Arm runs the x64 runtime under its emulation (Prism). Windows 10 on Arm cannot run x64 programs: there the bundled runtime does not start and the extension needs an opentide of its own"
-    }
-  },
-  "runtimeArchives": {
-    "win32-x64": {
-      "archive": "cpython-3.13.14+20260718-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
-      "sha256": "91ea0cd883295458fa766eae36241df3ecc21f7029814189707d54b450e55c69"
-    },
-    "linux-x64": {
-      "archive": "cpython-3.13.14+20260718-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
-      "sha256": "571a710c62520b26dbadbd16e8850e24565c01dea94440223bc16caa21614021"
-    },
-    "linux-arm64": {
-      "archive": "cpython-3.13.14+20260718-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
-      "sha256": "8d5ac68458a4df9bc3c349d607da2674d8390ad26162482b17215563e45aca83"
-    },
-    "alpine-x64": {
-      "archive": "cpython-3.13.14+20260718-x86_64-unknown-linux-musl-install_only_stripped.tar.gz",
-      "sha256": "0dbfe4b9c043f81a60953245a2735594f6b09308031086ceac15511f4c0af193"
-    },
-    "alpine-arm64": {
-      "archive": "cpython-3.13.14+20260718-aarch64-unknown-linux-musl-install_only_stripped.tar.gz",
-      "sha256": "4d43ada1f37d09c118b4a205b5baafd03bac279b07cdedd382aa1a4367f8c15f"
-    },
-    "darwin-x64": {
-      "archive": "cpython-3.13.14+20260718-x86_64-apple-darwin-install_only_stripped.tar.gz",
-      "sha256": "93ec3863e3265ed87382a9216d2e973b47ab7ef330b496c0249bfc2bfc164cee"
-    },
-    "darwin-arm64": {
-      "archive": "cpython-3.13.14+20260718-aarch64-apple-darwin-install_only_stripped.tar.gz",
-      "sha256": "06469835e1b0f73bcdb6c498a1d60ce579cc43a980754490a6f1e30062f43850"
-    }
+    "budgetBytes": 20971520,
+    "targetBytes": 10485760
   }
 }

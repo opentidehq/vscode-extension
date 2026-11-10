@@ -10,6 +10,7 @@ import {
   launcherFiles,
   msysPath,
   prependPath,
+  runsAsModule,
   shouldAddToPath,
   shQuote,
 } from "../../../src/features/runner/launcher";
@@ -310,14 +311,22 @@ describe("runner launcher", () => {
     assert.deepEqual(prependPath({}, "/gs/bin", "linux"), { key: "PATH", value: "/gs/bin" });
   });
 
-  it("adds the bundled opentide to terminals only when nothing else provides one", () => {
-    const base = { source: "bundled", restricted: false, setting: true, opentideOnPath: false };
+  it("adds an opentide command to terminals only for `python -m opentide`, when nothing else provides one", () => {
+    const base = { module: true, restricted: false, setting: true, opentideOnPath: false };
     assert.ok(shouldAddToPath(base));
     assert.ok(shouldAddToPath({ ...base, setting: undefined }), "default on");
     assert.ok(!shouldAddToPath({ ...base, setting: false }));
     assert.ok(!shouldAddToPath({ ...base, restricted: true }));
     assert.ok(!shouldAddToPath({ ...base, opentideOnPath: true }));
-    assert.ok(!shouldAddToPath({ ...base, source: "venv" }));
+    assert.ok(!shouldAddToPath({ ...base, module: false }));
+  });
+
+  it("knows a runtime that runs opentide as a module", () => {
+    assert.ok(runsAsModule(["-m", "opentide"]));
+    assert.ok(runsAsModule(["-3", "-m", "opentide"]));
+    assert.ok(!runsAsModule([]));
+    assert.ok(!runsAsModule(["tool", "run", "--from", "opentide==0.22.0", "opentide"]));
+    assert.ok(!runsAsModule(undefined));
   });
 
   it("runs opentide --version through the generated script", function () {

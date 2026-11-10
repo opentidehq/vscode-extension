@@ -7,8 +7,7 @@
 //   node scripts/release.mjs prerelease [X.Y.Z]    "true" for an odd minor, "false" for an even one
 //   node scripts/release.mjs notes [X.Y.Z] [--no-attestation]
 //                                                  the GitHub Release body, from the version's CHANGELOG.md section
-//   node scripts/release.mjs matrix                the build matrix from pins.json runtimeTargets (JSON)
-//   node scripts/release.mjs assets DIR [X.Y.Z]    DIR's VSIX files are this version: universal + each runtime target
+//   node scripts/release.mjs assets DIR [X.Y.Z]    DIR's VSIX file is this version's universal package
 //   node scripts/release.mjs sums DIR              write DIR/SHA256SUMS for every file in DIR
 //   node scripts/release.mjs sizes DIR             a Markdown table of DIR/*.size.json (for $GITHUB_STEP_SUMMARY)
 //
@@ -18,13 +17,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assetProblems,
-  buildMatrix,
   isPreRelease,
   problems,
   ReleaseError,
   releasedVersion,
   releaseNotes,
-  runtimeTargets,
   SUMS,
   sha256sums,
   sizeSummary,
@@ -79,14 +76,11 @@ try {
       process.stdout.write(releaseNotes(changelog(), versionArg(version), { attested }));
       break;
     }
-    case "matrix":
-      console.log(JSON.stringify(buildMatrix(pins())));
-      break;
     case "assets": {
       if (!args[0]) fail(["usage: release.mjs assets DIR [X.Y.Z]"]);
       const version = versionArg(args[1]);
       const vsix = flatFiles(args[0], (name) => name.endsWith(".vsix"));
-      const found = assetProblems(vsix, { version, targets: runtimeTargets(pins()) });
+      const found = assetProblems(vsix, { version });
       if (found.length > 0) fail(found);
       console.log(`${vsix.length} packages of ${version}: ${vsix.map((file) => file.name).join(", ")}`);
       break;
@@ -111,7 +105,7 @@ try {
     }
     default:
       fail([
-        `unknown command ${JSON.stringify(command ?? "")}: version, check, prerelease, notes, matrix, assets, sums or sizes`,
+        `unknown command ${JSON.stringify(command ?? "")}: version, check, prerelease, notes, assets, sums or sizes`,
       ]);
   }
 } catch (error) {

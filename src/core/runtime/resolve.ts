@@ -1,7 +1,10 @@
-// Runtime resolution in five tiers (SPEC §4, #3): four that run opentide, then the engine (WASM). vscode-free: every side effect is injected, so the tier
-// logic is unit-tested with fakes.
+// Runtime resolution in four tiers (SPEC §4, #3): three that run an installed opentide, then the engine
+// (WASM). vscode-free: every side effect is injected, so the tier logic is unit-tested with fakes.
+//
+// opentide is the user's own install: the extension carries no Python. Where its console script cannot
+// run (not on PATH, a pip --user install, or blocked by an application-control policy that allows the
+// signed python but not the unsigned opentide launcher), the same interpreter runs `python -m opentide`.
 import * as path from "node:path";
-import { bundledEmulationHint } from "./emulation";
 import type { RepoPin } from "./pins";
 import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier } from "./types";
 import {
@@ -24,7 +27,7 @@ export interface ProbeResult {
 export interface ProbeOptions {
   /** Added to the process environment (see `processEnv`). */
   readonly env: Readonly<Record<string, string>>;
-  /** Restricted Mode: the probe runs with the locked-down environment. */
+  /** Restricted Mode: the probe runs with the locked-down environment (no opentide tier probes then). */
   readonly restricted: boolean;
   readonly binDirs: readonly string[];
   readonly timeoutMs: number;
@@ -32,8 +35,6 @@ export interface ProbeOptions {
 
 /** The settings the resolver reads. Restricted keys are read only when the workspace is trusted. */
 export interface RuntimeSettings {
-  /** `opentide.runtime`: `auto` or `bundled`. Not restricted. */
-  readonly runtime: () => string | undefined;
   readonly path: () => string | undefined;
   readonly interpreter: () => string | undefined;
   readonly uvUsePin: () => boolean | undefined;
@@ -43,10 +44,6 @@ export interface RuntimeSettings {
 export interface ResolveInput {
   readonly trusted: boolean;
   readonly platform: NodeJS.Platform;
-  /** `process.arch`: on Windows on Arm the bundled runtime is x64 (`bundledEmulationHint`). */
-  readonly arch?: string;
-  readonly extensionPath: string;
-  readonly globalStoragePath: string;
   /** The folder the window's runtime is resolved for (the first opentide folder). */
   readonly folder: string | undefined;
   readonly settings: RuntimeSettings;
@@ -61,7 +58,7 @@ export interface ResolveInput {
   pythonEnvironments(): Promise<string | undefined>;
   /** The interpreter the Python extension picked for `folder`, when installed. */
   pythonExtension(): Promise<string | undefined>;
-  /** Tier 5: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
+  /** Tier 4: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
   readonly engine?: EngineLayout | undefined;
 }
 
@@ -87,36 +84,8 @@ export function readEngineManifest(text: string | undefined, dir: string): Engin
 const PROBE_TIMEOUT_MS = 20_000;
 const UV_PROBE_TIMEOUT_MS = 180_000;
 
-/** The bundled interpreter and the folders on its PATH. */
-export function bundledLayout(
-  extensionPath: string,
-  platform: NodeJS.Platform,
-): { python: string; binDirs: string[] } {
-  const root = path.join(extensionPath, "runtime");
-  return platform === "win32"
-    ? { python: path.join(root, "python.exe"), binDirs: [root, path.join(root, "Scripts")] }
-    : { python: path.join(root, "bin", "python3"), binDirs: [path.join(root, "bin")] };
-}
-
 /**
- * The arguments that make the bundled interpreter run opentide isolated, its bytecode outside the
- * extension, in UTF-8 mode (`-I` ignores `PYTHONUTF8`; without it Windows writes pipes in the ANSI code
- * page, and every non-ASCII name the extension decodes as UTF-8 becomes U+FFFD).
- */
-export function bundledArgs(globalStoragePath: string): string[] {
-  return [
-    "-I",
-    "-X",
-    "utf8",
-    "-X",
-    `pycache_prefix=${path.join(globalStoragePath, "pycache")}`,
-    "-m",
-    "opentide",
-  ];
-}
-
-/**
- * What every opentide process of tiers 1 to 3 gets: UTF-8 mode and UTF-8 stdio, so its output is UTF-8
+ * What every opentide process gets: UTF-8 mode and UTF-8 stdio, so its output is UTF-8
  * on Windows too, where Python otherwise writes pipes in the ANSI code page. The extension decodes every
  * pipe as UTF-8. `PYTHONIOENCODING` also overrides one the user set, which UTF-8 mode does not.
  */
@@ -146,12 +115,19 @@ export function uvExecutable(
   return value ? expandPath(value, folder, homeDir) : which("uv");
 }
 
-/** The opentide executable next to an interpreter, else `python -m opentide`. */
+/** The arguments that run opentide as a module of an interpreter: `python -m opentide`. */
+export const MODULE_ARGS: readonly string[] = ["-m", "opentide"];
+
+/**
+ * How to run opentide with an interpreter, in order: its console script next to it, when there is one,
+ * then `python -m opentide`, which runs where the script does not (an application-control policy that
+ * blocks the unsigned launcher but allows the signed interpreter, a launcher with a stale shebang).
+ */
 export function opentideForInterpreter(
   python: string,
   platform: NodeJS.Platform,
   exists: (file: string) => boolean,
-): { command: string; args: string[] } {
+): { command: string; args: string[] }[] {
   // The paths of `platform`, which is the host's except in tests.
   const paths = platform === "win32" ? path.win32 : path.posix;
   const dir = paths.dirname(python);
@@ -160,7 +136,31 @@ export function opentideForInterpreter(
       ? [paths.join(dir, "opentide.exe"), paths.join(dir, "Scripts", "opentide.exe")]
       : [paths.join(dir, "opentide")];
   const script = candidates.find(exists);
-  return script ? { command: script, args: [] } : { command: python, args: ["-m", "opentide"] };
+  const module = { command: python, args: [...MODULE_ARGS] };
+  return script ? [{ command: script, args: [] }, module] : [module];
+}
+
+/** The interpreters on PATH that may have opentide installed as a module, in the order tried. */
+export function pythonsOnPath(
+  platform: NodeJS.Platform,
+  which: (name: string) => string | undefined,
+): { command: string; args: string[] }[] {
+  const names: { name: string; args: string[] }[] =
+    platform === "win32"
+      ? [
+          { name: "python", args: [] },
+          { name: "py", args: ["-3"] },
+        ]
+      : [
+          { name: "python3", args: [] },
+          { name: "python", args: [] },
+        ];
+  const found: { command: string; args: string[] }[] = [];
+  for (const { name, args } of names) {
+    const command = which(name);
+    if (command && !found.some((other) => other.command === command)) found.push({ command, args });
+  }
+  return found;
 }
 
 function upgradeHint(source: RuntimeSource, interpreter: string | undefined): string {
@@ -168,6 +168,7 @@ function upgradeHint(source: RuntimeSource, interpreter: string | undefined): st
   if (interpreter) return `"${interpreter}" -m pip install --upgrade ${spec}`;
   if (source === "venv") return `uv pip install --upgrade ${spec}`;
   if (source === "path") return `uv tool install --upgrade ${spec}`;
+  if (source === "python") return `python -m pip install --upgrade ${spec}`;
   return `pip install --upgrade ${spec}`;
 }
 
@@ -212,14 +213,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       return undefined;
     }
     const minimum = lsp ? MIN_ENGINE_VERSION : MIN_OPENTIDE_VERSION;
-    const gate =
-      candidate.tier === 4
-        ? "ok"
-        : lsp
-          ? atLeast(version, minimum)
-            ? "ok"
-            : "too-old"
-          : checkMinimum(version, minimum);
+    const gate = lsp ? (atLeast(version, minimum) ? "ok" : "too-old") : checkMinimum(version, minimum);
     if (gate === "too-old") {
       attempts.push({
         ...base,
@@ -263,13 +257,8 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     attempts.push({ tier, source, outcome: "missing", detail });
   };
 
-  const bundledOnly = !input.trusted || input.settings.runtime() === "bundled";
-  if (bundledOnly) {
-    skip(
-      1,
-      "setting",
-      input.trusted ? "opentide.runtime is bundled" : "Restricted Mode: only the bundled runtime",
-    );
+  if (!input.trusted) {
+    skip(1, "setting", "Restricted Mode: no opentide runs, only the engine (WASM)");
   } else {
     // Tier 1: opentide.path.
     const configured = input.settings.path()?.trim();
@@ -344,24 +333,31 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
         missing(2, source, "no interpreter selected");
         continue;
       }
-      const { command, args } = opentideForInterpreter(interpreter, input.platform, input.exists);
-      const runtime = await check({ tier: 2, source, command, args, kind: "opentide", interpreter }, false);
-      if (runtime) return { runtime, attempts };
+      for (const { command, args } of opentideForInterpreter(interpreter, input.platform, input.exists)) {
+        const runtime = await check({ tier: 2, source, command, args, kind: "opentide", interpreter }, false);
+        if (runtime) return { runtime, attempts };
+        // The module is the same install as its script: only a script that did not run is retried.
+        if (attempts.at(-1)?.outcome !== "failed") break;
+      }
     }
     if (!interpreterSetting) {
       if (input.folder) {
-        const venvScript =
+        // The paths of `platform`, as opentideForInterpreter builds the script's beside it.
+        const venvPython =
           input.platform === "win32"
-            ? path.join(input.folder, ".venv", "Scripts", "opentide.exe")
-            : path.join(input.folder, ".venv", "bin", "opentide");
-        if (input.exists(venvScript)) {
-          const runtime = await check(
-            { tier: 2, source: "venv", command: venvScript, args: [], kind: "opentide" },
-            false,
-          );
-          if (runtime) return { runtime, attempts };
+            ? path.win32.join(input.folder, ".venv", "Scripts", "python.exe")
+            : path.posix.join(input.folder, ".venv", "bin", "python");
+        if (input.exists(venvPython)) {
+          for (const { command, args } of opentideForInterpreter(venvPython, input.platform, input.exists)) {
+            const runtime = await check(
+              { tier: 2, source: "venv", command, args, kind: "opentide", interpreter: venvPython },
+              false,
+            );
+            if (runtime) return { runtime, attempts };
+            if (attempts.at(-1)?.outcome !== "failed") break;
+          }
         } else {
-          missing(2, "venv", `${venvScript} does not exist`);
+          missing(2, "venv", `${venvPython} does not exist`);
         }
       }
       const onPath = input.which("opentide");
@@ -374,47 +370,40 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       } else {
         missing(2, "path", "opentide is not on PATH");
       }
+      // `python -m opentide`: a pip --user install whose Scripts folder is not on PATH, or an
+      // opentide launcher that a policy does not let run.
+      const pythons = pythonsOnPath(input.platform, input.which);
+      if (pythons.length === 0) missing(2, "python", "no python on PATH");
+      for (const python of pythons) {
+        const runtime = await check(
+          {
+            tier: 2,
+            source: "python",
+            command: python.command,
+            args: [...python.args, ...MODULE_ARGS],
+            kind: "opentide",
+            interpreter: python.command,
+          },
+          false,
+        );
+        if (runtime) return { runtime, attempts };
+      }
     }
   }
 
-  // Tier 4: the bundled runtime. The only CLI tier in Restricted Mode.
-  const layout = bundledLayout(input.extensionPath, input.platform);
-  if (!input.exists(layout.python)) {
-    missing(4, "bundled", "this package has no bundled runtime (universal package)");
-  } else {
-    const runtime = await check(
-      {
-        tier: 4,
-        source: "bundled",
-        command: layout.python,
-        args: bundledArgs(input.globalStoragePath),
-        kind: "opentide",
-        interpreter: layout.python,
-        binDirs: layout.binDirs,
-      },
-      !input.trusted,
-    );
-    if (runtime) return { runtime, attempts };
-    // Windows 10 on Arm cannot emulate the x64 runtime win32-arm64 bundles: say so, then try tier 5.
-    const hint = bundledEmulationHint(input.platform, input.arch);
-    const failed = attempts.at(-1);
-    if (hint && failed?.tier === 4 && failed.outcome === "failed")
-      attempts[attempts.length - 1] = { ...failed, detail: `${failed.detail}. ${hint}` };
-  }
-
-  // Tier 5: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
-  // process and reads the workspace through VS Code, so Restricted Mode may run it too.
+  // Tier 4: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
+  // process and reads the workspace through VS Code, so Restricted Mode runs it too.
   const engine = input.engine;
   if (!engine) {
-    missing(5, "engine", "this build carries no engine (dist/engine/engine.json)");
+    missing(4, "engine", "this build carries no engine (dist/engine/engine.json)");
     return { runtime: undefined, attempts };
   }
   if (!input.exists(engine.module)) {
-    missing(5, "engine", `${engine.module} does not exist`);
+    missing(4, "engine", `${engine.module} does not exist`);
     return { runtime: undefined, attempts };
   }
   attempts.push({
-    tier: 5,
+    tier: 4,
     source: "engine",
     outcome: "ok",
     path: engine.module,
@@ -424,10 +413,10 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
   return { runtime: engineRuntime(engine, !input.trusted), attempts };
 }
 
-/** The tier-5 runtime of an engine layout. */
+/** The tier-4 runtime of an engine layout. */
 export function engineRuntime(engine: EngineLayout, restricted: boolean): Runtime {
   return {
-    tier: 5,
+    tier: 4,
     source: "engine",
     kind: "engine",
     command: engine.module,

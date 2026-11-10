@@ -32,7 +32,6 @@ export function readSetting<T>(key: string, scope?: vscode.Uri): T | undefined {
 
 export function runtimeSettings(scope: vscode.Uri | undefined): RuntimeSettings {
   return {
-    runtime: () => readSetting<string>("opentide.runtime", scope),
     path: () => readRestricted<string>("opentide.path", scope),
     interpreter: () => readRestricted<string>("opentide.interpreter", scope),
     uvUsePin: () => readRestricted<boolean>("opentide.uv.usePin", scope),
@@ -44,7 +43,6 @@ export function runtimeSettings(scope: vscode.Uri | undefined): RuntimeSettings 
 export const RESTART_SETTINGS = [
   "opentide.path",
   "opentide.interpreter",
-  "opentide.runtime",
   "opentide.uv.usePin",
   "opentide.uv.path",
   "opentide.backend.serve",

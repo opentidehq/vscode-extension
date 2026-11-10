@@ -3,7 +3,7 @@ import { RECHECK_INTERVAL_MS, shouldRecheck, VENV_GLOB } from "../../src/core/ru
 import { fakeRuntime } from "./helpers";
 
 describe("looking again for an opentide on the engine tier", () => {
-  const engine = fakeRuntime({ tier: 5, source: "engine", kind: "engine" });
+  const engine = fakeRuntime({ tier: 4, source: "engine", kind: "engine" });
 
   it("looks only on the engine tier", () => {
     assert.equal(shouldRecheck(engine, undefined, 0), true);

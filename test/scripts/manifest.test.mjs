@@ -249,10 +249,11 @@ describe("README settings table", () => {
 });
 
 describe("manifest: Restricted Mode", () => {
-  it("says which language server runs untrusted: the bundled runtime's, or else the engine's", () => {
+  it("says which language server runs untrusted: the engine's, and that opentide needs trust", () => {
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
     const text = pkg.capabilities.untrustedWorkspaces.description;
-    assert.match(text, /bundled runtime/);
+    assert.doesNotMatch(text, /bundled runtime/);
+    assert.match(text, /trusted folder/);
     assert.match(text, /opentide engine \(WASM\)/);
   });
 });

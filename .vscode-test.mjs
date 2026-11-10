@@ -43,13 +43,4 @@ export default defineConfig([
     mocha: { ...mocha, timeout: 60000 },
     env: pathWithoutOpentide(),
   },
-  {
-    // The bundled runtime of a checkout whose runtime/ holds a build (npm run runtime:build): CI's
-    // Windows package jobs, win32-arm64's on Windows 11 on Arm under x64 emulation.
-    label: "bundled",
-    files: "out/test/bundled/**/*.test.js",
-    workspaceFolder,
-    launchArgs: ["--disable-workspace-trust"],
-    mocha: { ...mocha, timeout: 120000 },
-  },
 ]);

@@ -1,5 +1,5 @@
 // Pure helpers for scripts/package.mjs and scripts/smoke.mjs: VSIX names, the size gate and its report,
-// and a zip reader that keeps file modes (the bundled interpreter must stay executable).
+// and a zip reader.
 import { inflateRawSync } from "node:zlib";
 
 export class PackageError extends Error {}
@@ -18,37 +18,6 @@ export function vsixName(target, version) {
 export function isPreReleaseVersion(version) {
   const match = /^\d+\.(\d+)\./.exec(version);
   return match?.[1] !== undefined && Number(match[1]) % 2 === 1;
-}
-
-/**
- * The .vscodeignore for the universal package: the same, with the runtime excluded even when a build
- * left one in runtime/.
- */
-export function universalIgnore(text) {
-  const lines = text.split(/\r?\n/).filter((line) => !/^!\s*runtime(?:\/|$)/.test(line.trim()));
-  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-  return `${[...lines, "runtime/**"].join("\n")}\n`;
-}
-
-/**
- * Why runtime/BUILD-INFO.json is not the build a target's package needs, or undefined: the target, the
- * runtime it bundles (pins.json emulatedTargets: win32-arm64 bundles win32-x64's; a build from before
- * BUILD-INFO had `runtime` is its target's own), the pinned opentide and CPython.
- */
-export function buildInfoProblem(info, want) {
-  const runtime = info.runtime ?? info.target;
-  if (
-    info.target === want.target &&
-    runtime === want.runtime &&
-    info.opentide === want.opentide &&
-    info.cpython === want.cpython
-  )
-    return undefined;
-  const of = (t, r) => (r && r !== t ? `${t} with the ${r} runtime` : t);
-  return (
-    `runtime/ holds ${of(info.target, runtime)} (opentide ${info.opentide}, CPython ${info.cpython}), ` +
-    `not ${of(want.target, want.runtime)} (opentide ${want.opentide}, CPython ${want.cpython})`
-  );
 }
 
 /**

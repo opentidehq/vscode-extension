@@ -2,7 +2,7 @@
 
 A release is **Run workflow** on [`publish.yml`](../.github/workflows/publish.yml) on `main`, with no
 inputs, after a notes PR has merged. The workflow reads the version from `CHANGELOG.md`, builds and
-smoke-tests every package, tags `v<version>`, creates the GitHub Release, and publishes to the Visual
+smoke-tests the package (one, universal: the extension bundles no runtime), tags `v<version>`, creates the GitHub Release, and publishes to the Visual
 Studio Marketplace and Open VSX with trusted publishing (OIDC; no long-lived token). It is modelled on
 opentide's `publish-pypi.yml` and language-server's `release.yml`. Agents: [`.agents/skills/release/SKILL.md`](../.agents/skills/release/SKILL.md).
 
@@ -37,9 +37,6 @@ run in it, and both stores' trusted-publishing registrations name it.
     warning, and the release goes out with `SHA256SUMS` only (its notes then leave out
     `gh attestation verify`). On GitHub Enterprise Cloud, set the repository variable `ATTEST` to
     `true` (**Settings → Secrets and variables → Actions → Variables**) to attest a private repository.
-  - **Arm runners** (`ubuntu-24.04-arm`, `windows-11-arm`) are free for public repositories; a private
-    repository needs a plan that includes them, or the linux-arm64 and alpine-arm64 builds
-    wait for a runner that never comes.
 - **Settings → Actions → General → Workflow permissions** can stay *Read repository contents*: the
   workflow asks for `contents: write` itself, in its `release` job only.
 
@@ -87,7 +84,7 @@ script runs there. To bump them, change `tools/publish/package.json` and run `np
 ### 5. First-publish checklist
 
 - [ ] Environment `production` exists, limited to `main` (optionally with reviewers).
-- [ ] The repository is public (attestations, free arm runners), or on GitHub Enterprise Cloud with
+- [ ] The repository is public (attestations), or on GitHub Enterprise Cloud with
       the variable `ATTEST=true`.
 - [ ] Open VSX: publisher agreement signed, namespace `opentidehq` created (and claimed), `OVSX_PAT`
       saved in `production`.
@@ -154,13 +151,11 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
 
 ### Step 3: check
 
-- The [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) has one VSIX per
-  runtime target, the universal VSIX and `SHA256SUMS`;
-  `gh attestation verify <file>.vsix --repo opentidehq/vscode-extension` passes (unless the run warned
-  "No build provenance": a private repository).
+- The [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) has the universal VSIX
+  and `SHA256SUMS`; `gh attestation verify <file>.vsix --repo opentidehq/vscode-extension` passes
+  (unless the run warned "No build provenance": a private repository).
 - [Marketplace](https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide) and
-  [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) list the version with every
-  platform.
+  [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) list the version.
 
 ## Pre-release and stable
 
@@ -180,45 +175,24 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
 
 ## Release cadence and opentide bumps
 
-Every update re-downloads the bundled runtime for every user (each per-platform package is tens of MB),
-so stable releases follow opentide releases and fixes, not every merge (SPEC §3).
-
-An opentide release flows in as a PR:
-
-1. Bump `pins.json` `opentide.version`.
-2. Refresh what follows from it: the runtime lock (`npm run runtime:lock`) and, when the engine inside
-   that opentide moved, the grammars (`highlights` in `pins.json` follows the engine pin; then
-   `npm run grammars` and `npm run manifest`).
-3. A `### Changed` bullet under `## [Unreleased]`: "Bundles opentide 0.22.0", with what users see
-   change.
-4. CI runs the tests against the new opentide (`pip install opentide==<pin>`) and the linux-x64 smoke
-   test.
-
-Then cut a release with the notes PR above: stable when the bump is the point of the release, a
-pre-release first when it changes much.
+The extension bundles no opentide (SPEC D1): users upgrade opentide themselves (`pip install --upgrade
+opentide`), and the package is a few MB, so a release follows the extension's own changes. A bump of
+`pins.json` `opentide.version` changes only what CI tests against ([PACKAGING.md](PACKAGING.md#bumping-the-opentide-ci-tests-against)):
+it needs no release unless the extension changes with it.
 
 ## What the workflow does
 
 | Job | Runs on | Does |
 |-----|---------|------|
-| `prepare` | ubuntu | Refuses unless run on `main`, `CHANGELOG.md`'s newest version matches `package.json`, `[Unreleased]` is empty and `v<version>` is not tagged; computes the channel and the build matrix from `pins.json` `runtimeTargets` |
-| `build` | each target's native runner | uv at `pins.json` `uv.version`, `runtime:lock -- --check`, `runtime:build -- --target <t>`, `package -- --target <t>`, `smoke` (Alpine: in a digest-pinned `node:22-alpine` container on the Linux runner of its architecture) |
-| `universal` | ubuntu | CI's checks, then `package -- --universal`: the package every target without a runtime, and the web, installs |
-| `attest` | ubuntu | Every VSIX is `opentidehq.opentide` at the version and channel, one universal and one per runtime target; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
+| `prepare` | ubuntu | Refuses unless run on `main`, `CHANGELOG.md`'s newest version matches `package.json`, `[Unreleased]` is empty and `v<version>` is not tagged; computes the channel |
+| `universal` | ubuntu | CI's checks, then `npm run package -- --universal` (the one package: every platform and the web) and its smoke test |
+| `attest` | ubuntu | The VSIX is `opentidehq.opentide` at the version and channel, and universal; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
 | `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and, when attested, their attestations |
-| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <every VSIX>`: one call, with one OIDC exchange per package (vsce asks for a token for each VSIX, skipped duplicates included). Then `tools/publish/marketplace.mjs` waits until the Marketplace gallery lists every package of the Release, publishes the missing ones again, and fails naming them: vsce's "Published" is not the listing (0.1.0, the first publish, kept one package of eight) |
-| `publish-openvsx` | ubuntu, `production` | `ovsx publish --trusted-publishing --skip-duplicate --packagePath <every VSIX>`, or with `OVSX_PAT` when the secret is set |
+| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <the VSIX>`. Then `tools/publish/marketplace.mjs` waits until the Marketplace gallery lists the package of the Release, publishes it again if missing, and fails naming it: vsce's "Published" is not the listing (0.1.0, the first publish, kept one package of eight) |
+| `publish-openvsx` | ubuntu, `production` | `ovsx publish --trusted-publishing --skip-duplicate --packagePath <the VSIX>`, or with `OVSX_PAT` when the secret is set |
 
-| Runtime target | Runner |
-|----------------|--------|
-| win32-x64 / win32-arm64 | `windows-latest` / `windows-11-arm` (win32-arm64 bundles win32-x64's runtime, `pins.json` `emulatedTargets`) |
-| linux-x64 / linux-arm64 | `ubuntu-latest` / `ubuntu-24.04-arm` |
-| alpine-x64 / alpine-arm64 | `ubuntu-latest` / `ubuntu-24.04-arm`, smoke test in Alpine |
-| darwin-x64 / darwin-arm64 | `macos-15-intel` / `macos-latest` |
-
-A target `pins.json` does not list in `runtimeTargets` gets no package of its own: the stores give it the
-universal package. Nothing is tagged until every package has built and passed its smoke test; the
-stores get nothing until the GitHub Release exists.
+The stores get nothing until the GitHub Release exists, and nothing is tagged until the package has
+built and passed its smoke test.
 
 ## When something fails
 
@@ -226,7 +200,7 @@ stores get nothing until the GitHub Release exists.
 |---------|----|
 | `prepare`: `[Unreleased] still holds …`, a version mismatch | Fix it in a PR; run again |
 | `prepare`: `v<version> is already tagged` | That version is out: re-run the failed jobs of its run, or release the next version |
-| `build` or `universal` | Nothing was tagged. Fix it on `main` (a PR) and run again |
+| `universal` or `attest` | Nothing was tagged. Fix it on `main` (a PR) and run again |
 | `release` (GitHub Release) | **Re-run failed jobs**. When an earlier attempt already made the Release (for example the verify step failed), the job finds it, checks that its tag is on the run's commit, uploads the assets again with `--clobber` and goes on; a Release on another commit stops it. The stores get nothing until it succeeds |
 | `publish-marketplace` or `publish-openvsx` | **Re-run failed jobs** on the run. The other store is unaffected; `--skip-duplicate` skips what a store already has |
 | Open VSX `401`/`403` with trusted publishing | The trusted publisher's repository, workflow (`publish.yml`) or environment (`production`) differs from the run's; fix the registration and re-run the job |

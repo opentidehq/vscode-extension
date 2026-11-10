@@ -1,20 +1,26 @@
 import * as assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import {
+  opentideForInterpreter,
   type ProbeOptions,
   type ProbeResult,
+  pythonsOnPath,
   type ResolveInput,
   type RuntimeSettings,
   readEngineManifest,
   resolveRuntime,
   uvExecutable,
 } from "../../src/core/runtime/resolve";
-import { ROOT } from "./helpers";
 
 const EXT = "/ext";
 const FOLDER = "/work/detections";
-const BUNDLED = path.join(EXT, "runtime", "bin", "python3");
+const VENV_PYTHON = path.posix.join(FOLDER, ".venv", "bin", "python");
+const BLOCKED: ProbeResult = {
+  code: null,
+  stdout: "",
+  stderr: "",
+  error: "spawn EACCES",
+};
 
 interface Fake {
   files: Set<string>;
@@ -30,7 +36,7 @@ function input(
   fake?: Partial<Fake>,
 ) {
   const state: Fake = {
-    files: new Set([BUNDLED]),
+    files: new Set<string>(),
     onPath: {},
     versions: {},
     probes: [],
@@ -39,11 +45,8 @@ function input(
   const value: ResolveInput = {
     trusted: true,
     platform: "linux",
-    extensionPath: EXT,
-    globalStoragePath: "/storage",
     folder: FOLDER,
     settings: {
-      runtime: () => "auto",
       path: () => undefined,
       interpreter: () => undefined,
       uvUsePin: () => false,
@@ -77,7 +80,7 @@ describe("runtime resolution", () => {
     const { value } = input(
       {},
       { path: () => "/opt/opentide" },
-      { versions: { "/opt/opentide": "opentide 0.21.0", [BUNDLED]: "opentide 0.20.1" } },
+      { versions: { "/opt/opentide": "opentide 0.21.0" } },
     );
     const { runtime } = await resolveRuntime(value);
     assert.equal(runtime?.tier, 1);
@@ -98,14 +101,15 @@ describe("runtime resolution", () => {
   });
 
   it("falls through a failing tier 1 to the workspace's .venv", async () => {
-    const venv = path.join(FOLDER, ".venv", "bin", "opentide");
+    const venv = path.posix.join(FOLDER, ".venv", "bin", "opentide");
     const { value } = input(
       {},
       { path: () => "/missing/opentide" },
-      { files: new Set([BUNDLED, venv]), versions: { [venv]: "opentide 0.20.1" } },
+      { files: new Set([VENV_PYTHON, venv]), versions: { [venv]: "opentide 0.20.1" } },
     );
     const { runtime, attempts } = await resolveRuntime(value);
     assert.equal(runtime?.source, "venv");
+    assert.equal(runtime?.interpreter, VENV_PYTHON);
     assert.equal(attempts.find((a) => a.tier === 1)?.outcome, "failed");
   });
 
@@ -115,7 +119,7 @@ describe("runtime resolution", () => {
     const { value } = input(
       { pythonEnvironments: async () => python },
       {},
-      { files: new Set([BUNDLED, script]), versions: { [script]: "opentide 0.20.1" } },
+      { files: new Set([script]), versions: { [script]: "opentide 0.20.1" } },
     );
     const { runtime } = await resolveRuntime(value);
     assert.equal(runtime?.source, "python-environments");
@@ -148,17 +152,17 @@ describe("runtime resolution", () => {
     assert.equal((await resolveRuntime(value)).runtime?.source, "path");
   });
 
-  it("refuses an opentide older than the minimum with its upgrade command, and tier 4 takes over", async () => {
+  it("refuses an opentide older than the minimum with its upgrade command, and the next tier takes over", async () => {
     const { value } = input(
       {},
       {},
       {
-        onPath: { opentide: "/usr/bin/opentide" },
-        versions: { "/usr/bin/opentide": "opentide 0.19.2", [BUNDLED]: "opentide 0.20.1" },
+        onPath: { opentide: "/usr/bin/opentide", python3: "/opt/py/bin/python3" },
+        versions: { "/usr/bin/opentide": "opentide 0.19.2", "/opt/py/bin/python3": "opentide 0.20.1" },
       },
     );
     const { runtime, attempts } = await resolveRuntime(value);
-    assert.equal(runtime?.tier, 4);
+    assert.equal(runtime?.source, "python");
     const old = attempts.find((a) => a.outcome === "too-old");
     assert.equal(old?.version, "0.19.2");
     assert.match(old?.upgrade ?? "", /opentide>=0\.20\.1/);
@@ -170,7 +174,7 @@ describe("runtime resolution", () => {
       {},
       {
         onPath: { opentide: "/usr/bin/opentide" },
-        versions: { "/usr/bin/opentide": "opentide 0.1.dev216+g0a65c49", [BUNDLED]: "opentide 0.21.0" },
+        versions: { "/usr/bin/opentide": "opentide 0.1.dev216+g0a65c49" },
       },
     );
     const { runtime, attempts } = await resolveRuntime(value);
@@ -218,101 +222,164 @@ describe("runtime resolution", () => {
     const { value, state } = input(
       { pin: { version: "0.20.1", source: "uv.lock" } },
       {},
-      { onPath: { uv: "/usr/bin/uv" }, versions: { [BUNDLED]: "opentide 0.20.1" } },
+      {
+        onPath: { uv: "/usr/bin/uv", opentide: "/usr/bin/opentide" },
+        versions: { "/usr/bin/opentide": "opentide 0.20.1" },
+      },
     );
     const { runtime } = await resolveRuntime(value);
-    assert.equal(runtime?.tier, 4);
+    assert.equal(runtime?.source, "path");
     assert.ok(!state.probes.some((p) => p.command === "/usr/bin/uv"));
   });
 
-  it("tier 4: the bundled interpreter, isolated, bytecode under global storage", async () => {
-    const { value } = input({}, {}, { versions: { [BUNDLED]: "opentide 0.20.1" } });
-    const { runtime } = await resolveRuntime(value);
-    assert.equal(runtime?.tier, 4);
-    assert.equal(runtime?.command, BUNDLED);
-    assert.deepEqual(runtime?.args, [
-      "-I",
-      "-X",
-      "utf8",
-      "-X",
-      `pycache_prefix=${path.join("/storage", "pycache")}`,
-      "-m",
-      "opentide",
-    ]);
-    assert.deepEqual(runtime?.binDirs, [path.join(EXT, "runtime", "bin")]);
-    assert.equal(runtime?.restricted, false);
-  });
+  describe("python -m opentide where the opentide command cannot run", () => {
+    it("an interpreter whose opentide script is blocked runs `python -m opentide`", async () => {
+      const python = "/envs/a/bin/python";
+      const script = "/envs/a/bin/opentide";
+      const { value, state } = input(
+        { pythonExtension: async () => python },
+        {},
+        { files: new Set([script]), versions: { [script]: BLOCKED, [python]: "opentide 0.22.0" } },
+      );
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime?.source, "python-extension");
+      assert.equal(runtime?.command, python);
+      assert.deepEqual(runtime?.args, ["-m", "opentide"]);
+      assert.deepEqual(state.probes.at(-1)?.args, ["-m", "opentide", "--version"]);
+      const blocked = attempts.find((a) => a.path === script);
+      assert.equal(blocked?.outcome, "failed");
+      assert.match(blocked?.detail ?? "", /EACCES/);
+    });
 
-  it("Windows: the bundled python.exe, with Scripts on PATH", async () => {
-    const python = path.join(EXT, "runtime", "python.exe");
-    const { value } = input(
-      { platform: "win32" },
-      {},
-      { files: new Set([python]), versions: { [python]: "opentide 0.20.1" } },
-    );
-    const { runtime } = await resolveRuntime(value);
-    assert.equal(runtime?.command, python);
-    assert.deepEqual(runtime?.binDirs, [path.join(EXT, "runtime"), path.join(EXT, "runtime", "Scripts")]);
-  });
+    it("a too-old script is not retried as a module: it is the same install", async () => {
+      const python = "/envs/a/bin/python";
+      const script = "/envs/a/bin/opentide";
+      const { value, state } = input(
+        { pythonExtension: async () => python },
+        {},
+        { files: new Set([script]), versions: { [script]: "opentide 0.19.0", [python]: "opentide 0.19.0" } },
+      );
+      await resolveRuntime(value);
+      assert.equal(
+        state.probes.some((p) => p.command === python),
+        false,
+      );
+    });
 
-  it("Windows on Arm: the same python.exe, whatever its architecture (the package's x64 runtime)", async () => {
-    const python = path.join(EXT, "runtime", "python.exe");
-    const { value } = input(
-      { platform: "win32", arch: "arm64" },
-      {},
-      { files: new Set([python]), versions: { [python]: "opentide 0.22.0" } },
-    );
-    const { runtime, attempts } = await resolveRuntime(value);
-    assert.equal(runtime?.tier, 4);
-    assert.equal(runtime?.command, python);
-    assert.doesNotMatch(attempts.at(-1)?.detail ?? "", /emulation/);
-  });
-
-  it("Windows on Arm: a bundled runtime that does not start says Windows 10 on Arm cannot run it", async () => {
-    const python = path.join(EXT, "runtime", "python.exe");
-    const failing = (platform: NodeJS.Platform, arch: string) =>
-      input(
-        { platform, arch },
+    it("the .venv's python runs `-m opentide` when its opentide script is blocked", async () => {
+      const script = path.posix.join(FOLDER, ".venv", "bin", "opentide");
+      const { value } = input(
+        {},
         {},
         {
-          files: new Set([python, BUNDLED]),
+          files: new Set([VENV_PYTHON, script]),
+          versions: { [script]: BLOCKED, [VENV_PYTHON]: "opentide 0.22.0" },
+        },
+      );
+      const { runtime } = await resolveRuntime(value);
+      assert.equal(runtime?.source, "venv");
+      assert.equal(runtime?.command, VENV_PYTHON);
+      assert.deepEqual(runtime?.args, ["-m", "opentide"]);
+    });
+
+    it("python on PATH runs `-m opentide` when no opentide is on PATH (pip --user, Scripts not on PATH)", async () => {
+      const { value } = input(
+        {},
+        {},
+        { onPath: { python3: "/usr/bin/python3" }, versions: { "/usr/bin/python3": "opentide 0.22.0" } },
+      );
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime?.tier, 2);
+      assert.equal(runtime?.source, "python");
+      assert.equal(runtime?.command, "/usr/bin/python3");
+      assert.deepEqual(runtime?.args, ["-m", "opentide"]);
+      assert.equal(runtime?.interpreter, "/usr/bin/python3");
+      assert.equal(runtime?.env.PYTHONUTF8, "1");
+      assert.equal(attempts.find((a) => a.source === "path")?.outcome, "missing");
+    });
+
+    it("python on PATH runs `-m opentide` when the opentide on PATH is blocked", async () => {
+      const { value } = input(
+        {},
+        {},
+        {
+          onPath: { opentide: "/home/me/.local/bin/opentide", python3: "/usr/bin/python3" },
+          versions: { "/home/me/.local/bin/opentide": BLOCKED, "/usr/bin/python3": "opentide 0.22.0" },
+        },
+      );
+      const { runtime } = await resolveRuntime(value);
+      assert.equal(runtime?.source, "python");
+    });
+
+    it("Windows: python, then the py launcher with -3", async () => {
+      const python = "C:\\Python313\\python.exe";
+      const py = "C:\\Windows\\py.exe";
+      const { value, state } = input(
+        { platform: "win32" },
+        {},
+        {
+          onPath: { python, py },
           versions: {
-            [python]: { code: null, stdout: "", stderr: "", error: "spawn UNKNOWN" },
-            [BUNDLED]: { code: null, stdout: "", stderr: "", error: "spawn UNKNOWN" },
+            [python]: { code: 1, stdout: "", stderr: "No module named opentide" },
+            [py]: "opentide 0.22.0",
           },
         },
-      ).value;
-    const arm = await resolveRuntime(failing("win32", "arm64"));
-    assert.equal(arm.runtime, undefined);
-    // Tier 5 (the engine) follows: the hint is on tier 4's attempt, wherever it sits.
-    const last = arm.attempts.find((attempt) => attempt.tier === 4);
-    assert.equal(last?.tier, 4);
-    assert.equal(last?.outcome, "failed");
-    assert.match(
-      last?.detail ?? "",
-      /spawn UNKNOWN\. This package's runtime is x64: .*Windows 10 on Arm cannot/,
-    );
-    for (const [platform, arch] of [
-      ["win32", "x64"],
-      ["linux", "arm64"],
-    ] as const) {
-      const other = await resolveRuntime(failing(platform, arch));
-      const bundled = other.attempts.find((attempt) => attempt.tier === 4);
-      assert.doesNotMatch(bundled?.detail ?? "", /Windows 10 on Arm/, `${platform}-${arch}`);
-    }
+      );
+      const { runtime } = await resolveRuntime(value);
+      assert.equal(runtime?.command, py);
+      assert.deepEqual(runtime?.args, ["-3", "-m", "opentide"]);
+      assert.deepEqual(state.probes.at(-1)?.args, ["-3", "-m", "opentide", "--version"]);
+    });
+
+    it("an interpreter without opentide installed is reported, not used", async () => {
+      const { value } = input(
+        {},
+        {},
+        {
+          onPath: { python3: "/usr/bin/python3" },
+          versions: {
+            "/usr/bin/python3": { code: 1, stdout: "", stderr: "/usr/bin/python3: No module named opentide" },
+          },
+        },
+      );
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime, undefined);
+      assert.match(attempts.find((a) => a.source === "python")?.detail ?? "", /No module named opentide/);
+    });
+
+    it("the interpreters on PATH, each once", () => {
+      assert.deepEqual(
+        pythonsOnPath("linux", (name) => ({ python3: "/usr/bin/python3", python: "/usr/bin/python3" })[name]),
+        [{ command: "/usr/bin/python3", args: [] }],
+      );
+      assert.deepEqual(
+        pythonsOnPath("win32", () => undefined),
+        [],
+      );
+    });
+
+    it("the ways to run opentide with an interpreter: its script, then the module", () => {
+      const exists = (file: string) => file === "C:\\venv\\Scripts\\opentide.exe";
+      assert.deepEqual(opentideForInterpreter("C:\\venv\\Scripts\\python.exe", "win32", exists), [
+        { command: "C:\\venv\\Scripts\\opentide.exe", args: [] },
+        { command: "C:\\venv\\Scripts\\python.exe", args: ["-m", "opentide"] },
+      ]);
+      assert.deepEqual(
+        opentideForInterpreter("/usr/bin/python3", "linux", () => false),
+        [{ command: "/usr/bin/python3", args: ["-m", "opentide"] }],
+      );
+    });
   });
 
-  it("Windows on Arm: the hint's premise is pins.json's, an x64 runtime in the win32-arm64 package", () => {
-    const pins = JSON.parse(readFileSync(path.join(ROOT, "pins.json"), "utf8")) as {
-      emulatedTargets?: Record<string, { runtime: string }>;
-    };
-    // When win32-arm64 bundles a native runtime again, remove bundledEmulationHint (src/core/runtime/emulation.ts).
-    assert.equal(pins.emulatedTargets?.["win32-arm64"]?.runtime, "win32-x64");
-  });
-
-  it("Restricted Mode: only tier 4, restricted, and no restricted setting is read", async () => {
+  it("Restricted Mode: no opentide is probed and no restricted setting is read; the engine runs", async () => {
+    const ENGINE = { module: path.join(EXT, "dist", "engine", "opentide_wasm_bg.wasm"), version: "0.10.0" };
     const { value, state } = input(
-      { trusted: false, pythonEnvironments: throwing("python"), pythonExtension: throwing("python") },
+      {
+        trusted: false,
+        engine: ENGINE,
+        pythonEnvironments: throwing("python"),
+        pythonExtension: throwing("python"),
+      },
       {
         path: throwing("opentide.path"),
         interpreter: throwing("opentide.interpreter"),
@@ -320,42 +387,33 @@ describe("runtime resolution", () => {
         uvPath: throwing("opentide.uv.path"),
       },
       {
+        files: new Set([ENGINE.module]),
         onPath: { opentide: "/usr/bin/opentide" },
-        versions: { "/usr/bin/opentide": "opentide 0.21.0", [BUNDLED]: "opentide 0.20.1" },
+        versions: { "/usr/bin/opentide": "opentide 0.21.0" },
       },
     );
     const { runtime } = await resolveRuntime(value);
     assert.equal(runtime?.tier, 4);
+    assert.equal(runtime?.kind, "engine");
     assert.equal(runtime?.restricted, true);
-    assert.equal(state.probes.length, 1);
-    assert.equal(state.probes[0]?.options.restricted, true, "the version probe runs locked down too");
-  });
-
-  it("opentide.runtime = bundled skips tiers 1 to 3", async () => {
-    const { value } = input(
-      {},
-      { runtime: () => "bundled", path: throwing("opentide.path") },
-      { versions: { [BUNDLED]: "opentide 0.20.1" } },
-    );
-    assert.equal((await resolveRuntime(value)).runtime?.tier, 4);
+    assert.equal(state.probes.length, 0);
   });
 
   it("a build without the engine and no opentide has no runtime, and says why", async () => {
     const { value } = input({}, {}, { files: new Set() });
     const { runtime, attempts } = await resolveRuntime(value);
     assert.equal(runtime, undefined);
-    assert.match(attempts.find((a) => a.tier === 4)?.detail ?? "", /no bundled runtime/);
-    assert.equal(attempts.at(-1)?.tier, 5);
+    assert.equal(attempts.at(-1)?.tier, 4);
     assert.match(attempts.at(-1)?.detail ?? "", /carries no engine/);
   });
 
-  describe("tier 5: the engine (WASM)", () => {
+  describe("tier 4: the engine (WASM)", () => {
     const ENGINE = { module: path.join(EXT, "dist", "engine", "opentide_wasm_bg.wasm"), version: "0.10.0" };
 
-    it("is the universal package's runtime when no opentide answers", async () => {
+    it("is the runtime when no opentide answers", async () => {
       const { value, state } = input({ engine: ENGINE }, {}, { files: new Set([ENGINE.module]) });
       const { runtime, attempts } = await resolveRuntime(value);
-      assert.equal(runtime?.tier, 5);
+      assert.equal(runtime?.tier, 4);
       assert.equal(runtime?.source, "engine");
       assert.equal(runtime?.kind, "engine");
       assert.equal(runtime?.command, ENGINE.module);
@@ -370,8 +428,8 @@ describe("runtime resolution", () => {
           [2, "missing"],
           [2, "missing"],
           [2, "missing"],
-          [4, "missing"],
-          [5, "ok"],
+          [2, "missing"],
+          [4, "ok"],
         ],
       );
       // The engine is not probed: nothing is spawned for it.
@@ -381,49 +439,44 @@ describe("runtime resolution", () => {
       );
     });
 
-    it("takes over from a broken bundled runtime", async () => {
+    it("takes over from an opentide that does not answer", async () => {
       const { value } = input(
         { engine: ENGINE },
         {},
         {
-          files: new Set([BUNDLED, ENGINE.module]),
-          versions: { [BUNDLED]: { code: 1, stdout: "", stderr: "ImportError: libssl.so.3" } },
+          files: new Set([ENGINE.module]),
+          onPath: { opentide: "/usr/bin/opentide" },
+          versions: { "/usr/bin/opentide": { code: 1, stdout: "", stderr: "ImportError: libssl.so.3" } },
         },
       );
       const { runtime, attempts } = await resolveRuntime(value);
       assert.equal(runtime?.kind, "engine");
-      const bundled = attempts.find((a) => a.tier === 4);
-      assert.equal(bundled?.outcome, "failed");
-      assert.match(bundled?.detail ?? "", /libssl/);
+      const path = attempts.find((a) => a.source === "path");
+      assert.equal(path?.outcome, "failed");
+      assert.match(path?.detail ?? "", /libssl/);
     });
 
-    it("takes over when opentide.path names nothing and opentide.runtime is bundled", async () => {
-      for (const settings of [{ path: () => "/nowhere/opentide" }, { runtime: () => "bundled" }]) {
-        const { value } = input({ engine: ENGINE }, settings, { files: new Set([ENGINE.module]) });
-        const { runtime } = await resolveRuntime(value);
-        assert.equal(runtime?.tier, 5, JSON.stringify(Object.keys(settings)));
-      }
+    it("takes over when opentide.path names nothing", async () => {
+      const { value } = input(
+        { engine: ENGINE },
+        { path: () => "/nowhere/opentide" },
+        { files: new Set([ENGINE.module]) },
+      );
+      assert.equal((await resolveRuntime(value)).runtime?.tier, 4);
     });
 
     it("never replaces a tier that answers", async () => {
       const { value } = input(
         { engine: ENGINE },
         {},
-        { files: new Set([BUNDLED, ENGINE.module]), versions: { [BUNDLED]: "opentide 0.22.0" } },
+        {
+          files: new Set([ENGINE.module]),
+          onPath: { python3: "/usr/bin/python3" },
+          versions: { "/usr/bin/python3": "opentide 0.22.0" },
+        },
       );
       const { runtime } = await resolveRuntime(value);
-      assert.equal(runtime?.tier, 4);
-    });
-
-    it("runs in Restricted Mode, restricted, when the package has no bundled runtime", async () => {
-      const { value } = input(
-        { trusted: false, engine: ENGINE, pythonEnvironments: throwing("python") },
-        { path: throwing("opentide.path"), interpreter: throwing("opentide.interpreter") },
-        { files: new Set([ENGINE.module]) },
-      );
-      const { runtime } = await resolveRuntime(value);
-      assert.equal(runtime?.kind, "engine");
-      assert.equal(runtime?.restricted, true);
+      assert.equal(runtime?.tier, 2);
     });
 
     it("is missing when its module is", async () => {
@@ -447,12 +500,12 @@ describe("runtime resolution", () => {
   });
 
   it("opentide.interpreter replaces the Python extensions and .venv lookup", async () => {
-    const venv = path.join(FOLDER, ".venv", "bin", "opentide");
+    const venv = path.posix.join(FOLDER, ".venv", "bin", "opentide");
     const { value } = input(
       { pythonEnvironments: throwing("python") },
       { interpreter: () => ["$", "{workspaceFolder}/py/bin/python"].join("") },
       {
-        files: new Set([BUNDLED, venv]),
+        files: new Set([VENV_PYTHON, venv]),
         versions: { [`${FOLDER}/py/bin/python`]: "opentide 0.20.1", [venv]: "opentide 0.21.0" },
       },
     );

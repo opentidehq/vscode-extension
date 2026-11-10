@@ -4,7 +4,7 @@ description: >-
   Cut a release of the opentide VS Code extension (opentidehq.opentide): the notes PR (CHANGELOG.md
   section, package.json version), Run workflow on publish.yml on main, the v* tag and GitHub Release,
   and the Marketplace and Open VSX publishes over trusted publishing. Use when releasing, tagging,
-  publishing to a store, bumping the bundled opentide, or when publish.yml fails.
+  publishing to a store, or when publish.yml fails.
 ---
 
 # Release: opentidehq.opentide
@@ -21,12 +21,12 @@ The human procedure, the one-time setup and the failure table are in
 | Release | **Run workflow** on `.github/workflows/publish.yml`, ref `main`, no inputs |
 | Channel | odd minor = pre-release (`--pre-release` at package and publish), even minor = stable: `node scripts/release.mjs prerelease` |
 | Auth | Marketplace: `vsce publish --oidc` (policy: owner `opentidehq`, repo `vscode-extension`, `.github/workflows/publish.yml`, environment `production`). Open VSX: `ovsx publish --trusted-publishing` (same workflow file and environment); `OVSX_PAT` only for the very first publish |
-| Packages | One per `pins.json` `runtimeTargets` entry plus the universal one, from `npm run package`; checked by `node scripts/release.mjs assets`. win32-arm64 bundles win32-x64's runtime (`emulatedTargets`) and builds on `windows-11-arm` |
+| Packages | One, universal, from `npm run package`: the extension bundles no runtime (docs/SPEC.md D1); checked by `node scripts/release.mjs assets` |
 | Never | rename `publish.yml` or the `production` environment (both stores' trust names them); add a workflow input that publishes from another ref; publish from a laptop |
 
 ## When not to release
 
-- CI, docs-for-agents or test-only changes: no release (users re-download the runtime on every update).
+- CI, docs-for-agents or test-only changes: no release.
 - `[Unreleased]` empty: nothing to release.
 - A stable release outside the cadence: stable releases follow opentide releases and fixes. A
   pre-release is fine any time.
@@ -37,7 +37,7 @@ Branch `docs/release-x.y.z` from `origin/main`, one commit, PR to `main`:
 
 1. `CHANGELOG.md`: move every entry under `## [Unreleased]` into `## [x.y.z] - <today>` directly
    below it; leave `## [Unreleased]` with nothing under it. Start the section with one paragraph (what
-   the release is for, the opentide it bundles); the paragraph and the lists are the GitHub Release
+   the release is for); the paragraph and the lists are the GitHub Release
    notes. Write and check them as [`release-notes`](../release-notes/SKILL.md) says: a summary of
    at most 40 words, the parts in order (Upgrade, Breaking, Added, Changed, Deprecated, Removed,
    Fixed, Security), a bold lead on every entry.
@@ -76,7 +76,7 @@ publish jobs. Do not approve on the user's behalf; tell them.
 ```bash
 gh release view vx.y.z --repo opentidehq/vscode-extension --json assets --jq '.assets[].name'
 gh release download vx.y.z --repo opentidehq/vscode-extension --dir /tmp/vsx && (cd /tmp/vsx && sha256sum -c SHA256SUMS)
-gh attestation verify /tmp/vsx/opentide-linux-x64-x.y.z.vsix --repo opentidehq/vscode-extension
+gh attestation verify /tmp/vsx/opentide-universal-x.y.z.vsix --repo opentidehq/vscode-extension
 npx ovsx@1.3.0 show opentidehq.opentide@x.y.z
 ```
 
@@ -96,9 +96,8 @@ take a few minutes to show a new version.
 | `release` | The Release may exist from this attempt, or the verify step failed | **Re-run failed jobs**: the job finishes an existing Release on the run's commit (`gh release upload --clobber`) instead of creating it again, and stops if the tag is on another commit. Ask the user before deleting a tag or Release |
 | `publish-marketplace` / `publish-openvsx` | One store refused, or (Marketplace) the gallery still lacks a package after the listing check republished it. The other store is independent | **Re-run failed jobs**: the job re-downloads the Release's assets and `--skip-duplicate` skips what is there. A trust error is a registration that no longer matches the workflow file or environment: tell the user (docs/RELEASING.md, one-time setup) |
 
-## The bundled opentide
+## The opentide CI tests against
 
-A bump is its own PR: `pins.json` `opentide.version`, then `npm run runtime:lock`; when the engine pin
-inside that opentide moved, `highlights` in `pins.json`, `npm run grammars` and `npm run manifest`.
-Add a `### Changed` bullet ("Bundles opentide x.y.z") under `[Unreleased]`. Release after it merges,
-per the cadence.
+`pins.json` `opentide.version` is what CI installs to test the extension; users install their own. A bump
+is its own PR (docs/PACKAGING.md, "Bumping the opentide CI tests against") and needs no release unless
+the extension changes with it.

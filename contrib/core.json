@@ -156,19 +156,7 @@
             "scope": "machine-overridable",
             "ignoreSync": true,
             "order": 1,
-            "markdownDescription": "A Python interpreter with opentide installed. When set, it replaces the Python extensions, `.venv` and `PATH` lookup for the workspace runtime. Ignored in Restricted Mode."
-          },
-          "opentide.runtime": {
-            "type": "string",
-            "enum": ["auto", "bundled"],
-            "default": "auto",
-            "scope": "window",
-            "order": 2,
-            "enumDescriptions": [
-              "The first runtime that answers: `opentide.path`, the workspace's environment, uv with the repository's pin (when `opentide.uv.usePin` is on), then the bundled runtime.",
-              "Always the runtime bundled with the extension."
-            ],
-            "markdownDescription": "Which opentide runtime the extension uses."
+            "markdownDescription": "A Python interpreter with opentide installed (`pip install opentide`). The extension runs the `opentide` script next to it, else `python -m opentide`: set this where the `opentide` command cannot run. When set, it replaces the Python extensions, `.venv` and `PATH` lookup for the workspace runtime. Ignored in Restricted Mode."
           },
           "opentide.uv.usePin": {
             "type": "boolean",

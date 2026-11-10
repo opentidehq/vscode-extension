@@ -101,7 +101,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
     if (runtime?.kind === "engine") {
       tooltip.appendMarkdown(`**${ENGINE_STATUS}** · engine ${runtime.version}\n\n`);
       tooltip.appendMarkdown(
-        "No opentide answered (`opentide.path`, the workspace's environment, the bundled runtime), so the " +
+        "No opentide answered (`opentide.path`, the workspace's environment, `python -m opentide`), so the " +
           "language server built for WebAssembly runs in the extension: diagnostics, hover, completion, " +
           "code actions, navigation, the Catalogue and Relations. Commands, validate and lint, deploy, query, " +
           "setup and MCP need opentide.",

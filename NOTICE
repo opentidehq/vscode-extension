@@ -3,14 +3,8 @@ Copyright (c) 2026 opentide contributors
 Licensed under the MIT License (see LICENSE).
 
 This extension runs, as separate programs, software under other licences. Each ships with its own
-licence files.
+licence files. It bundles no opentide and no Python: it runs the opentide the user installs (EUPL-1.2).
 
-- The bundled opentide runtime (per-platform packages, in runtime/): opentide and its analysis engine
-  (opentide._native, from opentidehq/language-server) are licensed under the European Union Public
-  Licence v1.2 (EUPL-1.2). The runtime carries opentide's LICENSE, NOTICE and THIRD-PARTY-LICENSES.html,
-  and the licences of the Python packages it contains.
-- The bundled CPython interpreter (python-build-standalone) is licensed under the Python Software
-  Foundation License Version 2 (PSF-2.0), with the licences of the libraries it links.
 - The opentide engine (WASM), in dist/engine/ of every package: opentidehq/language-server's language
   server built for WebAssembly (opentide-wasm, from its opentide-wasm-web release zip), licensed under the
   EUPL-1.2. It ships with its LICENSE, NOTICE and THIRD-PARTY-LICENSES.html (the Rust crates compiled
@@ -22,5 +16,6 @@ licence files.
 - syntaxes/opentide-config.tmLanguage.json is copied from Even Better TOML (tamasfe/taplo) under the
   MIT License, see THIRD-PARTY-LICENSES.
 
-The universal package carries no runtime: it runs the opentide installed in the workspace, or the one
-opentide.path names, else the engine (WASM) for editor features.
+The package carries no runtime: it runs the opentide installed in the workspace (its `opentide`
+command, else `python -m opentide`), or the one opentide.path names, else the engine (WASM) for editor
+features.

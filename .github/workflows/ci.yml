@@ -1,10 +1,7 @@
 # CI for the extension (#2): the checks every commit passes, the VS Code integration, Restricted Mode and
 # engine (WASM) tests on {ubuntu, macos, windows} x {the engines.vscode floor, stable, insiders} (Xvfb on
-# Linux), the tests against the pinned opentide, and the packages: the universal VSIX plus linux-x64 with
-# its smoke test and size report, and the two Windows packages on their own runners, win32-arm64's (the
-# win32-x64 runtime, pins.json emulatedTargets) on Windows 11 on Arm under x64 emulation, each with its
-# smoke test and the extension's tests against that bundled runtime. publish.yml builds and smoke-tests
-# every target for a release.
+# Linux), the tests against the pinned opentide, and the universal package (the only one: the extension
+# runs the user's own opentide) with its smoke test and size report.
 #
 # Actions are pinned by commit SHA with the version in a comment; Dependabot (github-actions) bumps them.
 name: CI
@@ -41,18 +38,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: uv version from pins.json
-        run: echo "UV_VERSION=$(node -p 'require("./pins.json").uv.version')" >> "$GITHUB_ENV"
-      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: false
       - name: package.json contributes match contrib/*.json
         run: npm run manifest:check
       - name: Grammars match the pinned highlights zip
         run: npm run grammars:check
-      - name: Runtime lock matches pins.json
-        run: npm run runtime:lock -- --check
       - run: npm run typecheck
       - run: npm run lint
       - name: Unit and script tests
@@ -92,11 +81,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: npm ci
-      - name: Install the opentide pins.json bundles
+      - name: Install the opentide pins.json names
         run: |
           set -euo pipefail
           version="$(node -p 'require("./pins.json").opentide.version')"
-          python -m pip install "opentide==${version}"
+          # typer 0.29.0 removed modules opentide <= 0.24.0 imports; opentide's next release caps it (opentidehq/opentide cfe3c18).
+          python -m pip install "opentide==${version}" "typer<0.29"
           echo "OPENTIDE_TEST_BIN=$(python -c 'import shutil; print(shutil.which("opentide"))')" >> "$GITHUB_ENV"
       - name: A workspace with an objective and a rule
         run: |
@@ -137,12 +127,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: npm ci
-      - name: Install the opentide pins.json bundles (runtime.test.ts)
+      # In a venv off PATH: the engine tests need a PATH whose python has no opentide (python -m opentide
+      # is a runtime tier).
+      - name: Install the opentide pins.json names, in a venv (real-opentide tests)
         run: |
           set -euo pipefail
           version="$(node -p 'require("./pins.json").opentide.version')"
-          python -m pip install "opentide==${version}"
-          echo "OPENTIDE_TEST_BIN=$(python -c 'import shutil; print(shutil.which("opentide"))')" >> "$GITHUB_ENV"
+          venv="${RUNNER_TEMP}/opentide-venv"
+          python -m venv "${venv}"
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="${venv}/Scripts"; else bin="${venv}/bin"; fi
+          "${bin}/python" -m pip install "opentide==${version}" "typer<0.29"
+          echo "OPENTIDE_TEST_BIN=$("${bin}/python" -c 'import shutil, sys; print(shutil.which("opentide", path=sys.argv[1]))' "${bin}")" >> "$GITHUB_ENV"
+          # The integration and Restricted Mode steps put it on PATH, as a user's install is; the engine step does not.
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="$(cygpath -u "${bin}")"; fi
+          echo "OPENTIDE_TEST_PATH=${bin}" >> "$GITHUB_ENV"
       - name: The VS Code version
         env:
           VSCODE: ${{ matrix.vscode }}
@@ -156,6 +154,7 @@ jobs:
       - name: Integration tests
         run: |
           set -euo pipefail
+          export PATH="${OPENTIDE_TEST_PATH}:${PATH}"
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
             xvfb-run -a npm run test:integration -- --code-version "${CODE_VERSION}"
           else
@@ -164,12 +163,13 @@ jobs:
       - name: Restricted Mode tests
         run: |
           set -euo pipefail
+          export PATH="${OPENTIDE_TEST_PATH}:${PATH}"
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
             xvfb-run -a npm run test:restricted -- --code-version "${CODE_VERSION}"
           else
             npm run test:restricted -- --code-version "${CODE_VERSION}"
           fi
-      # No opentide anywhere (opentide.path names nothing, none on PATH, no bundled runtime): the engine
+      # No opentide anywhere (opentide.path names nothing, none on PATH, no python with it): the engine
       # (WASM) tier gives diagnostics, hover, completion and the Catalogue.
       - name: Engine (WASM) tests, with no opentide
         run: |
@@ -213,7 +213,7 @@ jobs:
         run: npm run test:web
 
   package:
-    name: Packages (universal, linux-x64)
+    name: Package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -224,143 +224,17 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: uv version from pins.json
-        run: echo "UV_VERSION=$(node -p 'require("./pins.json").uv.version')" >> "$GITHUB_ENV"
-      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: false
       - name: Universal package
         run: npm run package -- --universal
       # The engine (WASM) answers from it, and it carries the web extension.
       - name: Universal package smoke test
         run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
-      # The per-platform package exists only for a target pins.json gives a runtime.
-      - name: linux-x64 package and smoke test
-        run: |
-          set -euo pipefail
-          if ! node -e 'process.exit((require("./pins.json").runtimeTargets ?? []).includes("linux-x64") ? 0 : 1)'; then
-            echo "::notice::pins.json runtimeTargets has no linux-x64: only the universal package is built"
-            exit 0
-          fi
-          version="$(node -p 'require("./package.json").version')"
-          npm run runtime:build -- --target linux-x64
-          npm run package -- --target linux-x64
-          npm run smoke -- "dist-vsix/opentide-linux-x64-${version}.vsix"
       - name: Sizes
         if: ${{ !cancelled() }}
         run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vsix
-          path: dist-vsix/*.vsix
-          if-no-files-found: error
-          retention-days: 7
-
-  # The Windows packages, each on its target's runner (scripts/release-lib.mjs RUNNERS). win32-arm64
-  # bundles the win32-x64 runtime, so on windows-11-arm the arm64 Node and VS Code start an x64
-  # python.exe under Windows 11's emulation (Prism): the smoke test, the unit tests against the real
-  # runtime and opentide, and VS Code's integration, bundled-runtime and Restricted Mode tests prove
-  # that. win32-x64 runs the same steps natively, for the comparison (the smoke test's timings).
-  package-windows:
-    name: Package ${{ matrix.target }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: win32-x64
-            os: windows-latest
-          - target: win32-arm64
-            os: windows-11-arm
-    defaults:
-      run:
-        shell: bash
-    env:
-      TARGET: ${{ matrix.target }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm ci
-      - name: uv version from pins.json
-        run: echo "UV_VERSION=$(node -p 'require("./pins.json").uv.version')" >> "$GITHUB_ENV"
-      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: false
-      - name: The machine
-        run: |
-          set -euo pipefail
-          echo "node $(node -p 'process.platform + "-" + process.arch'), PROCESSOR_ARCHITECTURE=${PROCESSOR_ARCHITECTURE:-}, uv $(uv --version)"
-      - name: Bundled runtime
-        run: npm run runtime:build -- --target "${TARGET}"
-      - name: Package
-        run: npm run package -- --target "${TARGET}"
-      - name: Smoke test
-        run: |
-          set -euo pipefail
-          version="$(node -p 'require("./package.json").version')"
-          npm run smoke -- "dist-vsix/opentide-${TARGET}-${version}.vsix" 2>&1 | tee "${RUNNER_TEMP}/smoke.log"
-          {
-            echo "### Smoke test: ${TARGET} on ${RUNNER_OS} ($(node -p 'process.arch'))"
-            echo
-            echo '```'
-            grep -E '^smoke: (interpreter|timing|opentide|catalog|host|OK)' "${RUNNER_TEMP}/smoke.log" || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Sizes
-        if: ${{ !cancelled() }}
-        run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
-      # The bundled runtime's own closure, installed with uv into a venv of a copy of the bundled
-      # interpreter, for the tests that run an `opentide` executable (OPENTIDE_TEST_BIN), and a workspace
-      # for them. A copy: a venv's Python writes bytecode next to its base's stdlib, and runtime/ must stay
-      # as the package has it (the precompile test checks nothing is written there).
-      - name: An opentide of the bundled runtime, and a workspace
-        run: |
-          set -euo pipefail
-          lock="$(node -p 'require("./runtime/BUILD-INFO.json").lock')"
-          base="${RUNNER_TEMP}/opentide-python"
-          cp -R runtime "${base}"
-          venv="${RUNNER_TEMP}/opentide-venv"
-          uv venv --python "${base}/python.exe" "${venv}"
-          uv pip install --python "${venv}/Scripts/python.exe" --require-hashes --only-binary :all: -r "${lock}"
-          bin="${venv}/Scripts/opentide.exe"
-          "${bin}" --version
-          echo "OPENTIDE_TEST_BIN=${bin}" >> "$GITHUB_ENV"
-          workspace="${RUNNER_TEMP}/opentide-ws"
-          mkdir -p "${workspace}"
-          cd "${workspace}"
-          "${bin}" setup --name ci --platform sentinel --platform splunk --ci none --yes
-          "${bin}" --json new objective --name "Detect LSASS access" > /dev/null
-          "${bin}" --json new rule --name "Suspicious LSASS access" --platform sentinel --platform splunk > /dev/null
-          echo "OPENTIDE_TEST_WORKSPACE=${workspace}" >> "$GITHUB_ENV"
-      - name: Unit tests, with the real-opentide and bundled-runtime ones
-        run: OPENTIDE_TEST_BUNDLED="$(cygpath -w "${PWD}")" npm test
-      - name: Integration tests
-        run: npm run test:integration -- --code-version stable
-      - name: Bundled runtime tests
-        run: npm run test:bundled -- --code-version stable
-      - name: Restricted Mode tests
-        run: npm run test:restricted -- --code-version stable
-      - name: The extension's logs from the integration tests
-        if: failure()
-        run: |
-          set -euo pipefail
-          logs=".vscode-test/user-data/logs"
-          [[ -d "${logs}" ]] || exit 0
-          find "${logs}" -type f -path '*/opentidehq.opentide/*' -name '*.log' | sort | while read -r file; do
-            echo "::group::${file}"
-            cat "${file}"
-            echo "::endgroup::"
-          done
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: vsix-${{ matrix.target }}
           path: dist-vsix/*.vsix
           if-no-files-found: error
           retention-days: 7

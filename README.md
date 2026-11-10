@@ -9,10 +9,10 @@ and others through Open VSX).
 - Query results and deploy previews.
 - An MCP server for agents.
 
-It works on install: the platform packages bundle an opentide runtime, so a machine without Python
-gets live checks, templates, the catalogue, the graph, the ATT&CK matrix, queries and deploy previews,
-offline. When the repository has its own opentide (a `.venv`, the Python extension's interpreter,
-`opentide` on `PATH`, or `opentide.path`), the extension uses it, so the editor checks what CI checks.
+It runs the opentide you install (`pip install opentide`): the repository's `.venv`, the Python
+extension's interpreter, `opentide` on `PATH`, or `opentide.path`, so the editor checks what CI checks.
+Where the `opentide` command cannot run, it runs `python -m opentide`. With no opentide at all, the
+opentide engine (WASM) it carries still gives the editor features.
 
 ![The Relations view following an objective: what it covers, its signals and technique, and the rules that implement it](docs/images/relations.png)
 
@@ -37,24 +37,28 @@ code --install-extension opentidehq.opentide --pre-release
 ```
 
 A pinned version installs whatever its channel: `code --install-extension opentidehq.opentide@0.1.0`.
-Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries every
+Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries the
 package as a `.vsix` (**Extensions: Install from VSIX…**), with `SHA256SUMS` and build provenance
 (`gh attestation verify <file>.vsix --repo opentidehq/vscode-extension`).
 
-VS Code downloads the package for your platform. It bundles opentide, so nothing else needs installing.
+Then install opentide (Python 3.10 or later) where the repository's checks run:
+
+```bash
+pip install opentide
+```
+
+`uv tool install opentide`, or a `.venv` with opentide in it, works too. One package serves every
+platform: the extension carries no Python and no opentide of its own.
 
 ## Features
 
-### Works on install
+### Your opentide
 
-The extension for your platform ships with its own opentide (0.22.0 on CPython 3.13), so it works
-offline on a machine with no Python, the graph, the ATT&CK matrix and Relations included. An older
-opentide of your own may have no `info catalog`; the features that need it say so and offer Switch
-Runtime. The first time the bundled opentide runs, it prepares itself in the background. Each package includes an SBOM (`runtime/sbom.cdx.json`) and the
-licences of everything it bundles (`runtime/THIRD-PARTY-NOTICES.txt`). Windows on Arm gets the Windows
-x64 runtime, which Windows 11 runs under its x64 emulation; Windows 10 on Arm cannot run it, so there,
-and on platforms without a dedicated package, the extension needs an opentide of your own
-([Runtime](#runtime)).
+The extension runs the opentide installed for the repository ([Runtime](#runtime)), so what it shows
+is what that opentide checks. An older opentide may have no `info catalog`; the features that need it
+say so and offer Switch Runtime. When the `opentide` command cannot run (a `pip install --user` whose
+scripts folder is not on `PATH`, or a policy that blocks the `opentide` launcher but allows Python), the
+extension runs `python -m opentide` with the same interpreter.
 
 ### Languages
 
@@ -299,8 +303,8 @@ The editor never deploys: copy the deploy command or a ready-made CI step instea
   "$opentide" }`. The provider lists validate, lint, generate, deploy --dry-run and validate query. Bind
   one to a key with `workbench.action.tasks.runTask`, or bind `opentide.runner.run` with
   `{ "argv": ["lint", "--fix"] }`.
-- **Terminal:** with the bundled runtime, `opentide …` works in new integrated terminals
-  (`opentide.terminal.addToPath`), or open the **opentide** terminal profile. Object UUIDs and
+- **Terminal:** when opentide runs as `python -m opentide`, `opentide …` works in new integrated
+  terminals (`opentide.terminal.addToPath`), or open the **opentide** terminal profile. Object UUIDs and
   `error[code]` in the terminal are links.
 
 ### Agents
@@ -309,7 +313,7 @@ The editor never deploys: copy the deploy command or a ready-made CI step instea
   mcp start` with the runtime it uses. `opentide.mcp.provide`: `auto` (skipped when a workspace MCP file,
   `.vscode/mcp.json` or the root `.mcp.json` `opentide setup mcp --claude-code` writes, already defines an
   `opentide` server VS Code can start), `always` or `never`. VS Code keeps one server per name, so when
-  that file's `opentide` command is not found (only the bundled runtime), the extension's server is
+  that file's `opentide` command is not found (opentide runs as `python -m opentide`), the extension's server is
   named `opentide (VS Code)` and stays enabled. No server in Restricted Mode.
 - In Cursor and Windsurf, run **opentide: Add opentide to This Editor's MCP Settings**.
 - Tools `#opentideDiagnostics` (a file's problems) and `#opentideActiveObject` (the open object and what
@@ -344,15 +348,16 @@ The first that answers wins:
 
 1. `opentide.path`: an `opentide` executable, or `opentide-lsp` for editor features only.
 2. The workspace's environment: `opentide.interpreter`, the Python Environments or Python extension's
-   interpreter, `.venv`, then `PATH`.
-3. With `opentide.uv.usePin`: `uv tool run --from opentide==<pin>`.
-4. The bundled runtime. On Windows on Arm it is the x64 one, run under Windows 11's emulation: the
-   cryptography opentide needs has no Windows on Arm build. On Windows 10 on Arm, which cannot run x64
-   programs, it does not start, and the opentide output channel says why: use tiers 1 to 3.
-5. The opentide engine (WASM): the language server built for WebAssembly, which every package carries.
+   interpreter, `.venv`, `opentide` on `PATH`, then `python` on `PATH` (`python3`, or `python` and
+   `py -3` on Windows). For an interpreter, the `opentide` command beside it, else `python -m opentide`.
+3. With `opentide.uv.usePin`: `uv tool run --from opentide==<pin>` (tried before tier 2).
+4. The opentide engine (WASM): the language server built for WebAssembly, which the package carries.
 
-The engine is what runs where nothing else does: the universal package (platforms without a bundled runtime) with no opentide installed, Windows 10 on
-Arm, or a bundled runtime that does not start. It gives the editor features with nothing installed: diagnostics, hover, completion, semantic
+The opentide output channel lists each tier's answer: an `opentide` a policy blocks shows as failed,
+then `python -m opentide` as used. To choose the interpreter yourself, set `opentide.interpreter`.
+
+The engine is what runs where nothing else does: no opentide installed, or one that does not start.
+It gives the editor features with nothing installed: diagnostics, hover, completion, semantic
 tokens, quick fixes, go to definition, references, the outline, and, from its index of the workspace,
 the Catalogue, Relations, the graph and Find Detection. The status bar then reads **opentide engine
 (WASM): editor features only**. Everything that runs opentide (validate and lint, new objects, deploy
@@ -363,16 +368,16 @@ it never blocks the editor, and reads the workspace's object files through VS Co
 
 ## Restricted Mode
 
-In an untrusted folder only the language server runs, from the bundled runtime, with no access to the
-workspace's executables. Commands, tasks, panels and MCP need a trusted folder.
+In an untrusted folder only the opentide engine (WASM) runs, for the editor features: no process
+starts, and no setting that names an executable is read. Commands, tasks, panels, MCP and the
+workspace's opentide need a trusted folder.
 
 ## Settings
 
 | Setting | Default | |
 |---------|---------|-|
 | `opentide.path` | | An `opentide` or `opentide-lsp` executable, used before any other runtime (machine-overridable, not synced) |
-| `opentide.interpreter` | | A Python interpreter with opentide installed, in place of the environment lookup (machine-overridable, not synced) |
-| `opentide.runtime` | `auto` | `auto` or `bundled` |
+| `opentide.interpreter` | | A Python interpreter with opentide installed, run as its `opentide` command or `python -m opentide`, in place of the environment lookup (machine-overridable, not synced) |
 | `opentide.uv.usePin` | `false` | Run the repository's pinned opentide with `uv tool run`, before the workspace's environment |
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
 | `opentide.envFile` | | A `.env` file whose variables reach commands that contact a tenant |
@@ -388,7 +393,7 @@ workspace's executables. Commands, tasks, panels and MCP need a trusted folder.
 | `opentide.query.retainResults` | `false` | Keep a query's last results in memory after its panel closes, for this window |
 | `opentide.relations.codeLens` | `true` | The relations CodeLens on each object's `name:` line (needs `info catalog`) |
 | `opentide.mcp.provide` | `auto` | Give VS Code's agents the opentide MCP server: `auto`, `always` or `never` |
-| `opentide.terminal.addToPath` | `true` | Put the bundled `opentide` on new integrated terminals' `PATH` |
+| `opentide.terminal.addToPath` | `true` | When opentide runs as `python -m opentide`, put an `opentide` command on new integrated terminals' `PATH` |
 
 `opentide.path`, `opentide.interpreter`, `opentide.uv.*`, `opentide.envFile`, `opentide.mcp.provide` and
 `opentide.terminal.addToPath` are ignored in Restricted Mode, and a workspace cannot set them until it is
@@ -408,5 +413,6 @@ language server). Design: [`docs/SPEC.md`](docs/SPEC.md).
 
 ## Licence
 
-MIT. The bundled opentide runtime and engine are EUPL-1.2 and CPython is PSF-2.0; they ship as
-separate programs with their own licence files ([`NOTICE`](NOTICE)).
+MIT. The opentide engine (WASM) and the grammars from language-server are EUPL-1.2; they ship as
+separate programs with their own licence files ([`NOTICE`](NOTICE)). opentide, which you install, is
+EUPL-1.2.
