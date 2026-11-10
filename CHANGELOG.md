@@ -6,10 +6,15 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-10
+
+The extension runs the opentide you install, as `python -m opentide` where the `opentide` command
+is blocked, and no longer bundles one: a single 4 MiB package for every platform.
+
 ### Upgrade
 
-1. Install opentide where the repository's checks run, if you relied on the bundled one: `pip
-   install opentide` (or `uv tool install opentide`, or a `.venv` with opentide in it).
+1. Install opentide 0.24.1 or later where the repository's checks run, if you relied on the bundled
+   one: `pip install opentide` (or `uv tool install opentide`, or a `.venv` with opentide in it).
 2. If the `opentide` command is blocked on your machine and `python` is not on `PATH`, set
    `opentide.interpreter` to a Python with opentide installed.
 
