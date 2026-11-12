@@ -8,8 +8,7 @@ pre-releases odd ones.
 
 ## [0.1.2] - 2026-11-10
 
-The extension runs the opentide you install, as `python -m opentide` where the `opentide` command
-is blocked, and no longer bundles one: a single 4 MiB package for every platform.
+Uses the opentide you install instead of bundling one: one 4 MiB package for every platform.
 
 ### Upgrade
 
@@ -48,9 +47,8 @@ is blocked, and no longer bundles one: a single 4 MiB package for every platform
 
 ## [0.1.1] - 2026-11-05
 
-VS Code installs the extension from the Marketplace on every platform, and the opentide engine
-(WASM) gives editor features with nothing installed, vscode.dev and github.dev included. The bundled
-opentide is still 0.22.0 (engine: language server 0.10.0).
+Install from the Marketplace on any platform. Editor features work with nothing installed, on
+vscode.dev and github.dev too.
 
 ### Added
 
@@ -100,9 +98,8 @@ opentide is still 0.22.0 (engine: language server 0.10.0).
 
 ## [0.1.0] - 2026-11-04
 
-Live checks for Tide objects and their queries, the catalogue, graph and ATT&CK coverage, query
-results, deploy previews and an MCP server. Each platform package bundles opentide 0.22.0 (engine:
-language server 0.10.0) and works offline, without Python.
+First release: live checks for Tide objects and queries, catalogue, graph, ATT&CK coverage and
+deploy previews. Works offline, without Python.
 
 ### Added
 
