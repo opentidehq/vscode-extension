@@ -38,8 +38,8 @@ Branch `docs/release-x.y.z` from `origin/main`, one commit, PR to `main`:
 1. `CHANGELOG.md`: move every entry under `## [Unreleased]` into `## [x.y.z] - <today>` directly
    below it; leave `## [Unreleased]` with nothing under it. Start the section with one paragraph (what
    the release is for); the paragraph and the lists are the GitHub Release
-   notes. Write and check them as [`release-notes`](../release-notes/SKILL.md) says: a summary of
-   at most 40 words, the parts in order (Upgrade, Breaking, Added, Changed, Deprecated, Removed,
+   notes. Write and check them as [`release-notes`](../release-notes/SKILL.md) says: a headline of
+   at most 25 words, the parts in order (Upgrade, Breaking, Added, Changed, Deprecated, Removed,
    Fixed, Security), a bold lead on every entry.
 2. Pick the number: the next odd minor's patch for a pre-release (`0.3.1`), the next even minor for a
    stable release (`0.3.4` -> `0.4.0`). Never a `-suffix`.
