@@ -5,6 +5,7 @@ import { ENGINE_LABEL } from "../../engine/protocol";
 export type RuntimeSource =
   | "setting" // tier 1: opentide.path
   | "interpreter-setting" // tier 2: opentide.interpreter
+  | "package" // tier 2: <extensionPath>/dist/opentide, the @opentide/opentide this package carries
   | "python-environments" // tier 2: the Python Environments extension
   | "python-extension" // tier 2: the Python extension
   | "venv" // tier 2: <folder>/.venv
@@ -23,9 +24,15 @@ export interface Runtime {
    * (`engine`, run in a worker thread), serve editor features only.
    */
   readonly kind: "opentide" | "opentide-lsp" | "engine";
-  /** The executable to spawn; for `engine`, the WebAssembly module. */
+  /**
+   * The executable to spawn; for `engine`, the WebAssembly module; for `package`, the extension host's
+   * own executable (Node.js, or Electron run as Node.js), which runs the package's `cli.js`.
+   */
   readonly command: string;
-  /** Arguments before opentide's own argv (`-m opentide` when opentide runs as a module). */
+  /**
+   * Arguments before opentide's own argv (`-m opentide` when opentide runs as a module, the package's
+   * `cli.js` for `package`).
+   */
   readonly args: readonly string[];
   /** The opentide version, or the engine version for `opentide-lsp`. */
   readonly version: string;
@@ -88,6 +95,7 @@ export function describeRuntime(runtime: Runtime): string {
   const names: Record<RuntimeSource, string> = {
     setting: "opentide.path",
     "interpreter-setting": "opentide.interpreter",
+    package: "@opentide/opentide (bundled)",
     "python-environments": "Python Environments",
     "python-extension": "Python extension",
     venv: ".venv",

@@ -8,7 +8,7 @@ import type { FeatureContext } from "../../core/context";
 import { which } from "../../core/runtime/process";
 import { hasCli, type Runtime } from "../../core/runtime/types";
 import { readRestricted } from "../../core/services/settings";
-import { launcherDir, launcherFiles, prependPath, runsAsModule, shouldAddToPath } from "./launcher";
+import { launcherDir, launcherFiles, needsLauncher, prependPath, shouldAddToPath } from "./launcher";
 import { linkedObject, type TerminalMatch, terminalMatches } from "./links";
 
 export const PROFILE_ID = "opentide.terminal";
@@ -71,7 +71,7 @@ export class TerminalIntegration implements vscode.Disposable {
     const collection = this.ctx.extension.environmentVariableCollection;
     const runtime = this.ctx.runtime.current;
     const add = shouldAddToPath({
-      module: runsAsModule(runtime?.args),
+      module: needsLauncher(runtime),
       restricted: !this.ctx.trust.isTrusted || runtime?.restricted === true,
       setting: readRestricted<boolean>("opentide.terminal.addToPath"),
       opentideOnPath: which("opentide", process.env.PATH, process.platform) !== undefined,
@@ -83,7 +83,7 @@ export class TerminalIntegration implements vscode.Disposable {
     const dir = await this.launcher();
     if (!dir || this.ctx.runtime.current !== runtime) return;
     collection.clear();
-    collection.description = `Adds opentide ${runtime?.version ?? ""} (python -m opentide) to PATH`;
+    collection.description = `Adds opentide ${runtime?.version ?? ""} (${runtime?.source === "package" ? "@opentide/opentide, bundled" : "python -m opentide"}) to PATH`;
     collection.prepend("PATH", `${dir}${path.delimiter}`);
   }
 

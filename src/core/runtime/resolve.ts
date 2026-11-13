@@ -1,9 +1,14 @@
 // Runtime resolution in four tiers (SPEC §4, #3): three that run an installed opentide, then the engine
 // (WASM). vscode-free: every side effect is injected, so the tier logic is unit-tested with fakes.
 //
-// opentide is the user's own install: the extension carries no Python. Where its console script cannot
-// run (not on PATH, a pip --user install, or blocked by an application-control policy that allows the
-// signed python but not the unsigned opentide launcher), the same interpreter runs `python -m opentide`.
+// The extension carries opentide itself: the npm package `@opentide/opentide` (the Rust core, a Node-API
+// addon) in dist/opentide, run as `<node> dist/opentide/cli.js` with the extension host's own executable
+// (`ELECTRON_RUN_AS_NODE=1`), so no Python is needed. A process of its own, as every other tier, so the
+// backend, the language server and MCP keep their protocols and the EUPL-1.2 core stays a separate
+// program. An explicit choice wins over it (opentide.path, the repository's pin with uv, and
+// opentide.interpreter); an environment the extension only discovers (Python Environments, the Python
+// extension, .venv, PATH, `python -m opentide`) is used after it, on a package with no native code for
+// the machine (the universal VSIX).
 import * as path from "node:path";
 import type { RepoPin } from "./pins";
 import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier } from "./types";
@@ -60,6 +65,53 @@ export interface ResolveInput {
   pythonExtension(): Promise<string | undefined>;
   /** Tier 4: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
   readonly engine?: EngineLayout | undefined;
+  /** Tier 2: the @opentide/opentide this build carries, from dist/opentide/opentide.json; undefined without one. */
+  readonly package?: PackageLayout | undefined;
+  /** The executable that runs the package's `cli.js`: the extension host's (`process.execPath`). */
+  readonly nodeExecutable?: string | undefined;
+}
+
+/** The @opentide/opentide the extension carries (dist/opentide/opentide.json): its bin and version. */
+export interface PackageLayout {
+  /** The package's `cli.js`, which calls the core's `main(argv)` in its own Node.js process. */
+  readonly cli: string;
+  /** The native addon for this platform (`opentide.<platform>.node`). */
+  readonly native: string;
+  readonly version: string;
+  /** The napi-rs platform the addon is for (`linux-x64-gnu`, `win32-arm64-msvc`, …). */
+  readonly platform: string;
+}
+
+/**
+ * The environment the package's bin runs with: the extension host's executable is Electron in VS Code
+ * desktop, which runs as plain Node.js with `ELECTRON_RUN_AS_NODE` (as vscode-languageclient runs a
+ * Node.js server); in a remote extension host it is Node.js, which ignores it.
+ */
+export const PACKAGE_ENV: Readonly<Record<string, string>> = { ELECTRON_RUN_AS_NODE: "1" };
+
+/** `dist/opentide/opentide.json`'s fields, when they have the expected shape. */
+export function readPackageManifest(text: string | undefined, dir: string): PackageLayout | undefined {
+  if (!text) return undefined;
+  try {
+    const manifest = JSON.parse(text) as {
+      version?: unknown;
+      cli?: unknown;
+      native?: unknown;
+      platform?: unknown;
+    };
+    const { version, cli, native, platform } = manifest;
+    if (
+      typeof version !== "string" ||
+      typeof cli !== "string" ||
+      typeof native !== "string" ||
+      typeof platform !== "string"
+    )
+      return undefined;
+    if ([cli, native].some((name) => name.includes("/") || name.includes("\\"))) return undefined;
+    return { cli: path.join(dir, cli), native: path.join(dir, native), version, platform };
+  } catch {
+    return undefined;
+  }
 }
 
 /** The engine (WASM) in the extension: its module and version (dist/engine/engine.json). */
@@ -188,7 +240,9 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
   const attempts: ResolveAttempt[] = [];
   const check = async (candidate: Candidate, restricted: boolean): Promise<Runtime | undefined> => {
     const lsp = candidate.kind === "opentide-lsp";
-    const env = { ...(lsp ? {} : OPENTIDE_ENV), ...candidate.env };
+    const packaged = candidate.source === "package";
+    // OPENTIDE_ENV is for a Python opentide; the Rust core writes UTF-8 itself.
+    const env = { ...(lsp || packaged ? {} : OPENTIDE_ENV), ...candidate.env };
     const probeArgs = lsp ? [...candidate.args, "--version", "--json"] : [...candidate.args, "--version"];
     const binDirs = candidate.binDirs ?? [path.dirname(candidate.command)];
     const result = await input.probe(candidate.command, probeArgs, {
@@ -212,8 +266,24 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       });
       return undefined;
     }
+    if (packaged && input.package && version !== input.package.version) {
+      attempts.push({
+        ...base,
+        version,
+        outcome: "failed",
+        detail: `${candidate.command}: reports opentide ${version}, its opentide.json says ${input.package.version}`,
+      });
+      return undefined;
+    }
     const minimum = lsp ? MIN_ENGINE_VERSION : MIN_OPENTIDE_VERSION;
-    const gate = lsp ? (atLeast(version, minimum) ? "ok" : "too-old") : checkMinimum(version, minimum);
+    // The package is the extension's own pin: its version is the one the extension was tested with.
+    const gate = packaged
+      ? "ok"
+      : lsp
+        ? atLeast(version, minimum)
+          ? "ok"
+          : "too-old"
+        : checkMinimum(version, minimum);
     if (gate === "too-old") {
       attempts.push({
         ...base,
@@ -255,6 +325,31 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
   };
   const missing = (tier: RuntimeTier, source: RuntimeSource, detail: string): void => {
     attempts.push({ tier, source, outcome: "missing", detail });
+  };
+  /** Tier 2's interpreters, in order: each one's `opentide` script, then `python -m opentide`. */
+  const tryInterpreters = async (
+    interpreters: readonly { source: RuntimeSource; python: () => Promise<string | undefined> }[],
+  ): Promise<Runtime | undefined> => {
+    for (const { source, python } of interpreters) {
+      let interpreter: string | undefined;
+      try {
+        interpreter = await python();
+      } catch (error) {
+        missing(2, source, `no interpreter: ${error instanceof Error ? error.message : String(error)}`);
+        continue;
+      }
+      if (!interpreter) {
+        missing(2, source, "no interpreter selected");
+        continue;
+      }
+      for (const { command, args } of opentideForInterpreter(interpreter, input.platform, input.exists)) {
+        const runtime = await check({ tier: 2, source, command, args, kind: "opentide", interpreter }, false);
+        if (runtime) return runtime;
+        // The module is the same install as its script: only a script that did not run is retried.
+        if (attempts.at(-1)?.outcome !== "failed") break;
+      }
+    }
+    return undefined;
   };
 
   if (!input.trusted) {
@@ -307,9 +402,10 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     const uvFirst = await tryUv();
     if (uvFirst) return { runtime: uvFirst, attempts };
 
-    // Tier 2: the workspace's environment.
+    // Tier 2: opentide.interpreter (an explicit choice), then the package the extension carries, then the
+    // environment the extension discovers.
     const interpreterSetting = input.settings.interpreter()?.trim();
-    const interpreters: { source: RuntimeSource; python: () => Promise<string | undefined> }[] =
+    const settingInterpreters: { source: RuntimeSource; python: () => Promise<string | undefined> }[] =
       interpreterSetting
         ? [
             {
@@ -317,28 +413,43 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
               python: async () => expandPath(interpreterSetting, input.folder, input.homeDir),
             },
           ]
-        : [
-            { source: "python-environments", python: () => input.pythonEnvironments() },
-            { source: "python-extension", python: () => input.pythonExtension() },
-          ];
-    for (const { source, python } of interpreters) {
-      let interpreter: string | undefined;
-      try {
-        interpreter = await python();
-      } catch (error) {
-        missing(2, source, `no interpreter: ${error instanceof Error ? error.message : String(error)}`);
-        continue;
-      }
-      if (!interpreter) {
-        missing(2, source, "no interpreter selected");
-        continue;
-      }
-      for (const { command, args } of opentideForInterpreter(interpreter, input.platform, input.exists)) {
-        const runtime = await check({ tier: 2, source, command, args, kind: "opentide", interpreter }, false);
-        if (runtime) return { runtime, attempts };
-        // The module is the same install as its script: only a script that did not run is retried.
-        if (attempts.at(-1)?.outcome !== "failed") break;
-      }
+        : [];
+    const fromSetting = await tryInterpreters(settingInterpreters);
+    if (fromSetting) return { runtime: fromSetting, attempts };
+
+    const pkg = input.package;
+    if (!pkg) {
+      missing(
+        2,
+        "package",
+        "this build carries no @opentide/opentide (dist/opentide/opentide.json): the universal package",
+      );
+    } else if (!input.nodeExecutable) {
+      missing(2, "package", "no executable to run @opentide/opentide with");
+    } else if (!input.exists(pkg.cli) || !input.exists(pkg.native)) {
+      missing(2, "package", `${input.exists(pkg.cli) ? pkg.native : pkg.cli} does not exist`);
+    } else {
+      const runtime = await check(
+        {
+          tier: 2,
+          source: "package",
+          command: input.nodeExecutable,
+          args: [pkg.cli],
+          kind: "opentide",
+          env: { ...PACKAGE_ENV },
+          binDirs: [path.dirname(pkg.cli)],
+        },
+        false,
+      );
+      if (runtime) return { runtime, attempts };
+    }
+
+    if (!interpreterSetting) {
+      const discovered = await tryInterpreters([
+        { source: "python-environments", python: () => input.pythonEnvironments() },
+        { source: "python-extension", python: () => input.pythonExtension() },
+      ]);
+      if (discovered) return { runtime: discovered, attempts };
     }
     if (!interpreterSetting) {
       if (input.folder) {
