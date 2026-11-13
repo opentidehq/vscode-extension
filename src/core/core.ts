@@ -462,7 +462,7 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
     {
       label: "Automatic",
       detail:
-        "opentide.path, then the workspace's environment (its opentide, else python -m opentide), then the opentide engine (WASM) for editor features",
+        "opentide.path, then the @opentide/opentide the extension carries (no Python needed), then the workspace's environment, then the opentide engine (WASM) for editor features",
       run: () => config.update("path", undefined, vscode.ConfigurationTarget.Workspace),
     },
     {
@@ -491,7 +491,7 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
   ];
   items.push({
     label: "Install opentide…",
-    detail: "How to install opentide: pip, uv or pipx. Then restart the server, or pick it here",
+    detail: "How to install opentide: npm, pip, uv or pipx. Then restart the server, or pick it here",
     run: () => vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL)),
   });
   if (vscode.extensions.getExtension("ms-python.python")) {

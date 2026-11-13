@@ -6,7 +6,13 @@ import * as vscode from "vscode";
 import type { Logger, RuntimeService } from "../context";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
 import { isFile, probe, which } from "../runtime/process";
-import { type EngineLayout, readEngineManifest, resolveRuntime } from "../runtime/resolve";
+import {
+  type EngineLayout,
+  type PackageLayout,
+  readEngineManifest,
+  readPackageManifest,
+  resolveRuntime,
+} from "../runtime/resolve";
 import type { ResolveAttempt, Runtime } from "../runtime/types";
 import { describeRuntime, ENGINE_LABEL } from "../runtime/types";
 import { Emitter } from "../util/event";
@@ -23,6 +29,18 @@ export function readEngine(extensionPath: string): EngineLayout | undefined {
     return undefined;
   }
   return readEngineManifest(text, dir);
+}
+
+/** The @opentide/opentide the extension carries (`dist/opentide/opentide.json`), if it has one. */
+export function readPackage(extensionPath: string): PackageLayout | undefined {
+  const dir = path.join(extensionPath, "dist", "opentide");
+  let text: string | undefined;
+  try {
+    text = fs.readFileSync(path.join(dir, "opentide.json"), "utf8");
+  } catch {
+    return undefined;
+  }
+  return readPackageManifest(text, dir);
 }
 
 /** Read the pin files at the top of a folder. */
@@ -129,6 +147,8 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       pythonEnvironments: () => pythonEnvironmentsInterpreter(folder?.uri),
       pythonExtension: () => pythonExtensionInterpreter(folder?.uri),
       engine: readEngine(this.context.extensionPath),
+      package: readPackage(this.context.extensionPath),
+      nodeExecutable: process.execPath,
     });
     this.lastAttempts = result.attempts;
     for (const attempt of result.attempts) {
@@ -146,7 +166,8 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     if (result.runtime?.kind === "engine") {
       this.log.warn(
         `runtime: ${ENGINE_LABEL} ${result.runtime.version}: editor features only. No opentide answered ` +
-          "(opentide.path, the workspace's environment, python -m opentide): install opentide for commands, validate, deploy and query.",
+          "(opentide.path, the @opentide/opentide this package carries, the workspace's environment): " +
+          "install the extension's package for this platform, or opentide, for commands, validate, deploy and query.",
       );
     } else if (result.runtime) {
       this.log.info(
@@ -155,7 +176,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       );
     } else {
       this.log.warn(
-        "runtime: none. Install opentide (pip install opentide) in the workspace's environment or set opentide.path.",
+        "runtime: none. Install opentide (npm install -g @opentide/opentide, or pip install opentide) or set opentide.path.",
       );
     }
     await this.setContextKeys();

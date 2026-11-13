@@ -1,7 +1,7 @@
 // The `opentide` launcher the terminal's PATH carries (SPEC §11). A runtime that runs as
-// `python -m opentide` (no console script on PATH, or one a policy does not let run) has no `opentide`
-// command, so the extension writes a small script that runs the active runtime exactly as the extension
-// does. vscode-free.
+// `python -m opentide` (no console script on PATH, or one a policy does not let run), or the package the
+// extension carries (`<node> dist/opentide/cli.js`), has no `opentide` command, so the extension writes
+// a small script that runs the active runtime exactly as the extension does. vscode-free.
 import { createHash } from "node:crypto";
 import * as path from "node:path";
 
@@ -150,8 +150,18 @@ export function runsAsModule(args: readonly string[] | undefined): boolean {
 }
 
 /**
+ * Whether a runtime has no `opentide` command of its own: `python -m opentide`, or the package the
+ * extension carries, which runs as `<node> dist/opentide/cli.js` with `ELECTRON_RUN_AS_NODE=1`.
+ */
+export function needsLauncher(
+  runtime: { readonly source?: string; readonly args: readonly string[] } | undefined,
+): boolean {
+  return runtime !== undefined && (runtime.source === "package" || runsAsModule(runtime.args));
+}
+
+/**
  * Whether new integrated terminals get the launcher on PATH (`environmentVariableCollection`): only for a
- * runtime that runs as `python -m opentide`, when no `opentide` is on PATH already, with
+ * runtime with no `opentide` command of its own ({@link needsLauncher}), when no `opentide` is on PATH already, with
  * `opentide.terminal.addToPath` on, trusted.
  */
 export function shouldAddToPath(options: {

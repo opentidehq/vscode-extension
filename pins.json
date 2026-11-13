@@ -1,8 +1,17 @@
 {
-  "$comment": "What this extension builds from. A bump is a PR; docs/PACKAGING.md says how. opentide.version is the opentide CI tests the extension against (the extension bundles none: it runs the user's own). The highlights zip and the engine come from the same language-server release.",
+  "$comment": "What this extension builds from. A bump is a PR; docs/PACKAGING.md says how. opentide.version is the @opentide/opentide each platform VSIX carries (dist/opentide), and the opentide CI tests the extension against. The highlights zip and the engine come from one engine release.",
   "opentide": {
-    "$comment": "The opentide CI's real-opentide and integration tests install (pip install opentide==<version>).",
-    "version": "0.22.0"
+    "$comment": "The @opentide/opentide (the Rust core: SDK and opentide command line) each platform VSIX carries in dist/opentide, run as a process of its own. npm.integrity is each tarball's npm dist.integrity, filled once the version is on npm; until then nothing is fetched from the registry, and builds take the package from OPENTIDE_NPM (tarballs or a built bindings/node), which CI builds from source.ref.",
+    "version": "0.24.0",
+    "npm": {
+      "package": "@opentide/opentide",
+      "integrity": {}
+    },
+    "source": {
+      "$comment": "Until @opentide/opentide is on npm: the opentide commit CI builds bindings/node from (integration/unified-core with feat/uc-6-2, opentidehq/opentide#1020). Drop it once npm.integrity is filled.",
+      "repository": "opentidehq/opentide",
+      "ref": "49629d273ca8ef55b485af4f77942515d2b1d28f"
+    }
   },
   "highlights": {
     "version": "0.10.0",
@@ -26,6 +35,11 @@
   },
   "vsix": {
     "budgetBytes": 20971520,
-    "targetBytes": 10485760
+    "targetBytes": 10485760,
+    "platform": {
+      "$comment": "A platform VSIX (npm run package -- --target <target>): the universal one plus @opentide/opentide's native addon in dist/opentide, about 17 MiB compressed (52 MB installed) for linux-x64 at 0.24.0.",
+      "budgetBytes": 31457280,
+      "targetBytes": 26214400
+    }
   }
 }

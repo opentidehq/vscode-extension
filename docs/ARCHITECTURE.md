@@ -8,7 +8,8 @@ cross-repository interfaces are [`CONTRACTS.md`](CONTRACTS.md).
 ```text
 package.json            manifest; `contributes` and `activationEvents` are GENERATED (npm run manifest)
 contrib/                manifest fragments: core.json, grammars.json (generated), <feature>.json
-pins.json               the opentide CI tests against, highlights and engine zips (+SHA-256), VSIX size budget (PACKAGING.md)
+pins.json               the @opentide/opentide the platform VSIXs carry (and CI tests against), highlights and engine
+                        zips (+SHA-256), VSIX size budgets (PACKAGING.md)
 src/extension.ts        activate(): the core, then every feature (a virtual workspace gets src/web/ instead)
 src/web/                web mode (vscode.dev, github.dev, virtual workspaces): the engine, its views; no Node built-ins
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts
@@ -20,8 +21,8 @@ webview/<name>/main.ts  a webview entry, bundled to dist/webview/<name>.js
 webview/shared/         base.css (theme variables) and channel.ts (the webview end of the message channel)
 syntaxes/               TextMate grammars, copied by scripts/grammars.mjs (never hand-written)
 language-configuration/ comment tokens, brackets and pairs per language (hand-written)
-scripts/                manifest.mjs, features-index.mjs, grammars.mjs, engine-lib.mjs, build.mjs, release.mjs,
-                        package.mjs, smoke.mjs (+ *-lib.mjs, tested)
+scripts/                manifest.mjs, features-index.mjs, grammars.mjs, engine-lib.mjs, opentide-lib.mjs (dist/opentide),
+                        build.mjs, release.mjs, package.mjs, smoke.mjs, pins.mjs (+ *-lib.mjs, tested)
 .github/workflows/      ci.yml (every PR and push to main), publish.yml (releases: docs/RELEASING.md)
 test/unit/              mocha in plain node (npm test); test/stubs/vscode.ts stands in for `vscode`
 test/scripts/           tests of scripts/*.mjs
@@ -129,22 +130,27 @@ backend already logs every run (command line with secrets redacted, folder, dura
 
 | Member | |
 |--------|-|
-| `current: Runtime \| undefined` | The resolved runtime (`src/core/runtime/types.ts`): `tier` 1–4, `source`, `kind` (`opentide`, a bare `opentide-lsp`, or `engine`: the WebAssembly build), `command` (for `engine`, its module), `args`, `version`, `interpreter`, `restricted`, `binDirs` |
+| `current: Runtime \| undefined` | The resolved runtime (`src/core/runtime/types.ts`): `tier` 1–4, `source`, `kind` (`opentide`, a bare `opentide-lsp`, or `engine`: the WebAssembly build), `command` (for `engine`, its module; for `package`, the extension host's executable), `args`, `version`, `interpreter`, `env`, `restricted`, `binDirs` |
 | `attempts` | How each tier answered (for diagnostics UIs) |
 | `pin` | The repository's exact opentide pin (`uv.lock`, `requirements*.txt`, `pyproject.toml`), if any |
 | `onDidChange` | After every resolution |
 | `ready()` | The first resolution |
 | `restart(reason)` | Re-resolve and restart the language server and the backend ("opentide: Restart Server") |
 
-Tiers (SPEC §4): 1 `opentide.path`; 2 the workspace environment (`opentide.interpreter`, else Python
-Environments, else the Python extension, else `.venv`, else `opentide` on `PATH`, else `python` on
-`PATH`); 3 `uv tool run --from opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier
-2). The extension bundles no opentide (SPEC D1). For an interpreter, `opentideForInterpreter`
+Tiers (SPEC §4): 1 `opentide.path`; 2 `opentide.interpreter`, else the `@opentide/opentide` a platform VSIX
+carries (`source: "package"`, `dist/opentide/opentide.json`, read by `readPackage` in
+`src/core/services/runtime.ts`), else the workspace environment (Python Environments, else the Python
+extension, else `.venv`, else `opentide` on `PATH`, else `python` on `PATH`); 3 `uv tool run --from
+opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier 2). The package runs as
+`command: process.execPath`, `args: [<dist/opentide/cli.js>]`, `env: { ELECTRON_RUN_AS_NODE: "1" }`: a
+process of its own, like every other tier, so `serve`, `lsp start` and `mcp start` are unchanged; it
+must report the version its `opentide.json` records, and is not held to `MIN_OPENTIDE_VERSION` (it is
+the extension's own pin). The extension carries no Python (SPEC D1). For an interpreter, `opentideForInterpreter`
 (`src/core/runtime/resolve.ts`) gives its `opentide` script, then `python -m opentide`: a script that
 fails to run (blocked by an application-control policy, a stale shebang) is retried as the module, one
 that answers is not. `python` on `PATH` (`pythonsOnPath`: `python3`, `python`; on Windows `python`,
 `py -3`) runs `-m opentide`, for a `pip install --user` whose scripts folder is not on `PATH`. Every
-opentide process gets `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` in its `env`. A tier older than
+opentide process but the package gets `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` in its `env`. A tier older than
 `MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command, except an
 untagged dev build (`0.1.devN+g<sha>`, what hatch-vcs reports for a checkout with no release tag), which
 cannot be ordered and is used with a note in the output channel. In Restricted Mode no opentide tier is
@@ -168,9 +174,9 @@ command cannot run with `editorOnlyText(runtime, what)` and `explainUnavailable`
 To start opentide yourself (a terminal, a task, an MCP server definition), use the runtime as it is:
 `cliCommand(runtime, ["mcp", "start"])` gives `{ command, args }` (for `python -m opentide`, the
 interpreter with `-m opentide`), and `processEnv(process.env, runtime, process.platform, extra)`
-its environment (`src/core/runtime/types.ts`, `src/core/runtime/env.ts`). A runtime that runs as a module
-has no `opentide` command: the runner feature writes a launcher for terminals
-(`src/features/runner/launcher.ts`, `runsAsModule`).
+its environment (`src/core/runtime/types.ts`, `src/core/runtime/env.ts`). A runtime that runs as a module,
+or the package, has no `opentide` command: the runner feature writes a launcher for terminals
+(`src/features/runner/launcher.ts`, `needsLauncher`).
 
 ### `ctx.backend`
 
@@ -375,12 +381,15 @@ through the host.
 | `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
 | `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
 | `npm run test:engine` | @vscode/test-cli label `engine`: no opentide anywhere, the engine (WASM) tier |
-| `npm run package` | dist-vsix/opentide-universal-<version>.vsix (+ `.size.json`), size gate, no `runtime/` |
-| `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the web entry is there, no `runtime/` |
+| `npm run package [-- --target <target>]` | dist-vsix/opentide-<universal\|target>-<version>.vsix (+ `.size.json`), size gate, no `runtime/`; a target's carries `dist/opentide` (`OPENTIDE_NPM`, else npm at the pinned integrity) |
+| `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the web entry is there, no `runtime/`; a platform package's bundled opentide runs |
+| `node scripts/pins.mjs <version> --engine-version <v>` | pins.json to an opentide release: npm integrity, highlights and engine from its `SHA256SUMS` |
 | `node scripts/release.mjs <command>` | release helpers for publish.yml: `version`, `check`, `notes`, `assets`, `sums`, `sizes` ([RELEASING.md](RELEASING.md)) |
 
 Unit tests import vscode-free modules directly. A module that touches a little of the VS Code API
 loads against `test/stubs/vscode.ts` (registered by `.mocharc.json`); extend the stub when needed, and
 keep it to behaviour VS Code has. `test/fixtures/fake-opentide.mjs` is a fake opentide (`--version`,
 `--json <command>` and `serve` per CONTRACTS.md); `fakeRuntime()` in `test/unit/helpers.ts` runs it.
-Tests against a real opentide run when `OPENTIDE_TEST_BIN` and `OPENTIDE_TEST_WORKSPACE` are set.
+Tests against a real opentide run when `OPENTIDE_TEST_BIN` and `OPENTIDE_TEST_WORKSPACE` are set, and
+against the bundled package (resolved and run as the extension does) when `OPENTIDE_TEST_PACKAGE` names a
+staged `dist/opentide` (`OPENTIDE_NPM=<dir> npm run build`).

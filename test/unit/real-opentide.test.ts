@@ -237,7 +237,9 @@ describe("real opentide (OPENTIDE_TEST_BIN)", function () {
       platform: process.platform,
       token: source.token,
     });
-    await sleep(800);
+    // Soon after it starts: the Rust core validates a small workspace in well under a second, so a
+    // later cancel would find the run already finished.
+    await sleep(50);
     source.cancel();
     const result = await pending;
     assert.ok(result.cancelled);

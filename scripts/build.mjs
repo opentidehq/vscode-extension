@@ -12,6 +12,8 @@
 //   the zip's opentide_wasm_bg.wasm and licence files, THIRD-PARTY-LICENSES.html -> dist/engine/, with
 //                            engine.json (version and checksums, read by the runtime resolver)
 //   the npm packages bundled in any of them -> dist/THIRD-PARTY-NOTICES.txt
+//   @opentide/opentide for one platform (OPENTIDE_TARGET, OPENTIDE_NPM) -> dist/opentide/, with
+//                            opentide.json (scripts/opentide-lib.mjs; none for the universal VSIX)
 // Flags: --production (minify, no source maps), --watch.
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -29,6 +31,7 @@ import {
   webviewEntries,
 } from "./build-lib.mjs";
 import { engineManifest, GLUE, prepareEngine, shippedFiles, WASM } from "./engine-lib.mjs";
+import { buildRequest, hostTarget, isMusl, OpentideError, stageOpentide } from "./opentide-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const production = process.argv.includes("--production");
@@ -90,6 +93,22 @@ writeFileSync(
   join(root, "dist", "engine", "engine.json"),
   `${JSON.stringify(engineManifest(pins.engine, readFileSync(join(engineDir, WASM))), null, 2)}\n`,
 );
+
+// @opentide/opentide for a platform VSIX (package.mjs --target sets OPENTIDE_TARGET), or for this machine
+// when OPENTIDE_NPM names a local build. The universal VSIX carries none.
+let staged;
+try {
+  const opentide = buildRequest(process.env, hostTarget(process.platform, process.arch, isMusl()));
+  if (opentide) staged = stageOpentide(root, pins.opentide, opentide);
+} catch (error) {
+  if (!(error instanceof OpentideError)) throw error;
+  console.error(`build: @opentide/opentide: ${error.message}`);
+  process.exit(1);
+}
+if (staged)
+  console.log(
+    `build: @opentide/opentide ${staged.version} (${staged.platform}, ${staged.source}) -> dist/opentide`,
+  );
 
 const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), common);
 const configs = [

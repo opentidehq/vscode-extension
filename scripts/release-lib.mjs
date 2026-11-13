@@ -2,6 +2,7 @@
 // the release assets and their SHA256SUMS. No process exits and no writes; release.mjs does the IO.
 import { createHash } from "node:crypto";
 import { readZip } from "./grammars-lib.mjs";
+import { PACKAGE, TARGETS } from "./opentide-lib.mjs";
 
 /** The tree does not say what to release, or the assets are not what it says. */
 export class ReleaseError extends Error {}
@@ -176,8 +177,8 @@ export function releaseNotes(changelog, version, { attested = true } = {}) {
     "",
     `- **VS Code:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=${EXTENSION_ID}), or \`code --install-extension ${EXTENSION_ID}${pre ? " --pre-release" : ""}\`.`,
     `- **Cursor, Windsurf, VSCodium and other editors:** [Open VSX](https://open-vsx.org/extension/opentidehq/opentide).`,
-    `- **Offline or a private gallery:** download \`opentide-universal-${version}.vsix\` below and run \`code --install-extension <file>\`.`,
-    "- **opentide itself:** `pip install opentide` (or `uv tool install opentide`) in the workspace's environment. The extension runs that opentide, or `python -m opentide` where the `opentide` command cannot run; without one it gives the editor features only.",
+    `- **Offline or a private gallery:** download the package for your platform below (\`opentide-<platform>-${version}.vsix\`, else \`opentide-universal-${version}.vsix\`) and run \`code --install-extension <file>\`.`,
+    "- **opentide itself:** the platform packages carry it (`@opentide/opentide`, the Rust core), so nothing else is needed, Python included. The universal package (Alpine, other platforms) runs the workspace's opentide, `opentide.path`, or `npm install -g @opentide/opentide`; without one it gives the editor features only.",
     "",
     "### Verify",
     "",
@@ -209,9 +210,9 @@ export function vsixIdentity(buffer) {
 
 /**
  * What is wrong with a release's VSIX files (`[{ name, buffer }]`): each is this extension at
- * `version`, with the pre-release flag the version's minor gives, and together they are exactly one
- * universal package (the extension carries no runtime, so there is no per-platform one). Empty when
- * they are right.
+ * `version`, with the pre-release flag the version's minor gives, and together they are one universal
+ * package and either no platform package (while @opentide/opentide is not pinned on npm) or one for each
+ * of the six targets that carry it. Empty when they are right.
  */
 export function assetProblems(files, { version }) {
   const found = [];
@@ -238,12 +239,38 @@ export function assetProblems(files, { version }) {
     byTarget.set(identity.target, name);
   }
   if (!byTarget.has("universal")) found.push("no universal package");
-  for (const [target, name] of byTarget) {
-    if (target !== "universal")
-      found.push(`${name} is ${target}: the release has the universal package only`);
+  const platforms = [...byTarget.keys()].filter((target) => target !== "universal");
+  for (const target of platforms) {
+    if (!Object.hasOwn(TARGETS, target))
+      found.push(`${byTarget.get(target)} is ${target}: no @opentide/opentide native package for it`);
+  }
+  if (platforms.length > 0) {
+    const missing = Object.keys(TARGETS).filter((target) => !byTarget.has(target));
+    if (missing.length > 0) found.push(`platform packages missing for ${missing.join(", ")}`);
   }
   return found;
 }
+
+/**
+ * Whether pins.json pins @opentide/opentide on npm for every target (the package and its six native
+ * packages' integrity): only then does a release build the platform packages.
+ */
+export function platformsPinned(pins) {
+  const integrity = pins.opentide?.npm?.integrity ?? {};
+  return [PACKAGE, ...Object.values(TARGETS).map((platform) => `${PACKAGE}-${platform}`)].every(
+    (name) => typeof integrity[name] === "string",
+  );
+}
+
+/** The platform packages' build matrix: each target with the runner that builds and smoke-tests it natively. */
+export const PLATFORM_RUNNERS = {
+  "linux-x64": "ubuntu-latest",
+  "linux-arm64": "ubuntu-24.04-arm",
+  "darwin-x64": "macos-15-intel",
+  "darwin-arm64": "macos-latest",
+  "win32-x64": "windows-latest",
+  "win32-arm64": "windows-11-arm",
+};
 
 /**
  * `sha256sum` lines for `files` (`[{ name, buffer }]`), sorted by name. A name with whitespace or a
@@ -273,14 +300,15 @@ export function sizeSummary(reports, { budgetBytes, targetBytes }) {
   const lines = [
     "### Package sizes",
     "",
-    `Budget ${mb(budgetBytes)}, target ${mb(targetBytes)}.`,
+    `Universal: budget ${mb(budgetBytes)}, target ${mb(targetBytes)}. Platform packages carry their own (pins.json vsix.platform).`,
     "",
     "| Package | Size | | Largest directories |",
     "|---------|-----:|-|---------------------|",
   ];
   for (const { name, report } of [...reports].sort((a, b) => (a.name < b.name ? -1 : 1))) {
-    const verdict =
-      report.bytes > budgetBytes ? "over budget" : report.bytes > targetBytes ? "over target" : "ok";
+    const budget = report.budgetBytes ?? budgetBytes;
+    const target = report.targetBytes ?? targetBytes;
+    const verdict = report.bytes > budget ? "over budget" : report.bytes > target ? "over target" : "ok";
     const dirs = (report.largest ?? [])
       .slice(0, 5)
       .map((dir) => `\`${dir.path}\` ${mb(dir.bytes)}`)

@@ -9,6 +9,7 @@
 //                                                  the GitHub Release body, from the version's CHANGELOG.md section
 //   node scripts/release.mjs assets DIR [X.Y.Z]    DIR's VSIX file is this version's universal package
 //   node scripts/release.mjs sums DIR              write DIR/SHA256SUMS for every file in DIR
+//   node scripts/release.mjs platforms             true when pins.json pins @opentide/opentide on npm (platform packages)
 //   node scripts/release.mjs sizes DIR             a Markdown table of DIR/*.size.json (for $GITHUB_STEP_SUMMARY)
 //
 // X.Y.Z defaults to the version CHANGELOG.md releases.
@@ -18,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import {
   assetProblems,
   isPreRelease,
+  platformsPinned,
   problems,
   ReleaseError,
   releasedVersion,
@@ -67,6 +69,10 @@ try {
       console.log(`${tag ?? `v${releasedVersion(changelog())}`} is ready to release`);
       break;
     }
+    case "platforms":
+      // Whether this release builds the six platform packages: pins.json pins @opentide/opentide on npm.
+      console.log(String(platformsPinned(pins())));
+      break;
     case "prerelease":
       console.log(String(isPreRelease(versionArg(args[0]))));
       break;

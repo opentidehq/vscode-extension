@@ -9,10 +9,12 @@ and others through Open VSX).
 - Query results and deploy previews.
 - An MCP server for agents.
 
-It runs the opentide you install (`pip install opentide`): the repository's `.venv`, the Python
-extension's interpreter, `opentide` on `PATH`, or `opentide.path`, so the editor checks what CI checks.
-Where the `opentide` command cannot run, it runs `python -m opentide`. With no opentide at all, the
-opentide engine (WASM) it carries still gives the editor features.
+It carries opentide: the package for your platform (Linux, macOS and Windows, x64 and Arm64) holds
+`@opentide/opentide`, the Rust core, so every feature works with nothing else installed, Python
+included. To run another opentide, set `opentide.path`, `opentide.interpreter` or
+`opentide.uv.usePin`. The universal package (Alpine, other platforms) runs the workspace's opentide (its
+`.venv`, `opentide` on `PATH`, `python -m opentide`) or, with none, the opentide engine (WASM) for the
+editor features.
 
 ![The Relations view following an objective: what it covers, its signals and technique, and the rules that implement it](docs/images/relations.png)
 
@@ -347,11 +349,19 @@ are not checked.
 The first that answers wins:
 
 1. `opentide.path`: an `opentide` executable, or `opentide-lsp` for editor features only.
-2. The workspace's environment: `opentide.interpreter`, the Python Environments or Python extension's
-   interpreter, `.venv`, `opentide` on `PATH`, then `python` on `PATH` (`python3`, or `python` and
-   `py -3` on Windows). For an interpreter, the `opentide` command beside it, else `python -m opentide`.
+2. `opentide.interpreter`, if set; then **the `@opentide/opentide` the package carries**
+   (`dist/opentide`): the opentide command line and language server in Rust, run by VS Code's own
+   executable as Node.js, in a process of its own; then the environment the extension finds: the Python
+   Environments or Python extension's interpreter, `.venv`, `opentide` on `PATH`, then `python` on
+   `PATH` (`python3`, or `python` and `py -3` on Windows). For an interpreter, the `opentide` command
+   beside it, else `python -m opentide`.
 3. With `opentide.uv.usePin`: `uv tool run --from opentide==<pin>` (tried before tier 2).
-4. The opentide engine (WASM): the language server built for WebAssembly, which the package carries.
+4. The opentide engine (WASM): the language server built for WebAssembly, which every package carries.
+
+The platform packages (`linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64`,
+`win32-arm64`) carry `@opentide/opentide`; VS Code and Open VSX install the one for your machine. The
+universal package carries none: there, tier 2 is the workspace's own opentide (`pip install opentide`,
+or `npm install -g @opentide/opentide`).
 
 The opentide output channel lists each tier's answer: an `opentide` a policy blocks shows as failed,
 then `python -m opentide` as used. To choose the interpreter yourself, set `opentide.interpreter`.
@@ -393,7 +403,7 @@ workspace's opentide need a trusted folder.
 | `opentide.query.retainResults` | `false` | Keep a query's last results in memory after its panel closes, for this window |
 | `opentide.relations.codeLens` | `true` | The relations CodeLens on each object's `name:` line (needs `info catalog`) |
 | `opentide.mcp.provide` | `auto` | Give VS Code's agents the opentide MCP server: `auto`, `always` or `never` |
-| `opentide.terminal.addToPath` | `true` | When opentide runs as `python -m opentide`, put an `opentide` command on new integrated terminals' `PATH` |
+| `opentide.terminal.addToPath` | `true` | When opentide has no command of its own (the bundled `@opentide/opentide`, or `python -m opentide`), put an `opentide` command on new integrated terminals' `PATH` |
 
 `opentide.path`, `opentide.interpreter`, `opentide.uv.*`, `opentide.envFile`, `opentide.mcp.provide` and
 `opentide.terminal.addToPath` are ignored in Restricted Mode, and a workspace cannot set them until it is
@@ -413,6 +423,6 @@ language server). Design: [`docs/SPEC.md`](docs/SPEC.md).
 
 ## Licence
 
-MIT. The opentide engine (WASM) and the grammars from language-server are EUPL-1.2; they ship as
-separate programs with their own licence files ([`NOTICE`](NOTICE)). opentide, which you install, is
-EUPL-1.2.
+MIT. opentide (`@opentide/opentide`, in the platform packages), the opentide engine (WASM) and the
+grammars are EUPL-1.2; they ship as separate programs with their own licence files
+([`NOTICE`](NOTICE)).

@@ -2,12 +2,14 @@ import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import {
   opentideForInterpreter,
+  type PackageLayout,
   type ProbeOptions,
   type ProbeResult,
   pythonsOnPath,
   type ResolveInput,
   type RuntimeSettings,
   readEngineManifest,
+  readPackageManifest,
   resolveRuntime,
   uvExecutable,
 } from "../../src/core/runtime/resolve";
@@ -429,6 +431,7 @@ describe("runtime resolution", () => {
           [2, "missing"],
           [2, "missing"],
           [2, "missing"],
+          [2, "missing"],
           [4, "ok"],
         ],
       );
@@ -512,6 +515,159 @@ describe("runtime resolution", () => {
     const { runtime } = await resolveRuntime(value);
     assert.equal(runtime?.source, "interpreter-setting");
     assert.equal(runtime?.command, `${FOLDER}/py/bin/python`);
+  });
+});
+
+describe("tier 2: the @opentide/opentide the extension carries", () => {
+  const NODE = "/opt/code/code";
+  const PKG: PackageLayout = {
+    cli: "/ext/dist/opentide/cli.js",
+    native: "/ext/dist/opentide/opentide.linux-x64-gnu.node",
+    version: "0.24.0",
+    platform: "linux-x64-gnu",
+  };
+  const VENV_OPENTIDE = path.posix.join(FOLDER, ".venv", "bin", "opentide");
+  /** A machine with the package, a .venv with opentide and opentide on PATH. */
+  const machine = (versions: Record<string, string | ProbeResult> = {}) => ({
+    files: new Set([PKG.cli, PKG.native, VENV_PYTHON, VENV_OPENTIDE]),
+    onPath: { opentide: "/usr/bin/opentide" },
+    versions: {
+      [NODE]: "opentide 0.24.0",
+      [VENV_OPENTIDE]: "opentide 0.22.0",
+      "/usr/bin/opentide": "opentide 0.22.0",
+      ...versions,
+    },
+  });
+
+  it("runs before the environment it discovers: the host's executable on cli.js, as Node.js, no Python", async () => {
+    const { value, state } = input({ package: PKG, nodeExecutable: NODE }, {}, machine());
+    const { runtime } = await resolveRuntime(value);
+    assert.equal(runtime?.tier, 2);
+    assert.equal(runtime?.source, "package");
+    assert.equal(runtime?.kind, "opentide");
+    assert.equal(runtime?.command, NODE);
+    assert.deepEqual(runtime?.args, [PKG.cli]);
+    assert.equal(runtime?.version, "0.24.0");
+    assert.deepEqual(runtime?.env, { ELECTRON_RUN_AS_NODE: "1" });
+    assert.equal(runtime?.interpreter, undefined);
+    assert.deepEqual(runtime?.binDirs, ["/ext/dist/opentide"]);
+    assert.deepEqual(state.probes.at(-1)?.args, [PKG.cli, "--version"]);
+    assert.deepEqual(state.probes.at(-1)?.options.env, { ELECTRON_RUN_AS_NODE: "1" });
+    // Nothing Python was probed.
+    assert.equal(
+      state.probes.some((probe) => probe.command !== NODE),
+      false,
+    );
+  });
+
+  it("is not held to the minimum opentide version: it is the extension's own pin", async () => {
+    const { value } = input(
+      { package: { ...PKG, version: "0.0.0" }, nodeExecutable: NODE },
+      {},
+      machine({ [NODE]: "opentide 0.0.0" }),
+    );
+    const { runtime } = await resolveRuntime(value);
+    assert.equal(runtime?.source, "package");
+    assert.equal(runtime?.version, "0.0.0");
+  });
+
+  it("an explicit choice wins: opentide.path, opentide.interpreter, the repository's pin with uv", async () => {
+    const byPath = await resolveRuntime(
+      input(
+        { package: PKG, nodeExecutable: NODE },
+        { path: () => "/opt/opentide" },
+        machine({ "/opt/opentide": "opentide 0.23.0" }),
+      ).value,
+    );
+    assert.equal(byPath.runtime?.source, "setting");
+
+    const python = `${FOLDER}/py/bin/python`;
+    const byInterpreter = await resolveRuntime(
+      input(
+        { package: PKG, nodeExecutable: NODE },
+        { interpreter: () => python },
+        machine({ [python]: "opentide 0.22.0" }),
+      ).value,
+    );
+    assert.equal(byInterpreter.runtime?.source, "interpreter-setting");
+
+    const byPin = await resolveRuntime(
+      input(
+        { package: PKG, nodeExecutable: NODE, pin: { version: "0.22.0", source: "uv.lock" } },
+        { uvUsePin: () => true },
+        { ...machine({ "/usr/bin/uv": "opentide 0.22.0" }), onPath: { uv: "/usr/bin/uv" } },
+      ).value,
+    );
+    assert.equal(byPin.runtime?.source, "uv");
+  });
+
+  it("one that reports another version than its opentide.json fails, and the workspace's .venv takes over", async () => {
+    const { value } = input(
+      { package: PKG, nodeExecutable: NODE },
+      {},
+      machine({ [NODE]: "opentide 0.23.0" }),
+    );
+    const { runtime, attempts } = await resolveRuntime(value);
+    assert.equal(runtime?.source, "venv");
+    const failed = attempts.find((attempt) => attempt.source === "package");
+    assert.equal(failed?.outcome, "failed");
+    assert.match(failed?.detail ?? "", /reports opentide 0\.23\.0, its opentide\.json says 0\.24\.0/);
+  });
+
+  it("one whose addon is missing is not run", async () => {
+    const fake = machine();
+    fake.files.delete(PKG.native);
+    const { value, state } = input({ package: PKG, nodeExecutable: NODE }, {}, fake);
+    const { runtime, attempts } = await resolveRuntime(value);
+    assert.equal(runtime?.source, "venv");
+    assert.equal(attempts.find((attempt) => attempt.source === "package")?.outcome, "missing");
+    assert.equal(
+      state.probes.some((probe) => probe.command === NODE),
+      false,
+    );
+  });
+
+  it("the universal package carries none: the discovered environment, as before", async () => {
+    const { value } = input({ nodeExecutable: NODE }, {}, machine());
+    const { runtime, attempts } = await resolveRuntime(value);
+    assert.equal(runtime?.source, "venv");
+    assert.match(attempts.find((attempt) => attempt.source === "package")?.detail ?? "", /universal/);
+  });
+
+  it("Restricted Mode runs no package: the engine", async () => {
+    const { value, state } = input(
+      {
+        trusted: false,
+        package: PKG,
+        nodeExecutable: NODE,
+        engine: { module: "/ext/dist/engine/m.wasm", version: "0.10.0" },
+      },
+      {},
+      { ...machine(), files: new Set([PKG.cli, PKG.native, "/ext/dist/engine/m.wasm"]) },
+    );
+    const { runtime } = await resolveRuntime(value);
+    assert.equal(runtime?.source, "engine");
+    assert.equal(state.probes.length, 0);
+  });
+
+  it("reads dist/opentide/opentide.json, refusing other shapes and paths out of the folder", () => {
+    const manifest = {
+      version: "0.24.0",
+      cli: "cli.js",
+      native: "opentide.linux-x64-gnu.node",
+      platform: "linux-x64-gnu",
+    };
+    assert.deepEqual(readPackageManifest(JSON.stringify(manifest), "/ext/dist/opentide"), {
+      cli: path.join("/ext/dist/opentide", "cli.js"),
+      native: path.join("/ext/dist/opentide", "opentide.linux-x64-gnu.node"),
+      version: "0.24.0",
+      platform: "linux-x64-gnu",
+    });
+    assert.equal(readPackageManifest(undefined, "/d"), undefined);
+    assert.equal(readPackageManifest("not json", "/d"), undefined);
+    assert.equal(readPackageManifest(JSON.stringify({ ...manifest, version: 1 }), "/d"), undefined);
+    assert.equal(readPackageManifest(JSON.stringify({ ...manifest, cli: "../cli.js" }), "/d"), undefined);
+    assert.equal(readPackageManifest(JSON.stringify({ ...manifest, native: "a\\b.node" }), "/d"), undefined);
   });
 });
 

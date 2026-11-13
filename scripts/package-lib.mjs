@@ -21,17 +21,25 @@ export function isPreReleaseVersion(version) {
 }
 
 /**
- * The size gate. `vsix.budgetBytes` (SPEC §3: 100 MB), unless `vsix.budgetOverrideBytes` names the
- * pinned opentide version: an explicit, temporary allowance with its reason, dropped by the next bump.
+ * The size gate. The universal VSIX: `vsix.budgetBytes` (20 MiB). A platform VSIX, which also carries
+ * @opentide/opentide's native addon (dist/opentide): `vsix.platform.budgetBytes`. Either is replaced by
+ * `vsix.budgetOverrideBytes` while it names the pinned opentide version: an explicit, temporary allowance
+ * with its reason, dropped by the next bump.
  */
-export function budgetFor(pins) {
-  const base = pins.vsix?.budgetBytes;
-  if (typeof base !== "number") throw new PackageError("pins.json has no vsix.budgetBytes");
+export function budgetFor(pins, target) {
+  const base = target ? pins.vsix?.platform?.budgetBytes : pins.vsix?.budgetBytes;
+  if (typeof base !== "number")
+    throw new PackageError(`pins.json has no ${target ? "vsix.platform.budgetBytes" : "vsix.budgetBytes"}`);
   const override = pins.vsix?.budgetOverrideBytes;
   if (override && override.opentide === pins.opentide.version && typeof override.bytes === "number") {
-    return { bytes: override.bytes, budgetBytes: base, override };
+    return { bytes: Math.max(base, override.bytes), budgetBytes: base, override };
   }
   return { bytes: base, budgetBytes: base, ...(override ? { staleOverride: override } : {}) };
+}
+
+/** The size the package aims for: `vsix.targetBytes`, or `vsix.platform.targetBytes` for a platform VSIX. */
+export function targetBytesFor(pins, target) {
+  return target ? pins.vsix?.platform?.targetBytes : pins.vsix?.targetBytes;
 }
 
 /** Read a zip's central directory: [{ name, method, compressedSize, size, mode, offset }]. */

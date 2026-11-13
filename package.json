@@ -446,7 +446,7 @@
             "type": "boolean",
             "default": true,
             "scope": "window",
-            "markdownDescription": "When opentide runs as `python -m opentide` and no `opentide` is on `PATH`, put an `opentide` command that runs it on new integrated terminals' `PATH`. Ignored in Restricted Mode."
+            "markdownDescription": "When opentide has no command of its own (the `@opentide/opentide` the extension carries, or `python -m opentide`) and no `opentide` is on `PATH`, put an `opentide` command that runs it on new integrated terminals' `PATH`. Ignored in Restricted Mode."
           }
         }
       },

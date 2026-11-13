@@ -2,7 +2,7 @@
 
 A release is **Run workflow** on [`publish.yml`](../.github/workflows/publish.yml) on `main`, with no
 inputs, after a notes PR has merged. The workflow reads the version from `CHANGELOG.md`, builds and
-smoke-tests the package (one, universal: the extension bundles no runtime), tags `v<version>`, creates the GitHub Release, and publishes to the Visual
+smoke-tests the packages (the universal one, and the six platform ones carrying `@opentide/opentide` once `pins.json` pins it on npm), tags `v<version>`, creates the GitHub Release, and publishes to the Visual
 Studio Marketplace and Open VSX with trusted publishing (OIDC; no long-lived token). It is modelled on
 opentide's `publish-pypi.yml` and language-server's `release.yml`. Agents: [`.agents/skills/release/SKILL.md`](../.agents/skills/release/SKILL.md).
 
@@ -152,7 +152,7 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
 ### Step 3: check
 
 - The [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) has the universal VSIX
-  and `SHA256SUMS`; `gh attestation verify <file>.vsix --repo opentidehq/vscode-extension` passes
+  (and the six platform VSIXs, once `@opentide/opentide` is pinned on npm) and `SHA256SUMS`; `gh attestation verify <file>.vsix --repo opentidehq/vscode-extension` passes
   (unless the run warned "No build provenance": a private repository).
 - [Marketplace](https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide) and
   [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) list the version.
@@ -175,18 +175,19 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
 
 ## Release cadence and opentide bumps
 
-The extension bundles no opentide (SPEC D1): users upgrade opentide themselves (`pip install --upgrade
-opentide`), and the package is a few MB, so a release follows the extension's own changes. A bump of
-`pins.json` `opentide.version` changes only what CI tests against ([PACKAGING.md](PACKAGING.md#bumping-the-opentide-ci-tests-against)):
-it needs no release unless the extension changes with it.
+The platform packages carry `@opentide/opentide` at `pins.json` `opentide.version` (SPEC D1), so a bump
+of it ([PACKAGING.md](PACKAGING.md#bumping-opentide)) reaches users with the next release: release after a
+bump that matters to them. The universal package's users upgrade their own opentide. Until `pins.json`
+pins the package's npm integrity, a release has the universal package only, and `prepare` warns.
 
 ## What the workflow does
 
 | Job | Runs on | Does |
 |-----|---------|------|
 | `prepare` | ubuntu | Refuses unless run on `main`, `CHANGELOG.md`'s newest version matches `package.json`, `[Unreleased]` is empty and `v<version>` is not tagged; computes the channel |
-| `universal` | ubuntu | CI's checks, then `npm run package -- --universal` (the one package: every platform and the web) and its smoke test |
-| `attest` | ubuntu | The VSIX is `opentidehq.opentide` at the version and channel, and universal; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
+| `universal` | ubuntu | CI's checks, then `npm run package -- --universal` (no native code: every other platform and the web) and its smoke test |
+| `platforms` | each target's own runner | Only when `pins.json` pins `@opentide/opentide` on npm (`release.mjs platforms`): `npm run package -- --target <target>` for the six targets, each taking the package from npm at its pinned integrity, and its smoke test, which runs the bundled opentide |
+| `attest` | ubuntu | The VSIXs are `opentidehq.opentide` at the version and channel: one universal, and either no platform package or all six; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
 | `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and, when attested, their attestations |
 | `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath <the VSIX>`. Then `tools/publish/marketplace.mjs` waits until the Marketplace gallery lists the package of the Release, publishes it again if missing, and fails naming it: vsce's "Published" is not the listing (0.1.0, the first publish, kept one package of eight) |
 | `publish-openvsx` | ubuntu, `production` | `ovsx publish --trusted-publishing --skip-duplicate --packagePath <the VSIX>`, or with `OVSX_PAT` when the secret is set |
@@ -200,7 +201,7 @@ built and passed its smoke test.
 |---------|----|
 | `prepare`: `[Unreleased] still holds …`, a version mismatch | Fix it in a PR; run again |
 | `prepare`: `v<version> is already tagged` | That version is out: re-run the failed jobs of its run, or release the next version |
-| `universal` or `attest` | Nothing was tagged. Fix it on `main` (a PR) and run again |
+| `universal`, `platforms` or `attest` | Nothing was tagged. Fix it on `main` (a PR) and run again |
 | `release` (GitHub Release) | **Re-run failed jobs**. When an earlier attempt already made the Release (for example the verify step failed), the job finds it, checks that its tag is on the run's commit, uploads the assets again with `--clobber` and goes on; a Release on another commit stops it. The stores get nothing until it succeeds |
 | `publish-marketplace` or `publish-openvsx` | **Re-run failed jobs** on the run. The other store is unaffected; `--skip-duplicate` skips what a store already has |
 | Open VSX `401`/`403` with trusted publishing | The trusted publisher's repository, workflow (`publish.yml`) or environment (`production`) differs from the run's; fix the registration and re-run the job |

@@ -6,6 +6,17 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **opentide comes with the extension again, without Python.** The packages for Linux, macOS and
+  Windows (x64 and Arm64) carry `@opentide/opentide`, the Rust core, so commands, validate, deploy
+  previews, queries and MCP work with nothing else installed
+  ([opentidehq/opentide#790](https://github.com/opentidehq/opentide/issues/790)).
+  - `opentide.path`, `opentide.interpreter` and `opentide.uv.usePin` still choose another opentide
+  - a `.venv` or `opentide` on `PATH` is used only where the package has no opentide (Alpine)
+- **Terminals get an `opentide` command for the bundled opentide.** `opentide.terminal.addToPath`
+  covers it as it covers `python -m opentide`.
+
 ## [0.1.2] - 2026-11-10
 
 Uses the opentide you install instead of bundling one: one 4 MiB package for every platform.
