@@ -3,7 +3,15 @@ Copyright (c) 2026 opentide contributors
 Licensed under the MIT License (see LICENSE).
 
 This extension runs, as separate programs, software under other licences. Each ships with its own
-licence files. It bundles no opentide and no Python: it runs the opentide the user installs (EUPL-1.2).
+licence files. It bundles no Python.
+
+- opentide, in dist/opentide/ of each platform package (linux, darwin and win32, x64 and arm64): the npm
+  package @opentide/opentide (opentidehq/opentide: the opentide SDK and command line, the Rust core as a
+  Node-API addon) with the native addon for that platform, licensed under the EUPL-1.2. It ships with
+  its LICENSE and runs as a process of its own (`<VS Code's executable> dist/opentide/cli.js`, as
+  Node.js); the extension does not load it into its own process. The licences of the Rust crates
+  compiled into it are those of opentide's release THIRD-PARTY-LICENSES.html for the same version. The
+  universal package carries none.
 
 - The opentide engine (WASM), in dist/engine/ of every package: opentidehq/language-server's language
   server built for WebAssembly (opentide-wasm, from its opentide-wasm-web release zip), licensed under the
@@ -16,6 +24,7 @@ licence files. It bundles no opentide and no Python: it runs the opentide the us
 - syntaxes/opentide-config.tmLanguage.json is copied from Even Better TOML (tamasfe/taplo) under the
   MIT License, see THIRD-PARTY-LICENSES.
 
-The package carries no runtime: it runs the opentide installed in the workspace (its `opentide`
-command, else `python -m opentide`), or the one opentide.path names, else the engine (WASM) for editor
-features.
+No package carries a Python runtime. A platform package runs the opentide it carries unless
+opentide.path, opentide.interpreter or opentide.uv.usePin names another; the universal package runs the
+opentide installed in the workspace (its `opentide` command, else `python -m opentide`), or the one
+opentide.path names, else the engine (WASM) for editor features.

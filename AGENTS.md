@@ -1,8 +1,9 @@
 # opentide for VS Code: agent guide
 
 The VS Code extension **`opentidehq.opentide`**: the opentide workbench (live checks, templates,
-catalogue, ATT&CK coverage, query results, deploy previews, MCP) on the user's own opentide (`opentide`, or
-`python -m opentide`), with the opentide engine (WASM) for editor features when none is installed.
+catalogue, ATT&CK coverage, query results, deploy previews, MCP) on `@opentide/opentide` (the Rust core) that
+each platform package carries, or the user's own opentide (`opentide.path`, a `.venv`, `python -m opentide`),
+with the opentide engine (WASM) for editor features when none runs.
 
 Read, in order:
 
@@ -25,12 +26,16 @@ npm run build
 npm run package                              # the VSIX in dist-vsix/
 ```
 
-- One universal package, no bundled runtime (size gate, smoke test, pins): [`docs/PACKAGING.md`](docs/PACKAGING.md).
-  `npm run package`, `npm run smoke -- <vsix>`. Bumping the opentide CI tests against is `pins.json` `opentide.version`.
+- The universal package, and six platform packages carrying `@opentide/opentide` (the Rust core) in
+  `dist/opentide` (size gates, smoke test, pins): [`docs/PACKAGING.md`](docs/PACKAGING.md).
+  `npm run package [-- --target <target>]`, `npm run smoke -- <vsix>`. Until the package is on npm, a
+  platform build takes it from `OPENTIDE_NPM=<dir>` (tarballs or a built opentide `bindings/node`).
+  Bumping opentide is `node scripts/pins.mjs <version> --engine-version <v>`.
 
 - Integration tests (`npm run test:integration`, `npm run test:restricted`) download VS Code; they
   run in CI.
-- Tests against a real opentide: `OPENTIDE_TEST_BIN=<opentide> OPENTIDE_TEST_WORKSPACE=<workspace> npm test`.
+- Tests against a real opentide: `OPENTIDE_TEST_BIN=<opentide> OPENTIDE_TEST_WORKSPACE=<workspace> npm test`;
+  add `OPENTIDE_TEST_PACKAGE=<dist/opentide>` for the bundled package.
 - CI is `.github/workflows/ci.yml`; releases are "Run workflow" on `.github/workflows/publish.yml`
   ([`docs/RELEASING.md`](docs/RELEASING.md), skill [`.agents/skills/release/SKILL.md`](.agents/skills/release/SKILL.md)).
 - Grammars: `npm run grammars` downloads the highlights zip pinned in `pins.json`, checks its

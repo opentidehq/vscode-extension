@@ -45,7 +45,7 @@ It does this without installing Python and without leaving the editor.
 
 | # | Principle | What it means in practice |
 |---|-----------|---------------------------|
-| P1 | **Runs the team's opentide** | The extension carries no Python and no opentide. It runs the opentide installed for the repository (`pip install opentide`), as `opentide` or, where that command cannot run, `python -m opentide`. With none, the engine (WASM) gives the editor features on install, offline (D1). |
+| P1 | **Runs opentide, with nothing to install** | The extension carries no Python. Each platform package carries `@opentide/opentide`, the Rust core, at one pinned version, so every feature works on install. An explicit choice (`opentide.path`, `opentide.interpreter`, the repository's pin with uv) runs another opentide. The universal package runs the opentide installed for the repository, else the engine (WASM) for the editor features, offline (D1). |
 | P2 | **The workspace's opentide wins** | When the repository has its own opentide, the editor uses it, so the editor checks what CI checks. |
 | P3 | **Every action is a real opentide command** | The UI collects input, runs `opentide --json …`, and shows the command line it ran, ready to copy into a terminal or CI. The extension reimplements no check, no generator and no deploy logic. |
 | P4 | **One finding, one squiggle** | A problem shows once in the Problems panel, whether the language server or `opentide validate` found it. |
@@ -58,7 +58,15 @@ It does this without installing Python and without leaving the editor.
 
 ## 2. Decisions
 
-### D1. Run the user's opentide; bundle no runtime
+### D1. Carry opentide as `@opentide/opentide`; bundle no Python
+
+**Revised for the unified core (opentide#790, UC-6.1; opentide ADR 0007), after 0.1.2.** opentide is now one Rust core: the command line, the language server and the MCP server are Rust, and the npm package `@opentide/opentide` (napi-rs) carries them for Node.js with an `opentide` bin, with native packages for six targets (Linux x64 and arm64 with glibc, macOS x64 and arm64, Windows x64 and arm64). That removes the three reasons below for not carrying opentide: there is no interpreter to sign, its weight is one native addon (about 17 MiB compressed per platform), and nothing is built here, only pinned. So:
+
+- **Six platform VSIXs** (`vsce --target`), each carrying the package and the one native addon for its platform in `dist/opentide/`, at the opentide version `pins.json` pins (the coupling between the two repositories is that one version, ADR 0007). VS Code and Open VSX install the platform's package; the **universal VSIX** carries no native code and stays for every other platform (Alpine and other musl Linux, which the package does not build for) and the web.
+- **A process of its own.** The extension runs the package's bin as `<the extension host's executable> dist/opentide/cli.js` with `ELECTRON_RUN_AS_NODE=1` (Node.js in a remote extension host), never `require`s it: `opentide serve`, `opentide lsp start` and `opentide mcp start` keep the protocols of [CONTRACTS.md](CONTRACTS.md), a crash never takes down the extension host, and the EUPL-1.2 core stays a separate program beside the MIT extension, as opentide was before: the licence review ADR 0007 asks for concerns loading the library in-process, which the extension does not do. Distributing the package inside the VSIX is still for that review to confirm.
+- **Tier 2, after an explicit choice** ([§4](#4-the-runtime-resolution-processes-status)): `opentide.path`, the repository's pin with uv and `opentide.interpreter` win over it; an environment the extension only discovers (`.venv`, `PATH`, `python -m opentide`) comes after it.
+
+What follows is the 0.1.2 decision, kept for the universal package and for its history.
 
 **Revised in 0.1.2 (2026-11-10).** 0.1.0 and 0.1.1 bundled a CPython runtime and the opentide closure in eight per-platform packages (50 to 58 MiB each, 127 to 151 MiB installed), so a machine with no Python got every feature. That decision is reversed, for three reasons:
 
@@ -153,11 +161,12 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 | Package | Contents | Who gets it |
 |---------|----------|-------------|
-| 1 universal VSIX | Extension, grammars and the engine (WASM). Runs the workspace's opentide or `opentide.path`, else the engine for editor features, and says plainly which | Every platform, remotes, and the web entry ([§13](#13-trust-remote-and-web)) |
+| 6 platform VSIXs: `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64`, `win32-arm64` | The universal VSIX, plus `@opentide/opentide` with its native addon for the platform in `dist/opentide/` (D1). Every feature on install, no Python | Those platforms, locally and as remotes |
+| 1 universal VSIX | Extension, grammars and the engine (WASM). Runs the workspace's opentide or `opentide.path`, else the engine for editor features, and says plainly which | Every other platform (Alpine and other musl Linux), and the web entry ([§13](#13-trust-remote-and-web)) |
 
-- **No runtime and no `opentide-lsp` binary** (D1). `opentide.path` may name an `opentide-lsp` binary for people who want the bare server.
+- **No Python runtime and no `opentide-lsp` binary** (D1). `opentide.path` may name an `opentide-lsp` binary for people who want the bare server.
 - **The engine (WASM).** language-server's `opentide-wasm-web` zip (`pins.json` `engine`, pinned by URL and SHA-256 like the highlights zip, from the same release) is the runtime of tier 4: the language server, with nothing installed, on every platform VS Code runs on, the web included. It costs 3.4 MiB compressed (15.7 MiB installed). It is also the safety net for an opentide whose language server does not start: editor features survive what breaks Python ([PACKAGING.md](PACKAGING.md#the-package)).
-- **Size gate:** CI fails a package over `pins.json` `vsix.budgetBytes` and reports its size and its five largest directories on the PR.
+- **Size gate:** CI fails a package over `pins.json` `vsix.budgetBytes` (universal) or `vsix.platform.budgetBytes` (a platform VSIX) and reports its size and its five largest directories on the PR.
 
 ### Publishing and supply chain
 
@@ -193,7 +202,7 @@ The first tier that answers wins, in the order 1, 2, 3, 4, except that with `ope
 | Tier | Source | Trust | Features |
 |-----:|--------|-------|----------|
 | 1 | `opentide.path`: an `opentide` executable (`lsp start`), or an `opentide-lsp` executable (`--stdio`, editor features only) | Trusted only | All, or editor only for `opentide-lsp` |
-| 2 | The workspace's environment: `opentide.interpreter`, else the Python Environments API, else the Python extension API, else `.venv`, else `opentide` on `PATH`, else `python` on `PATH` (`python3` then `python`; on Windows `python` then `py -3`). For an interpreter, the `opentide` script beside it, else `python -m opentide`: a script that does not run (an application-control policy, a stale shebang) is retried as the module; one that answers too old is not, as it is the same install. Re-resolved on `onDidChangeEnvironment` | Trusted only | All |
+| 2 | `opentide.interpreter`, if set; else **the `@opentide/opentide` the platform VSIX carries** (`dist/opentide/opentide.json`), run as `<extension host executable> dist/opentide/cli.js` with `ELECTRON_RUN_AS_NODE=1`, at the version its `opentide.json` records (a package that reports another fails; it is the extension's own pin, so the minimum version does not apply); else the workspace's environment: the Python Environments API, else the Python extension API, else `.venv`, else `opentide` on `PATH`, else `python` on `PATH` (`python3` then `python`; on Windows `python` then `py -3`). For an interpreter, the `opentide` script beside it, else `python -m opentide`: a script that does not run (an application-control policy, a stale shebang) is retried as the module; one that answers too old is not, as it is the same install. Re-resolved on `onDidChangeEnvironment` | Trusted only | All |
 | 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in** (`opentide.uv.usePin`, then tried before tier 2): offered when the repository pins a version the active runtime does not match | Trusted only | All |
 | 4 | **The engine (WASM)**: language-server's `opentide-wasm` in a `worker_threads` Worker, used when no other tier answers (no opentide installed, or one that does not start), and the only tier in Restricted Mode | Always: it spawns nothing and reads the workspace through VS Code | Editor features only: diagnostics, hover, completion, semantic tokens, code actions, definitions, references, outline, lenses, the Catalogue, Relations, the graph and Find Detection (from `opentide/catalog`). Not configuration TOML checks, commands, validate and lint, deploy, query, setup, tasks or MCP |
 
