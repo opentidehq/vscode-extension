@@ -12,11 +12,20 @@ import {
   PackageError,
   sizeReport,
   sizeUnit,
+  targetBytesFor,
   vsixName,
   zipEntries,
   zipRead,
 } from "../../scripts/package-lib.mjs";
-import { checkEngineInitialize, checkWebEntry } from "../../scripts/smoke-lib.mjs";
+import {
+  checkEngineInitialize,
+  checkPackageCommands,
+  checkPackageInitialize,
+  checkPackageLayout,
+  checkWebEntry,
+  commandPaths,
+  versionOf,
+} from "../../scripts/smoke-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -94,12 +103,77 @@ describe("package: the size gate", () => {
     assert.throws(() => budgetFor({ opentide: pins.opentide }), PackageError);
   });
 
+  it("gives a platform VSIX, which carries @opentide/opentide's addon, a budget of its own", () => {
+    const pins = {
+      opentide: { version: "0.24.0" },
+      vsix: { budgetBytes: 100, targetBytes: 50, platform: { budgetBytes: 300, targetBytes: 250 } },
+    };
+    assert.deepEqual(budgetFor(pins, "linux-x64"), { bytes: 300, budgetBytes: 300 });
+    assert.deepEqual(budgetFor(pins), { bytes: 100, budgetBytes: 100 });
+    assert.equal(targetBytesFor(pins, "darwin-arm64"), 250);
+    assert.equal(targetBytesFor(pins, undefined), 50);
+    assert.throws(
+      () => budgetFor({ ...pins, vsix: { budgetBytes: 100 } }, "linux-x64"),
+      /vsix.platform.budgetBytes/,
+    );
+    const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
+    assert.equal(committed.vsix.platform.budgetBytes, 30 * 1024 * 1024);
+  });
+
+  it("names a platform VSIX after its target", () => {
+    assert.equal(vsixName("linux-x64", "0.2.0"), "opentide-linux-x64-0.2.0.vsix");
+    assert.equal(vsixName(undefined, "0.2.0"), "opentide-universal-0.2.0.vsix");
+  });
+
+  it("smoke: reads a version line, the command paths with first-argument choices, and dist/opentide's layout", () => {
+    assert.equal(versionOf("opentide 0.24.0\n"), "0.24.0");
+    assert.equal(versionOf("0.24.0-rc.1"), "0.24.0-rc.1");
+    assert.equal(versionOf("nothing"), undefined);
+    const document = {
+      commands: [
+        { path: "info", arguments: [{ name: "section", choices: ["rules", "catalog"] }] },
+        { path: "serve", arguments: [] },
+        { path: "lsp start" },
+        { path: "mcp start" },
+        { path: "validate" },
+      ],
+    };
+    assert.ok(commandPaths(document).has("info catalog"));
+    assert.deepEqual(checkPackageCommands(document), []);
+    assert.deepEqual(checkPackageCommands({ commands: [{ path: "validate" }] }), [
+      "the bundled opentide has no `serve`",
+      "the bundled opentide has no `lsp start`",
+      "the bundled opentide has no `mcp start`",
+      "the bundled opentide has no `info catalog`",
+    ]);
+    const manifest = {
+      name: "@opentide/opentide",
+      platform: "linux-x64-gnu",
+      cli: "cli.js",
+      native: "opentide.linux-x64-gnu.node",
+    };
+    assert.deepEqual(
+      checkPackageLayout(manifest, "linux-x64-gnu", () => true),
+      [],
+    );
+    assert.deepEqual(
+      checkPackageLayout(manifest, "darwin-x64", () => true),
+      ["dist/opentide is for linux-x64-gnu, expected darwin-x64"],
+    );
+    assert.deepEqual(
+      checkPackageLayout(undefined, "linux-x64-gnu", () => true),
+      ["the package has no dist/opentide/opentide.json"],
+    );
+    assert.deepEqual(checkPackageInitialize({ result: { capabilities: { textDocumentSync: 2 } } }), []);
+    assert.equal(checkPackageInitialize({ error: { code: -1 } }).length, 1);
+  });
+
   it("the committed budget and target are PACKAGING.md's 20 MiB and 10 MiB: no runtime", () => {
     const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
     assert.equal(committed.vsix.budgetBytes, 20 * 1024 * 1024);
     assert.equal(committed.vsix.targetBytes, 10 * 1024 * 1024);
     const packaging = readFileSync(join(root, "docs", "PACKAGING.md"), "utf8");
-    assert.match(packaging, /The size gate \(20 MiB\) and the target \(10 MiB\)/);
+    assert.match(packaging, /The universal package.s size gate \(20 MiB\) and target \(10 MiB\)/);
   });
 
   it("counts bytes per distribution under site-packages, else per folder", () => {

@@ -10,6 +10,8 @@ import {
   absoluteLinks,
   assetProblems,
   isPreRelease,
+  PLATFORM_RUNNERS,
+  platformsPinned,
   problems,
   releasedVersion,
   releaseNotes,
@@ -289,11 +291,44 @@ describe("release: assets", () => {
       "e.vsix is not packaged as a pre-release, but 0.1.0 is a pre-release (odd minor)",
       "f.vsix is someone.opentide, not opentidehq.opentide",
       "no universal package",
-      "b.vsix is linux-x64: the release has the universal package only",
-      "c.vsix is darwin-arm64: the release has the universal package only",
-      "d.vsix is win32-x64: the release has the universal package only",
-      "e.vsix is alpine-x64: the release has the universal package only",
-      "f.vsix is alpine-arm64: the release has the universal package only",
+      "e.vsix is alpine-x64: no @opentide/opentide native package for it",
+      "f.vsix is alpine-arm64: no @opentide/opentide native package for it",
+      "platform packages missing for linux-arm64, darwin-x64, win32-arm64",
+    ]);
+  });
+
+  it("accepts the universal package with the six platform packages that carry @opentide/opentide", () => {
+    const targets = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64", "win32-arm64"];
+    const set = files([{}, ...targets.map((target, i) => ({ name: `t${i}.vsix`, target }))]);
+    assert.deepEqual(assetProblems(set, { version: "0.1.0" }), []);
+  });
+
+  it("builds the platform packages only once pins.json pins @opentide/opentide on npm", () => {
+    const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
+    const integrity = Object.fromEntries(
+      [
+        "",
+        "-linux-x64-gnu",
+        "-linux-arm64-gnu",
+        "-darwin-x64",
+        "-darwin-arm64",
+        "-win32-x64-msvc",
+        "-win32-arm64-msvc",
+      ].map((suffix) => [`@opentide/opentide${suffix}`, "sha512-x"]),
+    );
+    const pins = (npmIntegrity) => ({ opentide: { npm: { integrity: npmIntegrity } } });
+    assert.equal(platformsPinned(pins(integrity)), true);
+    const { "@opentide/opentide-win32-arm64-msvc": _, ...five } = integrity;
+    assert.equal(platformsPinned(pins(five)), false);
+    assert.equal(platformsPinned(pins({})), false);
+    assert.equal(platformsPinned(committed), Object.keys(committed.opentide.npm.integrity).length === 7);
+    assert.deepEqual(Object.keys(PLATFORM_RUNNERS).sort(), [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64",
+      "linux-x64",
+      "win32-arm64",
+      "win32-x64",
     ]);
   });
 
@@ -340,7 +375,7 @@ describe("release: size summary", () => {
       ],
       { budgetBytes: 100 * MB, targetBytes: 70 * MB },
     );
-    assert.match(text, /Budget 100\.0 MB, target 70\.0 MB\./);
+    assert.match(text, /Universal: budget 100\.0 MB, target 70\.0 MB\./);
     assert.match(
       text,
       /\| `opentide-linux-x64-0\.1\.0\.vsix` \| 80\.0 MB \| over target \| `runtime\/d1` 1\.0 MB, .*`runtime\/d5` 5\.0 MB \|/,
@@ -443,7 +478,7 @@ describe("release.mjs (the command line)", () => {
     assert.equal(extra.status, 1);
     assert.match(
       extra.stderr,
-      /error: opentide-linux-x64-0\.3\.0\.vsix is linux-x64: the release has the universal package only/,
+      /error: platform packages missing for linux-arm64, darwin-x64, darwin-arm64, win32-x64, win32-arm64/,
     );
   });
 
