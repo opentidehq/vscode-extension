@@ -1,7 +1,11 @@
 # CI for the extension (#2): the checks every commit passes, the VS Code integration, Restricted Mode and
 # engine (WASM) tests on {ubuntu, macos, windows} x {the engines.vscode floor, stable, insiders} (Xvfb on
-# Linux), the tests against the pinned opentide, and the universal package (the only one: the extension
-# runs the user's own opentide) with its smoke test and size report.
+# Linux), the tests against the @opentide/opentide pins.json names (the Rust core: no Python anywhere), and
+# the universal and linux-x64 packages with their smoke tests and size reports.
+#
+# @opentide/opentide is not on npm yet: the opentide-npm job builds it from opentide's source at pins.json
+# opentide.source.ref, for each runner OS, and the jobs that need it take it from there (OPENTIDE_NPM). Once
+# it is published and pins.json pins its npm integrity, that job goes and the builds take it from npm.
 #
 # Actions are pinned by commit SHA with the version in a comment; Dependabot (github-actions) bumps them.
 name: CI
@@ -21,7 +25,6 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
-  PYTHON_VERSION: "3.13"
   # @vscode/test-web's Chromium: only the web job downloads it.
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
@@ -59,8 +62,83 @@ jobs:
       - name: Lint the workflows
         run: pipx run --spec actionlint-py==1.7.12.25 actionlint -color
 
+  # @opentide/opentide for this runner's platform, built from opentide's source at pins.json
+  # opentide.source.ref (bindings/node, napi-rs) at pins.json opentide.version, until it is on npm. The
+  # artifact holds the package's files and its addon (OPENTIDE_NPM takes the folder), and the `opentide`
+  # command line built from the same commit for tests that need an executable (OPENTIDE_TEST_BIN).
+  opentide-npm:
+    name: "@opentide/opentide from source (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The source pins.json names
+        id: source
+        run: |
+          set -euo pipefail
+          {
+            echo "repository=$(node -p 'require("./pins.json").opentide.source.repository')"
+            echo "ref=$(node -p 'require("./pins.json").opentide.source.ref')"
+            echo "version=$(node -p 'require("./pins.json").opentide.version')"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.ref }}
+          path: opentide
+          persist-credentials: false
+      # The release opentide's rust-toolchain.toml pins.
+      - name: Set up Rust
+        working-directory: opentide
+        run: rustup toolchain install --profile minimal --no-self-update
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: opentide
+          key: opentide-npm
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Build @opentide/opentide and the opentide command line
+        env:
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd opentide/bindings/node
+          npm ci
+          # The command line reports the package's version (build.mjs passes it as OPENTIDE_VERSION).
+          npm pkg set "version=${VERSION}"
+          npm run build
+          node cli.js --version
+          cd ../..
+          OPENTIDE_VERSION="${VERSION}" cargo build --release --locked -p opentide-cli --bin opentide-cli
+          out="${RUNNER_TEMP}/opentide-npm"
+          mkdir -p "${out}/bin"
+          cp bindings/node/package.json bindings/node/index.js bindings/node/cli.js bindings/node/opentide.*.node "${out}/"
+          cp LICENSE "${out}/"
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            cp target/release/opentide-cli.exe "${out}/bin/opentide.exe"
+          else
+            cp target/release/opentide-cli "${out}/bin/opentide"
+          fi
+          "${out}/bin/opentide" --version
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: opentide-npm-${{ runner.os }}
+          path: ${{ runner.temp }}/opentide-npm
+          if-no-files-found: error
+          retention-days: 3
+
   real-opentide:
-    name: Tests against opentide ${{ matrix.os }}
+    name: Tests against @opentide/opentide ${{ matrix.os }}
+    needs: opentide-npm
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -77,17 +155,22 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
       - run: npm ci
-      - name: Install the opentide pins.json names
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: opentide-npm-${{ runner.os }}
+          path: ${{ runner.temp }}/opentide-npm
+      # dist/opentide as a platform VSIX carries it (OPENTIDE_TEST_PACKAGE), and the opentide command line
+      # of the same commit (OPENTIDE_TEST_BIN). No Python.
+      - name: The @opentide/opentide pins.json names
         run: |
           set -euo pipefail
-          version="$(node -p 'require("./pins.json").opentide.version')"
-          # typer 0.29.0 removed modules opentide <= 0.24.0 imports; opentide's next release caps it (opentidehq/opentide cfe3c18).
-          python -m pip install "opentide==${version}" "typer<0.29"
-          echo "OPENTIDE_TEST_BIN=$(python -c 'import shutil; print(shutil.which("opentide"))')" >> "$GITHUB_ENV"
+          chmod +x "${RUNNER_TEMP}/opentide-npm/bin/"* || true
+          OPENTIDE_NPM="${RUNNER_TEMP}/opentide-npm" npm run build
+          echo "OPENTIDE_TEST_PACKAGE=${PWD}/dist/opentide" >> "$GITHUB_ENV"
+          bin="${RUNNER_TEMP}/opentide-npm/bin/opentide"
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="$(cygpath -w "${bin}.exe")"; fi
+          echo "OPENTIDE_TEST_BIN=${bin}" >> "$GITHUB_ENV"
       - name: A workspace with an objective and a rule
         run: |
           set -euo pipefail
@@ -103,6 +186,7 @@ jobs:
 
   integration:
     name: VS Code ${{ matrix.vscode }} on ${{ matrix.os }}
+    needs: opentide-npm
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -123,24 +207,24 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
       - run: npm ci
-      # In a venv off PATH: the engine tests need a PATH whose python has no opentide (python -m opentide
-      # is a runtime tier).
-      - name: Install the opentide pins.json names, in a venv (real-opentide tests)
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: opentide-npm-${{ runner.os }}
+          path: ${{ runner.temp }}/opentide-npm
+      # The integration step builds dist/opentide from it (OPENTIDE_NPM): the extension resolves the package it
+      # carries. OPENTIDE_TEST_BIN is the command line of the same commit.
+      - name: The @opentide/opentide pins.json names
         run: |
           set -euo pipefail
-          version="$(node -p 'require("./pins.json").opentide.version')"
-          venv="${RUNNER_TEMP}/opentide-venv"
-          python -m venv "${venv}"
-          if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="${venv}/Scripts"; else bin="${venv}/bin"; fi
-          "${bin}/python" -m pip install "opentide==${version}" "typer<0.29"
-          echo "OPENTIDE_TEST_BIN=$("${bin}/python" -c 'import shutil, sys; print(shutil.which("opentide", path=sys.argv[1]))' "${bin}")" >> "$GITHUB_ENV"
+          chmod +x "${RUNNER_TEMP}/opentide-npm/bin/"* || true
+          bin="${RUNNER_TEMP}/opentide-npm/bin/opentide"
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="$(cygpath -w "${bin}.exe")"; fi
+          echo "OPENTIDE_TEST_BIN=${bin}" >> "$GITHUB_ENV"
           # The integration and Restricted Mode steps put it on PATH, as a user's install is; the engine step does not.
-          if [[ "${RUNNER_OS}" == "Windows" ]]; then bin="$(cygpath -u "${bin}")"; fi
-          echo "OPENTIDE_TEST_PATH=${bin}" >> "$GITHUB_ENV"
+          dir="${RUNNER_TEMP}/opentide-npm/bin"
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then dir="$(cygpath -u "${dir}")"; fi
+          echo "OPENTIDE_TEST_PATH=${dir}" >> "$GITHUB_ENV"
       - name: The VS Code version
         env:
           VSCODE: ${{ matrix.vscode }}
@@ -151,10 +235,11 @@ jobs:
           fi
           echo "CODE_VERSION=${VSCODE}" >> "$GITHUB_ENV"
       # Linux has no display: run VS Code under Xvfb.
-      - name: Integration tests
+      - name: Integration tests, on the @opentide/opentide the build stages
         run: |
           set -euo pipefail
           export PATH="${OPENTIDE_TEST_PATH}:${PATH}"
+          export OPENTIDE_NPM="${RUNNER_TEMP}/opentide-npm"
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
             xvfb-run -a npm run test:integration -- --code-version "${CODE_VERSION}"
           else
@@ -172,6 +257,8 @@ jobs:
       # No opentide anywhere (opentide.path names nothing, none on PATH, no python with it): the engine
       # (WASM) tier gives diagnostics, hover, completion and the Catalogue.
       - name: Engine (WASM) tests, with no opentide
+        env:
+          OPENTIDE_TARGET: universal
         run: |
           set -euo pipefail
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
@@ -212,8 +299,11 @@ jobs:
       - name: Browser tests
         run: npm run test:web
 
+  # The universal package, and the linux-x64 one with @opentide/opentide built from source (the other five
+  # targets need the package from npm: publish.yml builds them once pins.json pins it).
   package:
     name: Package
+    needs: opentide-npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -224,11 +314,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: opentide-npm-${{ runner.os }}
+          path: ${{ runner.temp }}/opentide-npm
       - name: Universal package
         run: npm run package -- --universal
-      # The engine (WASM) answers from it, and it carries the web extension.
+      # The engine (WASM) answers from it, and it carries the web extension and no native code.
       - name: Universal package smoke test
         run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
+      - name: linux-x64 package
+        run: OPENTIDE_NPM="${RUNNER_TEMP}/opentide-npm" npm run package -- --target linux-x64
+      # Its bundled opentide runs: --version, --json commands and lsp start's initialize.
+      - name: linux-x64 package smoke test
+        run: npm run smoke -- dist-vsix/opentide-linux-x64-*.vsix
       - name: Sizes
         if: ${{ !cancelled() }}
         run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"

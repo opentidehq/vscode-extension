@@ -6,9 +6,13 @@
 #
 #   prepare      the version is CHANGELOG.md's newest dated section (scripts/release.mjs); the notes PR
 #                merged ([Unreleased] is empty, package.json has the version) and its tag does not exist
-#   universal    the one package, for every platform and the web: the extension runs the user's own
-#                opentide and carries no runtime
-#   attest       the VSIX is this version and channel; SHA256SUMS; build provenance
+#   universal    the package for every platform without one of its own, and the web: no native code; it
+#                runs the workspace's opentide, else the engine (WASM)
+#   platforms    the six platform packages (linux, darwin, win32 x x64, arm64), each carrying the
+#                @opentide/opentide pins.json pins (dist/opentide), built and smoke-tested on its own
+#                platform; only once pins.json pins the package's npm integrity (release.mjs platforms),
+#                skipped before
+#   attest       the VSIXs are this version and channel; SHA256SUMS; build provenance
 #                (public repository, or the repository variable ATTEST=true on GitHub Enterprise Cloud;
 #                otherwise a warning, and the release goes out with SHA256SUMS only)
 #   release      the v<version> tag and the GitHub Release with the notes and the assets, only now that
@@ -53,6 +57,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      platforms: ${{ steps.version.outputs.platforms }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,7 +88,11 @@ jobs:
             echo "version=${version}"
             echo "tag=${tag}"
             echo "prerelease=$(node scripts/release.mjs prerelease "${version}")"
+            echo "platforms=$(node scripts/release.mjs platforms)"
           } >> "$GITHUB_OUTPUT"
+          if [[ "$(node scripts/release.mjs platforms)" != "true" ]]; then
+            echo "::warning title=Universal package only::pins.json does not pin @opentide/opentide on npm (opentide.npm.integrity), so this release has no platform packages: users run their own opentide or the engine (WASM). docs/PACKAGING.md says how to pin it."
+          fi
           echo "Releasing ${tag} (pre-release: $(node scripts/release.mjs prerelease "${version}"))"
 
   universal:
@@ -127,9 +136,69 @@ jobs:
           path: dist-vsix/*.vsix
           if-no-files-found: error
 
+  platforms:
+    name: Package ${{ matrix.target }}
+    needs: prepare
+    if: ${{ needs.prepare.outputs.platforms == 'true' }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        # Each on its own platform, so that the smoke test runs the bundled opentide (release-lib.mjs
+        # PLATFORM_RUNNERS).
+        include:
+          - target: linux-x64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-latest
+          - target: win32-x64
+            runner: windows-latest
+          - target: win32-arm64
+            runner: windows-11-arm
+    defaults:
+      run:
+        shell: bash
+    env:
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # @opentide/opentide and its native package from npm, each checked against pins.json's integrity.
+      - name: Package
+        run: |
+          set -euo pipefail
+          flags=(--target "${TARGET}")
+          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
+          npm run package -- "${flags[@]}"
+      - name: Smoke test
+        run: npm run smoke -- "dist-vsix/opentide-${TARGET}-"*.vsix
+      - name: Size
+        if: ${{ !cancelled() }}
+        run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vsix-${{ matrix.target }}
+          path: dist-vsix/*.vsix
+          if-no-files-found: error
+
   attest:
     name: Check, sum and attest the packages
-    needs: [prepare, universal]
+    needs: [prepare, universal, platforms]
+    # The platform packages are skipped while pins.json does not pin @opentide/opentide on npm.
+    if: ${{ !cancelled() && needs.universal.result == 'success' && (needs.platforms.result == 'success' || needs.platforms.result == 'skipped') }}
     runs-on: ubuntu-latest
     # id-token and attestations: write sign each asset's build provenance.
     permissions:
@@ -154,7 +223,7 @@ jobs:
           pattern: vsix-*
           path: release
           merge-multiple: true
-      - name: The universal package, of this version and channel
+      - name: The packages, of this version and channel
         run: node scripts/release.mjs assets release "${VERSION}"
       # Last, once release/ holds every asset: a user runs `sha256sum -c SHA256SUMS` on a download.
       - name: SHA256SUMS

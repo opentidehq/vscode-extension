@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PLATFORM_RUNNERS } from "../../scripts/release-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (file) => readFileSync(join(root, file), "utf8");
@@ -21,17 +22,42 @@ const firstIndex = (text, pattern) => {
   return match ? match.index : -1;
 };
 
-describe("workflows: one universal package, no bundled runtime", () => {
+describe("workflows: the universal package and the platform packages carrying @opentide/opentide", () => {
   for (const file of WORKFLOWS) {
-    it(`${file} builds no runtime and no per-platform package`, () => {
+    it(`${file} builds no Python runtime and smoke-tests every package it builds`, () => {
       const text = read(file);
-      assert.doesNotMatch(text, /runtime:(build|lock)|npm run package -- --target|setup-uv/);
+      assert.doesNotMatch(text, /runtime:(build|lock)|setup-uv|setup-python|pip install/);
       assert.match(text, /npm run package -- (--universal|"\$\{flags\[@\]\}")/);
-      for (const [name, job] of jobs(text))
-        if (/npm run package/.test(job))
+      for (const [name, job] of jobs(text)) {
+        if (!/npm run package/.test(job)) continue;
+        if (/npm run package -- --universal|flags=\(--universal\)/.test(job))
           assert.match(job, /npm run smoke -- dist-vsix\/opentide-universal-/, name);
+        if (/npm run package -- --target|flags=\(--target/.test(job))
+          assert.match(job, /npm run smoke -- "?dist-vsix\/opentide-(\$\{TARGET\}|linux-x64)-/, name);
+      }
     });
   }
+
+  it("publish.yml builds each platform package on its own platform, once pins.json pins the package", () => {
+    const platforms = jobs(read(".github/workflows/publish.yml")).get("platforms") ?? "";
+    const matrix = [...platforms.matchAll(/- target: (\S+)\n\s+runner: (\S+)/g)].map(([, target, runner]) => [
+      target,
+      runner,
+    ]);
+    assert.deepEqual(Object.fromEntries(matrix), PLATFORM_RUNNERS);
+    assert.match(platforms, /if: \$\{\{ needs\.prepare\.outputs\.platforms == 'true' \}\}/);
+    const attest = jobs(read(".github/workflows/publish.yml")).get("attest") ?? "";
+    assert.match(attest, /needs\.platforms\.result == 'skipped'/);
+  });
+
+  it("ci.yml builds @opentide/opentide from pins.json's source while it is not on npm", () => {
+    const ci = jobs(read(".github/workflows/ci.yml"));
+    const build = ci.get("opentide-npm") ?? "";
+    assert.match(build, /opentide\.source\.ref/);
+    assert.match(build, /npm run build/);
+    for (const name of ["real-opentide", "integration", "package"])
+      assert.match(ci.get(name) ?? "", /needs: opentide-npm/, name);
+  });
 });
 
 describe("publish.yml: the release job can be re-run", () => {
