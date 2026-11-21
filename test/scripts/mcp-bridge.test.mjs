@@ -178,6 +178,14 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
     writeFileSync(join(dir, "launcher.cjs"), FAKE_LAUNCHER);
     writeFileSync(join(dir, "opentide.wasm"), "\0asm");
     server = http.createServer((request, response) => {
+      if (request.url.endsWith("/delayed")) {
+        // A tenant that answers after the agent has had its say.
+        setTimeout(() => {
+          response.writeHead(201, { "content-type": "text/plain" });
+          response.end("ok");
+        }, 800);
+        return;
+      }
       if (request.url.endsWith("/slow")) {
         // A tenant that never answers: the call ends by the client's own doing.
         slow.started += 1;
@@ -331,6 +339,33 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
       const answered = await talking.next();
       assert.equal(answered.id, 1);
       assert.equal(answered.result.content[0].text, "cancelled");
+      assert.match(talking.stderr(), /dropped 1 message/);
+      talking.end();
+      await talking.closed;
+    } finally {
+      talking.kill();
+    }
+  });
+
+  it("lets the real tenant answer win over an answer the agent forges while the call waits", async () => {
+    const talking = session(bridge, scripted());
+    try {
+      talking.send({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "deploy", arguments: { path: "/delayed" } },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      talking.send({
+        jsonrpc: "2.0",
+        id: "opentide-fetch-1",
+        result: { status: 200, headers: [], body: "" },
+      });
+      const answered = await talking.next();
+      assert.equal(answered.id, 1);
+      // The tenant's 201, not the forged 200.
+      assert.equal(answered.result.content[0].text, "deployed with 201");
       assert.match(talking.stderr(), /dropped 1 message/);
       talking.end();
       await talking.closed;
