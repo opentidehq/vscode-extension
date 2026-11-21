@@ -6,7 +6,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
 import type { FeatureContext } from "./core/context";
-import { createCore } from "./core/core";
+import { type Core, createCore } from "./core/core";
 import { activateFeatures } from "./core/featureHost";
 import { startEngineWorker } from "./core/services/engine";
 import { features } from "./features/index.generated";
@@ -20,6 +20,9 @@ export interface ExtensionApi {
   readonly started: Promise<void>;
 }
 
+/** The running core, for `deactivate` to end its processes. */
+let running: Core | undefined;
+
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionApi> {
   if (isVirtualOnly((vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.scheme))) {
     const module = path.join(context.extensionPath, "dist", "engine", "opentide_wasm_bg.wasm");
@@ -31,6 +34,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     return { started: Promise.resolve() };
   }
   const core = createCore(context);
+  running = core;
   const activated = activateFeatures(features, core.ctx);
   const started = core.start();
   await activated;
@@ -38,6 +42,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   return context.extensionMode === 3 ? { ctx: core.ctx, started } : { started };
 }
 
-export function deactivate(): void {
-  // Disposables in context.subscriptions stop the language server and the backend.
+/**
+ * VS Code waits for the promise this returns (about five seconds) and then disposes `context.subscriptions` without
+ * waiting for them, so the processes are ended and awaited here, in order: otherwise the host can exit while the
+ * language server or `opentide serve` still waits to be killed, and leave them behind.
+ */
+export async function deactivate(): Promise<void> {
+  const core = running;
+  running = undefined;
+  await core?.shutdown();
 }

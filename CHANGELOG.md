@@ -67,6 +67,22 @@ pre-releases odd ones.
   to trust the folder.
 - **The status bar says "bundled WASI" next to the version** when the module the extension carries is the
   runtime, so you can see which opentide is running without opening the tooltip.
+- **Closing a window ends its opentide processes before it finishes closing.** The extension waits for the
+  language server, `opentide serve` and MCP to stop, in that order, instead of leaving them to exit on
+  their own.
+- **Stopping an opentide process works the same on every platform and runtime.** It is asked to stop first
+  and ended after two seconds if it does not, and on Windows its child processes end with it.
+- **Changing a setting while opentide is being looked for no longer waits for the search.** The search for
+  an installed opentide (a slow `uv` check can take minutes) is cancelled and starts again with the new
+  settings.
+- **A damaged `dist/wasi/wasi.json` or `dist/engine/engine.json` is reported in the log** with what is wrong
+  with it, and that runtime is skipped. It no longer fails without a word.
+- **A reply from `opentide serve` that does not have the expected shape is reported as a protocol error**
+  instead of being read as if it were well formed.
+- **A damaged Kiro, Devin Desktop or Windsurf MCP file is left alone and the problem is named.** A file that
+  is not JSON, has an `mcpServers` that is not an object, or holds comments is no longer offered an
+  opentide entry, and **opentide: Remove from the Editor's MCP Settings** says what is wrong with it instead
+  of saying it has no entry.
 
 ## [0.1.2] - 2026-11-10
 

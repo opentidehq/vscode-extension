@@ -158,22 +158,27 @@ function parseConfig(existing: string | undefined): Parsed | { readonly error: s
           : "has comments or trailing commas, which writing it again would drop",
     };
   }
-  if (typeof config !== "object" || config === null || Array.isArray(config))
-    return { error: "is not a JSON object" };
-  const record = config as Record<string, unknown>;
-  const servers = record.mcpServers ?? {};
-  if (typeof servers !== "object" || servers === null || Array.isArray(servers))
-    return { error: "has an `mcpServers` that is not an object" };
+  if (!isRecord(config)) return { error: "is not a JSON object" };
+  // Only a missing `mcpServers` is absent: a null or any other non-object value is the user's, not ours to replace.
+  const servers = config.mcpServers === undefined ? {} : config.mcpServers;
+  if (!isRecord(servers)) return { error: "has an `mcpServers` that is not an object" };
   const indent = /^\{\r?\n([ \t]+)"/.exec(existing)?.[1] ?? "  ";
-  return { config: record, servers: servers as Record<string, unknown>, indent };
+  return { config, servers, indent };
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Why the file cannot be edited (the same words a merge gives), or undefined when it can, or when there is none. */
+export function configProblem(existing: string | undefined): string | undefined {
+  const parsed = parseConfig(existing);
+  return "error" in parsed ? parsed.error : undefined;
 }
 
 /** Whether a server entry carries this extension's marker. */
 export function isOurs(entry: unknown): boolean {
-  const env = (entry as { env?: unknown } | null)?.env;
-  return (
-    typeof env === "object" && env !== null && (env as Record<string, unknown>)[MARKER_ENV] === MARKER_VALUE
-  );
+  if (!isRecord(entry) || !isRecord(entry.env)) return false;
+  return entry.env[MARKER_ENV] === MARKER_VALUE;
 }
 
 const stringify = (config: unknown, indent: string): string => `${JSON.stringify(config, null, indent)}\n`;
@@ -202,17 +207,24 @@ export function mergeMcpEntry(existing: string | undefined, entry: McpEntry): Me
   return { kind: "write", text: stringify(next, parsed.indent) };
 }
 
+export type RemoveResult =
+  | { readonly kind: "write"; readonly text: string }
+  /** The file has no entry this extension wrote: nothing to remove. */
+  | { readonly kind: "none" }
+  | { readonly kind: "error"; readonly error: string };
+
 /**
- * The text with this extension's `opentide` entry gone (and `mcpServers` too when it was the only server),
- * or undefined when the file has none of the extension's: an entry the user wrote is never removed.
+ * The text with this extension's `opentide` entry gone (and `mcpServers` too when it was the only server).
+ * An entry the user wrote is never removed (`none`); a file that cannot be read is an `error`, not "no entry".
  */
-export function removeMcpEntry(existing: string | undefined): string | undefined {
+export function removeMcpEntry(existing: string | undefined): RemoveResult {
   const parsed = parseConfig(existing);
-  if ("error" in parsed || !isOurs(parsed.servers[MCP_LABEL])) return undefined;
+  if ("error" in parsed) return { kind: "error", error: parsed.error };
+  if (!isOurs(parsed.servers[MCP_LABEL])) return { kind: "none" };
   const { [MCP_LABEL]: _gone, ...rest } = parsed.servers;
   const { mcpServers: _servers, ...others } = parsed.config;
   const next = Object.keys(rest).length > 0 ? { ...others, mcpServers: rest } : others;
-  return stringify(next, parsed.indent);
+  return { kind: "write", text: stringify(next, parsed.indent) };
 }
 
 /** Whether the file has an `opentide` entry this extension wrote. */
