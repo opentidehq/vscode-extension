@@ -1,0 +1,13 @@
+# Driven the way Kiro's agent does (protocol 2026-07-28, per-request _meta); module+bridge from #83 f835b42 / opentide 475d486
+
+$ modern.js <Kiro binary> /tmp/qa/ws dist/mcp-wasi.js   (through the bridge)
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = undefined | tools: 10 | result keys: ttlMs,cacheScope,tools
+tools/call       resultType = undefined | isError = false | {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n  \"own_matrix\": {},\n  \"tactic_filter\": null\n}"}],"isError":false}}
+stderr first line: opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws
+
+$ modern.js <node> /tmp/qa/ws launcher.cjs opentide.wasm mcp start   (the module alone)
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = undefined | tools: 10 | result keys: ttlMs,cacheScope,tools
+tools/call       resultType = undefined | isError = false | {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n  \"own_matrix\": {},\n  \"tactic_filter\": null\n}"}],"isError":false}}
+stderr first line: 

@@ -1,0 +1,45 @@
+# The entry Kiro read (command=Kiro binary, args=[mcp-wasi.js], ELECTRON_RUN_AS_NODE=1; no OPENTIDE_REPO_ROOT). Build: #83 @ f835b42 + opentide feat/mcp-wasi-fetch @ 475d486
+
+## cwd = the workspace (what Kiro does: probe entry wrote cwd=/tmp/qa/ws)
+
+$ tools/call validate_rule
+## tools/call validate_rule
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"valid\": true,\n  \"errors\": [],\n  \"warnings\": [],\n  \"issues\": [],\n  \"next_actions\": [\n    {\n      \"tool\": \"deploy_rule\",\n      \"arguments\": {\n        \"uuid\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n        \"platform\": \"elastic\",\n        \"dry_run\": true\n      },\n      \"command\": \"opentide --json deploy --dr
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws | 
+elapsed ms 374
+fake tenant requests: 0 ()
+
+$ tools/call run_query
+## tools/call run_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"source\": \"query\",\n  \"window\": {\n    \"from\": \"2026-11-20T10:02:10.886Z\",\n    \"to\": \"2026-11-21T10:02:10.886Z\"\n  },\n  \"limit\": 100,\n  \"tenants\": [\n    \"elastic-local-fake\"\n  ],\n  \"results\": [\n    {\n      \"tenant\": \"elastic-local-fake\",\n      \"status\": \"ok\",\n      \"columns\"
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws | 
+elapsed ms 369
+fake tenant requests: 2 (POST,/api/detection_engine/rules/preview POST,/.preview.alerts-security.alerts-default/_search )
+
+$ tools/call deploy_rule
+## tools/call deploy_rule
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"action\": \"deploy\",\n  \"tenant\": null,\n  \"rule_id\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n  \"status\": \"STAGING\",\n  \"dry_run\": false,\n  \"platform\": \"elastic\",\n  \"message\": \"Deployed 1 rule to 1 tenant · 1 updated · 0 failed, 0 not attempted · 0.0s\"\n}"}],"isError":false}}
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws | 
+elapsed ms 444
+fake tenant requests: 3 (GET,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c DELETE,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c POST,/api/detection_engine/rules )
+
+## cwd = $HOME (not a repository)
+## tools/list
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+
+## tools/call coverage
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"Error executing tool coverage: workspace_not_found: no detection workspace at /root: no .opentide/ or objects/ there or above it. Set OPENTIDE_REPO_ROOT to your detection repository in the host's MCP server settings, start the host inside it, or create one with 'opentide setup'."},{"type":"text","text":"opentide found no repository: the editor started this server in /root, which is not inside a detection repository (no .opentide/ or objects/ there or above). Open the repository's folder in the editor, or set OPENTIDE_REPO_ROOT to its absolute path in the opentide server's env in the editor's MCP settings."}],"isError":true}}
+   [isError=true]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/root; OPENTIDE_REPO_ROOT not set; repository root: none found | 
+elapsed ms 270

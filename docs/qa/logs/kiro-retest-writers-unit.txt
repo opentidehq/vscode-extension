@@ -1,0 +1,21 @@
+Kiro               provider=true cursor=false file=~/.kiro/settings/mcp.json
+Devin              provider=true cursor=false file=~/.config/devin/mcp_config.json
+Windsurf           provider=false cursor=false file=~/.codeium/windsurf/mcp_config.json
+Windsurf - Next    provider=true cursor=false file=~/.codeium/windsurf/mcp_config.json
+Visual Studio Code provider=true cursor=false file=-
+Cursor             provider=false cursor=true file=-
+
+-- consent writer, Devin Desktop and Windsurf (seeded with another server and a top-level key)
+Devin Desktop: wrote ~/.config/devin/mcp_config.json; servers=dummy-other,opentide; top-level keys=mcpServers,extra; marked=true
+  upgrade (marked entry) -> write
+  user-written opentide -> foreign
+  remove -> [ 'dummy-other' ] [ 'extra', 'mcpServers' ]
+  remove on user-written entry -> undefined
+Windsurf: wrote ~/.codeium/windsurf/mcp_config.json; servers=dummy-other,opentide; top-level keys=mcpServers,extra; marked=true
+  upgrade (marked entry) -> write
+  user-written opentide -> foreign
+  remove -> [ 'dummy-other' ] [ 'extra', 'mcpServers' ]
+  remove on user-written entry -> undefined
+
+-- Kiro: remove (the opentide.agents.removeFromEditorMcp logic) on the real file
+servers before [ 'dummy-other', 'opentide' ] -> after [ 'dummy-other' ] | top-level kept: [ 'powers', 'mcpServers' ]

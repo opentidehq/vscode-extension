@@ -1,0 +1,10 @@
+{"timestamp":"2026-11-21T10:03:47.033Z","level":"info","message":"[MCPConfigManager] Identity provider setting changed","kind":"absent"}
+{"timestamp":"2026-11-21T10:03:47.290Z","level":"warn","message":"mcp.connect.error","serverName":"dummy-other"}
+{"timestamp":"2026-11-21T10:03:47.290Z","level":"error","message":"Failed to connect","instanceId":"mcp-inst-1","serverName":"dummy-other","error":"Connection closed"}
+{"timestamp":"2026-11-21T10:03:47.299Z","level":"info","message":"mcp.closeConnection.ok","serverName":"dummy-other"}
+{"timestamp":"2026-11-21T10:03:47.669Z","level":"info","message":"Connected with transport","transportType":"stdio","era":"modern","protocolVersion":"2026-07-28","versionNegotiation":"auto","eraSource":"probe","eraProbeBudgetMs":30000,"connectDurationMs":565,"serverName":"opentide"}
+{"timestamp":"2026-11-21T10:03:47.670Z","level":"info","message":"mcp.connect.ok","serverName":"opentide"}
+{"timestamp":"2026-11-21T10:03:48.009Z","level":"warn","message":"mcp.listTools.error","serverName":"opentide"}
+{"timestamp":"2026-11-21T10:03:48.009Z","level":"error","message":"Error listing tools","serverName":"opentide","error":"Invalid result for tools/list: missing required resultType — servers implementing protocol revision 2026-07-28 MUST include it (the absent-means-complete bridge applies only to earlier-revision servers)"}
+{"timestamp":"2026-11-21T10:03:48.009Z","level":"error","message":"Failed to connect","instanceId":"mcp-inst-2","serverName":"opentide","error":"Invalid result for tools/list: missing required resultType — servers implementing protocol revision 2026-07-28 MUST include it (the absent-means-complete bridge applies only to earlier-revision servers)"}
+{"timestamp":"2026-11-21T10:03:48.075Z","level":"info","message":"mcp.closeConnection.ok","serverName":"opentide"}

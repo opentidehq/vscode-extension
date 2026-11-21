@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "dummy-other": {
+      "command": "echo",
+      "args": [
+        "hello"
+      ],
+      "env": {
+        "KEEP": "me"
+      }
+    },
+    "opentide": {
+      "command": "/tmp/qa/kiro/Kiro/kiro",
+      "args": [
+        "/tmp/qa/ext-kiro3/opentidehq.opentide-0.1.3/dist/mcp-wasi.js"
+      ],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1",
+        "OPENTIDE_VSCODE_EXTENSION": "opentidehq.opentide"
+      }
+    },
+    "qa-cwd-probe": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "pwd > /tmp/qa/kiro-spawn-cwd.txt; echo \"argv0=$0 ppid=$PPID\" >> /tmp/qa/kiro-spawn-cwd.txt; sleep 2"
+      ]
+    }
+  },
+  "powers": {
+    "seed": true
+  }
+}

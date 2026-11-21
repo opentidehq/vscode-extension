@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "dummy-other": {
+      "command": "echo",
+      "args": [
+        "hello"
+      ],
+      "env": {
+        "KEEP": "me"
+      }
+    },
+    "opentide": {
+      "command": "/tmp/qa/kiro/Kiro/kiro",
+      "args": [
+        "/tmp/qa/ext-kiro3/opentidehq.opentide-0.1.2/dist/mcp-wasi.js"
+      ],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1",
+        "OPENTIDE_VSCODE_EXTENSION": "opentidehq.opentide"
+      }
+    }
+  },
+  "powers": {
+    "seed": true
+  }
+}
