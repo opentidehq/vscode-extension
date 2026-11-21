@@ -1,0 +1,45 @@
+$ node mcpclient.js <execPath> /tmp/qa/ws dist/mcp-wasi.js   # bridge definition (#83), real module
+
+## server/discover
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-aligned, maintainable and fast to ship, with or without agents.\n\nThe catalogue is YAML in the repository: threats (objects/threats/), objectives (objects/objec
+
+## initialize (legacy)
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3-dev+8b55d0c"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-aligned, maintainable and fast to ship, with or without agents.\n\nThe catalogue is YAML in the repository: threats (objects/threats/), objectives (objects/objectives/) and 
+
+## tools/list
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+
+## tools/call run_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"source\": \"query\",\n  \"window\": {\n    \"from\": \"2026-11-20T08:51:01.927Z\",\n    \"to\": \"2026-11-21T08:51:01.927Z\"\n  },\n  \"limit\": 100,\n  \"tenants\": [\n    \"elastic-local-fake\"\n  ],\n  \"results\": [\n    {\n      \"tenant\": \"elastic-local-fake\",\n      \"status\": \"failed\",\n      \"error\": \"this command needs the network, which the WASI build of opentide does not have; run the opentide CLI\",\n      \"warnings\": [],\n      \"elapsed_ms\": 1\n    }\n  ],\n  \"ro
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 284
+
+$ OPENTIDE_WASI_DIR=<scripted module dir> ... tools/call deploy  (scripted module that asks for opentide/fetch)
+
+## server/discover
+{"jsonrpc":"2.0","id":1,"result":{"via":"server/discover","fetch":"stdio","serverInfo":{"name":"scripted"}}}
+
+## initialize (legacy)
+{"jsonrpc":"2.0","id":2,"result":{"via":"initialize","fetch":"stdio","serverInfo":{"name":"scripted"}}}
+
+## tools/list
+ 1 tools: deploy
+
+## tools/call deploy
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"deployed with 200"}]}}
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: not JSON on stdout: this is not json | opentide mcp bridge: opentide/log with nothing to answer it | 
+elapsed ms 106
+fake tenant saw:
+{"t":"2026-11-21T08:51:03.587Z","port":5601,"method":"GET","url":"/api/status","auth":"(none)","body":""}
+
+$ Kiro binary as node (entry written to ~/.kiro/settings/mcp.json), cwd=$HOME
+## tools/call coverage
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n  \"own_matrix\": {},\n  \"tactic_filter\": null\n}"}],"isError":false}}
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 316

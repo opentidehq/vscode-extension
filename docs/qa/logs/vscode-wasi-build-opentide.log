@@ -1,0 +1,16 @@
+2026-11-21 08:51:14.321 [info] restart: activation
+2026-11-21 08:51:14.322 [info] features: 11/11 activated
+2026-11-21 08:51:14.322 [info] runtime: opentide 1.0.0-rc.3-dev+8b55d0c (tier 4 · bundled WASI): the module the extension carries, no opentide installed answered. Every command works; tenant requests are made by the extension host.
+2026-11-21 08:51:14.453 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+8b55d0c)
+2026-11-21 08:51:14.454 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 08:51:14.818 [info] language server: host opentide 1.0.0-rc.3-dev+8b55d0c, engine 1.0.0-rc.3-dev+8b55d0c, catalog models
+2026-11-21 08:51:14.820 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 08:51:14.877 [info] opentide 1.0.0-rc.3-dev+8b55d0c: 58 commands
+2026-11-21 08:51:14.879 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 08:51:15.178 [info] opentide serve 1.0.0-rc.3-dev+8b55d0c started (pid 15310)
+2026-11-21 08:51:15.834 [info] ✓ opentide --json validate  exit 0 in 1015 ms via serve
+2026-11-21 08:51:15.891 [info] ✓ opentide --json info catalog  exit 0 in 1011 ms via serve
+2026-11-21 08:51:16.382 [info] ▶ opentide --json info  (in /tmp/qa/ws)
+2026-11-21 08:51:16.388 [info] ✓ opentide --json info  exit 0 in 6 ms via serve
+2026-11-21 08:51:40.051 [info] ▶ opentide --json validate query --live --platform elastic --uuid 14313ce1-c1a4-4a42-9a13-3e54f76d760c  (in /tmp/qa/ws)
+2026-11-21 08:51:40.100 [info] ✓ opentide --json validate query --live --platform elastic --uuid 14313ce1-c1a4-4a42-9a13-3e54f76d760c  exit 0 in 49 ms via serve

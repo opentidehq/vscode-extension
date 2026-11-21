@@ -1,0 +1,33 @@
+$ node mcpclient.js <execPath> /tmp/qa/ws launcher.cjs opentide.wasm mcp start   # the definition VS Code spawns (#82), ELECTRON_RUN_AS_NODE=1
+
+## server/discover
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-aligned, maintainable and fast to ship, with or without agents.\n\nThe catalogue is YAML in the repository: threats (objects/threats/), objectives (objects/objec
+
+## initialize (legacy)
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3-dev+8b55d0c"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-aligned, maintainable and fast to ship, with or without agents.\n\nThe catalogue is YAML in the repository: threats (objects/threats/), objectives (objects/objectives/) and 
+
+## tools/list
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+
+## tools/call validate_rule
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"valid\": true,\n  \"errors\": [],\n  \"warnings\": [],\n  \"issues\": [],\n  \"next_actions\": [\n    {\n      \"tool\": \"deploy_rule\",\n      \"arguments\": {\n        \"uuid\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n        \"platform\": \"elastic\",\n        \"dry_run\": true\n      },\n      \"command\": \"opentide --json deploy --dry-run --strategy PREVIEW --all --platform elastic\",\n      \"reason\": \"preview the elastic deployment; nothing is sent\"\n    }\n  ]\n}"}],"isError":false}}
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 361
+
+$ ... tools/call run_query live (tenant tool, #82: no bridge)
+## tools/call run_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"source\": \"query\",\n  \"window\": {\n    \"from\": \"2026-11-20T08:50:58.255Z\",\n    \"to\": \"2026-11-21T08:50:58.255Z\"\n  },\n  \"limit\": 100,\n  \"tenants\": [\n    \"elastic-local-fake\"\n  ],\n  \"results\": [\n    {\n      \"tenant\": \"elastic-local-fake\",\n      \"status\": \"failed\",\n      \"error\": \"Elastic credentials are unset ($ELASTIC_STAGING_API_KEY). Set those environment variables, then run the command again.\",\n      \"warnings\": [],\n      \"elapsed_ms\": 0\n 
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 242
+
+$ ... tools/call validate_query live (opentide-side message)
+## tools/call validate_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"mode\": \"live\",\n  \"supported\": true,\n  \"strategies\": [\n    \"PREVIEW\",\n    \"RELEASE\"\n  ],\n  \"queries_validated\": 1,\n  \"queries_per_tenant\": {\n    \"elastic-local-fake\": 1\n  },\n  \"status\": \"failed\",\n  \"message\": \"Query validation for elastic failed: cannot block on the network runtime from a thread that drives asynchronous work; await the work there, or call it through spawn_blocking\"\n}"}],"isError":false}}
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 299

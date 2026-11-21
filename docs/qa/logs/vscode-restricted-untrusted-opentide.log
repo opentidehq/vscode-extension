@@ -1,0 +1,7 @@
+2026-11-21 08:39:24.135 [info] restart: activation
+2026-11-21 08:39:24.135 [warning] runtime: opentide engine (WASM) 1.0.0-rc.2: editor features only. No opentide answered (opentide.path, the workspace's environment, python -m opentide) and the bundled WASI module is not available: install opentide for commands, validate, deploy and query.
+2026-11-21 08:39:24.135 [info] features: 11/11 activated
+2026-11-21 08:39:24.445 [info] engine: read 6 object file(s), 13 KiB, in 166 ms
+2026-11-21 08:39:24.445 [info] language server: /tmp/qa/ext-vsc/opentidehq.opentide-0.1.2/dist/engine/opentide_wasm_bg.wasm in a worker thread (engine 1.0.0-rc.2)
+2026-11-21 08:39:24.612 [info] engine: initialized in 344 ms; file changes are sent as opentide/didChangeWorkspace
+2026-11-21 08:39:24.612 [info] language server: host none , engine 1.0.0, catalog models
