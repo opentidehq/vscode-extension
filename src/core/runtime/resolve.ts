@@ -293,8 +293,25 @@ interface Candidate {
   binDirs?: string[];
 }
 
+/**
+ * Why an `opentide.path` that is not named `opentide` or `opentide-lsp` (with .exe, .cmd or .bat on Windows) is a guess:
+ * the name is how the extension tells a full opentide from an `opentide-lsp`, so any other name is run as a full opentide
+ * (`--version`, `lsp start`, every command). If it is not one, it fails its version check and the next runtime runs.
+ */
+export function unusualRuntimeName(command: string): string | undefined {
+  // Either separator: the path may be a Windows one whichever platform this runs on.
+  const name = command.split(/[\\/]/).pop() ?? command;
+  if (/^opentide(-lsp)?(\.(exe|cmd|bat))?$/i.test(name)) return undefined;
+  return (
+    `opentide.path ${command} is named "${name}", not opentide or opentide-lsp: it is run as a full opentide ` +
+    "(opentide --version, lsp start). If it is an opentide-lsp, name it opentide-lsp; if it is neither, the next runtime runs instead"
+  );
+}
+
 export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult> {
   const attempts: ResolveAttempt[] = [];
+  /** What the log should warn about even when a runtime was found (an `opentide.path` that is not named like one). */
+  const warnings: string[] = [];
   const check = async (candidate: Candidate, restricted: boolean): Promise<Runtime | undefined> => {
     if (input.signal?.aborted) return undefined;
     const lsp = candidate.kind === "opentide-lsp";
@@ -374,6 +391,8 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     if (configured) {
       const command = expandPath(configured, input.folder, input.homeDir);
       const kind = /^opentide-lsp(\.exe)?$/i.test(path.basename(command)) ? "opentide-lsp" : "opentide";
+      const oddName = unusualRuntimeName(command);
+      if (oddName) warnings.push(oddName);
       const runtime = await check({ tier: 1, source: "setting", command, args: [], kind }, false);
       if (runtime) return runtime;
     } else {
@@ -540,24 +559,27 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     skip(4, "wasi", "Restricted Mode: no opentide runs, only the engine (WASM)");
   } else if (choice.mode === "installed") {
     const installed = await tryInstalled();
-    if (installed) return { runtime: installed, attempts, mode: choice.mode, reason: choice.reason };
+    if (installed)
+      return { runtime: installed, attempts, mode: choice.mode, reason: choice.reason, warnings };
     const bundled = tryBundled();
     notice =
       "no installed opentide answered" +
       (bundled
         ? "; using the bundled WASI module instead (set opentide.runtime to bundled to stop looking for an installed one)"
         : "");
-    if (bundled) return { runtime: bundled, attempts, mode: choice.mode, reason: choice.reason, notice };
+    if (bundled)
+      return { runtime: bundled, attempts, mode: choice.mode, reason: choice.reason, warnings, notice };
   } else {
     const bundled = tryBundled();
     if (bundled) {
       skip(1, "setting", `${choice.reason}: no installed opentide is looked for`);
-      return { runtime: bundled, attempts, mode: choice.mode, reason: choice.reason };
+      return { runtime: bundled, attempts, mode: choice.mode, reason: choice.reason, warnings };
     }
     // The bundled opentide is off or missing from this build: say so, and use an installed one if there is one.
     const installed = await tryInstalled();
     notice = `the bundled WASI module is not available (${attempts.findLast((a) => a.tier === 4)?.detail ?? "unknown"})${installed ? "; using the installed opentide instead" : ""}`;
-    if (installed) return { runtime: installed, attempts, mode: choice.mode, reason: choice.reason, notice };
+    if (installed)
+      return { runtime: installed, attempts, mode: choice.mode, reason: choice.reason, warnings, notice };
   }
 
   // Tier 5: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
@@ -570,6 +592,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       attempts,
       mode: choice.mode,
       reason: choice.reason,
+      warnings,
       ...(notice ? { notice } : {}),
     };
   }
@@ -580,6 +603,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       attempts,
       mode: choice.mode,
       reason: choice.reason,
+      warnings,
       ...(notice ? { notice } : {}),
     };
   }
@@ -596,6 +620,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     attempts,
     mode: choice.mode,
     reason: choice.reason,
+    warnings,
     ...(notice ? { notice } : {}),
   };
 }

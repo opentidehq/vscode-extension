@@ -13,6 +13,7 @@ import {
   readEngineManifest,
   readWasiManifest,
   resolveRuntime,
+  unusualRuntimeName,
   uvExecutable,
   type WasiLayout,
   wasiRuntime,
@@ -858,5 +859,40 @@ describe("opentide.runtime: the bundled opentide is the default, an installed on
     assert.equal(result.runtime?.tier, 5);
     assert.equal(result.runtime?.restricted, true);
     assert.deepEqual(state.probes, []);
+  });
+});
+
+describe("an opentide.path that is not named like opentide (E4)", () => {
+  it("is named in a warning with its path and what the extension does with it", () => {
+    const warning = unusualRuntimeName("/opt/tools/oti-1.0");
+    assert.match(warning ?? "", /\/opt\/tools\/oti-1\.0 is named "oti-1\.0", not opentide or opentide-lsp/);
+    assert.match(warning ?? "", /run as a full opentide/);
+    assert.match(warning ?? "", /next runtime runs instead/);
+  });
+
+  it("is not said for opentide or opentide-lsp, with a Windows extension or any case", () => {
+    for (const name of [
+      "/usr/bin/opentide",
+      "/x/opentide-lsp",
+      "C:\\x\\opentide.exe",
+      "/x/OpenTide",
+      "/x/opentide-lsp.EXE",
+      "/x/opentide.cmd",
+    ])
+      assert.equal(unusualRuntimeName(name), undefined, name);
+  });
+
+  it("comes back with the resolution, even when the runtime answers, and not for a well-named path", async () => {
+    const odd = input({}, { path: () => "/opt/oti" }, { versions: { "/opt/oti": "opentide 0.23.0" } });
+    const found = await resolveRuntime(odd.value);
+    assert.equal(found.runtime?.tier, 1);
+    assert.equal(found.warnings?.length, 1);
+    assert.match(found.warnings?.[0] ?? "", /\/opt\/oti/);
+    const fine = input(
+      {},
+      { path: () => "/opt/opentide" },
+      { versions: { "/opt/opentide": "opentide 0.23.0" } },
+    );
+    assert.deepEqual((await resolveRuntime(fine.value)).warnings, []);
   });
 });
