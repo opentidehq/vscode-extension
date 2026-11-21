@@ -2263,7 +2263,7 @@
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "mocha": "12.0.3",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.3",
