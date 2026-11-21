@@ -11,7 +11,7 @@
 //   node dist/mcp-wasi.js        env: OPENTIDE_REPO_ROOT, OPENTIDE_PROXY, OPENTIDE_WASI_DIR (default: ./wasi)
 import { spawn } from "node:child_process";
 import * as path from "node:path";
-import { isForgedAnswer, LineGuard, leaksPrivateLink } from "../core/wasi/mcpGuard";
+import { describeDroppedLine, isForgedAnswer, LineGuard, leaksPrivateLink } from "../core/wasi/mcpGuard";
 import { checkRoot, startupLine, withWorkspaceHint, workspaceHint } from "../core/wasi/mcpHint";
 
 async function main(): Promise<void> {
@@ -44,18 +44,25 @@ async function main(): Promise<void> {
   const fromEditor = new LineGuard((line) => isForgedAnswer(line, MCP_FETCH_ID_PREFIX));
   const fromModule = new LineGuard((line) => leaksPrivateLink(line, MCP_FETCH_ID_PREFIX));
 
-  const bridge = new McpFetchBridge({
-    // The editor's messages and the answers to the module's tenant requests. After the editor closed its
-    // input (below) an answer has nowhere to go: the module fails the call itself.
-    toServer: (line) => {
-      if (child.stdin.writable) child.stdin.write(line);
+  // `onError` (opentide #1742): the bridge drops a line that overflows the parser or that a sink throws on, instead of
+  // throwing out of `fromClient`, and tells this. Said by kind, never with the line or the error's message.
+  const options = { onError: (error: unknown) => note(describeDroppedLine(error)) };
+  const bridge = new McpFetchBridge(
+    {
+      // The editor's messages and the answers to the module's tenant requests. After the editor closed its
+      // input (below) an answer has nowhere to go: the module fails the call itself.
+      toServer: (line) => {
+        if (child.stdin.writable) child.stdin.write(line);
+      },
+      toClient: (line) => {
+        const { lines, dropped } = fromModule.push(line);
+        if (dropped > 0) note("dropped a line of the module's private link");
+        for (const out of lines) process.stdout.write(withWorkspaceHint(out, hint));
+      },
     },
-    toClient: (line) => {
-      const { lines, dropped } = fromModule.push(line);
-      if (dropped > 0) note("dropped a line of the module's private link");
-      for (const out of lines) process.stdout.write(withWorkspaceHint(out, hint));
-    },
-  });
+    // A module built before that option ignores it; the type here is the one the pinned package declares.
+    options as unknown as ConstructorParameters<typeof McpFetchBridge>[1],
+  );
 
   const toBridgeFromEditor = ({ lines, dropped }: { lines: string[]; dropped: number }): void => {
     if (dropped > 0) note(`dropped ${dropped} message(s) from the editor that answer a tenant request`);
