@@ -60,7 +60,7 @@ pre-releases odd ones.
   it carries, instead of MIT, so the whole package is under one licence. Third-party material keeps its own
   licence (`NOTICE`, `THIRD-PARTY-LICENSES`).
 - **The extension watches fewer files for the language server.** It watches the object files,
-  `.opentide/configurations` and `.opentide/schemas`, not the exports, inflight, states or templates that its own
+  `.opentide/configurations` and the deployment state files, not the exports, inflight or templates that its own
   runs write by the thousand.
 - **The engine reads your workspace's files straight from the disk** when its folders are `file:` ones, instead of
   asking the editor for each file, which was most of its start-up at a thousand objects.
