@@ -1,5 +1,5 @@
 {
-  "$comment": "Agents (SPEC §12, #6): the opentide MCP server definition provider, the fork fallback, and two language-model tools for live editor state. No chatSkills: the opentidehq/skills Agent Plugin is recommended (wizard, walkthrough), not embedded, until the EUPL licence review in #6, and embedded skills would load twice beside the plugin. No chat participant.",
+  "$comment": "Agents (SPEC §12, #6): the opentide MCP server definition provider, the fork fallback, and two language-model tools for live editor state. The skills and instructions are contrib/knowledge.json and contrib/skills.json (src/features/knowledge). No chat participant.",
   "activationEvents": ["onMcpCollection:opentide"],
   "contributes": {
     "mcpServerDefinitionProviders": [

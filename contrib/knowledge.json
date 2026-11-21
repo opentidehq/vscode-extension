@@ -1,0 +1,26 @@
+{
+  "$comment": "Agent knowledge (SPEC §12, #6): the always-on instructions and the switch for the skills (contrib/skills.json, generated from opentidehq/skills, holds the chatSkills). No chatPromptFiles: VS Code's docs say prompt files run only in Local harness sessions, which are to be removed in February 2027, and recommend skills instead; the opentide-rule skill covers a new detection rule.",
+  "contributes": {
+    "chatInstructions": [
+      {
+        "path": "./instructions/opentide.instructions.md"
+      }
+    ],
+    "configuration": {
+      "properties": {
+        "opentide.agents.embeddedSkills": {
+          "type": "string",
+          "enum": ["auto", "always", "never"],
+          "default": "auto",
+          "scope": "machine",
+          "enumDescriptions": [
+            "Contribute the opentide skills to VS Code's agents, unless the opentidehq/skills Agent Plugin is installed and on, which supplies them.",
+            "Always contribute them, even beside the plugin.",
+            "Never contribute them."
+          ],
+          "markdownDescription": "Whether the extension contributes the opentide skills (from [opentidehq/skills](https://github.com/opentidehq/skills)) to VS Code's agents. With `auto` they are left out when the `opentide` Agent Plugin is installed and on (`chat.plugins.enabled`), which would load them as well. The extension sets that up when it activates, in a workspace with opentide content."
+        }
+      }
+    }
+  }
+}

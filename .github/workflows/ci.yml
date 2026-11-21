@@ -42,6 +42,8 @@ jobs:
         run: npm run manifest:check
       - name: Grammars match the pinned highlights zip
         run: npm run grammars:check
+      - name: Skills match the pinned opentidehq/skills commit
+        run: npm run skills:check
       - run: npm run typecheck
       - run: npm run lint
       - name: Unit and script tests

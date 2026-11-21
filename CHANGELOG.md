@@ -8,6 +8,12 @@ pre-releases odd ones.
 
 ### Added
 
+- **The opentide skills and a few lines of guidance come with the extension, for VS Code's agents.** Agent mode
+  gets the 34 skills of [opentidehq/skills](https://github.com/opentidehq/skills) (rules, objectives, threats,
+  each platform's query language and internals) and always-on instructions: use the opentide tools, validate
+  before deploying, never deploy for real unless asked. They are left out when the opentide Agent Plugin
+  supplies the skills (`opentide.agents.embeddedSkills` overrides). Cursor and Kiro do not read them: install the
+  plugin or the Power.
 - **opentide runs with nothing installed.** The extension carries opentide's own command line, compiled to
   WebAssembly, and runs it when none of your opentide installs answers: the language server, the catalogue,
   the commands and MCP. It runs after `opentide.path`, your environment and `uv`, and before the opentide

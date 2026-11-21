@@ -473,6 +473,26 @@
         }
       },
       {
+        "properties": {
+          "opentide.agents.embeddedSkills": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "default": "auto",
+            "scope": "machine",
+            "enumDescriptions": [
+              "Contribute the opentide skills to VS Code's agents, unless the opentidehq/skills Agent Plugin is installed and on, which supplies them.",
+              "Always contribute them, even beside the plugin.",
+              "Never contribute them."
+            ],
+            "markdownDescription": "Whether the extension contributes the opentide skills (from [opentidehq/skills](https://github.com/opentidehq/skills)) to VS Code's agents. With `auto` they are left out when the `opentide` Agent Plugin is installed and on (`chat.plugins.enabled`), which would load them as well. The extension sets that up when it activates, in a workspace with opentide content."
+          }
+        }
+      },
+      {
         "title": "opentide: Query",
         "properties": {
           "opentide.query.lenses": {
@@ -1859,6 +1879,11 @@
         "path": "./syntaxes/opentide-config.tmLanguage.json"
       }
     ],
+    "chatInstructions": [
+      {
+        "path": "./instructions/opentide.instructions.md"
+      }
+    ],
     "keybindings": [
       {
         "command": "opentide.placeholder.next",
@@ -2321,7 +2346,145 @@
           "visibility": "collapsed"
         }
       ]
-    }
+    },
+    "chatSkills": [
+      {
+        "path": "./skills/active-directory/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/amazon-web-services/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/bitdefender-gravityzone/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/carbon-black-cloud/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/crowdstrike-falcon/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/detection-engineering/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/elastic-security/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/email-and-collaboration/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/entra-id/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/exabeam-siem/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/google-cloud-platform/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/google-secops/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/graylog/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/harfanglab/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/identity-providers/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/kusto-query-language/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/linux-internals/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/macos-internals/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/microsoft-azure/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/microsoft-defender-endpoint/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/microsoft-sentinel/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/mitre-attack/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/network-protocols/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/okta-identity/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/opentide-objective/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/opentide-rule/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/opentide-threat/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/opentide-visibility/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/sentinelone-singularity/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/splunk-spl-processing/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/sysdig-secure/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/threat-hunting/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/windows-event-logs/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      },
+      {
+        "path": "./skills/windows-internals/SKILL.md",
+        "when": "!opentide.skillsFromPlugin"
+      }
+    ]
   },
   "scripts": {
     "features": "node scripts/features-index.mjs",
@@ -2329,6 +2492,8 @@
     "manifest:check": "node scripts/manifest.mjs --check",
     "grammars": "node scripts/grammars.mjs",
     "grammars:check": "node scripts/grammars.mjs --check",
+    "skills": "node scripts/skills.mjs",
+    "skills:check": "node scripts/skills.mjs --check",
     "wasi": "node scripts/wasi.mjs",
     "build": "npm run features && node scripts/build.mjs",
     "build:production": "npm run features && node scripts/build.mjs --production",
