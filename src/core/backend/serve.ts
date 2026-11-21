@@ -4,7 +4,7 @@ import type { CancellationToken } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
 import { fromChildProcess, isServeProcess, type ServeProcess } from "./process";
 import { lineSplitter } from "./spawn";
-import { BackendError, type Envelope, isEnvelope, type ProgressEvent } from "./types";
+import { BackendError, type Envelope, envelopeProblem, isEnvelope, type ProgressEvent } from "./types";
 
 export const SERVE_PROTOCOL = 1;
 
@@ -149,9 +149,20 @@ export class ServeClient {
     const { id, promise } = this.send("run", params, options.onProgress);
     const subscription = options.token?.onCancellationRequested(() => this.notify("$/cancelRequest", { id }));
     try {
-      const result = (await promise) as { document?: unknown; exit_code?: unknown };
-      if (!result || !isEnvelope(result.document) || typeof result.exit_code !== "number") {
-        throw new BackendError("protocol", "opentide serve answered run without a document and exit_code");
+      const result = (await promise) as { document?: unknown; exit_code?: unknown } | null;
+      const problem = envelopeProblem(result?.document);
+      if (
+        !result ||
+        problem !== undefined ||
+        !isEnvelope(result.document) ||
+        typeof result.exit_code !== "number"
+      ) {
+        throw new BackendError(
+          "protocol",
+          problem !== undefined
+            ? `opentide serve answered run with a document that ${problem}`
+            : "opentide serve answered run without a document and exit_code",
+        );
       }
       return { document: result.document, exit_code: result.exit_code };
     } finally {
@@ -219,22 +230,22 @@ export class ServeClient {
 
   private onLine(line: string): void {
     if (!line.trim()) return;
-    let message: {
-      id?: number | string | null;
-      method?: string;
-      params?: unknown;
-      result?: unknown;
-      error?: { code: number; message: string };
-    };
+    let parsed: unknown;
     try {
-      message = JSON.parse(line);
+      parsed = JSON.parse(line);
     } catch {
       this.options.log?.("warn", `serve: not JSON on stdout: ${line.slice(0, 200)}`);
       return;
     }
+    const checked = serveMessage(parsed);
+    if ("problem" in checked) {
+      this.options.log?.("warn", `serve: ${checked.problem}: ${line.slice(0, 200)}`);
+      return;
+    }
+    const message = checked.message;
     if (message.method !== undefined) {
       if (message.method === "progress") {
-        const params = message.params as { id?: number; event?: ProgressEvent } | undefined;
+        const params = progressParams(message.params);
         const target = params?.id !== undefined ? this.pending.get(Number(params.id)) : undefined;
         if (params?.event) target?.onProgress?.(params.event);
       } else if (message.id !== undefined && message.id !== null) {
@@ -278,4 +289,62 @@ export class ServeClient {
  */
 export function isShutDown(error: { code: number; message: string }): boolean {
   return error.code === -32600 && /shut ?down/i.test(error.message);
+}
+
+/** A line of `opentide serve`'s stdout, once its JSON-RPC shape is checked. */
+export interface ServeMessage {
+  readonly id?: number | string | null;
+  readonly method?: string;
+  readonly params?: unknown;
+  readonly result?: unknown;
+  readonly error?: { readonly code: number; readonly message: string };
+}
+
+/**
+ * Check a parsed line before it is used: an object whose `id` is a number, a string or null, whose `method` is a
+ * string and whose `error` has a numeric code and a message. Anything else is a `problem`, never a crash.
+ */
+export function serveMessage(
+  value: unknown,
+): { readonly message: ServeMessage } | { readonly problem: string } {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return { problem: "a line that is not a JSON-RPC message" };
+  const m = value as Record<string, unknown>;
+  const id = m.id;
+  if (id !== undefined && id !== null && typeof id !== "number" && typeof id !== "string")
+    return { problem: "a message whose id is neither a number, a string nor null" };
+  if (m.method !== undefined && typeof m.method !== "string")
+    return { problem: "a message whose method is not a string" };
+  let error: ServeMessage["error"];
+  if (m.error !== undefined && m.error !== null) {
+    const e = m.error as Record<string, unknown> | string | number;
+    if (typeof e !== "object" || typeof e.code !== "number" || typeof e.message !== "string")
+      return { problem: "an error with no numeric code and string message" };
+    error = { code: e.code, message: e.message };
+  }
+  return {
+    message: {
+      ...(id !== undefined ? { id } : {}),
+      ...(m.method !== undefined ? { method: m.method as string } : {}),
+      ...(m.params !== undefined ? { params: m.params } : {}),
+      ...(m.result !== undefined ? { result: m.result } : {}),
+      ...(error ? { error } : {}),
+    },
+  };
+}
+
+/** `progress`'s params: the run's id and the event, when they have that shape. */
+function progressParams(params: unknown): { id?: number; event?: ProgressEvent } | undefined {
+  if (typeof params !== "object" || params === null) return undefined;
+  const p = params as { id?: unknown; event?: unknown };
+  const event =
+    typeof p.event === "object" &&
+    p.event !== null &&
+    typeof (p.event as { event?: unknown }).event === "string"
+      ? (p.event as ProgressEvent)
+      : undefined;
+  return {
+    ...(typeof p.id === "number" || typeof p.id === "string" ? { id: Number(p.id) } : {}),
+    ...(event ? { event } : {}),
+  };
 }
