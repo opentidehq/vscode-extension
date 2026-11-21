@@ -133,7 +133,7 @@ describe("package.json", () => {
     assert.equal(pkg.publisher, "opentidehq");
     assert.equal(pkg.name, "opentide");
     assert.equal(pkg.displayName, "opentide");
-    assert.equal(pkg.license, "MIT");
+    assert.equal(pkg.license, "EUPL-1.2");
     assert.deepEqual(pkg.extensionKind, ["workspace"]);
     assert.deepEqual(pkg.categories, ["Programming Languages", "Linters", "Snippets", "AI", "Visualization"]);
     assert.ok(existsSync(join(root, pkg.icon)));
@@ -159,6 +159,7 @@ describe("package.json", () => {
     assert.equal(untrusted.supported, "limited");
     assert.deepEqual(untrusted.restrictedConfigurations, [
       "opentide.path",
+      "opentide.runtime",
       "opentide.interpreter",
       "opentide.uv.usePin",
       "opentide.uv.path",

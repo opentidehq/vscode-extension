@@ -98,6 +98,7 @@ It exits non-zero on any failure.
 | The engine, the WASI module and the web entry run | `npm run smoke`, in CI's `package` job and publish.yml's `universal` job |
 | The WASI module runs in VS Code, under `@vscode/wasm-wasi` and through the launcher | `npm run test:wasi` and `npm run test:wasi-launcher` (`test/wasi/`), in CI's integration job and in the test build |
 | The extension runs a real opentide | CI's `real-opentide` job (unit tests) and the integration job (`OPENTIDE_TEST_BIN`), against `pins.json` `opentide.version` |
+| The bundled opentide is the default, with or without an opentide on `PATH` | unit tests of `resolveRuntime`, `npm run test:wasi` (nothing set) and the integration job (`opentide.runtime` bundled over `opentide.path`) |
 | No opentide anywhere: the WASI module | `npm run test:wasi`, with every folder holding `opentide` off `PATH` and opentide installed only in a venv off `PATH` |
 | No opentide anywhere and the module off: the engine | `npm run test:engine`, as above with `opentide.wasi.enabled` off |
 

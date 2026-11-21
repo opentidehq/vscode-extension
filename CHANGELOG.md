@@ -8,10 +8,14 @@ pre-releases odd ones.
 
 ### Added
 
-- **opentide runs with nothing installed.** The extension carries opentide's own command line, compiled to
-  WebAssembly, and runs it when none of your opentide installs answers: the language server, the catalogue,
-  the commands and MCP. It runs after `opentide.path`, your environment and `uv`, and before the opentide
-  engine ([#75](https://github.com/opentidehq/vscode-extension/issues/75)).
+- **opentide runs with nothing installed, and the bundled opentide is the default.** The extension carries
+  opentide's own command line, compiled to WebAssembly, and runs it for the language server, the catalogue,
+  the commands and MCP, whether or not you have opentide installed
+  ([#75](https://github.com/opentidehq/vscode-extension/issues/75)).
+- **`opentide.runtime` chooses between the bundled opentide and your own.** `bundled` (the default) runs the
+  module the extension carries; `installed` runs `opentide.path`, the workspace's environment, `uv` or
+  `PATH`, and falls back to the bundled one, with a notice, when none answers. A workspace value applies only
+  in a trusted folder. **opentide: Switch Runtime…** sets it.
 - **Tenant requests work from the bundled opentide in the editor and in MCP.** Queries, deploys and
   `validate --live` are made by the extension, so VS Code's proxy settings and certificate store apply. In
   MCP that needs opentide 1.0.0-rc.3 or later (the module asks the extension for each request); with an older
@@ -25,7 +29,7 @@ pre-releases odd ones.
 
 - **Agents get opentide's MCP tools with no opentide installed.** The extension gives VS Code's agent mode
   an `opentide` MCP server that runs the bundled opentide through a small script, run by the editor's own
-  Node. An installed opentide still comes first; `opentide.mcp.useBundled` picks the bundled one.
+  Node. With `opentide.runtime` set to `installed`, your own opentide's `mcp start` runs instead.
   Tenant tools (deploy, live validate, query) work through the extension once opentide's MCP server asks it
   to make the requests; search, validate, lint, new and the catalogue work now.
 - **Cursor gets the server from the extension.** It is registered with Cursor's extension API, and
@@ -38,7 +42,17 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The extension is licensed under the EUPL-1.2**, the licence of opentide and of the engine and grammars
+  it carries, instead of MIT, so the whole package is under one licence. Third-party material keeps its own
+  licence (`NOTICE`, `THIRD-PARTY-LICENSES`).
 - **The package grows from 4 to 13 MiB** for the bundled opentide, one file for every platform.
+- **An opentide you have installed is no longer used unless you ask for it.** Set `opentide.runtime` to
+  `installed`, or keep `opentide.path` set: a non-empty `opentide.path` selects `installed` when
+  `opentide.runtime` is not set, so an existing configuration keeps working. The output channel says which
+  runtime runs and why.
+- **Tasks and the terminal use the bundled opentide by default**, through the extension's own launcher. A
+  tenant command in a task or terminal, and `opentide tui`, do not run there: the extension says so and
+  offers **Switch Runtime…**.
 - **The opentide engine is runtime tier 5, after the bundled opentide.** Restricted Mode still runs the
   engine only: no opentide runs in an untrusted folder, the bundled one included.
 - **The engine and the grammars are opentide 1.0.0-rc.2's.** The engine now reads a folder's

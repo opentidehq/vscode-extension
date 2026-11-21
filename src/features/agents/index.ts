@@ -131,7 +131,6 @@ async function decideNow(ctx: FeatureContext, log?: McpDecisionLog): Promise<Mcp
     workspaceEntries: mode === "never" ? [] : await workspaceEntries(),
     proxy: httpProxy(),
     bridge: bundledBridge(ctx),
-    useBundled: readSetting<boolean>("opentide.mcp.useBundled") === true,
   });
   const line = log?.line(decision);
   if (line) ctx.log.info(line);
@@ -148,7 +147,7 @@ function onMcpInputsChanged(ctx: FeatureContext, fire: () => void): vscode.Dispo
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (
         event.affectsConfiguration("opentide.mcp.provide") ||
-        event.affectsConfiguration("opentide.mcp.useBundled") ||
+        event.affectsConfiguration("opentide.runtime") ||
         event.affectsConfiguration("opentide.wasi.enabled") ||
         event.affectsConfiguration("mcp") ||
         event.affectsConfiguration("chat.mcp.discovery.enabled")

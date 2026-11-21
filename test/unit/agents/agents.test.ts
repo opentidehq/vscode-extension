@@ -710,13 +710,16 @@ describe("agents: the bundled MCP bridge", () => {
     assert.equal(decision.server.args[0], "/ext/dist/mcp-wasi.js");
   });
 
-  it("keeps a native opentide first, and takes over only when opentide.mcp.useBundled says", () => {
+  it("runs a native opentide's own `mcp start` when it is the runtime (opentide.runtime: installed), else the bridge", () => {
     const native = fakeRuntime();
     const first = decideMcp(inputs({ runtime: native, hasMcpStart: true }));
     assert.ok(first.provide);
     assert.equal(first.server.command, native.command);
     assert.deepEqual(first.server.args.slice(-2), ["mcp", "start"]);
-    const bundled = decideMcp(inputs({ runtime: native, hasMcpStart: true, useBundled: true }));
+    // With the bundled module as the runtime (the default), every editor gets the bridge, even where the
+    // command tree of an installed opentide has `mcp start`.
+    const wasi = fakeRuntime({ tier: 4, source: "wasi", wasi: { module: "/m.wasm", launcher: "/l.cjs" } });
+    const bundled = decideMcp(inputs({ runtime: wasi, hasMcpStart: true }));
     assert.ok(bundled.provide);
     assert.equal(bundled.server.args[0], "/ext/dist/mcp-wasi.js");
   });
