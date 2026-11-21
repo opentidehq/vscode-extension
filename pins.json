@@ -1,22 +1,46 @@
 {
-  "$comment": "What this extension builds from. A bump is a PR; docs/PACKAGING.md says how. opentide.version is the opentide CI tests the extension against (the extension bundles none: it runs the user's own). The highlights zip and the engine come from the same language-server release.",
+  "$comment": "What this extension builds from. A bump is a PR; docs/PACKAGING.md says how. opentide.version is the opentide CI tests the extension against (a user's own opentide, tiers 1-3). wasi, highlights and engine are assets of opentide releases.",
   "opentide": {
     "$comment": "The opentide CI's real-opentide and integration tests install (pip install opentide==<version>).",
     "version": "0.22.0"
   },
+  "wasi": {
+    "$comment": "The opentide CLI compiled to wasm32-wasip1, one module for every platform: tier 4, the runtime when no opentide is installed. An asset of opentide's release from rc.3 on. sha256 is the module's line in that release's SHA256SUMS. The module's licence set is `licences`: THIRD-PARTY-LICENSES.html (every crate the CLI module links, cargo-about with wasm32-wasip1; opentide#1741), WASI-LIBC-LICENSES.txt, LICENSE and NOTICE, assets of the same release, shipped in dist/wasi/. Every digest here is a PLACEHOLDER until rc.3 is released: scripts/wasi.mjs and npm run build refuse them (docs/PACKAGING.md says how to set them).",
+    "version": "1.0.0-rc.3",
+    "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/opentide-wasm32-wasip1.wasm",
+    "sha256": "PLACEHOLDER-set-from-the-opentide-wasm32-wasip1.wasm-line-of-the-v1.0.0-rc.3-SHA256SUMS",
+    "licences": {
+      "THIRD-PARTY-LICENSES.html": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/THIRD-PARTY-LICENSES.html",
+        "sha256": "PLACEHOLDER-set-from-the-THIRD-PARTY-LICENSES.html-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      },
+      "WASI-LIBC-LICENSES.txt": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/WASI-LIBC-LICENSES.txt",
+        "sha256": "PLACEHOLDER-set-from-the-WASI-LIBC-LICENSES.txt-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      },
+      "LICENSE": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/LICENSE",
+        "sha256": "PLACEHOLDER-set-from-the-LICENSE-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      },
+      "NOTICE": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/NOTICE",
+        "sha256": "PLACEHOLDER-set-from-the-NOTICE-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      }
+    }
+  },
   "highlights": {
-    "version": "0.10.0",
-    "url": "https://github.com/opentidehq/language-server/releases/download/v0.10.0/highlights-v0.10.0.zip",
-    "sha256": "c1dfda2b794a27f98f49fd91fe286b9ab0fa85d18e55ee16a8c37b1e4bc1a70a"
+    "version": "1.0.0-rc.2",
+    "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.2/highlights-v1.0.0-rc.2.zip",
+    "sha256": "b711c7c23924e796e95851991718b9555a91d1241183966634f05ef258c71e2f"
   },
   "engine": {
-    "$comment": "The opentide language server built for WebAssembly (wasm-bindgen --target web): the lowest runtime tier, editor features with nothing installed, and the engine of the web extension. From the same language-server release as the highlights zip.",
-    "version": "0.10.0",
-    "url": "https://github.com/opentidehq/language-server/releases/download/v0.10.0/opentide-wasm-web-v0.10.0.zip",
-    "sha256": "8a34a4d1aafc312ab2af14a241d9a1df4c701869cbe489ca419016d270bb546c",
+    "$comment": "The opentide language server built for WebAssembly (wasm-bindgen --target web): tier 5, editor features with nothing installed and in Restricted Mode, and the engine of the web extension. From the same opentide release as the highlights zip.",
+    "version": "1.0.0-rc.2",
+    "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.2/opentide-wasm-web-v1.0.0-rc.2.zip",
+    "sha256": "29828b4562cc43a7b968f8c68ce6df038533a74214e38b85d985bf3f6f637c0c",
     "thirdPartyLicenses": {
-      "url": "https://github.com/opentidehq/language-server/releases/download/v0.10.0/THIRD-PARTY-LICENSES.html",
-      "sha256": "6f32bf1878f77a9df7fa2c62281c3841e787573d0416fb043f4b618322a749f5"
+      "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.2/THIRD-PARTY-LICENSES.html",
+      "sha256": "64fb045a1211f5966748e557f3b6a19306bd2e2080439b9024a3ab1cf44eb53f"
     }
   },
   "tomlGrammar": {
@@ -26,6 +50,6 @@
   },
   "vsix": {
     "budgetBytes": 20971520,
-    "targetBytes": 10485760
+    "targetBytes": 15728640
   }
 }

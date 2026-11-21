@@ -175,10 +175,12 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
 
 ## Release cadence and opentide bumps
 
-The extension bundles no opentide (SPEC D1): users upgrade opentide themselves (`pip install --upgrade
-opentide`), and the package is a few MB, so a release follows the extension's own changes. A bump of
-`pins.json` `opentide.version` changes only what CI tests against ([PACKAGING.md](PACKAGING.md#bumping-the-opentide-ci-tests-against)):
-it needs no release unless the extension changes with it.
+The extension bundles no Python (SPEC D1): users upgrade opentide themselves (`pip install --upgrade
+opentide`), and a release follows the extension's own changes. A bump of `pins.json` `opentide.version`
+changes only what CI tests against ([PACKAGING.md](PACKAGING.md#bumping-what-the-extension-ships-and-tests-against)):
+it needs no release unless the extension changes with it. A bump of `wasi`, `highlights` and `engine` (the
+opentide the extension carries) is a change to the package: it ships in the next release. `release.mjs
+check` refuses a release while `pins.json` `wasi.sha256` is still a placeholder.
 
 ## What the workflow does
 

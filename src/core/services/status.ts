@@ -101,7 +101,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
     if (runtime?.kind === "engine") {
       tooltip.appendMarkdown(`**${ENGINE_STATUS}** · engine ${runtime.version}\n\n`);
       tooltip.appendMarkdown(
-        "No opentide answered (`opentide.path`, the workspace's environment, `python -m opentide`), so the " +
+        "No opentide runs (the bundled module is off or missing, and no installed one answered), so the " +
           "language server built for WebAssembly runs in the extension: diagnostics, hover, completion, " +
           "code actions, navigation, the Catalogue and Relations. Commands, validate and lint, deploy, query, " +
           "setup and MCP need opentide.",
@@ -115,7 +115,13 @@ export class StatusManager implements StatusService, vscode.Disposable {
       );
     } else if (runtime) {
       tooltip.appendMarkdown(`**opentide ${runtime.version}** · ${describeRuntime(runtime)}\n\n`);
-      tooltip.appendText(runtime.command);
+      tooltip.appendText(runtime.wasi?.module ?? runtime.command);
+      if (runtime.wasi)
+        tooltip.appendMarkdown(
+          "\n\nThe bundled opentide runs (`opentide.runtime`: bundled, the default). Tenant requests (query, deploy, validate --live) " +
+            "are made by the extension host; a terminal or task has no network. Set `opentide.runtime` to installed " +
+            "to run your own opentide (`pip install opentide`).",
+        );
       tooltip.appendMarkdown(`\n\n${model.serve ? "$(zap)" : "$(circle-large-outline)"} ${serveText(model)}`);
       tooltip.appendMarkdown(
         `\n\n$(${counts.errors ? "error" : counts.warnings ? "warning" : "pass"}) ${problemsText(counts)} in opentide's checks` +
@@ -179,7 +185,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
       return;
     }
     this.language.text = `opentide ${info?.host?.version ?? runtime.version}`;
-    const where = `${describeRuntime(runtime)} · ${runtime.interpreter ?? runtime.command}`;
+    const where = `${describeRuntime(runtime)} · ${runtime.interpreter ?? runtime.wasi?.module ?? runtime.command}`;
     this.language.detail = info
       ? `host ${info.host ? `${info.host.name} ${info.host.version}` : "none"} · engine ${info.engine} · catalog ${info.catalog} · ` +
         `configurationChecks ${info.configurationChecks} · configurationSchemas ${info.configurationSchemas} · ${where}`

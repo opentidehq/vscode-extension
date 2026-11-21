@@ -1,12 +1,15 @@
-// Runtime resolution in four tiers (SPEC §4, #3): three that run an installed opentide, then the engine
-// (WASM). vscode-free: every side effect is injected, so the tier logic is unit-tested with fakes.
+// Runtime resolution in five tiers (SPEC §4, #3): the WASI module the extension carries (opentide's CLI on
+// wasm32-wasip1) is the default; the user's own install (tiers 1-3) is opt-in with `opentide.runtime: installed`, or an
+// explicit `opentide.path`; the engine (WASM) is the last resort. vscode-free: every side effect is injected, so
+// the tier logic is unit-tested with fakes.
 //
-// opentide is the user's own install: the extension carries no Python. Where its console script cannot
+// Tiers 1-3 are the user's own install: the extension carries no Python. Where its console script cannot
 // run (not on PATH, a pip --user install, or blocked by an application-control policy that allows the
 // signed python but not the unsigned opentide launcher), the same interpreter runs `python -m opentide`.
+// Whichever mode comes first, the other is the fallback, with a notice: nothing falls through silently.
 import * as path from "node:path";
 import type { RepoPin } from "./pins";
-import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier } from "./types";
+import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier, WasiModule } from "./types";
 import {
   atLeast,
   checkMinimum,
@@ -31,6 +34,8 @@ export interface ProbeOptions {
   readonly restricted: boolean;
   readonly binDirs: readonly string[];
   readonly timeoutMs: number;
+  /** Aborting it ends the probe's process at once (a restart must not wait for a probe that no longer matters). */
+  readonly signal?: AbortSignal | undefined;
 }
 
 /** The settings the resolver reads. Restricted keys are read only when the workspace is trusted. */
@@ -39,6 +44,32 @@ export interface RuntimeSettings {
   readonly interpreter: () => string | undefined;
   readonly uvUsePin: () => boolean | undefined;
   readonly uvPath: () => string | undefined;
+  /** `opentide.wasi.enabled`: false leaves the WASI module out (the engine runs when no opentide does). */
+  readonly wasi: () => boolean | undefined;
+  /**
+   * `opentide.runtime` as the user set it: undefined when it is at its default (not set anywhere), so an explicit
+   * `opentide.path` can still choose the installed runtime.
+   */
+  readonly runtime?: () => RuntimeMode | undefined;
+}
+
+/** Which runtimes are tried first: the one the extension carries, or the user's own install. */
+export type RuntimeMode = "bundled" | "installed";
+
+/**
+ * The mode, and why. `opentide.runtime` when set; else `installed` when `opentide.path` is set (naming a
+ * binary is a clear choice, and existing configurations keep working); else `bundled`.
+ */
+export function chooseRuntimeMode(settings: RuntimeSettings): { mode: RuntimeMode; reason: string } {
+  const explicit = settings.runtime?.();
+  if (explicit === "bundled" || explicit === "installed")
+    return { mode: explicit, reason: `opentide.runtime is "${explicit}"` };
+  if (settings.path()?.trim())
+    return {
+      mode: "installed",
+      reason: "opentide.path is set, which selects the installed opentide (opentide.runtime is not set)",
+    };
+  return { mode: "bundled", reason: "opentide.runtime is at its default, bundled" };
 }
 
 export interface ResolveInput {
@@ -58,8 +89,80 @@ export interface ResolveInput {
   pythonEnvironments(): Promise<string | undefined>;
   /** The interpreter the Python extension picked for `folder`, when installed. */
   pythonExtension(): Promise<string | undefined>;
-  /** Tier 4: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
+  /** Tier 4: the WASI module this build carries, from dist/wasi/wasi.json; undefined without one. */
+  readonly wasi?: WasiLayout | undefined;
+  /** Tier 5: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
   readonly engine?: EngineLayout | undefined;
+  /** Aborted when the resolution is stale: its probes end and the rest of the tiers are not tried. */
+  readonly signal?: AbortSignal | undefined;
+}
+
+/** The WASI module in the extension: its files, its version, and the Node that runs its launcher. */
+export interface WasiLayout extends WasiModule {
+  readonly version: string;
+  /** VS Code's own Node: `process.execPath`, run with `ELECTRON_RUN_AS_NODE=1`. */
+  readonly execPath: string;
+}
+
+/** A parsed manifest, or why it is unusable (a message fit for the log). */
+export type ManifestResult<T> = { readonly layout: T } | { readonly problem: string };
+
+/** The JSON object in a manifest's text, or why it is not one. */
+function manifestObject(text: string, what: string): Record<string, unknown> | string {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    return `${what} is not valid JSON (${error instanceof Error ? error.message : String(error)})`;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return `${what} is not a JSON object`;
+  return value as Record<string, unknown>;
+}
+
+/** A manifest field that must name a file next to the manifest: a non-empty string without a path in it. */
+function manifestFile(
+  manifest: Record<string, unknown>,
+  key: string,
+  what: string,
+): string | { problem: string } {
+  const value = manifest[key];
+  if (typeof value !== "string" || value === "") return { problem: `${what} has no ${key} (a file name)` };
+  if (value.includes("/") || value.includes("\\") || value === "." || value === "..")
+    return { problem: `${what} names its ${key} with a path ("${value}"); it must be a file name` };
+  return value;
+}
+
+/** `dist/wasi/wasi.json`'s fields, or the reason they are unusable. */
+export function parseWasiManifest(text: string, dir: string, execPath: string): ManifestResult<WasiLayout> {
+  const what = "dist/wasi/wasi.json";
+  const manifest = manifestObject(text, what);
+  if (typeof manifest === "string") return { problem: manifest };
+  if (typeof manifest.version !== "string" || manifest.version === "")
+    return { problem: `${what} has no version` };
+  const module = manifestFile(manifest, "module", what);
+  if (typeof module !== "string") return module;
+  const launcher = manifestFile(manifest, "launcher", what);
+  if (typeof launcher !== "string") return launcher;
+  return {
+    layout: {
+      module: path.join(dir, module),
+      launcher: path.join(dir, launcher),
+      version: manifest.version,
+      execPath,
+    },
+  };
+}
+
+/** `dist/wasi/wasi.json`'s fields, when they have the expected shape. */
+export function readWasiManifest(
+  text: string | undefined,
+  dir: string,
+  execPath: string,
+): WasiLayout | undefined {
+  if (!text) return undefined;
+  const result = parseWasiManifest(text, dir, execPath);
+  return "layout" in result ? result.layout : undefined;
 }
 
 /** The engine (WASM) in the extension: its module and version (dist/engine/engine.json). */
@@ -68,17 +171,23 @@ export interface EngineLayout {
   readonly version: string;
 }
 
+/** `dist/engine/engine.json`'s fields, or the reason they are unusable. */
+export function parseEngineManifest(text: string, dir: string): ManifestResult<EngineLayout> {
+  const what = "dist/engine/engine.json";
+  const manifest = manifestObject(text, what);
+  if (typeof manifest === "string") return { problem: manifest };
+  if (typeof manifest.version !== "string" || manifest.version === "")
+    return { problem: `${what} has no version` };
+  const module = manifestFile(manifest, "module", what);
+  if (typeof module !== "string") return module;
+  return { layout: { module: path.join(dir, module), version: manifest.version } };
+}
+
 /** `dist/engine/engine.json`'s fields, when they have the expected shape. */
 export function readEngineManifest(text: string | undefined, dir: string): EngineLayout | undefined {
   if (!text) return undefined;
-  try {
-    const manifest = JSON.parse(text) as { version?: unknown; module?: unknown };
-    if (typeof manifest.version !== "string" || typeof manifest.module !== "string") return undefined;
-    if (manifest.module.includes("/") || manifest.module.includes("\\")) return undefined;
-    return { module: path.join(dir, manifest.module), version: manifest.version };
-  } catch {
-    return undefined;
-  }
+  const result = parseEngineManifest(text, dir);
+  return "layout" in result ? result.layout : undefined;
 }
 
 const PROBE_TIMEOUT_MS = 20_000;
@@ -187,6 +296,7 @@ interface Candidate {
 export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult> {
   const attempts: ResolveAttempt[] = [];
   const check = async (candidate: Candidate, restricted: boolean): Promise<Runtime | undefined> => {
+    if (input.signal?.aborted) return undefined;
     const lsp = candidate.kind === "opentide-lsp";
     const env = { ...(lsp ? {} : OPENTIDE_ENV), ...candidate.env };
     const probeArgs = lsp ? [...candidate.args, "--version", "--json"] : [...candidate.args, "--version"];
@@ -196,6 +306,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       restricted,
       binDirs,
       timeoutMs: candidate.timeoutMs ?? PROBE_TIMEOUT_MS,
+      signal: input.signal,
     });
     const base = { tier: candidate.tier, source: candidate.source, path: candidate.command };
     if (result.error || result.code !== 0) {
@@ -257,16 +368,14 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     attempts.push({ tier, source, outcome: "missing", detail });
   };
 
-  if (!input.trusted) {
-    skip(1, "setting", "Restricted Mode: no opentide runs, only the engine (WASM)");
-  } else {
+  const tryInstalled = async (): Promise<Runtime | undefined> => {
     // Tier 1: opentide.path.
     const configured = input.settings.path()?.trim();
     if (configured) {
       const command = expandPath(configured, input.folder, input.homeDir);
       const kind = /^opentide-lsp(\.exe)?$/i.test(path.basename(command)) ? "opentide-lsp" : "opentide";
       const runtime = await check({ tier: 1, source: "setting", command, args: [], kind }, false);
-      if (runtime) return { runtime, attempts };
+      if (runtime) return runtime;
     } else {
       missing(1, "setting", "opentide.path is not set");
     }
@@ -305,7 +414,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       );
     };
     const uvFirst = await tryUv();
-    if (uvFirst) return { runtime: uvFirst, attempts };
+    if (uvFirst) return uvFirst;
 
     // Tier 2: the workspace's environment.
     const interpreterSetting = input.settings.interpreter()?.trim();
@@ -335,7 +444,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       }
       for (const { command, args } of opentideForInterpreter(interpreter, input.platform, input.exists)) {
         const runtime = await check({ tier: 2, source, command, args, kind: "opentide", interpreter }, false);
-        if (runtime) return { runtime, attempts };
+        if (runtime) return runtime;
         // The module is the same install as its script: only a script that did not run is retried.
         if (attempts.at(-1)?.outcome !== "failed") break;
       }
@@ -353,7 +462,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
               { tier: 2, source: "venv", command, args, kind: "opentide", interpreter: venvPython },
               false,
             );
-            if (runtime) return { runtime, attempts };
+            if (runtime) return runtime;
             if (attempts.at(-1)?.outcome !== "failed") break;
           }
         } else {
@@ -366,7 +475,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
           { tier: 2, source: "path", command: onPath, args: [], kind: "opentide" },
           false,
         );
-        if (runtime) return { runtime, attempts };
+        if (runtime) return runtime;
       } else {
         missing(2, "path", "opentide is not on PATH");
       }
@@ -386,37 +495,135 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
           },
           false,
         );
-        if (runtime) return { runtime, attempts };
+        if (runtime) return runtime;
       }
     }
+
+    return undefined;
+  };
+
+  // Tier 4: the WASI module, opentide's own CLI: every command, `serve`, the language server and MCP, with
+  // no install. It runs in the extension host and reads the workspace through the mount VS Code gives it.
+  const tryBundled = (): Runtime | undefined => {
+    if (input.settings.wasi() === false) {
+      skip(4, "wasi", "opentide.wasi.enabled is off");
+      return undefined;
+    }
+    const wasi = input.wasi;
+    if (!wasi) {
+      missing(4, "wasi", "this build carries no WASI module (dist/wasi/wasi.json)");
+      return undefined;
+    }
+    if (!input.exists(wasi.module) || !input.exists(wasi.launcher)) {
+      missing(4, "wasi", `${wasi.module} or its launcher does not exist`);
+      return undefined;
+    }
+    attempts.push({
+      tier: 4,
+      source: "wasi",
+      outcome: "ok",
+      path: wasi.module,
+      version: wasi.version,
+      detail: `${wasi.module} ${wasi.version}`,
+    });
+    return wasiRuntime(wasi);
+  };
+
+  // Restricted Mode runs no opentide, the bundled one included: the engine's editor features only.
+  // No setting is read in Restricted Mode: the mode is not chosen there.
+  const choice = input.trusted
+    ? chooseRuntimeMode(input.settings)
+    : { mode: "bundled" as const, reason: "Restricted Mode: no opentide runs, only the engine (WASM)" };
+  let notice: string | undefined;
+  if (!input.trusted) {
+    skip(1, "setting", "Restricted Mode: no opentide runs, only the engine (WASM)");
+    skip(4, "wasi", "Restricted Mode: no opentide runs, only the engine (WASM)");
+  } else if (choice.mode === "installed") {
+    const installed = await tryInstalled();
+    if (installed) return { runtime: installed, attempts, mode: choice.mode, reason: choice.reason };
+    const bundled = tryBundled();
+    notice =
+      "no installed opentide answered" +
+      (bundled
+        ? "; using the bundled WASI module instead (set opentide.runtime to bundled to stop looking for an installed one)"
+        : "");
+    if (bundled) return { runtime: bundled, attempts, mode: choice.mode, reason: choice.reason, notice };
+  } else {
+    const bundled = tryBundled();
+    if (bundled) {
+      skip(1, "setting", `${choice.reason}: no installed opentide is looked for`);
+      return { runtime: bundled, attempts, mode: choice.mode, reason: choice.reason };
+    }
+    // The bundled opentide is off or missing from this build: say so, and use an installed one if there is one.
+    const installed = await tryInstalled();
+    notice = `the bundled WASI module is not available (${attempts.findLast((a) => a.tier === 4)?.detail ?? "unknown"})${installed ? "; using the installed opentide instead" : ""}`;
+    if (installed) return { runtime: installed, attempts, mode: choice.mode, reason: choice.reason, notice };
   }
 
-  // Tier 4: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
+  // Tier 5: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
   // process and reads the workspace through VS Code, so Restricted Mode runs it too.
   const engine = input.engine;
   if (!engine) {
-    missing(4, "engine", "this build carries no engine (dist/engine/engine.json)");
-    return { runtime: undefined, attempts };
+    missing(5, "engine", "this build carries no engine (dist/engine/engine.json)");
+    return {
+      runtime: undefined,
+      attempts,
+      mode: choice.mode,
+      reason: choice.reason,
+      ...(notice ? { notice } : {}),
+    };
   }
   if (!input.exists(engine.module)) {
-    missing(4, "engine", `${engine.module} does not exist`);
-    return { runtime: undefined, attempts };
+    missing(5, "engine", `${engine.module} does not exist`);
+    return {
+      runtime: undefined,
+      attempts,
+      mode: choice.mode,
+      reason: choice.reason,
+      ...(notice ? { notice } : {}),
+    };
   }
   attempts.push({
-    tier: 4,
+    tier: 5,
     source: "engine",
     outcome: "ok",
     path: engine.module,
     version: engine.version,
     detail: `${engine.module} ${engine.version}`,
   });
-  return { runtime: engineRuntime(engine, !input.trusted), attempts };
+  return {
+    runtime: engineRuntime(engine, !input.trusted),
+    attempts,
+    mode: choice.mode,
+    reason: choice.reason,
+    ...(notice ? { notice } : {}),
+  };
 }
 
-/** The tier-4 runtime of an engine layout. */
-export function engineRuntime(engine: EngineLayout, restricted: boolean): Runtime {
+/**
+ * The tier-4 runtime of a WASI layout: VS Code's Node (as Node, not Electron) running the launcher, which is
+ * the command wherever VS Code starts a process itself. `serve` and the language server run in the
+ * extension host, from `wasi` (src/core/services/wasi.ts).
+ */
+export function wasiRuntime(wasi: WasiLayout): Runtime {
   return {
     tier: 4,
+    source: "wasi",
+    kind: "opentide",
+    command: wasi.execPath,
+    args: [wasi.launcher, wasi.module],
+    version: wasi.version,
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    restricted: false,
+    binDirs: [],
+    wasi: { module: wasi.module, launcher: wasi.launcher },
+  };
+}
+
+/** The tier-5 runtime of an engine layout. */
+export function engineRuntime(engine: EngineLayout, restricted: boolean): Runtime {
+  return {
+    tier: 5,
     source: "engine",
     kind: "engine",
     command: engine.module,

@@ -68,6 +68,26 @@
         "aliases": ["Falco", "falco"],
         "extensions": [".falco"],
         "configuration": "./language-configuration/falco.json"
+      },
+      {
+        "id": "cql",
+        "aliases": ["CrowdStrike Query Language", "CQL", "cql"],
+        "configuration": "./language-configuration/cql.json"
+      },
+      {
+        "id": "exabeam",
+        "aliases": ["Exabeam", "exabeam"],
+        "configuration": "./language-configuration/exabeam.json"
+      },
+      {
+        "id": "yara",
+        "aliases": ["YARA", "yara"],
+        "configuration": "./language-configuration/yara.json"
+      },
+      {
+        "id": "yaral",
+        "aliases": ["YARA-L", "yaral"],
+        "configuration": "./language-configuration/yaral.json"
       }
     ],
     "viewsContainers": {
@@ -142,13 +162,26 @@
         "title": "opentide",
         "order": 0,
         "properties": {
+          "opentide.runtime": {
+            "type": "string",
+            "enum": ["bundled", "installed"],
+            "enumDescriptions": [
+              "Run the opentide the extension carries (the default): the same version for everyone, nothing to install. Ignores an opentide on PATH or in the workspace's environment.",
+              "Run your own opentide: opentide.path, the workspace's environment, uv, then PATH. If none answers, the bundled opentide runs, with a notice."
+            ],
+            "default": "bundled",
+            "scope": "machine-overridable",
+            "ignoreSync": true,
+            "order": -1,
+            "markdownDescription": "Which opentide runs. **bundled** (default): the module the extension carries, with no install. **installed**: your own opentide (`opentide.path`, the workspace's environment, `uv`, `PATH`); if none answers, the bundled one runs and the log says why. Setting `opentide.path` without setting this selects **installed**. A workspace's value applies only in a trusted folder; in Restricted Mode only the engine (WASM) runs, whatever this says."
+          },
           "opentide.path": {
             "type": "string",
             "default": "",
             "scope": "machine-overridable",
             "ignoreSync": true,
             "order": 0,
-            "markdownDescription": "An `opentide` executable (run with `lsp start`, every feature) or an `opentide-lsp` executable (run with `--stdio`, editor features only). Used before any other runtime. Ignored in Restricted Mode."
+            "markdownDescription": "An `opentide` executable (run with `lsp start`, every feature) or an `opentide-lsp` executable (run with `--stdio`, editor features only). Setting it selects the installed opentide, unless `opentide.runtime` is set; it is tried before the other installed runtimes. Ignored in Restricted Mode."
           },
           "opentide.interpreter": {
             "type": "string",
@@ -172,6 +205,13 @@
             "ignoreSync": true,
             "order": 4,
             "markdownDescription": "The `uv` executable for `opentide.uv.usePin`. Default: `uv` on `PATH`. Ignored in Restricted Mode."
+          },
+          "opentide.wasi.enabled": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "order": 2,
+            "markdownDescription": "Allow the opentide module the extension carries (`opentide.runtime`: bundled) and the engine's fallback to it. It has no network of its own: the extension host makes the tenant requests (query, deploy, validate --live) for the editor and, with opentide 1.0.0-rc.3 or later, for MCP; a terminal or task has none, so use `opentide.runtime: installed` for tenant commands there. Off: your own opentide if one answers, else the editor features of the opentide engine (WASM) only. Ignored in Restricted Mode, where only the engine runs."
           },
           "opentide.envFile": {
             "type": "string",

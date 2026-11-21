@@ -64,6 +64,7 @@
       "description": "In Restricted Mode only the opentide engine (WASM) runs, for the editor features: it starts no process. Commands, tasks, panels, MCP and the workspace's opentide need a trusted folder.",
       "restrictedConfigurations": [
         "opentide.path",
+        "opentide.runtime",
         "opentide.interpreter",
         "opentide.uv.usePin",
         "opentide.uv.path",
@@ -194,6 +195,39 @@
           ".falco"
         ],
         "configuration": "./language-configuration/falco.json"
+      },
+      {
+        "id": "cql",
+        "aliases": [
+          "CrowdStrike Query Language",
+          "CQL",
+          "cql"
+        ],
+        "configuration": "./language-configuration/cql.json"
+      },
+      {
+        "id": "exabeam",
+        "aliases": [
+          "Exabeam",
+          "exabeam"
+        ],
+        "configuration": "./language-configuration/exabeam.json"
+      },
+      {
+        "id": "yara",
+        "aliases": [
+          "YARA",
+          "yara"
+        ],
+        "configuration": "./language-configuration/yara.json"
+      },
+      {
+        "id": "yaral",
+        "aliases": [
+          "YARA-L",
+          "yaral"
+        ],
+        "configuration": "./language-configuration/yaral.json"
       }
     ],
     "viewsContainers": {
@@ -268,13 +302,29 @@
         "title": "opentide",
         "order": 0,
         "properties": {
+          "opentide.runtime": {
+            "type": "string",
+            "enum": [
+              "bundled",
+              "installed"
+            ],
+            "enumDescriptions": [
+              "Run the opentide the extension carries (the default): the same version for everyone, nothing to install. Ignores an opentide on PATH or in the workspace's environment.",
+              "Run your own opentide: opentide.path, the workspace's environment, uv, then PATH. If none answers, the bundled opentide runs, with a notice."
+            ],
+            "default": "bundled",
+            "scope": "machine-overridable",
+            "ignoreSync": true,
+            "order": -1,
+            "markdownDescription": "Which opentide runs. **bundled** (default): the module the extension carries, with no install. **installed**: your own opentide (`opentide.path`, the workspace's environment, `uv`, `PATH`); if none answers, the bundled one runs and the log says why. Setting `opentide.path` without setting this selects **installed**. A workspace's value applies only in a trusted folder; in Restricted Mode only the engine (WASM) runs, whatever this says."
+          },
           "opentide.path": {
             "type": "string",
             "default": "",
             "scope": "machine-overridable",
             "ignoreSync": true,
             "order": 0,
-            "markdownDescription": "An `opentide` executable (run with `lsp start`, every feature) or an `opentide-lsp` executable (run with `--stdio`, editor features only). Used before any other runtime. Ignored in Restricted Mode."
+            "markdownDescription": "An `opentide` executable (run with `lsp start`, every feature) or an `opentide-lsp` executable (run with `--stdio`, editor features only). Setting it selects the installed opentide, unless `opentide.runtime` is set; it is tried before the other installed runtimes. Ignored in Restricted Mode."
           },
           "opentide.interpreter": {
             "type": "string",
@@ -298,6 +348,13 @@
             "ignoreSync": true,
             "order": 4,
             "markdownDescription": "The `uv` executable for `opentide.uv.usePin`. Default: `uv` on `PATH`. Ignored in Restricted Mode."
+          },
+          "opentide.wasi.enabled": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "order": 2,
+            "markdownDescription": "Allow the opentide module the extension carries (`opentide.runtime`: bundled) and the engine's fallback to it. It has no network of its own: the extension host makes the tenant requests (query, deploy, validate --live) for the editor and, with opentide 1.0.0-rc.3 or later, for MCP; a terminal or task has none, so use `opentide.runtime: installed` for tenant commands there. Off: your own opentide if one answers, else the editor features of the opentide engine (WASM) only. Ignored in Restricted Mode, where only the engine runs."
           },
           "opentide.envFile": {
             "type": "string",
@@ -1715,6 +1772,11 @@
     ],
     "grammars": [
       {
+        "language": "cql",
+        "scopeName": "source.opentide.cql",
+        "path": "./syntaxes/cql.tmLanguage.json"
+      },
+      {
         "language": "eql",
         "scopeName": "source.eql",
         "path": "./syntaxes/eql.tmLanguage.json"
@@ -1723,6 +1785,11 @@
         "language": "esql",
         "scopeName": "source.opentide.esql",
         "path": "./syntaxes/esql.tmLanguage.json"
+      },
+      {
+        "language": "exabeam",
+        "scopeName": "source.exabeam",
+        "path": "./syntaxes/exabeam.tmLanguage.json"
       },
       {
         "language": "falco",
@@ -1754,11 +1821,23 @@
         "scopeName": "source.opentide-yaml",
         "path": "./syntaxes/tide.tmLanguage.json",
         "embeddedLanguages": {
+          "meta.embedded.block.cql": "cql",
           "meta.embedded.block.falco": "falco",
           "meta.embedded.block.kql": "kql",
           "meta.embedded.block.lucene": "lucene",
-          "meta.embedded.block.spl": "spl"
+          "meta.embedded.block.spl": "spl",
+          "meta.embedded.block.yaral": "yaral"
         }
+      },
+      {
+        "language": "yara",
+        "scopeName": "source.opentide.yara",
+        "path": "./syntaxes/yara.tmLanguage.json"
+      },
+      {
+        "language": "yaral",
+        "scopeName": "source.yaral",
+        "path": "./syntaxes/yaral.tmLanguage.json"
       },
       {
         "language": "opentide-config",
@@ -2236,6 +2315,7 @@
     "manifest:check": "node scripts/manifest.mjs --check",
     "grammars": "node scripts/grammars.mjs",
     "grammars:check": "node scripts/grammars.mjs --check",
+    "wasi": "node scripts/wasi.mjs",
     "build": "npm run features && node scripts/build.mjs",
     "build:production": "npm run features && node scripts/build.mjs --production",
     "watch": "npm run features && node scripts/build.mjs --watch",
@@ -2247,6 +2327,8 @@
     "test:integration": "npm run build && npm run compile-tests && vscode-test --label integration",
     "test:restricted": "npm run build && npm run compile-tests && node scripts/test-restricted.mjs",
     "test:engine": "npm run build && npm run compile-tests && vscode-test --label engine",
+    "test:wasi": "npm run build && npm run compile-tests && vscode-test --label wasi",
+    "test:wasi-launcher": "npm run build && npm run compile-tests && vscode-test --label wasi-launcher",
     "test:web": "npm run build && node scripts/test-web.mjs",
     "vscode:prepublish": "npm run build:production",
     "package": "node scripts/package.mjs",
@@ -2267,7 +2349,9 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.3",
+    "@opentide/wasi-host": "1.0.0-rc.3",
     "@vscode/codicons": "0.0.45",
+    "@vscode/wasm-wasi": "1.0.1",
     "cytoscape": "3.34.4",
     "vscode-jsonrpc": "9.0.3",
     "vscode-languageclient": "10.1.2"

@@ -83,7 +83,7 @@ describe("a language server that does not start falls back to the engine (WASM)"
       attempts.map((a) => [a.tier, a.source, a.outcome]),
       [
         [2, "path", "failed"],
-        [4, "engine", "ok"],
+        [5, "engine", "ok"],
       ],
     );
     assert.match(attempts[0]?.detail ?? "", /did not start.*ImportError.*engine \(WASM\)/);

@@ -5,10 +5,11 @@ import * as cp from "node:child_process";
 import type { Classification } from "../capabilities/classification";
 import type { CommandTree } from "../capabilities/tree";
 import { displayArgv, processEnv, redact } from "../runtime/env";
-import { cliCommand, hasCli, type Runtime } from "../runtime/types";
+import { cliCommand, hasCli, isWasi, type Runtime } from "../runtime/types";
 import { editorOnlyText } from "../unavailable";
 import type { CancellationToken } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
+import type { ServeProcess } from "./process";
 import { ServeClient } from "./serve";
 import { type SpawnFn, spawnRun } from "./spawn";
 import { BackendError, type Envelope, type ProgressEvent } from "./types";
@@ -75,6 +76,15 @@ export interface BackendDeps {
   readonly platform: NodeJS.Platform;
   log(level: "debug" | "info" | "warn" | "error", message: string): void;
   readonly spawn?: SpawnFn;
+  /**
+   * The WASI module's `opentide serve`, started in the extension host (src/core/services/wasi.ts): a WASI
+   * runtime serves every command through it, tenant commands included (`opentide/fetch`).
+   */
+  readonly wasi?: {
+    start(): Promise<ServeProcess>;
+    /** `initialize`'s params: `{capabilities: {fetch: true}}`. */
+    readonly initializeParams: object;
+  };
   now?(): number;
 }
 
@@ -186,7 +196,12 @@ export class Backend {
     };
 
     try {
-      const useServe = options.via !== "spawn" && !classification.spawn && (await this.canServe(runtime));
+      // The WASI module has no network of its own: every command, the tenant ones too, goes through serve,
+      // where the extension host makes the tenant requests (`opentide/fetch`).
+      const useServe =
+        options.via !== "spawn" &&
+        (isWasi(runtime) || !classification.spawn) &&
+        (await this.canServe(runtime));
       if (useServe) {
         try {
           return finish(await this.viaServe(runtime, folder, argv, credentials, options));
@@ -217,6 +232,7 @@ export class Backend {
   private async canServe(runtime: Runtime): Promise<boolean> {
     if (this.deps.serveMode() === "never" || this.serveBrokenFor === runtime) return false;
     if (this.serve?.isRunning && this.serveRuntime === runtime) return true;
+    if (isWasi(runtime)) return this.deps.wasi !== undefined;
     const tree = await this.deps.commands();
     return tree?.hasCommand("serve") ?? false;
   }
@@ -248,17 +264,23 @@ export class Backend {
     const env = processEnv(this.deps.baseEnv(), runtime, this.deps.platform, this.fixedEnv());
     const { command, args } = cliCommand(runtime, ["serve"]);
     const spawn = this.deps.spawn ?? cp.spawn;
-    const client = new ServeClient({
-      start: (): cp.ChildProcess =>
-        spawn(command, args, {
-          cwd: folder,
-          env,
-          stdio: ["pipe", "pipe", "pipe"],
-          windowsHide: true,
-          shell: false,
-        }),
-      log: (level, message) => this.deps.log(level, message),
-    });
+    const wasi = isWasi(runtime) ? this.deps.wasi : undefined;
+    const log = (level: "debug" | "info" | "warn", message: string) => this.deps.log(level, message);
+    const client = new ServeClient(
+      wasi
+        ? { start: () => wasi.start(), initializeParams: wasi.initializeParams, log }
+        : {
+            start: (): cp.ChildProcess =>
+              spawn(command, args, {
+                cwd: folder,
+                env,
+                stdio: ["pipe", "pipe", "pipe"],
+                windowsHide: true,
+                shell: false,
+              }),
+            log,
+          },
+    );
     const generation = this.generation;
     this.serve = client;
     this.serveRuntime = runtime;
@@ -276,7 +298,10 @@ export class Backend {
     // request finds this promise instead of starting a process of its own.
     const ready = client.start().then(
       (init) => {
-        this.deps.log("info", `opentide serve ${init.version} started (pid ${client.pid})`);
+        this.deps.log(
+          "info",
+          `opentide serve ${init.version} started (${client.pid === undefined ? "WASI, in the extension host" : `pid ${client.pid}`})`,
+        );
         this.serveEmitter.fire({ running: true, version: init.version, digest: init.commands_digest });
         return client;
       },

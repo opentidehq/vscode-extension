@@ -4,6 +4,7 @@
 // mirror so file changes become a delta. No Node built-ins.
 import * as vscode from "vscode";
 import {
+  CONFIGURATION_GLOB,
   type Collected,
   collectDocuments,
   isFolderEvent,
@@ -112,7 +113,29 @@ export class WorkspaceFeed {
     return best;
   }
 
-  /** Every object file and `visibility.toml`, read now: what a new server is given on `initialize`. */
+  /** A folder's `.opentide/configurations/*.toml`: found by search, else by reading the folder. */
+  private async configurationFiles(folder: FeedFolder): Promise<vscode.Uri[]> {
+    try {
+      const found = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(folder.uri, CONFIGURATION_GLOB),
+        undefined,
+        100,
+      );
+      if (found.length > 0) return found;
+    } catch (error) {
+      this.log(`engine: findFiles in ${folder.uri.toString()}: ${String(error)}`);
+    }
+    try {
+      const dir = vscode.Uri.joinPath(folder.uri, ".opentide", "configurations");
+      return (await vscode.workspace.fs.readDirectory(dir))
+        .filter(([name, type]) => /\.toml$/i.test(name) && !(type & vscode.FileType.Directory))
+        .map(([name]) => vscode.Uri.joinPath(dir, name));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Every object and configuration file, read now: what a new server is given on `initialize`. */
   async collect(): Promise<{ workspace: SuppliedWorkspace; report: FeedReport }> {
     const started = Date.now();
     const folders = this.folders();
@@ -130,7 +153,7 @@ export class WorkspaceFeed {
       }
       // A file system with no search provider (some virtual ones) finds nothing: walk the folders.
       if (found.length === 0) found = await walkObjectFiles(folder);
-      uris.push(...found);
+      uris.push(...found, ...(await this.configurationFiles(folder)));
     }
     const byString = new Map(uris.map((uri) => [uri.toString(), uri]));
     const collected = await collectDocuments(

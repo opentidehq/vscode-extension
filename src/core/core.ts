@@ -18,7 +18,7 @@ import { processEnv } from "./runtime/env";
 import { fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
 import { which } from "./runtime/process";
-import { shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
+import { isBundled, shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
 import { engineRuntime, uvExecutable } from "./runtime/resolve";
 import { cliCommand, describeRuntime, ENGINE_LABEL, isEditorOnly } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
@@ -28,7 +28,9 @@ import { onDidChangePythonEnvironment } from "./services/python";
 import { RuntimeManager, readEngine } from "./services/runtime";
 import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./services/settings";
 import { StatusManager } from "./services/status";
+import { WASI_INITIALIZE_PARAMS, WasiHost } from "./services/wasi";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
+import { runShutdown, type ShutdownResult } from "./shutdown";
 import { menuSections, problemsText } from "./statusText";
 import { editorOnlyText, INSTALL_URL } from "./unavailable";
 import { Emitter } from "./util/event";
@@ -39,6 +41,12 @@ export interface Core {
   readonly ctx: FeatureContext;
   /** Resolve the runtime and start the language server, in the background. */
   start(): Promise<void>;
+  /**
+   * End every process the extension started and wait until they are gone, within `deadlineMs` (VS Code gives
+   * `deactivate` about five seconds). Safe to call twice; what `context.subscriptions` disposes afterwards finds
+   * nothing left to do.
+   */
+  shutdown(deadlineMs?: number): Promise<ShutdownResult>;
 }
 
 /** The commands cache: one file per opentide version under globalStorage/commands/. */
@@ -111,6 +119,19 @@ export function createCore(context: vscode.ExtensionContext): Core {
   const credentials = new CredentialStore(context.secrets);
   subscriptions.push(credentials);
 
+  // The WASI module (tier 4) runs `serve` and the language server here, under @vscode/wasm-wasi. What it is
+  // given of the environment: its own settings and the proxy (src/core/wasi/env.ts).
+  const wasiHost = new WasiHost(
+    context,
+    () => runtime.current,
+    () => {
+      const proxy = httpProxy();
+      return { ...process.env, ...(proxy ? { OPENTIDE_PROXY: proxy } : {}) };
+    },
+    log,
+  );
+  subscriptions.push(wasiHost);
+
   const backend = new Backend({
     runtime: () => runtime.current,
     commands: () => capabilities.ready(),
@@ -121,6 +142,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     credentials: async (folder) => ({ ...envFileVariables(folder, log), ...(await credentials.env(folder)) }),
     platform: process.platform,
     log: (level, message) => log[level](message),
+    wasi: { start: () => wasiHost.startServe(), initializeParams: WASI_INITIALIZE_PARAMS },
   });
   subscriptions.push({ dispose: () => void backend.dispose() });
 
@@ -136,9 +158,10 @@ export function createCore(context: vscode.ExtensionContext): Core {
     log,
     () => folders.all.map((folder) => ({ uri: folder.folder.uri, objectFolders: folder.objectFolders })),
     (restricted) => {
-      const engine = readEngine(context.extensionPath);
+      const engine = readEngine(context.extensionPath, (problem) => log.warn(`engine: ${problem}`));
       return engine ? engineRuntime(engine, restricted) : undefined;
     },
+    wasiHost,
   );
   subscriptions.push({ dispose: () => void client.dispose() });
 
@@ -191,7 +214,12 @@ export function createCore(context: vscode.ExtensionContext): Core {
     status.update({ runtime: runtime.current, resolving: true, pin: runtime.pin, trusted: trust.isTrusted });
     await client.stop();
     await backend.restart();
-    const rt = await runtime.resolve();
+    // Which host runs the module is asked again: the WASM WASI Core extension may have been installed.
+    wasiHost.reset();
+    // From scratch, now: a resolution still running (a stale uv probe) is cancelled, not waited for. The one at
+    // activation is the exception: a feature that asked for the runtime a moment ago started a resolution with
+    // the same inputs, and a second one would log the same line twice.
+    const rt = reason === "activation" ? await runtime.ready() : await runtime.resolveAgain();
     void capabilities.load(rt);
     status.update({ runtime: rt, resolving: false, pin: runtime.pin, trusted: trust.isTrusted });
     const cwd = trust.isTrusted ? primaryFolder()?.uri.fsPath : context.globalStorageUri.fsPath;
@@ -259,6 +287,9 @@ export function createCore(context: vscode.ExtensionContext): Core {
         void restart("workspace folders changed");
       } else if (runtime.current?.kind === "engine") {
         void restart("opentide folders changed: the engine reads them again");
+      } else if (runtime.current?.wasi) {
+        // The module's file system is the window's folders as they were when it started.
+        void restart("workspace folders changed: the WASI module is mounted on them again");
       }
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -293,18 +324,19 @@ export function createCore(context: vscode.ExtensionContext): Core {
       () => void vscode.commands.executeCommand("setContext", "opentide.trusted", trust.isTrusted),
     ),
   );
-  // On the engine tier: an opentide that appears later replaces it without a Restart Server.
+  // On the WASI and engine tiers: an opentide that appears later replaces it without a Restart Server.
   let lastRecheck: number | undefined;
   const recheck = async (reason: string, force: boolean): Promise<void> => {
     const now = Date.now();
     if (!force && !shouldRecheck(runtime.current, lastRecheck, now)) return;
-    if (runtime.current?.kind !== "engine") return;
+    if (!isBundled(runtime.current)) return;
     lastRecheck = now;
     const attempts = runtime.attempts;
     const rt = await runtime.resolveAgain();
-    if (rt?.kind !== "engine") await restart(reason);
+    // A user's own opentide (tiers 1-3) replaces what the extension carries; anything else changes nothing.
+    if (rt && rt.tier <= 3) await restart(reason);
     else if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
-      log.debug(`runtime: looked again (${reason}); still the engine`);
+      log.debug(`runtime: looked again (${reason}); still ${rt ? describeRuntime(rt) : "no runtime"}`);
   };
   // Anything created under a .venv, a second after the last: a file made right after its new folder
   // can slip past a recursive watcher, and an install creates thousands at once.
@@ -313,7 +345,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
   subscriptions.push(
     venvWatcher,
     venvWatcher.onDidCreate(() => {
-      if (runtime.current?.kind !== "engine") return;
+      if (!isBundled(runtime.current)) return;
       if (venvTimer) clearTimeout(venvTimer);
       venvTimer = setTimeout(() => void recheck("something appeared in a .venv", true), VENV_SETTLE_MS);
     }),
@@ -364,6 +396,33 @@ export function createCore(context: vscode.ExtensionContext): Core {
   return {
     ctx,
     start: () => restart("activation"),
+    shutdown: async (deadlineMs = 4000) => {
+      // In order: stop what would start more (a resolution in flight), then the language server, `serve`, and last
+      // what is left of the WASI processes. Each is awaited: `subscriptions` disposes them without waiting.
+      const result = await runShutdown(
+        [
+          {
+            name: "runtime resolution",
+            run: async () => {
+              runtime.cancelResolution();
+            },
+          },
+          { name: "language server", run: () => client.dispose() },
+          { name: "opentide serve", run: () => backend.dispose() },
+          { name: "WASI processes", run: () => wasiHost.shutdown() },
+        ],
+        {
+          deadlineMs,
+          // What did not finish in time is ended without waiting, so nothing outlives the host.
+          onTimeout: (stuck) => {
+            log.warn(`shutdown: "${stuck}" did not finish in ${deadlineMs} ms: ending what is left`);
+            wasiHost.dispose();
+          },
+        },
+      );
+      for (const { name, error } of result.failed) log.warn(`shutdown: ${name}: ${error}`);
+      return result;
+    },
   };
 }
 
@@ -460,32 +519,46 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
   const config = vscode.workspace.getConfiguration("opentide");
   const items: (vscode.QuickPickItem & { run: () => Thenable<unknown> })[] = [
     {
-      label: "Automatic",
+      label: "Bundled opentide (default)",
       detail:
-        "opentide.path, then the workspace's environment (its opentide, else python -m opentide), then the opentide engine (WASM) for editor features",
-      run: () => config.update("path", undefined, vscode.ConfigurationTarget.Workspace),
+        "The opentide the extension carries: nothing to install, the same version for everyone. Sets opentide.runtime to bundled for this workspace",
+      run: async () => {
+        await config.update("runtime", "bundled", vscode.ConfigurationTarget.Workspace);
+      },
+    },
+    {
+      label: "My installed opentide",
+      detail:
+        "opentide.path, the workspace's environment (its opentide, else python -m opentide), uv, then PATH; the bundled one if none answers. Sets opentide.runtime to installed for this workspace",
+      run: async () => {
+        await config.update("runtime", "installed", vscode.ConfigurationTarget.Workspace);
+      },
     },
     {
       label: "Choose an opentide executable…",
-      detail: "Sets opentide.path for this workspace",
+      detail: "Sets opentide.path, and opentide.runtime to installed, for this workspace",
       run: async () => {
         const picked = await vscode.window.showOpenDialog({
           canSelectMany: false,
           openLabel: "Use this opentide",
         });
-        if (picked?.[0]) await config.update("path", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        if (!picked?.[0]) return;
+        await config.update("path", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        await config.update("runtime", "installed", vscode.ConfigurationTarget.Workspace);
       },
     },
     {
       label: "Choose a Python interpreter…",
-      detail: "Sets opentide.interpreter for this workspace: a Python with opentide installed",
+      detail:
+        "Sets opentide.interpreter, and opentide.runtime to installed, for this workspace: a Python with opentide installed",
       run: async () => {
         const picked = await vscode.window.showOpenDialog({
           canSelectMany: false,
           openLabel: "Use this interpreter",
         });
-        if (picked?.[0])
-          await config.update("interpreter", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        if (!picked?.[0]) return;
+        await config.update("interpreter", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        await config.update("runtime", "installed", vscode.ConfigurationTarget.Workspace);
       },
     },
   ];

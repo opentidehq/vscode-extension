@@ -10,13 +10,14 @@ JSON-RPC 2.0, **one JSON message per line** (newline-delimited, as MCP stdio is)
 
 | Message | Kind | Params | Result |
 |---------|------|--------|--------|
-| `initialize` | request | `{}` | `{protocol: 1, version: "<opentide version>", commands_digest: "<sha256 of opentide --json commands>"}` |
+| `initialize` | request | `{}`, or `{capabilities: {fetch: true}}` to have the client make tenant requests (below) | `{protocol: 1, version: "<opentide version>", commands_digest: "<sha256 of opentide --json commands>"}`, plus `capabilities: {fetch: true}` when it was asked for |
 | `run` | request | `{argv: string[], cwd?: string, env?: {[name]: string}}` | `{document: object, exit_code: number}` |
 | `invalidate` | notification | `{paths: string[]}` (absolute) | — |
 | `progress` | notification, server → client | `{id: <run request id>, event: <progress event>}` | — |
 | `$/cancelRequest` | notification | `{id}` | the cancelled `run` answers with its document and `exit_code: 130` |
 | `shutdown` | request | — | `null` |
 | `exit` | notification | — | the process exits `0` |
+| `opentide/fetch` | request, server → client, only after `initialize` asked for it | one tenant request: `{run, platform, tenant, method, url, headers: [[name, value]], body: base64 \| null, connect_timeout_ms, read_timeout_ms, tls: {verify, ca_bundles}, proxy}` | `{status, headers, url, body: base64, elapsed_ms?}`, or a JSON-RPC error whose `data.kind` is `connect`, `timeout`, `aborted`, `unreachable` or `answer` |
 
 **`run` semantics:**
 - `argv` is what follows `opentide` on a command line, without `--json`: `["validate", "--file", "objects/rules/x.yaml"]`. `serve` always behaves as `--json`. `--repo` may appear in `argv`.
@@ -27,6 +28,23 @@ JSON-RPC 2.0, **one JSON message per line** (newline-delimited, as MCP stdio is)
 - **Order:** requests are handled one at a time, in order.
 - **Workspace:** each `run` resolves its workspace from `--repo`, else `cwd`, else `OPENTIDE_REPO_ROOT` from `env`, else the server's cwd. One server serves several workspace folders.
 - **Caching:** the server may keep imports, parsed configuration and the registry per workspace between runs. `invalidate` must drop anything those paths affect, before the next `run` is handled.
+- **`opentide/fetch`** (opentidehq/opentide#1103, `docs/cli/serve.md`): the WASI build has no sockets, so with the capability every HTTP request of every run (tenants, CVE lookups, `doctor`'s release check, `skills`) is a request from the server to the client. The server's ids are strings (`"h1"`, …); the client answers each with Node's HTTP stack in the extension host (`@opentide/wasi-host`'s `FetchHost`, so VS Code's proxy settings and certificate store apply); the server withdraws one with `$/cancelRequest {id}`. A native server does the same when asked, so one client drives both builds; the extension asks only for the WASI module's.
+
+## The WASI module (opentide 1.0, opentidehq/opentide `docs/internal/vscode-wasi.md`)
+
+opentide's CLI compiled to `wasm32-wasip1` is the release asset `opentide-wasm32-wasip1.wasm` (from 1.0.0-rc.3; `pins.json` `wasi` names its URL and SHA-256). One module serves every platform: it is `opentide` with no terminal UI, no threads, no processes and no sockets. The extension runs it as the runtime when no opentide is installed (tier 4, [SPEC §4](SPEC.md#4-the-runtime-resolution-processes-status)).
+
+| Process | Started with | Where |
+|---------|--------------|-------|
+| `opentide serve` | `args: ["serve"]` | Under `@vscode/wasm-wasi` in the extension host when `ms-vscode.wasm-wasi-core` is installed, else a child process running the launcher with `OPENTIDE_WASI_MOUNTS`; `opentide/fetch` answered by `FetchHost` either way |
+| `opentide lsp start` | `args: ["lsp", "start"]` | As `serve`; `vscode-languageclient` over the process's pipes (`ReadableStreamMessageReader` and `WriteableStreamMessageWriter` under `@vscode/wasm-wasi`, stream readers on the child's stdio). The custom `opentide/*` requests are the native server's |
+| `opentide mcp start`, `opentide <command>` where VS Code starts a process (MCP, tasks, terminals, the command tree) | VS Code's own Node (`process.execPath`, `ELECTRON_RUN_AS_NODE=1`) running `dist/wasi/launcher.cjs <module> <args>` under `node:wasi` | A process of VS Code's. It exits with the module's exit code and speaks stdio as `opentide` does. A tenant command there has no network and fails with `network_unavailable`, naming the native CLI |
+
+- **Mounts.** `createRootFileSystem([{kind: "workspaceFolder"}, {kind: "vscodeFileSystem", uri: <global storage>, mountPoint: "/home/opentide"}])`: one folder at `/workspace`, several at `/workspaces/<name>`. The module sees guest paths only, so what goes in (a run's `cwd`, `argv` and `env`, the paths `invalidate` names, the language server's `file:` URIs and `rootPath`) is mapped to guest paths, and what comes out (every string of a document, a progress event or a language-server message) back to the host's (`src/core/wasi/paths.ts`). A paths-only mapping: it never rewrites a path that is under no mounted folder. The mounts are the window's folders when the process starts, so a change to them restarts it. The launcher mounts what `OPENTIDE_WASI_MOUNTS` (a JSON list of `{host, guest}` the extension host chooses: the folder itself on POSIX, `/workspace` or `/workspaces/<name>` on Windows) names, and the temporary folder; started by hand (MCP, a task, a terminal) it mounts the working directory and `OPENTIDE_REPO_ROOT` at themselves on POSIX, and the working directory at `/workspace` on Windows.
+- **Environment.** The module sees only what it is given: `PWD` (the first folder's guest path), `HOME` and `XDG_STATE_HOME` under `/home/opentide`, `NO_COLOR=1`, `OPENTIDE_*` (VS Code's `http.proxy` as `OPENTIDE_PROXY`), the proxy variables and `TZ`. No path variable (`PATH`, `SSL_CERT_FILE`): it could not open one. Tenant credentials travel in a `run`'s `env`, as on the native `serve`.
+- **A trap ends the process.** The extension restarts it as it restarts a native one that crashed (`BackendError` `crashed`: one retry of a read-only request).
+- **One request at a time**, in order, as native. No threads: a long run delays the next.
+- **Gating.** As everywhere, by `opentide --json commands`: the module's tree is read once per version through the launcher, never by comparing version numbers.
 
 ## `opentide --json info catalog` (opentidehq/opentide#749)
 
@@ -104,6 +122,8 @@ A variable's value never appears.
 
 ## language-server
 
+language-server is merged into opentide (opentidehq/opentide ADR 0004): its engine, grammars and `docs/engine/EDITORS.md` ship in opentide's releases (`pins.json` `highlights` and `engine`, from v1.0.0-rc.2 on). The issues below were language-server's.
+
 | Issue | Addition |
 |-------|----------|
 | opentidehq/language-server#195 | The ES\|QL grammar's `scopeName` is `source.opentide.esql` |
@@ -117,8 +137,10 @@ The extension never compares version numbers to decide a feature. It reads `open
 
 | Feature | Needs |
 |---------|-------|
-| Warm backend | the `serve` command |
+| Warm backend | the `serve` command (the WASI module always has it) |
 | Catalogue, graph, matrix, search | `info catalog` |
 | Tenants in the Platforms view | the `tenants` key in `info` (read at run time) |
+
+The engine's workspace is the object files, the paths.toml object folders **and the folder's `.opentide/configurations/*.toml`**, which the 1.0 engine reads as `validate` does in the browser (`docs/engine/EDITORS.md`): without `paths.toml` it does not check a rule in a custom object folder.
 
 Without them, it falls back: spawning instead of `serve`; names and locations from `workspace/symbol` instead of the catalogue; the version needed shown instead of the graph and the matrix.

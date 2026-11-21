@@ -246,3 +246,11 @@ export function queryViewState(value: unknown): QueryViewState {
     ...(typeof v.query === "string" ? { query: v.query } : {}),
   };
 }
+
+/**
+ * A message for a notification: notifications show text as it is, and do not render codicons, so `$(pass) ` would
+ * appear as typed. (Status bar items and labels do render them.) Removes each `$(name)` and `$(name~spin)`.
+ */
+export function plainMessage(text: string): string {
+  return text.replace(/\$\([a-z0-9-]+(?:~[a-z]+)?\)\s?/gi, "").trim();
+}

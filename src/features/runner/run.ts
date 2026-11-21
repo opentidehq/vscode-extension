@@ -8,6 +8,7 @@ import { BackendError } from "../../core/backend/types";
 import type { Classification } from "../../core/capabilities/classification";
 import type { FeatureContext } from "../../core/context";
 import { displayArgv } from "../../core/runtime/env";
+import { bundledTerminalLimit } from "../../core/runtime/limits";
 import { cliCommand, hasCli, type Runtime } from "../../core/runtime/types";
 import { httpProxy } from "../../core/services/settings";
 import { explainUnavailable } from "../../core/services/unavailable";
@@ -355,6 +356,15 @@ export class Runner implements vscode.Disposable {
     const runtime = this.ctx.runtime.current;
     if (!hasCli(runtime)) return;
     const classification = this.classify(argv);
+    const limit = bundledTerminalLimit(
+      runtime,
+      this.ctx.capabilities.current?.commandPathOf(argv).path ?? argv.join(" "),
+      classification.contactsTenant,
+    );
+    if (limit) {
+      void explainUnavailable("bundled-limit", limit);
+      return;
+    }
     const credentials = classification.contactsTenant ? await this.ctx.backend.credentialEnv(folder) : {};
     const { command, args } = cliCommand(runtime, argv);
     const scope = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(folder)) ?? vscode.TaskScope.Workspace;
