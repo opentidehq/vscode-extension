@@ -5,10 +5,28 @@
     "version": "0.22.0"
   },
   "wasi": {
-    "$comment": "The opentide CLI compiled to wasm32-wasip1, one module for every platform: tier 4, the runtime when no opentide is installed. An asset of opentide's release from rc.3 on. sha256 is the module's line in that release's SHA256SUMS. It is a PLACEHOLDER until rc.3 is released: scripts/wasi.mjs and npm run build refuse it (docs/PACKAGING.md says how to set it).",
+    "$comment": "The opentide CLI compiled to wasm32-wasip1, one module for every platform: tier 4, the runtime when no opentide is installed. An asset of opentide's release from rc.3 on. sha256 is the module's line in that release's SHA256SUMS. The module's licence set is `licences`: THIRD-PARTY-LICENSES.html (every crate the CLI module links, cargo-about with wasm32-wasip1; opentide#1741), WASI-LIBC-LICENSES.txt, LICENSE and NOTICE, assets of the same release, shipped in dist/wasi/. Every digest here is a PLACEHOLDER until rc.3 is released: scripts/wasi.mjs and npm run build refuse them (docs/PACKAGING.md says how to set them).",
     "version": "1.0.0-rc.3",
     "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/opentide-wasm32-wasip1.wasm",
-    "sha256": "PLACEHOLDER-set-from-the-opentide-wasm32-wasip1.wasm-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+    "sha256": "PLACEHOLDER-set-from-the-opentide-wasm32-wasip1.wasm-line-of-the-v1.0.0-rc.3-SHA256SUMS",
+    "licences": {
+      "THIRD-PARTY-LICENSES.html": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/THIRD-PARTY-LICENSES.html",
+        "sha256": "PLACEHOLDER-set-from-the-THIRD-PARTY-LICENSES.html-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      },
+      "WASI-LIBC-LICENSES.txt": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/WASI-LIBC-LICENSES.txt",
+        "sha256": "PLACEHOLDER-set-from-the-WASI-LIBC-LICENSES.txt-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      },
+      "LICENSE": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/LICENSE",
+        "sha256": "PLACEHOLDER-set-from-the-LICENSE-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      },
+      "NOTICE": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/NOTICE",
+        "sha256": "PLACEHOLDER-set-from-the-NOTICE-line-of-the-v1.0.0-rc.3-SHA256SUMS"
+      }
+    }
   },
   "highlights": {
     "version": "1.0.0-rc.2",
