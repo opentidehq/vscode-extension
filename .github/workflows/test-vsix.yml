@@ -1,0 +1,172 @@
+# A test .vsix the owner can install before @opentide/wasi-host is on npm and before opentide's release
+# asset opentide-wasm32-wasip1.wasm exists (docs/PACKAGING.md, "A test build"). Nothing is published: no npm
+# publish, no Marketplace or Open VSX, no GitHub release. The .vsix is a workflow artifact.
+#
+# It builds, from opentide's source at a ref:
+#   - the WASI module, with opentide's scripts/engine/build-wasm.sh cli (rustup, the toolchain in opentide's
+#     rust-toolchain.toml, wasm32-wasip1 and wasi-sdk, which the script fetches), as the version
+#     1.0.0-rc.3-dev+<sha>;
+#   - @opentide/wasi-host, with `npm pack` in packages/wasi-host (its prepack builds it), installed from that
+#     tarball in place of the pinned 1.0.0-rc.3 (in this run's checkout only: nothing is committed);
+# then packages the extension with them (OPENTIDE_WASI_MODULE, scripts/wasi-lib.mjs: pins.json wasi is not
+# consulted), smoke-tests the .vsix, and runs the WASI tests of test/wasi/ in VS Code on it.
+#
+# Run it from the Actions tab ("Run workflow"), picking opentide's integration/unified-core (the default) or
+# feat/release-wasi-cli-npm-candidates (the opentide PR that adds the asset). It also runs on a pull request
+# that changes this file, so the workflow tests itself.
+name: Test VSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      opentide_ref:
+        description: "The opentide branch to build the WASI module and @opentide/wasi-host from"
+        type: choice
+        default: integration/unified-core
+        options:
+          - integration/unified-core
+          - feat/release-wasi-cli-npm-candidates
+  pull_request:
+    paths:
+      - ".github/workflows/test-vsix.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-vsix-${{ github.event.pull_request.number || github.ref }}-${{ inputs.opentide_ref || 'default' }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  OPENTIDE_REF: ${{ inputs.opentide_ref || 'integration/unified-core' }}
+  # @vscode/test-web's Chromium: nothing here needs it.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  build:
+    name: Build a test .vsix from opentide's source
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: opentide's source at the ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: opentidehq/opentide
+          ref: ${{ env.OPENTIDE_REF }}
+          path: opentide
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Name the build
+        id: build
+        run: |
+          set -euo pipefail
+          sha="$(git -C opentide rev-parse --short=7 HEAD)"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "version=1.0.0-rc.3-dev+${sha}" >> "$GITHUB_OUTPUT"
+          echo "OPENTIDE_BUILD_VERSION=1.0.0-rc.3-dev+${sha}" >> "$GITHUB_ENV"
+          echo "Building from opentide ${OPENTIDE_REF} at ${sha}" >> "$GITHUB_STEP_SUMMARY"
+      # The toolchain opentide pins (rust-toolchain.toml); the script adds wasm32-wasip1 itself.
+      - name: The Rust toolchain opentide pins
+        working-directory: opentide
+        run: |
+          set -euo pipefail
+          rustup toolchain install --profile minimal
+          rustc --version
+      - name: The WASI module, built from opentide's source
+        working-directory: opentide
+        run: |
+          set -euo pipefail
+          scripts/engine/build-wasm.sh cli
+          module="${PWD}/target/wasm32-wasip1/wasi/opentide.wasm"
+          test -s "${module}"
+          echo "OPENTIDE_WASI_MODULE=${module}" >> "$GITHUB_ENV"
+          echo "OPENTIDE_WASI_VERSION=${OPENTIDE_BUILD_VERSION}" >> "$GITHUB_ENV"
+      - name: "@opentide/wasi-host, packed from opentide's source"
+        working-directory: opentide/packages/wasi-host
+        run: |
+          set -euo pipefail
+          npm ci
+          # prepack builds dist/ with tsc.
+          npm pack --pack-destination "${RUNNER_TEMP}"
+          tarball="$(find "${RUNNER_TEMP}" -maxdepth 1 -name 'opentide-wasi-host-*.tgz' | head -n 1)"
+          test -n "${tarball}"
+          echo "WASI_HOST_TARBALL=${tarball}" >> "$GITHUB_ENV"
+      # npm ci would ask the registry for the pinned @opentide/wasi-host@1.0.0-rc.3, which is not
+      # published yet: this run's package.json names the tarball instead (nothing is committed).
+      - name: Install the dependencies, with the tarball for @opentide/wasi-host
+        run: |
+          set -euo pipefail
+          npm pkg set "dependencies.@opentide/wasi-host=file:${WASI_HOST_TARBALL}"
+          npm install --no-audit --no-fund
+          test -f node_modules/@opentide/wasi-host/dist/index.js
+      - run: npm run manifest:check
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Unit and script tests, with the module
+        run: npm test
+      - name: Package
+        run: npm run package
+      - name: Smoke test the .vsix
+        run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
+      - name: Name the .vsix
+        id: vsix
+        env:
+          SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          set -euo pipefail
+          source="$(find dist-vsix -maxdepth 1 -name 'opentide-universal-*.vsix' | head -n 1)"
+          base="$(basename "${source}" .vsix)"
+          mkdir -p test-vsix
+          cp "${source}" "test-vsix/${base}-wasi-${SHA}.vsix"
+          cp "${source%.vsix}.size.json" "test-vsix/${base}-wasi-${SHA}.size.json" 2>/dev/null || true
+          echo "file=${base}-wasi-${SHA}.vsix" >> "$GITHUB_OUTPUT"
+          echo "artifact=opentide-vsix-wasi-${SHA}" >> "$GITHUB_OUTPUT"
+      - name: Sizes
+        run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.vsix.outputs.artifact }}
+          path: test-vsix/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: How to install it
+        env:
+          FILE: ${{ steps.vsix.outputs.file }}
+          ARTIFACT: ${{ steps.vsix.outputs.artifact }}
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          {
+            echo ""
+            echo "### The test .vsix"
+            echo ""
+            echo "Artifact \`${ARTIFACT}\` holds \`${FILE}\`: the WASI module and \`@opentide/wasi-host\` built from opentide \`${OPENTIDE_REF}\` (\`${VERSION}\`)."
+            echo ""
+            echo '```bash'
+            echo "gh run download ${GITHUB_RUN_ID} --repo ${GITHUB_REPOSITORY} --name ${ARTIFACT}"
+            echo "code --install-extension ${FILE}"
+            echo '```'
+            echo ""
+            echo "Then follow docs/PACKAGING.md, \"A test build\": what to try."
+          } >> "$GITHUB_STEP_SUMMARY"
+      # The WASI module under @vscode/wasm-wasi in a real VS Code, on this build: the runtime, the language
+      # server, `serve` with the module's documents in host paths (the label installs ms-vscode.wasm-wasi-core).
+      - name: WASI tests in VS Code
+        run: xvfb-run -a npm run test:wasi
+      - name: The extension's logs from the WASI tests
+        if: failure()
+        run: |
+          set -euo pipefail
+          logs=".vscode-test/user-data/logs"
+          [[ -d "${logs}" ]] || exit 0
+          find "${logs}" -type f -path '*/opentidehq.opentide/*' -name '*.log' | sort | while read -r file; do
+            echo "::group::${file}"
+            cat "${file}"
+            echo "::endgroup::"
+          done
