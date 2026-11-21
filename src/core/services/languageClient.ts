@@ -33,6 +33,7 @@ import { languageServerCommand, type Runtime } from "../runtime/types";
 import { Emitter } from "../util/event";
 import { SerialQueue } from "../util/serial";
 import { startEngineWorker } from "./engine";
+import { TraceChannel } from "./traceChannel";
 import type { WasiHost, WasiLanguageServer } from "./wasi";
 
 /** How long after the last file change the engine is restarted with the new workspace. */
@@ -63,9 +64,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private readonly outputChannel = vscode.window.createOutputChannel("opentide Language Server", {
     log: true,
   });
-  private readonly traceChannel = vscode.window.createOutputChannel("opentide Language Server Trace", {
-    log: true,
-  });
+  // Its level follows `opentide.trace.server` (traceChannel.ts): a plain log channel left the trace empty.
+  private readonly traceChannel = new TraceChannel("opentide Language Server Trace");
   private readonly disposables: vscode.Disposable[] = [];
   /**
    * One watcher for every client this manager starts: vscode-languageclient disposes only the listeners
