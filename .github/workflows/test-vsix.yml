@@ -17,7 +17,8 @@
 # feat/mcp-wasi-fetch (the module's `mcp start` asks for its tenant requests, and McpFetchBridge), until that is in
 # integration/unified-core and this goes back to it. Run it from the Actions tab ("Run workflow"), picking that,
 # integration/unified-core or feat/release-wasi-cli-npm-candidates (the opentide PR that adds the asset). It also
-# runs on a pull request that changes this file, so the workflow tests itself.
+# runs on a pull request that changes this file, so the workflow tests itself (touch it to make a build of the
+# branch's head).
 name: Test VSIX
 
 on:
