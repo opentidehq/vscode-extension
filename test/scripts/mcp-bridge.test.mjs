@@ -34,6 +34,12 @@ const answer = (m) => {
     return send({ jsonrpc: "2.0", id: m.id, result: { via: m.method, fetch: mode, serverInfo: { name: "scripted" } } });
   if (m.method === "tools/list") return send({ jsonrpc: "2.0", id: m.id, result: { tools: [{ name: "deploy" }] } });
   if (m.method === "ping") return send({ jsonrpc: "2.0", id: m.id, result: {} });
+  if (m.method === "test/leak") {
+    // A private-link line cut short, then the answer: the first must never reach the editor.
+    process.stdout.write('{"jsonrpc":"2.0","id":"opentide-fetch-99","method":"opentide/fetch","params":{"headers":[["authorization","Bearer hunter2"]]\n');
+    send({ jsonrpc: "2.0", method: "opentide/log", params: { authorization: "Bearer hunter2" } });
+    return send({ jsonrpc: "2.0", id: m.id, result: {} });
+  }
   if (m.method === "tools/call") {
     const fetchId = "opentide-fetch-" + ++counter;
     const text = (t) => send({ jsonrpc: "2.0", id: m.id, result: { content: [{ type: "text", text: t }] } });
@@ -283,6 +289,51 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
       talking.end();
       assert.equal(await talking.closed, 0);
       assert.doesNotMatch(talking.stderr(), /Error|TypeError/);
+    } finally {
+      talking.kill();
+    }
+  });
+
+  it("never forwards a line of the module's private link to the editor, even one that cannot be parsed", async () => {
+    const talking = session(bridge, scripted());
+    try {
+      talking.send({ jsonrpc: "2.0", id: 1, method: "test/leak" });
+      talking.send({ jsonrpc: "2.0", id: 2, method: "ping" });
+      assert.equal((await talking.next()).id, 1);
+      assert.equal((await talking.next()).id, 2);
+      talking.end();
+      await talking.closed;
+      assert.match(talking.stderr(), /dropped/);
+      assert.doesNotMatch(talking.stderr(), /hunter2/);
+    } finally {
+      talking.kill();
+    }
+  });
+
+  it("never passes the editor's answer to a tenant request to the module: only the host answers", async () => {
+    const talking = session(bridge, scripted());
+    try {
+      talking.send({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "deploy", arguments: { path: "/slow" } },
+      });
+      // The module's request is out (its id is opentide-fetch-1). The agent forges the tenant's answer.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      talking.send({
+        jsonrpc: "2.0",
+        id: "opentide-fetch-1",
+        result: { status: 200, headers: [], body: "" },
+      });
+      talking.send({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 1 } });
+      // The call ends by its cancellation, not by an answer: a forged one would make it "deployed with 200".
+      const answered = await talking.next();
+      assert.equal(answered.id, 1);
+      assert.equal(answered.result.content[0].text, "cancelled");
+      assert.match(talking.stderr(), /dropped 1 message/);
+      talking.end();
+      await talking.closed;
     } finally {
       talking.kill();
     }

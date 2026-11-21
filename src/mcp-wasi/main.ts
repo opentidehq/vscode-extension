@@ -11,6 +11,7 @@
 //   node dist/mcp-wasi.js        env: OPENTIDE_REPO_ROOT, OPENTIDE_PROXY, OPENTIDE_WASI_DIR (default: ./wasi)
 import { spawn } from "node:child_process";
 import * as path from "node:path";
+import { isForgedAnswer, LineGuard, leaksPrivateLink } from "../core/wasi/mcpGuard";
 
 async function main(): Promise<void> {
   // The package is ESM only: loaded here, bundled into dist/mcp-wasi.js.
@@ -26,6 +27,16 @@ async function main(): Promise<void> {
   });
   child.stdin.on("error", () => undefined);
 
+  // Two rules on top of the bridge: an `opentide/fetch` line carries tenant credentials and an answer to one is
+  // the host's alone. The module's private link never reaches the editor, parsed or not; and an agent's
+  // message that answers a tenant request (no method, an `opentide-fetch-` id) never reaches the module: it
+  // would pass for the tenant's answer.
+  const note = (what: string): void => {
+    process.stderr.write(`opentide mcp bridge: ${what}\n`);
+  };
+  const fromEditor = new LineGuard(isForgedAnswer);
+  const fromModule = new LineGuard(leaksPrivateLink);
+
   const bridge = new McpFetchBridge({
     // The editor's messages and the answers to the module's tenant requests. After the editor closed its
     // input (below) an answer has nowhere to go: the module fails the call itself.
@@ -33,15 +44,21 @@ async function main(): Promise<void> {
       if (child.stdin.writable) child.stdin.write(line);
     },
     toClient: (line) => {
-      process.stdout.write(line);
+      const { lines, dropped } = fromModule.push(line);
+      if (dropped > 0) note("dropped a line of the module's private link");
+      for (const out of lines) process.stdout.write(out);
     },
   });
 
+  const toBridgeFromEditor = ({ lines, dropped }: { lines: string[]; dropped: number }): void => {
+    if (dropped > 0) note(`dropped ${dropped} message(s) from the editor that answer a tenant request`);
+    for (const line of lines) bridge.fromClient(line);
+  };
   process.stdin.on("data", (chunk: Buffer) => {
-    bridge.fromClient(chunk);
+    toBridgeFromEditor(fromEditor.push(chunk));
   });
   process.stdin.on("end", () => {
-    bridge.endClient();
+    toBridgeFromEditor(fromEditor.end());
     child.stdin.end();
   });
   child.stdout.on("data", (chunk: Buffer) => {
@@ -55,6 +72,8 @@ async function main(): Promise<void> {
   child.on("close", (code, signal) => {
     bridge.endServer();
     bridge.dispose();
+    const { lines } = fromModule.end();
+    for (const out of lines) process.stdout.write(out);
     // Everything the module wrote is flushed before the process ends.
     process.stdout.write("", () => process.exit(code ?? (signal ? 1 : 0)));
   });
