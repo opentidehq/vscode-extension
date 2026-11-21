@@ -413,6 +413,7 @@ language server). Design: [`docs/SPEC.md`](docs/SPEC.md).
 
 ## Licence
 
-MIT. The opentide engine (WASM) and the grammars from language-server are EUPL-1.2; they ship as
-separate programs with their own licence files ([`NOTICE`](NOTICE)). opentide, which you install, is
-EUPL-1.2.
+[EUPL-1.2](LICENSE), the licence of opentide itself, so the extension, the opentide engine (WASM) and
+the grammars from language-server it carries, and the opentide you install share one licence. (Before
+the relicensing of 2026-11-21 the extension was MIT.) Third-party material keeps its own licence:
+[`NOTICE`](NOTICE) and [`THIRD-PARTY-LICENSES`](THIRD-PARTY-LICENSES) say which.

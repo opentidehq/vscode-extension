@@ -1,9 +1,11 @@
 opentide for VS Code (opentidehq.opentide)
 Copyright (c) 2026 opentide contributors
-Licensed under the MIT License (see LICENSE).
+Licensed under the European Union Public Licence v. 1.2 (EUPL-1.2, see LICENSE). The extension
+was MIT-licensed until the relicensing to EUPL-1.2 of 2026-11-21, so that everything in the package is
+under one licence.
 
-This extension runs, as separate programs, software under other licences. Each ships with its own
-licence files. It bundles no opentide and no Python: it runs the opentide the user installs (EUPL-1.2).
+The package carries the following, each with its own licence files where it has them. It bundles no
+opentide and no Python: it runs the opentide the user installs (EUPL-1.2).
 
 - The opentide engine (WASM), in dist/engine/ of every package: opentidehq/language-server's language
   server built for WebAssembly (opentide-wasm, from its opentide-wasm-web release zip), licensed under the
