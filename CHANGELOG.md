@@ -99,6 +99,11 @@ pre-releases odd ones.
   update.** It runs a small launcher the extension keeps in its own storage, which starts the newest installed
   copy of the extension, instead of naming a folder the update deletes. If the extension was uninstalled, the
   agent is told to remove the entry or reinstall.
+- **A window with no opentide folder no longer starts the opentide MCP server.** Agents there got a server that
+  could only say it found no repository; it appears when an opentide folder does.
+- **Kiro, Devin Desktop and Windsurf get the bundled MCP server when your installed opentide is older than
+  1.0.0rc3.** Kiro rejects the older opentide's tool list. The extension says so once and writes the bundled
+  entry; upgrade opentide to use your own there.
 - **A damaged Kiro, Devin Desktop or Windsurf MCP file is left alone and the problem is named.** A file that
   is not JSON, has an `mcpServers` that is not an object, or holds comments is no longer offered an
   opentide entry, and **opentide: Remove from the Editor's MCP Settings** says what is wrong with it instead

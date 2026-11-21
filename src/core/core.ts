@@ -217,8 +217,10 @@ export function createCore(context: vscode.ExtensionContext): Core {
     await backend.restart();
     // Which host runs the module is asked again: the WASM WASI Core extension may have been installed.
     wasiHost.reset();
-    // From scratch, now: a resolution still running (a stale uv probe) is cancelled, not waited for.
-    const rt = await runtime.resolveAgain();
+    // From scratch, now: a resolution still running (a stale uv probe) is cancelled, not waited for. The one at
+    // activation is the exception: a feature that asked for the runtime a moment ago started a resolution with
+    // the same inputs, and a second one would log the same line twice.
+    const rt = reason === "activation" ? await runtime.ready() : await runtime.resolveAgain();
     void capabilities.load(rt);
     status.update({ runtime: rt, resolving: false, pin: runtime.pin, trusted: trust.isTrusted });
     const cwd = trust.isTrusted ? primaryFolder()?.uri.fsPath : context.globalStorageUri.fsPath;
