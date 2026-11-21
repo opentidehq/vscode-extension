@@ -168,7 +168,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     } else if (result.runtime?.wasi) {
       this.log.info(
         `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}): the module the extension carries, ` +
-          "no opentide installed answered. Every command works; tenant requests are made by the extension host.",
+          "no opentide installed answered. The editor's tenant requests are made by the extension host; a terminal or task has no network.",
       );
     } else if (result.runtime) {
       this.log.info(
