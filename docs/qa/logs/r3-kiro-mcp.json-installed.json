@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "dummy-other": {
+      "command": "echo",
+      "args": [
+        "hello"
+      ],
+      "env": {
+        "KEEP": "me"
+      }
+    },
+    "opentide": {
+      "command": "/tmp/qa/venv-native/bin/opentide",
+      "args": [
+        "mcp",
+        "start"
+      ],
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "OPENTIDE_VSCODE_EXTENSION": "opentidehq.opentide"
+      }
+    }
+  },
+  "powers": {
+    "seed": true
+  }
+}

@@ -1,0 +1,36 @@
+2026-11-21 10:52:04.883 [info] agents: host Visual Studio Code (vscode): MCP through an MCP server definition provider
+2026-11-21 10:52:04.883 [info] agents: the opentide skills are contributed by the extension: no opentidehq/skills plugin is installed
+2026-11-21 10:52:04.883 [info] restart: activation
+2026-11-21 10:52:04.883 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 10:52:04.883 [info] features: 12/12 activated
+2026-11-21 10:52:04.883 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 10:52:04.883 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+1719846)
+2026-11-21 10:52:04.883 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 10:52:05.066 [info] language server: host opentide 1.0.0-rc.3-dev+1719846, engine 1.0.0-rc.3-dev+1719846, catalog models
+2026-11-21 10:52:05.068 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 10:52:05.164 [info] opentide 1.0.0-rc.3-dev+1719846: 58 commands
+2026-11-21 10:52:05.170 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 10:52:05.455 [info] opentide serve 1.0.0-rc.3-dev+1719846 started (pid 3986)
+2026-11-21 10:52:06.253 [info] ✓ opentide --json validate  exit 0 in 1185 ms via serve
+2026-11-21 10:52:06.292 [info] ✓ opentide --json info catalog  exit 0 in 1123 ms via serve
+2026-11-21 10:52:31.964 [info] restart: settings changed
+2026-11-21 10:52:32.070 [info] runtime: opentide 1.0.0rc2 (tier 2 · PATH) /tmp/qa/venv-native/bin/opentide [opentide.runtime is "installed"]
+2026-11-21 10:52:32.091 [info] language server: /tmp/qa/venv-native/bin/opentide lsp start
+2026-11-21 10:52:32.136 [info] opentide 1.0.0rc2: 58 commands
+2026-11-21 10:52:32.145 [info] language server: host opentide 1.0.0rc2, engine 1.0.0-rc.2, catalog models
+2026-11-21 10:52:32.146 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 10:52:32.154 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 10:52:32.232 [info] opentide serve 1.0.0rc2 started (pid 4103)
+2026-11-21 10:52:32.467 [info] ✓ opentide --json validate  exit 0 in 321 ms via serve
+2026-11-21 10:52:32.483 [info] ✓ opentide --json info catalog  exit 0 in 329 ms via serve
+2026-11-21 10:52:44.805 [info] restart: settings changed
+2026-11-21 10:52:44.830 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is "bundled"]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 10:52:44.842 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+1719846)
+2026-11-21 10:52:44.842 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 10:52:45.111 [info] language server: host opentide 1.0.0-rc.3-dev+1719846, engine 1.0.0-rc.3-dev+1719846, catalog models
+2026-11-21 10:52:45.112 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 10:52:45.159 [info] opentide 1.0.0-rc.3-dev+1719846: 58 commands
+2026-11-21 10:52:45.160 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 10:52:45.433 [info] opentide serve 1.0.0-rc.3-dev+1719846 started (pid 4161)
+2026-11-21 10:52:46.102 [info] ✓ opentide --json validate  exit 0 in 990 ms via serve
+2026-11-21 10:52:46.140 [info] ✓ opentide --json info catalog  exit 0 in 980 ms via serve

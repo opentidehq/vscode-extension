@@ -1,0 +1,19 @@
+2026-11-21 11:14:12.900 [info] agents: host Visual Studio Code (vscode): MCP through an MCP server definition provider
+2026-11-21 11:14:12.900 [info] agents: the opentide skills are contributed by the extension: no opentidehq/skills plugin is installed
+2026-11-21 11:14:12.900 [info] restart: activation
+2026-11-21 11:14:12.900 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 11:14:12.900 [info] features: 12/12 activated
+2026-11-21 11:14:12.900 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 11:14:12.979 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+1719846)
+2026-11-21 11:14:12.979 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 11:14:13.458 [info] language server: host opentide 1.0.0-rc.3-dev+1719846, engine 1.0.0-rc.3-dev+1719846, catalog models
+2026-11-21 11:14:13.459 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 11:14:13.471 [info] opentide 1.0.0-rc.3-dev+1719846: 58 commands
+2026-11-21 11:14:13.474 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 11:14:13.862 [info] opentide serve 1.0.0-rc.3-dev+1719846 started (pid 12674)
+2026-11-21 11:14:14.757 [info] ✓ opentide --json validate  exit 0 in 1296 ms via serve
+2026-11-21 11:14:14.815 [info] ✓ opentide --json info catalog  exit 0 in 1341 ms via serve
+2026-11-21 11:14:15.448 [info] ▶ opentide --json info  (in /tmp/qa/ws)
+2026-11-21 11:14:15.458 [info] ✓ opentide --json info  exit 0 in 10 ms via serve
+2026-11-21 11:14:29.313 [info] ▶ opentide --json validate query --live --platform elastic --uuid 14313ce1-c1a4-4a42-9a13-3e54f76d760c  (in /tmp/qa/ws)
+2026-11-21 11:14:29.363 [info] ✓ opentide --json validate query --live --platform elastic --uuid 14313ce1-c1a4-4a42-9a13-3e54f76d760c  exit 0 in 49 ms via serve

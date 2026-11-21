@@ -1,7 +1,7 @@
 const { launch, shot } = require('./lib');
 const cp = require('child_process');
 (async () => {
-  const { app, page } = await launch({ exe: '/tmp/qa/kiro/Kiro/kiro', ud: '/tmp/qa/ud-kiro', ext: '/tmp/qa/ext-kiro3', folders: ['/tmp/qa/ws'], extra: ['--disable-workspace-trust'], env: { VSCODE_CLI: '1', ELASTIC_STAGING_API_KEY: 'fake-key-qa' } });
+  const { app, page } = await launch({ exe: '/tmp/qa/kiro/Kiro/kiro', ud: '/tmp/qa/ud-kiro', ext: process.env.KEXT || '/tmp/qa/ext-kiro3', folders: ['/tmp/qa/ws'], extra: ['--disable-workspace-trust'], env: { VSCODE_CLI: '1', ELASTIC_STAGING_API_KEY: 'fake-key-qa' } });
   await page.waitForTimeout(16000);
   await shot(page, process.argv[2] || 'kiro-retest-01-launch');
   const toasts = await page.evaluate(() => Array.from(document.querySelectorAll('.notification-toast, .notifications-toasts .notification-list-item')).map(e => ({ text: e.innerText.replace(/\n+/g, ' | '), buttons: Array.from(e.querySelectorAll('a.monaco-button, .monaco-button')).map(b => b.innerText) })));

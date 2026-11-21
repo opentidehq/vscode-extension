@@ -1,0 +1,13 @@
+2026-11-21 10:49:55.733 [info] agents: host Visual Studio Code (vscode): MCP through an MCP server definition provider
+2026-11-21 10:49:55.733 [info] agents: the opentide skills are contributed by the extension: no opentidehq/skills plugin is installed
+2026-11-21 10:49:55.733 [info] restart: activation
+2026-11-21 10:49:55.733 [info] features: 12/12 activated
+2026-11-21 10:49:55.733 [info] runtime: opentide 1.0.0rc2 (tier 2 · PATH) /tmp/qa/venv-native/bin/opentide [opentide.runtime is "installed"]
+2026-11-21 10:49:55.902 [info] language server: /tmp/qa/venv-native/bin/opentide lsp start
+2026-11-21 10:49:56.039 [info] language server: host opentide 1.0.0rc2, engine 1.0.0-rc.2, catalog models
+2026-11-21 10:49:56.042 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 10:49:56.046 [info] opentide 1.0.0rc2: 58 commands
+2026-11-21 10:49:56.064 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 10:49:56.187 [info] opentide serve 1.0.0rc2 started (pid 2008)
+2026-11-21 10:49:56.548 [info] ✓ opentide --json validate  exit 0 in 506 ms via serve
+2026-11-21 10:49:56.592 [info] ✓ opentide --json info catalog  exit 0 in 529 ms via serve

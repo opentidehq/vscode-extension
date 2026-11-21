@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"the opentide extension is not installed; remove the opentide entry from /root/.kiro/settings/mcp.json or reinstall"}}

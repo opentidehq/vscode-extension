@@ -1,0 +1,41 @@
+# Rerun 3: bridge from the #95 build (c9d5f5b) with module/wasi-host from opentide feat/mcp-wasi-fetch @ 1719846
+
+$ tools/call run_query
+## tools/call run_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"source\": \"query\",\n  \"window\": {\n    \"from\": \"2026-11-20T11:17:10.624Z\",\n    \"to\": \"2026-11-21T11:17:10.624Z\"\n  },\n  \"limit\": 100,\n  \"tenants\": [\n    \"elastic-local-fake\"
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT=/tmp/qa/ws; repository root: /tmp/qa/ws | 
+elapsed ms 334
+fake tenant: POST,/api/detection_engine/rules/preview POST,/.preview.alerts-security.alerts-default/_search 
+
+$ tools/call validate_query
+## tools/call validate_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"mode\": \"live\",\n  \"supported\": true,\n  \"strategies\": [\n    \"PREVIEW\",\n    \"RELEASE\"\n  ],\n  \"queries_validated\": 1,\n  \"queries_per_tenant\": {\n    \"elastic-local-fake\": 1\n 
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT=/tmp/qa/ws; repository root: /tmp/qa/ws | 
+elapsed ms 450
+fake tenant: POST,/api/detection_engine/rules/preview 
+
+$ tools/call deploy_rule
+## tools/call deploy_rule
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"action\": \"deploy\",\n  \"tenant\": null,\n  \"rule_id\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n  \"status\": \"STAGING\",\n  \"dry_run\": false,\n  \"platform\": \"elastic\",\n  \"message\": \"Deployed 1 rule to 1 tena
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT=/tmp/qa/ws; repository root: /tmp/qa/ws | 
+elapsed ms 431
+fake tenant: GET,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c DELETE,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c POST,/api/detection_engine/rules 
+
+# modern era (what Kiro sends)
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = complete | tools: 10 | result keys: resultType,ttlMs,cacheScope,tools
+tools/call       resultType = complete | isError = false | {"jsonrpc":"2.0","id":3,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n  \"own_matrix\": {},\n  \"tactic_filter\": null\n}"}],"isError":false}}
+stderr first line: opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws
+
+# tenant down:
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"source\": \"query\",\n  \"window\": {\n    \"from\": \"2026-11-20T11:17:18.913Z\",\n    \"to\":
+   [isError=true]

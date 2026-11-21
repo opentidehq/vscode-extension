@@ -1,0 +1,28 @@
+# MCP launcher scenarios (the entry: Kiro binary + /tmp/qa/ud-kiro/User/globalStorage/opentidehq.opentide/mcp-launcher.cjs, OPENTIDE_EXTENSIONS_DIR=/tmp/qa/ext-kiro-r3)
+state: extensions.json opentidehq.opentide-0.1.2 opentidehq.opentide-0.1.3  .obsolete={"opentidehq.opentide-0.1.2":true}
+## A. 0.1.2 and 0.1.3 present, 0.1.2 marked obsolete: runs the newest
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = complete | tools: 10 | result keys: resultType,ttlMs,cacheScope,tools
+tools/call       resultType = complete | isError = false | {"jsonrpc":"2.0","id":3,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n  \"own_matrix\": {},\n  \"tactic_filter\": null\n}"}],"isError":false}}
+stderr first line: opentide mcp launcher: running opentidehq.opentide-0.1.3
+
+state: extensions.json opentidehq.opentide-0.1.2  .obsolete={"opentidehq.opentide-0.1.2":true}
+## B. newest folder deleted by hand; the remaining 0.1.2 is still marked .obsolete
+server/discover  resultType = undefined | keys: code,message
+tools/list       resultType = undefined | tools: 0 | result keys: 
+tools/call       resultType = undefined | isError = undefined | {"timeout":"tools/call"}
+stderr first line: opentide mcp launcher: the opentide extension is not installed; remove the opentide entry from /root/.kiro/settings/mcp.json or reinstall (looked in /tmp/qa/ext-kiro-r3)
+
+state: extensions.json opentidehq.opentide-0.1.2  .obsolete=none
+## C. same, .obsolete removed: falls back to 0.1.2
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = complete | tools: 10 | result keys: resultType,ttlMs,cacheScope,tools
+tools/call       resultType = complete | isError = false | {"jsonrpc":"2.0","id":3,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n  \"own_matrix\": {},\n  \"tactic_filter\": null\n}"}],"isError":false}}
+stderr first line: opentide mcp launcher: running opentidehq.opentide-0.1.2
+
+state: extensions.json 
+## D. every version removed (uninstalled)
+server/discover  resultType = undefined | keys: code,message
+tools/list       resultType = undefined | tools: 0 | result keys: 
+tools/call       resultType = undefined | isError = undefined | {"timeout":"tools/call"}
+stderr first line: opentide mcp launcher: the opentide extension is not installed; remove the opentide entry from /root/.kiro/settings/mcp.json or reinstall (looked in /tmp/qa/ext-kiro-r3)

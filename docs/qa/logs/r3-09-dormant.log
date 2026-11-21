@@ -1,0 +1,11 @@
+2026-11-21 11:06:34.000 [info] agents: host Visual Studio Code (vscode): MCP through an MCP server definition provider
+2026-11-21 11:06:34.000 [info] agents: the opentide skills are contributed by the extension: no opentidehq/skills plugin is installed
+2026-11-21 11:06:34.000 [info] activation: no opentide content in this window: the runtime starts when some appears
+2026-11-21 11:06:34.000 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 11:06:34.000 [info] features: 12/12 activated
+2026-11-21 11:06:56.703 [info] restart: an opentide file was opened
+2026-11-21 11:06:56.704 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 11:06:56.800 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+1719846)
+2026-11-21 11:06:56.800 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 11:06:57.080 [info] language server: host opentide 1.0.0-rc.3-dev+1719846, engine 1.0.0-rc.3-dev+1719846, catalog models
+2026-11-21 11:06:57.172 [info] opentide 1.0.0-rc.3-dev+1719846: 58 commands

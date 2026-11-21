@@ -1,0 +1,8 @@
+{"timestamp":"2026-11-21T10:59:13.107Z","level":"info","message":"[MCPConfigManager] Identity provider setting changed","kind":"absent"}
+{"timestamp":"2026-11-21T10:59:13.357Z","level":"warn","message":"mcp.connect.error","serverName":"dummy-other"}
+{"timestamp":"2026-11-21T10:59:13.358Z","level":"error","message":"Failed to connect","instanceId":"mcp-inst-1","serverName":"dummy-other","error":"Connection closed"}
+{"timestamp":"2026-11-21T10:59:13.365Z","level":"info","message":"mcp.closeConnection.ok","serverName":"dummy-other"}
+{"timestamp":"2026-11-21T10:59:13.610Z","level":"info","message":"Connected with transport","transportType":"stdio","era":"modern","protocolVersion":"2026-07-28","versionNegotiation":"auto","eraSource":"probe","eraProbeBudgetMs":30000,"connectDurationMs":405,"serverName":"opentide"}
+{"timestamp":"2026-11-21T10:59:13.610Z","level":"info","message":"mcp.connect.ok","serverName":"opentide"}
+{"timestamp":"2026-11-21T10:59:13.895Z","level":"info","message":"mcp.listTools.ok","serverName":"opentide"}
+{"timestamp":"2026-11-21T10:59:13.906Z","level":"info","message":"Connected","instanceId":"mcp-inst-2","serverName":"opentide"}

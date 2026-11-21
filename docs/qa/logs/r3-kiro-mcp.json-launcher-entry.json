@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "dummy-other": {
+      "command": "echo",
+      "args": [
+        "hello"
+      ],
+      "env": {
+        "KEEP": "me"
+      }
+    },
+    "opentide": {
+      "command": "/tmp/qa/kiro/Kiro/kiro",
+      "args": [
+        "/tmp/qa/ud-kiro/User/globalStorage/opentidehq.opentide/mcp-launcher.cjs"
+      ],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1",
+        "OPENTIDE_EXTENSIONS_DIR": "/tmp/qa/ext-kiro-r3",
+        "OPENTIDE_MCP_ENTRY_FILE": "/root/.kiro/settings/mcp.json",
+        "OPENTIDE_VSCODE_EXTENSION": "opentidehq.opentide"
+      }
+    }
+  },
+  "powers": {
+    "seed": true
+  }
+}

@@ -1,0 +1,15 @@
+2026-11-21 11:03:38.070 [info] agents: host Visual Studio Code (vscode): MCP through an MCP server definition provider
+2026-11-21 11:03:38.070 [info] agents: the opentide skills are left to the opentidehq/skills plugin: the opentidehq/skills plugin is installed and on (/tmp/qa/skills-plugin)
+2026-11-21 11:03:38.070 [info] restart: activation
+2026-11-21 11:03:38.070 [info] features: 12/12 activated
+2026-11-21 11:03:38.070 [warning] runtime: no installed opentide answered; using the bundled WASI module instead (set opentide.runtime to bundled to stop looking for an installed one)
+2026-11-21 11:03:38.070 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is "installed"]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 11:03:38.101 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+1719846)
+2026-11-21 11:03:38.101 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 11:03:38.518 [info] opentide 1.0.0-rc.3-dev+1719846: 58 commands
+2026-11-21 11:03:38.534 [info] language server: host opentide 1.0.0-rc.3-dev+1719846, engine 1.0.0-rc.3-dev+1719846, catalog models
+2026-11-21 11:03:38.535 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 11:03:38.545 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 11:03:38.993 [info] opentide serve 1.0.0-rc.3-dev+1719846 started (pid 9566)
+2026-11-21 11:03:39.801 [info] ✓ opentide --json validate  exit 0 in 1266 ms via serve
+2026-11-21 11:03:39.874 [info] ✓ opentide --json info catalog  exit 0 in 1329 ms via serve
