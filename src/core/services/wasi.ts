@@ -1,8 +1,17 @@
-// The WASI module in the extension host (SPEC §4, tier 4): `opentide serve` and `opentide lsp start` run
-// under @vscode/wasm-wasi (the ms-vscode.wasm-wasi-core extension, which also runs on vscode.dev), with the
+// The WASI module in the extension host (SPEC §4, tier 4): `opentide serve` and `opentide lsp start` with the
 // workspace mounted as the module's file system and tenant requests answered by @opentide/wasi-host's
-// FetchHost. The one module, compiled once per window, starts each process. The mapping of paths, the wire
-// and the environment are vscode-free modules (src/core/wasi/); this file is the glue to VS Code.
+// FetchHost. Two hosts run the one module, with the same paths mapping, wire and environment (the vscode-free
+// modules in src/core/wasi/):
+//
+//   - @vscode/wasm-wasi, when the ms-vscode.wasm-wasi-core extension is installed: the module is compiled once
+//     per window and each process runs in the extension host (it also runs on vscode.dev);
+//   - otherwise VS Code's own Node running the launcher (dist/wasi/launcher.cjs, `node:wasi`) as a child
+//     process of the window, one per protocol, with the folders the host names mounted
+//     (`OPENTIDE_WASI_MOUNTS`). Nothing to install: this is the zero-setup path.
+//
+// ms-vscode.wasm-wasi-core is no manifest dependency: it declares no support for untrusted workspaces, so VS
+// Code disables it in Restricted Mode, and an extension that depended on it would not activate there.
+import * as cp from "node:child_process";
 import type { RootFileSystem, Wasm, WasmProcess } from "@vscode/wasm-wasi/v1";
 import { Wasm as WasmApi } from "@vscode/wasm-wasi/v1";
 import * as vscode from "vscode";
@@ -13,12 +22,13 @@ import {
   ReadableStreamMessageReader,
   WriteableStreamMessageWriter,
 } from "vscode-jsonrpc";
+import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import type { MessageTransports } from "vscode-languageclient/node";
-import type { ServeProcess } from "../backend/process";
+import { fromChildProcess, type ServeProcess } from "../backend/process";
 import type { Logger } from "../context";
-import type { Runtime } from "../runtime/types";
+import { cliCommand, type Runtime } from "../runtime/types";
 import { GUEST_HOME, wasiEnv } from "../wasi/env";
-import { GuestPaths, guestPathOf, type Mount } from "../wasi/paths";
+import { GuestPaths, guestPathOf, launcherMounts, type Mount } from "../wasi/paths";
 import { wasiServeWire } from "../wasi/wire";
 
 /** The extension that hosts WASI modules in VS Code. */
@@ -26,15 +36,9 @@ export const WASM_WASI_CORE = "ms-vscode.wasm-wasi-core";
 
 /**
  * `initialize`'s params for the server: ask for `opentide/fetch`, so tenant requests reach the extension
- * host. `@opentide/wasi-host`'s `FETCH_CAPABILITY`, which test/scripts/wasi-host.test.mjs holds it to.
+ * host. `@opentide/wasi-host`'s `FETCH_CAPABILITY`, which test/unit/wasi/fetch-host.test.ts holds it to.
  */
 export const WASI_INITIALIZE_PARAMS: object = { capabilities: { fetch: true } };
-
-/** A WASI process started under @vscode/wasm-wasi, with the guest paths of the folders it was given. */
-interface StartedProcess {
-  readonly process: WasmProcess;
-  readonly paths: GuestPaths;
-}
 
 /** The language server's transports, and how to end its process. */
 export interface WasiLanguageServer {
@@ -44,13 +48,36 @@ export interface WasiLanguageServer {
 }
 
 /**
- * The window's WASI host: loads @vscode/wasm-wasi once, compiles the module once, and starts a process per
- * protocol. Nothing here runs until the first process is asked for.
+ * The language client's transports over a reader and a writer on the module's pipes, with the folders' URIs
+ * (and `rootPath`) mapped to guest paths going out and back coming in.
+ */
+function mapped(inner: MessageReader, writable: MessageWriter, paths: GuestPaths): MessageTransports {
+  const reader: MessageReader = {
+    onError: inner.onError,
+    onClose: inner.onClose,
+    onPartialMessage: inner.onPartialMessage,
+    listen: (callback) => inner.listen((message) => callback(paths.lspToHost(message))),
+    dispose: () => inner.dispose(),
+  };
+  const writer: MessageWriter = {
+    onError: writable.onError,
+    onClose: writable.onClose,
+    write: (message) => writable.write(paths.lspToGuest(message)),
+    end: () => writable.end(),
+    dispose: () => writable.dispose(),
+  };
+  return { reader, writer };
+}
+
+/**
+ * The window's WASI host: starts a process per protocol on whichever host is there. Nothing here runs until
+ * the first process is asked for.
  */
 export class WasiHost implements vscode.Disposable {
-  private api: Promise<Wasm> | undefined;
+  private api: Promise<Wasm | undefined> | undefined;
   private compiled: Promise<WebAssembly.Module> | undefined;
   private readonly live = new Set<WasmProcess>();
+  private readonly children = new Set<cp.ChildProcess>();
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -61,54 +88,35 @@ export class WasiHost implements vscode.Disposable {
   ) {}
 
   /**
-   * The WASM WASI Core extension's API, or why there is none. The manifest does not depend on it: VS Code
-   * disables an extension that does not support untrusted workspaces (it declares no such capability) in
-   * Restricted Mode, and an extension that depends on it would not activate there. So it is looked for
-   * here, and offered once when it is missing.
+   * The WASM WASI Core extension's API when it is installed and loads, else undefined, and the launcher
+   * runs the module. Decided once per window (a restart after installing the extension asks again).
    */
-  private load(): Promise<Wasm> {
-    this.api ??= this.loadApi().catch((error: unknown) => {
-      this.api = undefined;
-      throw error;
-    });
+  private wasmWasi(): Promise<Wasm | undefined> {
+    this.api ??= (async () => {
+      if (!vscode.extensions.getExtension(WASM_WASI_CORE)) {
+        this.log.info(
+          `WASI: ${WASM_WASI_CORE} is not installed: the module runs through VS Code's Node (the launcher), one process per protocol`,
+        );
+        return undefined;
+      }
+      try {
+        const wasm = await WasmApi.load();
+        this.log.info(`WASI: running under @vscode/wasm-wasi (${WASM_WASI_CORE} ${wasm.versions.extension})`);
+        return wasm;
+      } catch (error) {
+        this.log.warn(
+          `WASI: ${WASM_WASI_CORE} did not load (${error instanceof Error ? error.message : String(error)}): the module runs through VS Code's Node (the launcher)`,
+        );
+        return undefined;
+      }
+    })();
     return this.api;
   }
 
-  private async loadApi(): Promise<Wasm> {
-    if (!vscode.extensions.getExtension(WASM_WASI_CORE)) {
-      this.offerCore();
-      throw new Error(`the WASM WASI Core extension (${WASM_WASI_CORE}) is not installed`);
-    }
-    try {
-      return await WasmApi.load();
-    } catch (error) {
-      throw new Error(
-        `the WASM WASI Core extension (${WASM_WASI_CORE}) did not load: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+  /** Forget which host runs the module: the next process asks again (the runtime restarted). */
+  reset(): void {
+    this.api = undefined;
   }
-
-  private offered = false;
-
-  /** Say once per window what runs the module and offer to install it; the runtime restarts once it is. */
-  private offerCore(): void {
-    if (this.offered) return;
-    this.offered = true;
-    void vscode.window
-      .showWarningMessage(
-        "opentide runs its bundled WebAssembly module with the WASM WASI Core extension, which is not installed. Without it only the editor features of the opentide engine run, and commands run without a warm server.",
-        "Install",
-      )
-      .then(async (choice) => {
-        if (choice !== "Install") return;
-        await vscode.commands.executeCommand("workbench.extensions.installExtension", WASM_WASI_CORE);
-        this.api = undefined;
-        this.onInstalled?.();
-      });
-  }
-
-  /** Called after the user installed the core extension: re-resolve and restart. */
-  onInstalled: (() => void) | undefined;
 
   /** The module, compiled on first use and kept for every process of the window. */
   private module(wasm: Wasm, runtime: Runtime): Promise<WebAssembly.Module> {
@@ -125,6 +133,10 @@ export class WasiHost implements vscode.Disposable {
       },
     );
     return this.compiled;
+  }
+
+  private folders(): vscode.WorkspaceFolder[] {
+    return (vscode.workspace.workspaceFolders ?? []).filter((folder) => folder.uri.scheme === "file");
   }
 
   /** The window's folders and the extension's global storage, as one root file system, and their guest paths. */
@@ -149,10 +161,13 @@ export class WasiHost implements vscode.Disposable {
     return { root, paths: new GuestPaths(mounts), pwd: mounts[0]?.guest ?? "/workspace" };
   }
 
-  private async start(args: readonly string[]): Promise<StartedProcess> {
+  /** A WASI process under @vscode/wasm-wasi, with the guest paths of the folders it was given. */
+  private async startWasm(
+    wasm: Wasm,
+    args: readonly string[],
+  ): Promise<{ process: WasmProcess; paths: GuestPaths }> {
     const runtime = this.runtime();
     if (!runtime?.wasi) throw new Error("no WASI runtime");
-    const wasm = await this.load();
     const module = await this.module(wasm, runtime);
     const { root, paths, pwd } = await this.mount(wasm);
     const process = await wasm.createProcess("opentide", module, {
@@ -165,20 +180,78 @@ export class WasiHost implements vscode.Disposable {
     return { process, paths };
   }
 
+  /** The launcher as a child process of the window, with every folder mounted (`OPENTIDE_WASI_MOUNTS`). */
+  private startChild(args: readonly string[]): { child: cp.ChildProcess; paths: GuestPaths } {
+    const runtime = this.runtime();
+    if (!runtime?.wasi) throw new Error("no WASI runtime");
+    const folders = this.folders();
+    const mounts = launcherMounts(
+      folders.map((folder) => ({
+        name: folder.name,
+        fsPath: folder.uri.fsPath,
+        uri: folder.uri.toString(),
+      })),
+      process.platform,
+      (guest) => vscode.Uri.file(guest).toString(),
+    );
+    const { command, args: launch } = cliCommand(runtime, args);
+    const env: Record<string, string> = {
+      ...wasiEnv(this.baseEnv(), { pwd: mounts[0]?.guest ?? "/workspace" }),
+      ...runtime.env,
+      OPENTIDE_WASI_MOUNTS: JSON.stringify(mounts.map(({ host, guest }) => ({ host, guest }))),
+    };
+    // Node on Windows needs these to start.
+    for (const name of ["SYSTEMROOT", "SystemRoot", "TEMP", "TMP", "TMPDIR"]) {
+      const value = this.baseEnv()[name];
+      if (value) env[name] = value;
+    }
+    const child = cp.spawn(command, launch, {
+      cwd: folders[0]?.uri.fsPath ?? this.context.globalStorageUri.fsPath,
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+      shell: false,
+    });
+    this.children.add(child);
+    child.once("close", () => this.children.delete(child));
+    return { child, paths: new GuestPaths(mounts) };
+  }
+
   /** `opentide serve`: the process `ServeClient` drives, with paths mapped and `opentide/fetch` answered. */
   async startServe(): Promise<ServeProcess> {
     // The package is ESM only: loaded when the first server starts, not at activation.
     const { FetchHost } = await import("@opentide/wasi-host");
-    const started = await this.start(["serve"]);
+    const wasm = await this.wasmWasi();
+    if (!wasm) {
+      const { child, paths } = this.startChild(["serve"]);
+      return wasiServeWire(fromChildProcess(child), paths, (send) => new FetchHost(send));
+    }
+    const started = await this.startWasm(wasm, ["serve"]);
     const raw = this.rawProcess(started.process, "serve");
     return wasiServeWire(raw, started.paths, (send) => new FetchHost(send));
   }
 
   /** `opentide lsp start`: the language client's transports, with URIs and paths mapped. */
   async startLanguageServer(onStderr: (text: string) => void): Promise<WasiLanguageServer> {
-    const started = await this.start(["lsp", "start"]);
-    const proc = started.process;
-    const { paths } = started;
+    const wasm = await this.wasmWasi();
+    if (!wasm) {
+      const { child, paths } = this.startChild(["lsp", "start"]);
+      child.stderr?.setEncoding("utf8");
+      child.stderr?.on("data", (text: string) => onStderr(text));
+      child.stdin?.on("error", () => undefined);
+      if (!child.stdout || !child.stdin) throw new Error("the launcher has no stdio");
+      return {
+        transports: mapped(
+          new StreamMessageReader(child.stdout),
+          new StreamMessageWriter(child.stdin),
+          paths,
+        ),
+        terminate: () => {
+          child.kill();
+        },
+      };
+    }
+    const { process: proc, paths } = await this.startWasm(wasm, ["lsp", "start"]);
 
     const dataEmitter = new Emitter<Uint8Array>();
     const closeEmitter = new Emitter<void>();
@@ -215,22 +288,8 @@ export class WasiHost implements vscode.Disposable {
       },
       end: () => undefined,
     });
-    const reader: MessageReader = {
-      onError: inner.onError,
-      onClose: inner.onClose,
-      onPartialMessage: inner.onPartialMessage,
-      listen: (callback) => inner.listen((message) => callback(paths.lspToHost(message))),
-      dispose: () => inner.dispose(),
-    };
-    const writer: MessageWriter = {
-      onError: writable.onError,
-      onClose: writable.onClose,
-      write: (message) => writable.write(paths.lspToGuest(message)),
-      end: () => writable.end(),
-      dispose: () => writable.dispose(),
-    };
     return {
-      transports: { reader, writer },
+      transports: mapped(inner, writable, paths),
       terminate: () => {
         this.live.delete(proc);
         void proc.terminate().catch(() => undefined);
@@ -279,6 +338,8 @@ export class WasiHost implements vscode.Disposable {
   dispose(): void {
     for (const proc of this.live) void proc.terminate().catch(() => undefined);
     this.live.clear();
+    for (const child of this.children) child.kill();
+    this.children.clear();
   }
 }
 

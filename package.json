@@ -2311,6 +2311,7 @@
     "test:restricted": "npm run build && npm run compile-tests && node scripts/test-restricted.mjs",
     "test:engine": "npm run build && npm run compile-tests && vscode-test --label engine",
     "test:wasi": "npm run build && npm run compile-tests && vscode-test --label wasi",
+    "test:wasi-launcher": "npm run build && npm run compile-tests && vscode-test --label wasi-launcher",
     "test:web": "npm run build && node scripts/test-web.mjs",
     "vscode:prepublish": "npm run build:production",
     "package": "node scripts/package.mjs",

@@ -163,11 +163,18 @@ own; the extension bundles no Python (SPEC D1).
   `runtime.env`) running `dist/wasi/launcher.cjs <module> <argv>` under `node:wasi`. A feature that starts
   opentide yourself, as below, needs no change. A tenant command run this way has no network.
 
-The WASM WASI Core extension (`ms-vscode.wasm-wasi-core`) is no manifest dependency: it declares no support
-for untrusted workspaces, so VS Code disables it in Restricted Mode and an extension that depended on it
-would not activate there. `WasiHost` looks for it, offers once to install it, and restarts the runtime when
-the user has. One that is missing or does not load fails the language server's start, which falls back to the engine (tier 5) for the editor
-features, and `serve`'s, which falls back to the launcher. For an interpreter, `opentideForInterpreter`
+**Two hosts run the module, with the same path mapping, wire and environment.** With the WASM WASI Core
+extension (`ms-vscode.wasm-wasi-core`) installed, `@vscode/wasm-wasi` runs `serve` and `lsp start` in the
+extension host (compiled once per window, also on vscode.dev). Without it, `WasiHost` starts the launcher as
+a child process of the window for each (VS Code's Node, `OPENTIDE_WASI_MODULE` mounts: `OPENTIDE_WASI_MOUNTS`
+names every folder of the window and its guest path, the folder itself on POSIX), speaks the same stdio to it
+and answers `opentide/fetch` the same way: nothing to install. The core extension is no manifest dependency: it
+declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode and an extension that
+depended on it would not activate there. "Restart Server" asks which host is there again. A host that
+cannot start the language server falls back to the engine (tier 5) for the editor features, and one that
+cannot start `serve` to a process of the launcher per command.
+
+For an interpreter, `opentideForInterpreter`
 (`src/core/runtime/resolve.ts`) gives its `opentide` script, then `python -m opentide`: a script that
 fails to run (blocked by an application-control policy, a stale shebang) is retried as the module, one
 that answers is not. `python` on `PATH` (`pythonsOnPath`: `python3`, `python`; on Windows `python`,
@@ -404,7 +411,7 @@ through the host.
 | `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
 | `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
 | `npm run test:engine` | @vscode/test-cli label `engine`: no opentide anywhere and `opentide.wasi.enabled` off, the engine (WASM) tier |
-| `npm run test:wasi` | @vscode/test-cli label `wasi`: no opentide anywhere, the WASI module under `@vscode/wasm-wasi` (`ms-vscode.wasm-wasi-core` is installed into the test VS Code by the label) |
+| `npm run test:wasi` / `npm run test:wasi-launcher` | @vscode/test-cli labels `wasi` and `wasi-launcher`: no opentide anywhere, the WASI module under `@vscode/wasm-wasi` (the label installs `ms-vscode.wasm-wasi-core` into the test VS Code), and the same tests without it, through the launcher |
 | `npm run wasi [-- --module <file>]` | download and check the pinned WASI module (`pins.json` `wasi`), or a local one |
 | `npm run package` | dist-vsix/opentide-universal-<version>.vsix (+ `.size.json`), size gate, no `runtime/` |
 | `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the WASI module answers `serve` through its launcher, the web entry is there, no `runtime/` |

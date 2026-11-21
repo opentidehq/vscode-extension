@@ -207,6 +207,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
     status.update({ runtime: runtime.current, resolving: true, pin: runtime.pin, trusted: trust.isTrusted });
     await client.stop();
     await backend.restart();
+    // Which host runs the module is asked again: the WASM WASI Core extension may have been installed.
+    wasiHost.reset();
     const rt = await runtime.resolve();
     void capabilities.load(rt);
     status.update({ runtime: rt, resolving: false, pin: runtime.pin, trusted: trust.isTrusted });
@@ -235,8 +237,6 @@ export function createCore(context: vscode.ExtensionContext): Core {
     doRestart(reason).catch((error: unknown) => log.error(`restart failed: ${String(error)}`)),
   );
   runtime.restartHandler = restart;
-  // The user installed the WASM WASI Core extension the module runs under: start it again.
-  wasiHost.onInstalled = () => void restart("the WASM WASI Core extension was installed");
 
   let lastPrimary = folders.all[0]?.path;
 

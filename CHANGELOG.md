@@ -24,8 +24,6 @@ pre-releases odd ones.
 ### Changed
 
 - **The package grows from 4 to 13 MiB** for the bundled opentide, one file for every platform.
-- **The bundled opentide runs with the WASM WASI Core extension.** The first time it is needed, the
-  extension offers to install `ms-vscode.wasm-wasi-core`. Until then the engine gives the editor features.
 - **The opentide engine is runtime tier 5, after the bundled opentide.** Restricted Mode still runs the
   engine only: no opentide runs in an untrusted folder, the bundled one included.
 - **The engine and the grammars are opentide 1.0.0-rc.2's.** The engine now reads a folder's

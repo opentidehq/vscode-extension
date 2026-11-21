@@ -22,9 +22,10 @@ downloaded once into `.cache/` and checked again on every build), and writes it 
 `launcher.cjs` (`src/core/wasi/launcher.cjs`: MCP, tasks and terminals run the module through it, under
 VS Code's Node), `wasi.json` (version and checksums, which the resolver reads) and the project's `LICENSE`
 and `NOTICE`. `npm run wasi` downloads and verifies the module without building. The module needs the
-`ms-vscode.wasm-wasi-core` extension, which the extension offers to install when it is missing. It is no
-`extensionDependencies` entry: the core extension declares no support for untrusted workspaces, so VS Code
-disables it in Restricted Mode, and an extension that depended on it would not activate there.
+`ms-vscode.wasm-wasi-core` extension when it is installed (`@vscode/wasm-wasi`), and otherwise runs through
+the launcher as child processes: nothing to install. It is no `extensionDependencies` entry: the core
+extension declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode, and an
+extension that depended on it would not activate there.
 
 `dist/engine/` is the engine (WASM), the runtime of tier 5:
 `npm run build` unpacks the `opentide-wasm-web` zip that `pins.json` `engine` pins (URL and SHA-256, the
@@ -89,7 +90,7 @@ It exits non-zero on any failure.
 | Size: 20 MiB per VSIX | `npm run package`: fails, printing the size and the five largest directories |
 | No runtime in the package | `npm run package` and `npm run smoke` |
 | The engine, the WASI module and the web entry run | `npm run smoke`, in CI's `package` job and publish.yml's `universal` job |
-| The WASI module runs under `@vscode/wasm-wasi` in VS Code | `npm run test:wasi` (`test/wasi/`), in CI's integration job and in the test build |
+| The WASI module runs in VS Code, under `@vscode/wasm-wasi` and through the launcher | `npm run test:wasi` and `npm run test:wasi-launcher` (`test/wasi/`), in CI's integration job and in the test build |
 | The extension runs a real opentide | CI's `real-opentide` job (unit tests) and the integration job (`OPENTIDE_TEST_BIN`), against `pins.json` `opentide.version` |
 | No opentide anywhere: the WASI module | `npm run test:wasi`, with every folder holding `opentide` off `PATH` and opentide installed only in a venv off `PATH` |
 | No opentide anywhere and the module off: the engine | `npm run test:engine`, as above with `opentide.wasi.enabled` off |
@@ -189,7 +190,7 @@ gh run download <run id> --repo opentidehq/vscode-extension --name opentide-vsix
 code --install-extension opentide-universal-<version>-wasi-<sha>.vsix
 ```
 
-The extension offers to install `ms-vscode.wasm-wasi-core` (WASM WASI Core) the first time it needs it: accept (Cursor and VSCodium take it from Open VSX). Uninstall
+Nothing else to install: with no `ms-vscode.wasm-wasi-core` (WASM WASI Core) the module runs through VS Code's Node, which the output channel says (`WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node`); install that extension and **opentide: Restart Server** to try the other host. Uninstall
 with `code --uninstall-extension opentidehq.opentide`. Try it **on a machine with no opentide installed**
 (or set `opentide.path` to a path that is nothing, and keep `opentide` off `PATH`):
 

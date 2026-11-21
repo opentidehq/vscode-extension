@@ -49,10 +49,10 @@ pip install opentide
 ```
 
 `uv tool install opentide`, or a `.venv` with opentide in it, works too. With no opentide installed, the
-extension runs the opentide it carries (about 7 MiB, one for every platform), which needs the
-[WASM WASI Core](https://marketplace.visualstudio.com/items?itemName=ms-vscode.wasm-wasi-core) extension:
-the extension offers to install it the first time the module is needed (it is no dependency of its own,
-because VS Code turns it off in Restricted Mode). The module has no network of its own: the extension makes its tenant
+extension runs the opentide it carries (about 7 MiB, one for every platform), with nothing else to install:
+VS Code's own Node runs it, or the
+[WASM WASI Core](https://marketplace.visualstudio.com/items?itemName=ms-vscode.wasm-wasi-core) extension
+when you have it. The module has no network of its own: the extension makes its tenant
 requests (query, deploy, `validate --live`), through VS Code's proxy settings and certificate store.
 
 ## Features

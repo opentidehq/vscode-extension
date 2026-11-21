@@ -180,6 +180,15 @@ jobs:
           else
             npm run test:wasi -- --code-version "${CODE_VERSION}"
           fi
+      # The same without the WASM WASI Core extension: the module runs through the launcher.
+      - name: WASI module tests through the launcher, with no opentide
+        run: |
+          set -euo pipefail
+          if [[ "${RUNNER_OS}" == "Linux" ]]; then
+            xvfb-run -a npm run test:wasi-launcher -- --code-version "${CODE_VERSION}"
+          else
+            npm run test:wasi-launcher -- --code-version "${CODE_VERSION}"
+          fi
       # The same, with the module off: the engine (WASM) tier gives diagnostics, hover, completion and the
       # Catalogue.
       - name: Engine (WASM) tests, with no opentide

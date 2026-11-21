@@ -39,8 +39,41 @@ function guestOf(folder, fallback, platform = process.platform) {
   return platform === "win32" ? fallback : folder;
 }
 
-/** Preopens and path variables for a run in `cwd`. Exported for the tests. */
+/** The variable that names the folders to mount, as the extension host chooses their guest paths. */
+const MOUNTS = "OPENTIDE_WASI_MOUNTS";
+
+/** `OPENTIDE_WASI_MOUNTS`: a JSON list of `{host, guest}`, or undefined when it is unset or not one. */
+function mountsOf(env) {
+  try {
+    const list = JSON.parse(env[MOUNTS] ?? "null");
+    if (!Array.isArray(list) || list.length === 0) return undefined;
+    const mounts = list.filter(
+      (entry) =>
+        entry &&
+        typeof entry.host === "string" &&
+        typeof entry.guest === "string" &&
+        entry.guest.startsWith("/"),
+    );
+    return mounts.length > 0 ? mounts : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Preopens and path variables for a run in `cwd`. Exported for the tests. With `OPENTIDE_WASI_MOUNTS` the
+ * extension host chooses the mounts (every folder of its window; `serve` and the language server run this
+ * way, and map paths as they do under @vscode/wasm-wasi); without it, the working directory and
+ * `OPENTIDE_REPO_ROOT` are mounted as below.
+ */
 function layout(cwd, env, platform = process.platform) {
+  const chosen = mountsOf(env);
+  if (chosen) {
+    const preopens = {};
+    for (const { host, guest } of chosen) preopens[guest] = host;
+    if (platform !== "win32") preopens["/tmp"] = os.tmpdir();
+    return { preopens, env: { PWD: chosen[0].guest } };
+  }
   const preopens = {};
   const guest = guestOf(cwd, "/workspace", platform);
   preopens[guest] = cwd;
@@ -61,7 +94,7 @@ function layout(cwd, env, platform = process.platform) {
 function moduleEnv(env) {
   const out = {};
   for (const [name, value] of Object.entries(env)) {
-    if (value !== undefined && name !== "ELECTRON_RUN_AS_NODE") out[name] = value;
+    if (value !== undefined && name !== "ELECTRON_RUN_AS_NODE" && name !== MOUNTS) out[name] = value;
   }
   return out;
 }
@@ -73,7 +106,7 @@ async function main(argv) {
     return 2;
   }
   const base = moduleEnv(process.env);
-  const placed = layout(process.cwd(), base);
+  const placed = layout(process.cwd(), process.env);
   const wasi = new WASI({
     version: "preview1",
     args: ["opentide", ...args],
@@ -86,7 +119,7 @@ async function main(argv) {
   return wasi.start(instance);
 }
 
-module.exports = { layout, moduleEnv };
+module.exports = { layout, moduleEnv, MOUNTS };
 
 if (require.main === module) {
   main(process.argv.slice(2)).then(

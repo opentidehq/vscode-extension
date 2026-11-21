@@ -1,5 +1,11 @@
 import * as assert from "node:assert/strict";
-import { GuestPaths, guestPathOf, type Mount, rewriteStrings } from "../../../src/core/wasi/paths";
+import {
+  GuestPaths,
+  guestPathOf,
+  launcherMounts,
+  type Mount,
+  rewriteStrings,
+} from "../../../src/core/wasi/paths";
 
 const POSIX: Mount = {
   host: "/home/me/detections",
@@ -140,5 +146,34 @@ describe("WASI guest paths (src/core/wasi/paths.ts)", () => {
     assert.deepEqual(paths.documentToHost({ "/workspace": "/workspace/a" }), {
       "/workspace": "/home/me/detections/a",
     });
+  });
+
+  it("mounts the launcher's folders where they are on POSIX, and /workspace or /workspaces/<name> on Windows", () => {
+    const folders = [
+      { name: "one", fsPath: "/a/one", uri: "file:///a/one" },
+      { name: "two", fsPath: "/b/two", uri: "file:///b/two" },
+    ];
+    const uri = (path: string) => `file://${path}`;
+    assert.deepEqual(
+      launcherMounts(folders, "linux", uri).map(({ host, guest, guestUri }) => [host, guest, guestUri]),
+      [
+        ["/a/one", "/a/one", "file:///a/one"],
+        ["/b/two", "/b/two", "file:///b/two"],
+      ],
+    );
+    const win = [{ name: "one", fsPath: "c:\\w\\one", uri: "file:///c%3A/w/one" }];
+    assert.equal(launcherMounts(win, "win32", uri)[0]?.guest, "/workspace");
+    assert.deepEqual(
+      launcherMounts(
+        [...win, { name: "two", fsPath: "c:\\w\\two", uri: "file:///c%3A/w/two" }],
+        "win32",
+        uri,
+      ).map((mount) => mount.guest),
+      ["/workspaces/one", "/workspaces/two"],
+    );
+    // On POSIX the module's paths are the host's: mapping changes nothing.
+    const paths = new GuestPaths(launcherMounts(folders, "linux", uri), "linux");
+    assert.equal(paths.toGuest("/a/one/objects/x.yaml"), "/a/one/objects/x.yaml");
+    assert.equal(paths.toHost("/b/two/y.yaml"), "/b/two/y.yaml");
   });
 });

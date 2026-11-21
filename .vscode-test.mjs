@@ -6,8 +6,8 @@ import { delimiter, join } from "node:path";
 import { defineConfig } from "@vscode/test-cli";
 
 const workspaceFolder = "./test/fixtures/workspace";
-// The host of the WASI module, which the extension asks for when it is missing (it is no manifest dependency:
-// Restricted Mode disables it). Only the `wasi` label runs the module, so only it installs it.
+// The WASM WASI Core extension, the host of the WASI module in the extension host when it is installed (it is no
+// manifest dependency: Restricted Mode disables it). The `wasi` label installs it; `wasi-launcher` does not.
 const installExtensions = ["ms-vscode.wasm-wasi-core"];
 // The tests use mocha's describe/it (as npm test does); test-cli's runner defaults to the tdd UI.
 const mocha = { ui: "bdd" };
@@ -44,6 +44,17 @@ export default defineConfig([
     workspaceFolder,
     launchArgs: ["--disable-workspace-trust"],
     installExtensions,
+    mocha: { ...mocha, timeout: 120000 },
+    env: pathWithoutOpentide(),
+  },
+  {
+    // The same without ms-vscode.wasm-wasi-core installed: `serve` and the language server run as child
+    // processes of VS Code's Node, through the launcher (test/wasi/).
+    label: "wasi-launcher",
+    files: "out/test/wasi/**/*.test.js",
+    workspaceFolder,
+    // Its own extensions folder: the `wasi` label's holds the core extension.
+    launchArgs: ["--disable-workspace-trust", "--extensions-dir", ".vscode-test/extensions-launcher"],
     mocha: { ...mocha, timeout: 120000 },
     env: pathWithoutOpentide(),
   },

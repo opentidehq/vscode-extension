@@ -48,10 +48,31 @@ describe("the WASI launcher", () => {
     }
   });
 
-  it("does not hand the module the variable that makes Electron a Node", () => {
-    assert.deepEqual(moduleEnv({ ELECTRON_RUN_AS_NODE: "1", OPENTIDE_PROXY: "p", GONE: undefined }), {
-      OPENTIDE_PROXY: "p",
-    });
+  it("mounts what the extension host names (OPENTIDE_WASI_MOUNTS), every folder of the window", () => {
+    const mounts = JSON.stringify([
+      { host: "/a/one", guest: "/workspaces/one" },
+      { host: "/b/two", guest: "/workspaces/two" },
+    ]);
+    const posix = layout("/ignored", { OPENTIDE_WASI_MOUNTS: mounts, OPENTIDE_REPO_ROOT: "/x" }, "linux");
+    assert.equal(posix.preopens["/workspaces/one"], "/a/one");
+    assert.equal(posix.preopens["/workspaces/two"], "/b/two");
+    assert.equal(posix.env.PWD, "/workspaces/one");
+    assert.equal(posix.preopens["/ignored"], undefined);
+    // Not a list of mounts: the working directory is mounted as without it.
+    for (const bad of ["not json", "[]", '[{"host":1}]', '[{"host":"/a","guest":"a"}]'])
+      assert.equal(layout(dir, { OPENTIDE_WASI_MOUNTS: bad }, "linux").preopens[dir], dir, bad);
+  });
+
+  it("does not hand the module the variables that are the launcher's", () => {
+    assert.deepEqual(
+      moduleEnv({
+        ELECTRON_RUN_AS_NODE: "1",
+        OPENTIDE_WASI_MOUNTS: "[]",
+        OPENTIDE_PROXY: "p",
+        GONE: undefined,
+      }),
+      { OPENTIDE_PROXY: "p" },
+    );
   });
 
   it("says how to use it, and fails clearly for a module that is none", () => {

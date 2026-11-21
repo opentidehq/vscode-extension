@@ -108,7 +108,8 @@ jobs:
           test -f node_modules/@opentide/wasi-host/dist/index.js
       - run: npm run manifest:check
       - run: npm run typecheck
-      - run: npm run lint
+      # No `npm run lint` here: Biome would check opentide's checkout, which sits inside this workspace.
+      # CI's check job lints the extension.
       - name: Unit and script tests, with the module
         run: npm test
       - name: Package
@@ -157,8 +158,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       # The WASI module under @vscode/wasm-wasi in a real VS Code, on this build: the runtime, the language
       # server, `serve` with the module's documents in host paths (the label installs ms-vscode.wasm-wasi-core).
-      - name: WASI tests in VS Code
+      - name: WASI tests in VS Code, under @vscode/wasm-wasi
         run: xvfb-run -a npm run test:wasi
+      - name: WASI tests in VS Code, through the launcher (nothing else installed)
+        run: xvfb-run -a npm run test:wasi-launcher
       - name: The extension's logs from the WASI tests
         if: failure()
         run: |

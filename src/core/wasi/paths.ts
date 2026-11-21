@@ -69,6 +69,21 @@ export function guestPathOf(name: string, only: boolean): string {
   return only ? "/workspace" : `/workspaces/${name}`;
 }
 
+/**
+ * The folders of the window as mounts for the launcher: where a folder is on the host is where the module
+ * sees it on POSIX; on Windows, where a drive path is no WASI path, `/workspace` or `/workspaces/<name>`.
+ */
+export function launcherMounts(
+  folders: readonly { readonly name: string; readonly fsPath: string; readonly uri: string }[],
+  platform: NodeJS.Platform,
+  toUri: (path: string) => string,
+): Mount[] {
+  return folders.map((folder) => {
+    const guest = platform === "win32" ? guestPathOf(folder.name, folders.length === 1) : folder.fsPath;
+    return { host: folder.fsPath, hostUri: folder.uri, guest, guestUri: toUri(guest) };
+  });
+}
+
 const toSlashes = (text: string): string => text.replaceAll("\\", "/");
 const toBackslashes = (text: string): string => text.replaceAll("/", "\\");
 
