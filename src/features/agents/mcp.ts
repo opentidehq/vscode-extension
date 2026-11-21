@@ -1,7 +1,8 @@
 // The opentide MCP server VS Code's agents get from the extension (SPEC §12): when to provide it, and the
 // stdio definition. vscode-free; index.ts makes the vscode.McpStdioServerDefinition.
+import * as path from "node:path";
 import type { Runtime } from "../../core/runtime/types";
-import { cliCommand, hasCli } from "../../core/runtime/types";
+import { cliCommand, hasCli, isWasi } from "../../core/runtime/types";
 import { parseJsonc } from "./jsonc";
 
 /**
@@ -288,6 +289,35 @@ export interface WorkspaceEntry {
   readonly order: number;
 }
 
+/**
+ * The bundled MCP bridge (dist/mcp-wasi.js, SPEC §12): the editor's own Node running the script that runs the
+ * WASI module's `mcp start` and makes its tenant requests. Undefined where the build carries no module or
+ * bridge, or `opentide.wasi.enabled` is off.
+ */
+export interface McpBridge {
+  /** `process.execPath`, run with `ELECTRON_RUN_AS_NODE=1`. */
+  readonly command: string;
+  /** `[<extension>/dist/mcp-wasi.js]`. */
+  readonly args: readonly string[];
+  readonly env: Readonly<Record<string, string>>;
+  /** The module's version: a new one makes the editor read the server's tools again. */
+  readonly version: string;
+}
+
+/** The bridge for an extension folder: its script and module must be there. */
+export function mcpBridge(
+  extensionPath: string,
+  execPath: string,
+  wasi: { readonly version: string } | undefined,
+  exists: (file: string) => boolean,
+  enabled: boolean,
+): McpBridge | undefined {
+  if (!wasi || !enabled) return undefined;
+  const script = path.join(extensionPath, "dist", "mcp-wasi.js");
+  if (!exists(script)) return undefined;
+  return { command: execPath, args: [script], env: { ELECTRON_RUN_AS_NODE: "1" }, version: wasi.version };
+}
+
 export interface McpInputs {
   readonly trusted: boolean;
   readonly mode: ProvideMode;
@@ -306,16 +336,26 @@ export interface McpInputs {
   readonly workspaceEntries: readonly WorkspaceEntry[];
   /** VS Code's `http.proxy`. */
   readonly proxy?: string;
+  /** The bundled bridge, when this build and settings have one. */
+  readonly bridge?: McpBridge | undefined;
+  /** `opentide.mcp.useBundled`: the bridge even where a native opentide resolves. */
+  readonly useBundled?: boolean;
 }
 
 /** Whether to provide the server, how it starts and its label. Nothing in Restricted Mode (SPEC §12, §13). */
 export function decideMcp(inputs: McpInputs): McpDecision {
   if (!inputs.trusted) return { provide: false, reason: "Restricted Mode" };
   if (inputs.mode === "never") return { provide: false, reason: "opentide.mcp.provide is never" };
-  if (!hasCli(inputs.runtime)) return { provide: false, reason: "no opentide runtime with commands" };
-  if (inputs.hasMcpStart === undefined)
-    return { provide: false, reason: "the command tree is loading", pending: true };
-  if (!inputs.hasMcpStart) return { provide: false, reason: "the active opentide has no `mcp start`" };
+  // A user's own opentide comes first (SPEC §4): the bridge runs where none resolves (the bundled module is
+  // the runtime, or nothing is), or when `opentide.mcp.useBundled` asks for it.
+  const native = hasCli(inputs.runtime) && !isWasi(inputs.runtime);
+  const bridge = inputs.bridge && (inputs.useBundled || !native) ? inputs.bridge : undefined;
+  if (!bridge) {
+    if (!hasCli(inputs.runtime)) return { provide: false, reason: "no opentide runtime with commands" };
+    if (inputs.hasMcpStart === undefined)
+      return { provide: false, reason: "the command tree is loading", pending: true };
+    if (!inputs.hasMcpStart) return { provide: false, reason: "the active opentide has no `mcp start`" };
+  }
   if (!inputs.folder) return { provide: false, reason: "no workspace folder" };
   // The entries VS Code may keep of every `opentide` (MCP_LABEL): deferring to one that cannot start
   // would leave the agents a server that fails with ENOENT, and sharing its label would get ours disabled.
@@ -327,20 +367,27 @@ export function decideMcp(inputs: McpInputs): McpDecision {
     return { provide: false, reason: `${kept.file} already defines opentide` };
   const separate = broken !== undefined;
   const runtime = inputs.runtime;
-  const { command, args } = cliCommand(runtime, ["mcp", "start"]);
+  const started = bridge
+    ? { command: bridge.command, args: [...bridge.args], env: bridge.env, version: bridge.version }
+    : runtime && {
+        ...cliCommand(runtime, ["mcp", "start"]),
+        env: runtime.env,
+        version: runtime.version,
+      };
+  if (!started) return { provide: false, reason: "no opentide runtime with commands" };
   return {
     provide: true,
     server: {
       label: separate ? MCP_SEPARATE_LABEL : MCP_LABEL,
-      command,
-      args,
+      command: started.command,
+      args: started.args,
       cwd: inputs.folder,
       env: {
-        ...runtime.env,
+        ...started.env,
         OPENTIDE_REPO_ROOT: inputs.folder,
         ...(inputs.proxy ? { OPENTIDE_PROXY: inputs.proxy } : {}),
       },
-      version: runtime.version,
+      version: started.version,
     },
     ...(broken
       ? {

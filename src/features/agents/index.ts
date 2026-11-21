@@ -9,7 +9,8 @@ import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { which } from "../../core/runtime/process";
 import { cliCommand, hasCli } from "../../core/runtime/types";
-import { httpProxy, readRestricted } from "../../core/services/settings";
+import { readWasi } from "../../core/services/runtime";
+import { httpProxy, readRestricted, readSetting } from "../../core/services/settings";
 import { forkTarget, mergeMcpEntry } from "./forks";
 import {
   decideMcp,
@@ -18,6 +19,7 @@ import {
   MCP_FILES,
   MCP_PROVIDER_ID,
   McpDecisionLog,
+  mcpBridge,
   opentideEntryCommand,
   opentideServerCommand,
   provideMode,
@@ -145,6 +147,17 @@ async function workspaceEntries(): Promise<WorkspaceEntry[]> {
   return entries;
 }
 
+/** The bundled MCP bridge of this build, when `opentide.wasi.enabled` leaves the module on. */
+function bundledBridge(ctx: FeatureContext) {
+  return mcpBridge(
+    ctx.extension.extensionPath,
+    process.execPath,
+    readWasi(ctx.extension.extensionPath),
+    fs.existsSync,
+    readSetting<boolean>("opentide.wasi.enabled") !== false,
+  );
+}
+
 function registerMcpProvider(ctx: FeatureContext): void {
   const register = lm.registerMcpServerDefinitionProvider;
   const Definition = newer.McpStdioServerDefinition;
@@ -170,6 +183,8 @@ function registerMcpProvider(ctx: FeatureContext): void {
         folder: ctx.folders.all[0]?.path ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
         workspaceEntries: mode === "never" ? [] : await workspaceEntries(),
         proxy: httpProxy(),
+        bridge: bundledBridge(ctx),
+        useBundled: readSetting<boolean>("opentide.mcp.useBundled") === true,
       });
       const line = log.line(decision);
       if (line) ctx.log.info(line);
@@ -202,6 +217,8 @@ function registerMcpProvider(ctx: FeatureContext): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (
         event.affectsConfiguration("opentide.mcp.provide") ||
+        event.affectsConfiguration("opentide.mcp.useBundled") ||
+        event.affectsConfiguration("opentide.wasi.enabled") ||
         event.affectsConfiguration("mcp") ||
         event.affectsConfiguration("chat.mcp.discovery.enabled")
       )

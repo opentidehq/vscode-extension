@@ -74,6 +74,12 @@
             "Never provide it."
           ],
           "markdownDescription": "Whether the extension gives VS Code's agents the opentide MCP server (`opentide mcp start` with the resolved runtime). Off in Restricted Mode, where this setting is not read."
+        },
+        "opentide.mcp.useBundled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "markdownDescription": "Run the MCP server with the opentide module the extension carries even where an opentide is installed. With no opentide installed the bundled module is used anyway. Tenant tools (deploy, live validate, query) work through the extension; see the bundled MCP server in the README."
         }
       }
     }
