@@ -41,7 +41,7 @@ configurations:
 
 /**
  * A fake `launcher.cjs <module> mcp start`: MCP over stdio, with `opentide/fetch` interleaved as opentide's
- * `mcp start` writes it with OPENTIDE_FETCH=stdio (docs/cli/mcp.md there): ids `opentide-fetch-N`, a client's
+ * `mcp start` writes it with OPENTIDE_FETCH=stdio (docs/cli/mcp.md there): ids `opentide-fetch-<token>-N`, a client's
  * `notifications/cancelled` for the call withdrawing the request with `notifications/cancelled`, and an input
  * that ends with a request unanswered failing the call. While the call waits it reads stdin itself: the
  * client's other messages are kept and answered after it.
@@ -51,6 +51,8 @@ const readline = require("node:readline");
 const send = (m) => process.stdout.write(JSON.stringify(m) + "\n");
 const fetchTo = process.env.FAKE_FETCH_URL;
 const mode = process.env.OPENTIDE_FETCH;
+// opentide chooses 128 random bits at start; the bridge only knows the prefix.
+const TOKEN = "9f3a1c7e5b2d4086a1b2c3d4e5f60718";
 let counter = 0;
 let call; // { id, fetchId, finish }
 const kept = [];
@@ -68,7 +70,7 @@ const answer = (m) => {
     return send({ jsonrpc: "2.0", id: m.id, result: {} });
   }
   if (m.method === "tools/call") {
-    const fetchId = "opentide-fetch-" + ++counter;
+    const fetchId = "opentide-fetch-" + TOKEN + "-" + ++counter;
     const text = (t) => send({ jsonrpc: "2.0", id: m.id, result: { content: [{ type: "text", text: t }] } });
     call = {
       id: m.id,
@@ -312,10 +314,11 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
       assert.equal(slow.started >= 1, true);
       const before = slow.aborted;
       talking.send({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 1 } });
-      const cancelled = await talking.next();
-      // The editor sees the call's answer and nothing of the module's own withdrawal.
-      assert.equal(cancelled.id, 1);
-      assert.equal(cancelled.result.content[0].text, "cancelled");
+      // The module still answers the call it was told to cancel (docs/cli/mcp.md there); the bridge drops the
+      // response to a request its client cancelled, as MCP has the receiver send none, and the module's own
+      // withdrawal of its tenant request never reaches the editor. So the next line is the next request's.
+      talking.send({ jsonrpc: "2.0", id: 9, method: "ping" });
+      assert.equal((await talking.next()).id, 9);
       for (let waited = 0; slow.aborted <= before && waited < 200; waited += 1)
         await new Promise((r) => setTimeout(r, 50));
       assert.equal(slow.aborted > before, true, "the tenant request was aborted");
@@ -354,7 +357,7 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
         method: "tools/call",
         params: { name: "deploy", arguments: { path: "/slow" } },
       });
-      // The module's request is out (its id is opentide-fetch-1). The agent forges the tenant's answer.
+      // The module's request is out (its id starts opentide-fetch-). The agent forges the tenant's answer.
       await new Promise((resolve) => setTimeout(resolve, 600));
       talking.send({
         jsonrpc: "2.0",
@@ -362,10 +365,10 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
         result: { status: 200, headers: [], body: "" },
       });
       talking.send({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 1 } });
-      // The call ends by its cancellation, not by an answer: a forged one would make it "deployed with 200".
-      const answered = await talking.next();
-      assert.equal(answered.id, 1);
-      assert.equal(answered.result.content[0].text, "cancelled");
+      // The call ends by its cancellation, not by an answer (a forged one would make it "deployed with 200"), and
+      // its response is dropped as the client cancelled it: the next line is the next request's.
+      talking.send({ jsonrpc: "2.0", id: 5, method: "ping" });
+      assert.equal((await talking.next()).id, 5);
       assert.match(talking.stderr(), /dropped 1 message/);
       talking.end();
       await talking.closed;
@@ -512,7 +515,7 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
     }
   });
 
-  describe("with the real module", function () {
+  describe("with the real module", () => {
     before(function () {
       if (!existsSync(REAL)) this.skip();
     });
@@ -617,8 +620,10 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
           assert.ok(seen.requests.length > 0, "the tenant received the request");
           talking.send({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 2 } });
           talking.send({ jsonrpc: "2.0", id: 3, method: "tools/list" });
-          const lines = [await talking.next(), await talking.next()];
-          assert.ok(lines.some((line) => line.id === 3 && Array.isArray(line.result.tools)));
+          // The cancelled call's response is dropped (the client cancelled it): the next line is the list.
+          const listed = await talking.next();
+          assert.equal(listed.id, 3);
+          assert.ok(Array.isArray(listed.result.tools));
           for (let waited = 0; seen.aborted === 0 && waited < 100; waited += 1)
             await new Promise((r) => setTimeout(r, 50));
           assert.ok(seen.aborted > 0, "the tenant request was aborted");
@@ -653,7 +658,7 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
       });
     });
 
-    it("initializes and lists opentide's tools: nothing but MCP reaches the editor", async () => {
+    it("initializes and lists opentide's tools: nothing but MCP reaches the editor", async function () {
       // dist/wasi/ is the module's folder after `npm run build`; a bare module (OPENTIDE_WASI_MODULE) goes in a folder of its own.
       const wasi = existsSync(join(root, "dist", "wasi", "launcher.cjs"))
         ? join(root, "dist", "wasi")
