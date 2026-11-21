@@ -10,5 +10,8 @@
 *.zip binary
 *.gz binary
 
+# Verbatim from opentidehq/skills (npm run skills:check compares its bytes; its LICENSE is CRLF).
+skills/** -text
+
 # Verbatim from the language-server highlights zip (npm run grammars:check compares its bytes).
 syntaxes/LICENSE.language-server -text
