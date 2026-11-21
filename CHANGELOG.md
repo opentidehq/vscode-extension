@@ -73,6 +73,10 @@ pre-releases odd ones.
   with it, and that runtime is skipped. It no longer fails without a word.
 - **A reply from `opentide serve` that does not have the expected shape is reported as a protocol error**
   instead of being read as if it were well formed.
+- **A damaged Kiro, Devin Desktop or Windsurf MCP file is left alone and the problem is named.** A file that
+  is not JSON, has an `mcpServers` that is not an object, or holds comments is no longer offered an
+  opentide entry, and **opentide: Remove from the Editor's MCP Settings** says what is wrong with it instead
+  of saying it has no entry.
 
 ## [0.1.2] - 2026-11-10
 

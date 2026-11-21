@@ -5,6 +5,7 @@ import { which } from "../../../src/core/runtime/process";
 import { cursorMcp, cursorRegistration } from "../../../src/features/agents/cursor";
 import {
   chooseMcpMechanism,
+  configProblem,
   forkTarget,
   hasOurEntry,
   MARKER_ENV,
@@ -552,7 +553,7 @@ describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, 
   it("never touches an opentide server the user wrote, a file it cannot read, or one with comments", () => {
     const own = '{"mcpServers": {"opentide": {"command": "/opt/opentide", "args": ["mcp", "start"]}}}';
     assert.deepEqual(mergeMcpEntry(own, entry), { kind: "foreign" });
-    assert.equal(removeMcpEntry(own), undefined);
+    assert.deepEqual(removeMcpEntry(own), { kind: "none" });
     assert.equal(hasOurEntry(own), false);
     assert.deepEqual(mergeMcpEntry("[1]", entry), { kind: "error", error: "is not a JSON object" });
     assert.deepEqual(mergeMcpEntry("{ nope", entry), { kind: "error", error: "is not valid JSON" });
@@ -569,14 +570,77 @@ describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, 
     const written = mergeMcpEntry('{"theme": 1, "mcpServers": {"other": {"command": "x"}}}', entry);
     assert.equal(written.kind, "write");
     if (written.kind !== "write") return;
-    assert.deepEqual(JSON.parse(removeMcpEntry(written.text) ?? ""), {
-      theme: 1,
-      mcpServers: { other: { command: "x" } },
-    });
+    const removed = removeMcpEntry(written.text);
+    assert.equal(removed.kind, "write");
+    if (removed.kind !== "write") return;
+    assert.deepEqual(JSON.parse(removed.text), { theme: 1, mcpServers: { other: { command: "x" } } });
     const only = mergeMcpEntry('{"theme": 1}', entry);
     assert.equal(only.kind, "write");
     if (only.kind !== "write") return;
-    assert.deepEqual(JSON.parse(removeMcpEntry(only.text) ?? ""), { theme: 1 });
+    const removedOnly = removeMcpEntry(only.text);
+    assert.equal(removedOnly.kind, "write");
+    if (removedOnly.kind !== "write") return;
+    assert.deepEqual(JSON.parse(removedOnly.text), { theme: 1 });
+  });
+
+  describe("malformed files give a clear error and are never rewritten or crashed on", () => {
+    const malformed: [string, string, RegExp][] = [
+      ["a JSON string", '"hello"', /not a JSON object/],
+      ["a JSON number", "42", /not a JSON object/],
+      ["null", "null", /not a JSON object/],
+      ["an array", "[]", /not a JSON object/],
+      ["truncated JSON", '{"mcpServers": {"opentide": ', /not valid JSON/],
+      ["binary noise", "\u0000\u0001\u0002", /not valid JSON/],
+      ["a null mcpServers", '{"mcpServers": null}', /`mcpServers` that is not an object/],
+      ["a string mcpServers", '{"mcpServers": "x"}', /`mcpServers` that is not an object/],
+      ["a numeric mcpServers", '{"mcpServers": 3}', /`mcpServers` that is not an object/],
+      ["comments", '{\n  // mine\n  "mcpServers": {}\n}', /comments/],
+    ];
+    for (const [name, text, pattern] of malformed) {
+      it(`${name}`, () => {
+        const merged = mergeMcpEntry(text, entry);
+        assert.equal(merged.kind, "error");
+        assert.match(merged.kind === "error" ? merged.error : "", pattern);
+        const removed = removeMcpEntry(text);
+        assert.equal(removed.kind, "error");
+        assert.match(removed.kind === "error" ? removed.error : "", pattern);
+        assert.match(configProblem(text) ?? "", pattern);
+        assert.equal(hasOurEntry(text), false);
+      });
+    }
+
+    it("treats an entry that is not an object as the user's own, without throwing", () => {
+      for (const value of [
+        "null",
+        "7",
+        '"x"',
+        "[]",
+        "true",
+        '{"env": null}',
+        '{"env": "x"}',
+        '{"env": []}',
+      ]) {
+        const text = `{"mcpServers": {"opentide": ${value}}}`;
+        assert.deepEqual(mergeMcpEntry(text, entry), { kind: "foreign" }, value);
+        assert.deepEqual(removeMcpEntry(text), { kind: "none" }, value);
+        assert.equal(hasOurEntry(text), false, value);
+        assert.equal(configProblem(text), undefined, value);
+      }
+    });
+
+    it("rewrites its own entry even when the entry's other fields are malformed", () => {
+      const ours = `{"mcpServers": {"opentide": {"command": 5, "args": "x", "env": {"${MARKER_ENV}": "${MARKER_VALUE}"}}}}`;
+      const merged = mergeMcpEntry(ours, entry);
+      assert.equal(merged.kind, "write");
+      if (merged.kind !== "write") return;
+      assert.equal(JSON.parse(merged.text).mcpServers.opentide.command, entry.command);
+      assert.equal(removeMcpEntry(ours).kind, "write");
+    });
+
+    it("has no problem with an empty or missing file", () => {
+      assert.equal(configProblem(undefined), undefined);
+      assert.equal(configProblem(" \n"), undefined);
+    });
   });
 });
 

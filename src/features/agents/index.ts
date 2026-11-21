@@ -13,6 +13,7 @@ import { httpProxy, readRestricted, readSetting } from "../../core/services/sett
 import { cursorMcp, cursorRegistration } from "./cursor";
 import {
   chooseMcpMechanism,
+  configProblem,
   type ForkTarget,
   forkTarget,
   hasOurEntry,
@@ -320,6 +321,7 @@ const DECLINED_KEY = "opentide.agents.writeEditorConfig.declined";
 function maintainForkEntry(ctx: FeatureContext, target: ForkTarget): void {
   const log = new McpDecisionLog();
   let asked = false;
+  let lastProblem: string | undefined;
   let running = Promise.resolve();
   const apply = () => {
     running = running.then(async () => {
@@ -328,6 +330,14 @@ function maintainForkEntry(ctx: FeatureContext, target: ForkTarget): void {
       const decision = await decideNow(ctx, log);
       if (!decision.provide) return;
       const existing = await readFileOrUndefined(target.file);
+      // A file the extension cannot read is not offered an entry: say so once, in the log, and leave it.
+      const problem = configProblem(existing);
+      if (problem !== undefined) {
+        if (problem !== lastProblem) ctx.log.warn(`agents: ${target.file} ${problem}: left unchanged`);
+        lastProblem = problem;
+        return;
+      }
+      lastProblem = undefined;
       const ours = hasOurEntry(existing);
       if (!ours) {
         if (mode !== "always") {
@@ -441,12 +451,25 @@ async function removeFromForkMcp(ctx: FeatureContext): Promise<void> {
   if (!target) return;
   const shown = target.file.replace(os.homedir(), "~");
   const existing = await readFileOrUndefined(target.file);
-  const next = removeMcpEntry(existing);
-  if (next === undefined) {
+  const removal = removeMcpEntry(existing);
+  if (removal.kind === "error") {
+    ctx.log.warn(`agents: ${shown} ${removal.error}: left unchanged`);
+    void vscode.window.showErrorMessage(
+      `${shown} ${removal.error}; left unchanged. Remove opentide from it by hand.`,
+    );
+    return;
+  }
+  if (removal.kind === "none") {
     void vscode.window.showInformationMessage(`${shown} has no opentide entry the extension wrote.`);
     return;
   }
-  await fs.promises.writeFile(target.file, next, "utf8");
+  try {
+    await fs.promises.writeFile(target.file, removal.text, "utf8");
+  } catch (error) {
+    ctx.log.warn(`agents: could not write ${target.file}: ${String(error)}`);
+    void vscode.window.showErrorMessage(`Could not write ${shown}: ${String(error)}`);
+    return;
+  }
   // So the extension does not write it again unasked.
   await ctx.extension.globalState.update(DECLINED_KEY, true);
   ctx.log.info(`agents: removed the extension's opentide entry from ${target.file}`);
