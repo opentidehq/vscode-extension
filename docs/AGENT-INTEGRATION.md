@@ -104,9 +104,20 @@ for Devin Desktop and Windsurf.
 | **Devin Desktop** (formerly Windsurf, renamed 2026-06-02) | as Kiro, by host: `~/.config/devin/mcp_config.json` (`%APPDATA%\devin\mcp_config.json` on Windows), plus the provider if the host has the API | the writer and the choice by host, as for Kiro | the file path; detection by `vscode.env.appName` ("Devin") or `uriScheme`; whether it has the provider API and whether its agent reads it | as Kiro |
 | **Windsurf** (older builds) | the same, by host, `~/.codeium/windsurf/mcp_config.json` | the writer and the choice by host | the file path; whether it has the provider API | as Kiro |
 
-Kiro's steering: the opentidehq/skills Agent Plugin can be installed as a **Kiro Power**; it is not built here.
-`chatSkills` for the opentide workflow skills wait for the licence review in #6 (SPEC §17, open question 5):
-TODO there.
+## Skills and instructions
+
+The extension contributes the opentide skills (`contributes.chatSkills`, from [opentidehq/skills](https://github.com/opentidehq/skills), pinned in `pins.json` `skills`) and always-on instructions (`contributes.chatInstructions`) to VS Code's agents. Sources: VS Code's [contribution points reference](https://code.visualstudio.com/api/references/contribution-points) (`chatSkills`, `chatInstructions`, `chatPromptFiles`: each takes `path`, relative to the extension root and inside it, and an optional `when`; a skill's folder name must match its `name`), [agent skills](https://code.visualstudio.com/docs/copilot/customization/agent-skills), [custom instructions](https://code.visualstudio.com/docs/copilot/customization/custom-instructions), [prompt files](https://code.visualstudio.com/docs/copilot/customization/prompt-files) and [agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins).
+
+| Editor | What it gets | Verified | Not known |
+|--------|--------------|----------|-----------|
+| **VS Code** (Copilot) | Both contribution points. The skills are left out (`when: !opentide.skillsFromPlugin`) when the `opentide` Agent Plugin of opentidehq/skills is installed and on, so they do not load twice; `opentide.agents.embeddedSkills` overrides | the manifest, the files in the package (smoke), the gate's logic (`test/unit/knowledge/`); activation with the points present on 1.91.0 (the floor) and 1.147; the package size | that VS Code lists the skills: **no public API lists them**, so this is not tested in VS Code; whether `when` is re-evaluated when the context key changes; the minimum VS Code version for these points and the behaviour in Restricted Mode (**the docs say nothing**); how VS Code identifies an installed plugin (the heuristic reads `~/.copilot/installed-plugins/`, `chat.pluginLocations` and `chat.plugins.*`) |
+| **Cursor** | Neither: it reads no `chatSkills`. The skills come from the plugin: `/add-plugin opentidehq/skills` | n/a | whether Cursor ever reads the contribution points |
+| **Kiro** | Neither. The skills come as a **Kiro Power**: Powers → Add Custom Power → Import from GitHub → `https://github.com/opentidehq/skills` (the repository's `POWER.md` and `steering/`) | n/a | |
+| **Devin Desktop, Windsurf** | Not known to read them | n/a | whether they do |
+
+**No prompt files.** VS Code's docs say prompt files run only in Local harness sessions, which are to be removed in February 2027, and recommend converting them to skills. The `opentide-rule` skill covers a new detection rule.
+
+**Manual check** (VS Code with GitHub Copilot signed in, the part this repository cannot test): in a workspace with opentide content, open the Chat view's **Configure Chat** → **Skills**: the opentide skills are listed (34), the extension's output says `agents: the opentide skills are contributed by the extension: …`. Turn on `chat.plugins.enabled`, install the plugin (**Chat: Install Plugin from Source** → `opentidehq/skills`), reload: the output says they are left to the plugin and the Skills page lists each once.
 
 ## Not done, and why
 

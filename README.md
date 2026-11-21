@@ -324,7 +324,7 @@ The editor never deploys: copy the deploy command or a ready-made CI step instea
   named `opentide (VS Code)` and stays enabled. No server in Restricted Mode.
 - In Cursor and Windsurf, run **opentide: Add opentide to This Editor's MCP Settings**.
 - Tools `#opentideDiagnostics` (a file's problems) and `#opentideActiveObject` (the open object and what
-  it connects to). Skills: install the opentidehq/skills Agent Plugin; the extension does not embed it.
+  it connects to). The opentide skills and a few lines of always-on guidance are contributed to VS Code's agents (`chatSkills`, `chatInstructions`), left out when the opentidehq/skills Agent Plugin supplies them (`opentide.agents.embeddedSkills`). Cursor and Kiro do not read these: install the plugin (Cursor) or the Power (Kiro).
 
 ### Status
 
@@ -417,6 +417,7 @@ workspace's opentide need a trusted folder.
 | `opentide.uv.usePin` | `false` | Run the repository's pinned opentide with `uv tool run`, before the workspace's environment |
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
 | `opentide.wasi.enabled` | `true` | Allow the bundled opentide; off: your own opentide if one answers, else the engine's editor features only |
+| `opentide.agents.embeddedSkills` | `auto` | Whether the extension contributes the opentide skills to VS Code's agents: `auto` leaves them out when the `opentide` Agent Plugin is installed and on, `always`, or `never` (machine setting) |
 | `opentide.agents.writeEditorConfig` | `ask` | In Kiro, Devin Desktop and Windsurf (no extension API for MCP servers): `ask` before adding the opentide entry to the editor's user-level MCP file, `always`, or `never` (machine setting) |
 | `opentide.envFile` | | A `.env` file whose variables reach commands that contact a tenant |
 | `opentide.backend.serve` | `auto` | `auto` (one warm `opentide serve`) or `never` (spawn each command) |

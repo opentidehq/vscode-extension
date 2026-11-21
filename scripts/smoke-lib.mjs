@@ -84,6 +84,24 @@ export function checkMcpBridge(lines, exitCode) {
   return errors;
 }
 
+/**
+ * The agent knowledge a package contributes (`contributes.chatSkills`, `chatInstructions`): every file the manifest names
+ * is in the package, and the skills are the ones the manifest counts. VS Code skips a skill whose file is missing silently.
+ */
+export function checkKnowledgePackage(pkg, exists) {
+  const errors = [];
+  const skills = pkg.contributes?.chatSkills ?? [];
+  const instructions = pkg.contributes?.chatInstructions ?? [];
+  if (skills.length === 0) errors.push("package.json contributes no chatSkills");
+  if (instructions.length === 0) errors.push("package.json contributes no chatInstructions");
+  for (const { path } of [...skills, ...instructions]) {
+    if (typeof path !== "string" || !exists(path.replace(/^\.\//, "")))
+      errors.push(`package.json contributes ${path}, which the package lacks`);
+  }
+  if (!exists("skills/LICENSE")) errors.push("the package has no skills/LICENSE");
+  return errors;
+}
+
 /** The WASI module's files in an unpacked package (`exists` takes a path relative to the extension folder). */
 export function checkWasiPackage(exists) {
   // The licence set ships with the module it belongs to (pins.json wasi.licences).

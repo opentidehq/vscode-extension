@@ -18,6 +18,7 @@ import {
 } from "../../scripts/package-lib.mjs";
 import {
   checkEngineInitialize,
+  checkKnowledgePackage,
   checkMcpBridge,
   checkWasiPackage,
   checkWasiServe,
@@ -266,6 +267,34 @@ describe("smoke: checks", () => {
         "the package has no dist/mcp-wasi.js",
         "the package has no dist/mcp-launcher.js",
       ],
+    );
+  });
+
+  it("the package carries the skills and instructions its manifest contributes", () => {
+    const pkg = {
+      contributes: {
+        chatSkills: [{ path: "./skills/a/SKILL.md" }],
+        chatInstructions: [{ path: "./instructions/opentide.instructions.md" }],
+      },
+    };
+    assert.deepEqual(
+      checkKnowledgePackage(pkg, () => true),
+      [],
+    );
+    assert.deepEqual(
+      checkKnowledgePackage(pkg, (file) => file === "skills/LICENSE"),
+      [
+        "package.json contributes ./skills/a/SKILL.md, which the package lacks",
+        "package.json contributes ./instructions/opentide.instructions.md, which the package lacks",
+      ],
+    );
+    assert.deepEqual(
+      checkKnowledgePackage({ contributes: {} }, () => true),
+      ["package.json contributes no chatSkills", "package.json contributes no chatInstructions"],
+    );
+    assert.deepEqual(
+      checkKnowledgePackage(pkg, (file) => file !== "skills/LICENSE"),
+      ["the package has no skills/LICENSE"],
     );
   });
 
