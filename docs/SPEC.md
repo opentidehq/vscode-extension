@@ -168,7 +168,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 - **Pre-releases** use odd minor versions with `--pre-release`. Stable uses even minor versions.
 - **Release cadence:** the package is small and carries no opentide, so releases follow the extension's own changes.
 - **Each VSIX carries** `dist/THIRD-PARTY-NOTICES.txt` for the npm packages it bundles, and a GitHub artifact attestation.
-- **Licences:** the extension is MIT. The engine and the grammars from language-server are EUPL-1.2; they ship as separate programs with their own licence files. opentide, which the user installs, is EUPL-1.2.
+- **Licences:** the extension is **EUPL-1.2** (relicensed from MIT on 2026-11-21 by the owner's decision, [§17](#17-open-questions) question 5), the licence of opentide, of the engine (WASM) and of the grammars from language-server it carries, so everything in the package is under one licence. Third-party code and data keep their own licences, named in `NOTICE` and `THIRD-PARTY-LICENSES` (the Even Better TOML grammar and the bundled npm packages, MIT and others, whose notices ship in `dist/THIRD-PARTY-NOTICES.txt`). The reasoning of earlier drafts, that the engine and the module are separate programs the extension does not link, is no longer the basis of anything: the question it answered is moot.
 - **Smoke test** the package: unpack the VSIX, check it carries no `runtime/`, start the engine's worker and check its `initialize` (`opentide-lsp` at `engine.json`'s version, no host), and check the web entry and its Web Worker are there.
 
 ### Store listing
@@ -876,7 +876,7 @@ These need a decision before the milestone named.
 2. **Real deploys from the editor (M4).** Never, with CI only (the recommendation for 1.0), or later behind a setting, for tenants marked non-production, one rule at a time, with a modal confirmation? The latter needs O7 and a confirmation contract in `opentide deploy`.
 3. **Publisher identity (M0).** Settled: `opentidehq` on both stores. Marketplace publisher verification for `opentide.org` becomes possible after six months.
 4. **The VS Code floor and forks (M0).** Check the VS Code version Cursor and Windsurf are based on today, and set `engines.vscode` so they install the extension. Everything newer is feature-detected.
-5. **Licence review (M0).** EUPL-1.2 opentide, engine and (optionally) skills inside an MIT VSIX, shipped as separate programs. This extends #6's review to the runtime.
+5. **Licence review (M0). Decided 2026-11-21 (owner): the extension is relicensed to EUPL-1.2**, so opentide, the engine, the module, the grammars and the skills sit in one EUPL-1.2 VSIX and no "separate programs" argument is needed. This closes #6's review and ADR 0007's and #75's request for it. Open follow-up: the owner confirms that every contributor to the MIT-era history agrees to the relicensing (the PR that makes it lists them).
 6. **Object form editor (later).** A custom editor that edits an object as a form beside its YAML. Not planned for 1.0: the YAML, the server's completion and the templates cover authoring, and a second editing surface would have to stay in sync with every schema revision.
 
 ### Non-goals for 1.0

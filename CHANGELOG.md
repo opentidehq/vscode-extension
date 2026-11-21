@@ -6,6 +6,12 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **The extension is licensed under the EUPL-1.2**, the licence of opentide and of the engine and grammars
+  it carries, instead of MIT, so the whole package is under one licence. Third-party material keeps its own
+  licence (`NOTICE`, `THIRD-PARTY-LICENSES`).
+
 ## [0.1.2] - 2026-11-10
 
 Uses the opentide you install instead of bundling one: one 4 MiB package for every platform.
