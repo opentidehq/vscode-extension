@@ -1,0 +1,6 @@
+2026-11-21T11:21:50.221Z window launched
+2026-11-21T11:22:20.017Z PHASE A: palette command "opentide: Validate Query on Tenants" (cursor at end of line 61)
+2026-11-21T11:22:26.233Z TOAST (palette): This rule has no platform query, or the language server did not answer yet: try again in a moment.
+2026-11-21T11:22:29.372Z PHASE B: CodeLens "Validate live on elastic-local-fake" (same file, same cursor)
+2026-11-21T11:22:30.222Z TOAST (lens): 1 query valid on 1 tenant || Source: opentide | Cancel | Validating on Elastic tenants || This rule has no platform query, or the language server did not answer yet: try again in a moment.
+2026-11-21T11:22:30.373Z done

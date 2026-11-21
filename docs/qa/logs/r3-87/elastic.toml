@@ -1,0 +1,47 @@
+[platform]
+enabled = true
+name = "Elastic Security"
+description = "Elastic Security detection rules via the Kibana detection engine API."
+
+#[[modifiers]]
+#name = "Modifier Demo"
+#description = "Example of using modifiers as a development lifecycle automation"
+#[modifiers.conditions]
+#status = ["STAGING"]
+#[modifiers.modifications]
+#severity = "low"
+
+#[[tenants]]
+#name = "elastic-staging"
+#description = "Serverless Security project, staging space"
+#strategies = ["PREVIEW"]
+#[tenants.setup]
+#ssl = true
+#url = "https://soc-staging.kb.eu-west-1.aws.elastic.cloud"
+#elasticsearch_url = "https://soc-staging.es.eu-west-1.aws.elastic.cloud"
+#space = "staging"
+#api_key = "$ELASTIC_STAGING_API_KEY"
+
+#[[tenants]]
+#name = "elastic-prod"
+#description = "Self-managed cluster on a Basic licence, default space"
+#strategies = ["RELEASE"]
+#[tenants.setup]
+#ssl = true
+#url = "https://kibana.soc.example.internal:5601"
+#elasticsearch_url = "https://es.soc.example.internal:9200"
+#api_key = "$ELASTIC_PROD_API_KEY"
+#index = ["logs-*", "winlogbeat-*"]
+#tags = ["soc-prod"]
+#suppression = false
+
+[[tenants]]
+name = "elastic-local-fake"
+description = "Local fake tenant for QA"
+strategies = ["PREVIEW"]
+[tenants.setup]
+ssl = false
+url = "http://127.0.0.1:5601"
+elasticsearch_url = "http://127.0.0.1:9200"
+api_key = "$ELASTIC_STAGING_API_KEY"
+index = ["logs-*"]

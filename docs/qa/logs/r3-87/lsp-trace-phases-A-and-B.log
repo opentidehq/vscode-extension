@@ -1,0 +1,526 @@
+# opentide Language Server Trace.log from line 6484 (11:22:19.9) to the end; phase A (palette) 11:22:20.017–11:22:26.2, phase B (CodeLens click) 11:22:29.372
+2026-11-21 11:22:21.065 [trace] Sending request 'workspace/diagnostic - (55)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "9fa8d16a-4651-4c56-ab60-9363f7d7603e"
+}
+2026-11-21 11:22:21.073 [trace] Received response 'workspace/diagnostic - (55)' in 8ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+2026-11-21 11:22:23.074 [trace] Sending request 'workspace/diagnostic - (56)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "25a6b618-3211-483d-99bd-eed666c6ac86"
+}
+2026-11-21 11:22:23.079 [trace] Received response 'workspace/diagnostic - (56)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+2026-11-21 11:22:24.825 [trace] Sending request 'textDocument/documentSymbol - (57)'.
+Params: [
+    {
+        "textDocument": {
+            "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+        }
+    },
+    null
+]
+2026-11-21 11:22:24.827 [trace] Received response 'textDocument/documentSymbol - (57)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
+2026-11-21 11:22:24.859 [trace] Sending request 'textDocument/documentHighlight - (58)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    },
+    "position": {
+        "line": 60,
+        "character": 64
+    }
+}
+2026-11-21 11:22:24.860 [trace] Received response 'textDocument/documentHighlight - (58)' in 2ms.
+Result: []
+2026-11-21 11:22:25.058 [trace] Sending request 'textDocument/codeLens - (59)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    }
+}
+2026-11-21 11:22:25.059 [trace] Sending request 'textDocument/documentSymbol - (60)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    }
+}
+2026-11-21 11:22:25.060 [trace] Received response 'textDocument/codeLens - (59)' in 2ms.
+Result: []
+2026-11-21 11:22:25.061 [trace] Received response 'textDocument/documentSymbol - (60)' in 2ms.
+Result: [
+    {
+        "children": [
+            {
+                "children": [],
+                "kind": 3,
+                "name": "name",
+                "range": {
+                    "end": {
+                        "character": 24,
+                        "line": 0
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 0
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 4,
+                        "line": 0
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 0
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "metadata",
+                "range": {
+                    "end": {
+                        "character": 14,
+                        "line": 14
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 2
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 8,
+                        "line": 2
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 2
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "description",
+                "range": {
+                    "end": {
+                        "character": 35,
+                        "line": 18
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 17
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 11,
+                        "line": 17
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 17
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "response",
+                "range": {
+                    "end": {
+                        "character": 31,
+                        "line": 32
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 31
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 8,
+                        "line": 31
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 31
+                    }
+                }
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "children": [],
+                                "detail": "kuery",
+                                "kind": 15,
+                                "name": "query",
+                                "range": {
+                                    "end": {
+                                        "character": 64,
+                                        "line": 60
+                                    },
+                                    "start": {
+                                        "character": 6,
+                                        "line": 60
+                                    }
+                                },
+                                "selectionRange": {
+                                    "end": {
+                                        "character": 64,
+                                        "line": 60
+                                    },
+                                    "start": {
+                                        "character": 6,
+                                        "line": 60
+                                    }
+                                }
+                            }
+                        ],
+                        "kind": 19,
+                        "name": "elastic",
+                        "range": {
+                            "end": {
+                                "character": 64,
+                                "line": 60
+                            },
+                            "start": {
+                                "character": 0,
+                                "line": 47
+                            }
+                        },
+                        "selectionRange": {
+                            "end": {
+                                "character": 9,
+                                "line": 47
+                            },
+                            "start": {
+                                "character": 2,
+                                "line": 47
+                            }
+                        }
+                    }
+                ],
+                "kind": 3,
+                "name": "configurations",
+                "range": {
+                    "end": {
+                        "character": 64,
+                        "line": 60
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 44
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 14,
+                        "line": 44
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 44
+                    }
+                }
+            }
+        ],
+        "detail": "14313ce1-c1a4-4a42-9a13-3e54f76d760c",
+        "kind": 5,
+        "name": "Encoded PowerShell",
+        "range": {
+            "end": {
+                "character": 64,
+                "line": 60
+            },
+            "start": {
+                "character": 0,
+                "line": 0
+            }
+        },
+        "selectionRange": {
+            "end": {
+                "character": 24,
+                "line": 0
+            },
+            "start": {
+                "character": 6,
+                "line": 0
+            }
+        }
+    }
+]
+2026-11-21 11:22:25.079 [trace] Sending request 'workspace/diagnostic - (61)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "216a326b-df5f-4e72-b0a4-9796085cc7c1"
+}
+2026-11-21 11:22:25.084 [trace] Received response 'workspace/diagnostic - (61)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+2026-11-21 11:22:25.227 [trace] Sending request 'textDocument/documentSymbol - (62)'.
+Params: [
+    {
+        "textDocument": {
+            "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+        }
+    },
+    null
+]
+2026-11-21 11:22:25.228 [trace] Received response 'textDocument/documentSymbol - (62)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
+2026-11-21 11:22:25.629 [trace] Sending request 'textDocument/documentSymbol - (63)'.
+Params: [
+    {
+        "textDocument": {
+            "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+        }
+    },
+    null
+]
+2026-11-21 11:22:25.630 [trace] Received response 'textDocument/documentSymbol - (63)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
+2026-11-21 11:22:27.084 [trace] Sending request 'workspace/diagnostic - (64)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "0363336f-f4c1-44b7-bce3-616ac2e63ee4"
+}
+2026-11-21 11:22:27.090 [trace] Received response 'workspace/diagnostic - (64)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+2026-11-21 11:22:29.091 [trace] Sending request 'workspace/diagnostic - (65)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "7abc2d94-ec6b-431b-b46d-b3cdf4909991"
+}
+2026-11-21 11:22:29.099 [trace] Received response 'workspace/diagnostic - (65)' in 8ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+2026-11-21 11:22:30.413 [trace] Sending request 'shutdown - (66)'.

@@ -1,0 +1,52 @@
+# documentSymbol requests, palette path (57, 62, 63: fail) and CodeLens provider (60: ok), params in full
+2026-11-21 11:22:24.825 [trace] Sending request 'textDocument/documentSymbol - (57)'.
+Params: [
+    {
+        "textDocument": {
+            "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+        }
+    },
+    null
+]
+2026-11-21 11:22:24.827 [trace] Received response 'textDocument/documentSymbol - (57)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
+2026-11-21 11:22:24.859 [trace] Sending request 'textDocument/documentHighlight - (58)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    },
+-----
+2026-11-21 11:22:25.059 [trace] Sending request 'textDocument/documentSymbol - (60)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    }
+}
+2026-11-21 11:22:25.060 [trace] Received response 'textDocument/codeLens - (59)' in 2ms.
+Result: []
+2026-11-21 11:22:25.061 [trace] Received response 'textDocument/documentSymbol - (60)' in 2ms.
+Result: [
+    {
+        "children": [
+            {
+                "children": [],
+                "kind": 3,
+-----
+2026-11-21 11:22:25.227 [trace] Sending request 'textDocument/documentSymbol - (62)'.
+Params: [
+    {
+        "textDocument": {
+            "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+        }
+    },
+    null
+]
+2026-11-21 11:22:25.228 [trace] Received response 'textDocument/documentSymbol - (62)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
+2026-11-21 11:22:25.629 [trace] Sending request 'textDocument/documentSymbol - (63)'.
+Params: [
+    {
+        "textDocument": {
+            "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+-----
+2026-11-21 11:22:24.827 [trace] Received response 'textDocument/documentSymbol - (57)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
+2026-11-21 11:22:25.228 [trace] Received response 'textDocument/documentSymbol - (62)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
+2026-11-21 11:22:25.630 [trace] Received response 'textDocument/documentSymbol - (63)' in 1ms. Request failed: invalid params for textDocument/documentSymbol: invalid type: sequence, expected struct DocumentSymbolParams (-32602).
