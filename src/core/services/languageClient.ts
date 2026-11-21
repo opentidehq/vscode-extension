@@ -36,6 +36,7 @@ import { languageServerCommand, type Runtime } from "../runtime/types";
 import { Emitter } from "../util/event";
 import { SerialQueue } from "../util/serial";
 import { startEngineWorker } from "./engine";
+import { RecentFileEvents } from "./fileEventDedupe";
 import { TraceChannel } from "./traceChannel";
 import type { WasiHost, WasiLanguageServer } from "./wasi";
 import { SERVER_WATCH_GLOBS } from "./watchGlobs";
@@ -130,9 +131,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   }
 
   /**
-   * What the server reads from disk: the object files and `.opentide/configurations` and `.opentide/schemas`. Not the rest of
-   * `.opentide/` (exports, inflight, states, lsp, templates, hooks), which the extension's own runs write by the thousand
-   * and the server never reads: watching them cost an event per file for nothing.
+   * What the server reads from disk: the object files, `.opentide/configurations` and the deployment state shards
+   * (watchGlobs.ts). Not the rest of `.opentide/`, which the extension's own runs write by the thousand.
    */
   private watcher(): vscode.FileSystemWatcher[] {
     if (!this.fileEvents) {
@@ -213,7 +213,13 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
    */
   private diagnosticsMiddleware(runtime: Runtime): LanguageClientOptions["middleware"] {
     let said = false;
+    const recent = new RecentFileEvents();
     return {
+      // The client's own watchers and any the server registers can cover the same file: one event reaches the server.
+      workspace: {
+        didChangeWatchedFile: (event, next) =>
+          recent.isDuplicate(event.uri, event.type) ? Promise.resolve() : next(event),
+      },
       provideWorkspaceDiagnostics: (resultIds, token, reporter, next) => {
         const setting = workspacePullSetting(
           vscode.workspace.getConfiguration("opentide.diagnostics").get<string>("workspacePull"),
