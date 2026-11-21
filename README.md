@@ -416,6 +416,7 @@ workspace's opentide need a trusted folder.
 | `opentide.interpreter` | | A Python interpreter with opentide installed, run as its `opentide` command or `python -m opentide`, in place of the environment lookup (machine-overridable, not synced) |
 | `opentide.uv.usePin` | `false` | Run the repository's pinned opentide with `uv tool run`, before the workspace's environment |
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
+| `opentide.diagnostics.workspacePull` | `auto` | Whether VS Code asks the language server for the problems of closed files. `auto` skips it for an opentide older than 1.0.0rc3, whose server stalls completion re-analysing them: those problems then leave the Problems panel (open files keep theirs, `opentide validate` still reports the workspace) |
 | `opentide.wasi.enabled` | `true` | Allow the bundled opentide; off: your own opentide if one answers, else the engine's editor features only |
 | `opentide.agents.embeddedSkills` | `auto` | Whether the extension contributes the opentide skills to VS Code's agents: `auto` leaves them out when the `opentide` Agent Plugin is installed and on, `always`, or `never` (machine setting) |
 | `opentide.agents.writeEditorConfig` | `ask` | In Kiro, Devin Desktop and Windsurf (no extension API for MCP servers): `ask` before adding the opentide entry to the editor's user-level MCP file, `always`, or `never` (machine setting) |

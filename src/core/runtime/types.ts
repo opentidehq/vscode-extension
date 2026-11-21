@@ -77,6 +77,8 @@ export interface ResolveResult {
   readonly mode?: "bundled" | "installed";
   /** Why that mode: the setting that chose it, or the default. */
   readonly reason?: string;
+  /** Things to warn about in the log even though a runtime was found. */
+  readonly warnings?: readonly string[];
   /** Set when the mode's own runtime was not available and another was used (shown once). */
   readonly notice?: string;
 }

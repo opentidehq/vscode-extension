@@ -4,6 +4,7 @@
 // Pulled diagnostics stay on and nothing handles `publishDiagnostics`, so each finding shows once; the
 // server's refresh requests (diagnostics, semantic tokens, inlay hints, code lenses) are honoured by
 // vscode-languageclient itself.
+import * as fs from "node:fs";
 import * as vscode from "vscode";
 import {
   type Executable,
@@ -15,6 +16,7 @@ import {
 } from "vscode-languageclient/node";
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
+import { directThenHost } from "../../engine/reader";
 import { EngineSync, initializationOptions, type SyncAction } from "../../engine/sync";
 import { type EnginePort, engineTransports } from "../../engine/transport";
 import type { WorkspaceDelta } from "../../engine/workspace";
@@ -27,6 +29,7 @@ import {
   forwardNotification,
   readServerInfo,
 } from "../lsp";
+import { skipWorkspacePull, workspacePullSetting } from "../runtime/diagnostics";
 import { processEnv } from "../runtime/env";
 import { type Fallback, type ServerStart, startWithFallback } from "../runtime/fallback";
 import { languageServerCommand, type Runtime } from "../runtime/types";
@@ -35,6 +38,7 @@ import { SerialQueue } from "../util/serial";
 import { startEngineWorker } from "./engine";
 import { TraceChannel } from "./traceChannel";
 import type { WasiHost, WasiLanguageServer } from "./wasi";
+import { SERVER_WATCH_GLOBS } from "./watchGlobs";
 
 /** How long after the last file change the engine is restarted with the new workspace. */
 const ENGINE_RESTART_MS = 1000;
@@ -72,7 +76,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
    * it hooks on `synchronize.fileEvents`, never the watcher, so one per start leaked a recursive watcher
    * on each restart.
    */
-  private fileEvents: vscode.FileSystemWatcher | undefined;
+  private fileEvents: vscode.FileSystemWatcher[] | undefined;
 
   readonly onDidChange = this.emitter.event;
   private readonly catalogChanged = new Emitter<CatalogChanged>();
@@ -105,7 +109,15 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     /** Runs `opentide lsp start` for a WASI runtime, in the extension host. */
     private readonly wasi: WasiHost | undefined = undefined,
   ) {
-    this.feed = new WorkspaceFeed(engineFolders, (message) => this.log.warn(message));
+    this.feed = new WorkspaceFeed(
+      engineFolders,
+      (message) => this.log.warn(message),
+      // Desktop: a `file:` folder is read from the disk directly, not through the host's per-file round trip.
+      directThenHost(
+        (fsPath) => fs.promises.readFile(fsPath),
+        (uri) => vscode.workspace.fs.readFile(uri),
+      ),
+    );
     this.disposables.push(
       vscode.commands.registerCommand("opentide.showReferences", (...args: unknown[]) =>
         this.showReferences(args),
@@ -117,10 +129,15 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     );
   }
 
-  private watcher(): vscode.FileSystemWatcher {
+  /**
+   * What the server reads from disk: the object files and `.opentide/configurations` and `.opentide/schemas`. Not the rest of
+   * `.opentide/` (exports, inflight, states, lsp, templates, hooks), which the extension's own runs write by the thousand
+   * and the server never reads: watching them cost an event per file for nothing.
+   */
+  private watcher(): vscode.FileSystemWatcher[] {
     if (!this.fileEvents) {
-      this.fileEvents = vscode.workspace.createFileSystemWatcher("**/{objects,.opentide}/**");
-      this.disposables.push(this.fileEvents);
+      this.fileEvents = SERVER_WATCH_GLOBS.map((glob) => vscode.workspace.createFileSystemWatcher(glob));
+      this.disposables.push(...this.fileEvents);
     }
     return this.fileEvents;
   }
@@ -190,6 +207,34 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     return this.client;
   }
 
+  /**
+   * `workspace/diagnostic` answered with nothing, for a server older than the fix (diagnostics.ts) or when
+   * `opentide.diagnostics.workspacePull` says never. Read at each pull, so the setting needs no restart.
+   */
+  private diagnosticsMiddleware(runtime: Runtime): LanguageClientOptions["middleware"] {
+    let said = false;
+    return {
+      provideWorkspaceDiagnostics: (resultIds, token, reporter, next) => {
+        const setting = workspacePullSetting(
+          vscode.workspace.getConfiguration("opentide.diagnostics").get<string>("workspacePull"),
+        );
+        if (!skipWorkspacePull(setting, runtime.version)) return next(resultIds, token, reporter);
+        if (!said) {
+          said = true;
+          this.log.info(
+            `language server: not pulling the diagnostics of closed files (opentide ${runtime.version}, ` +
+              `opentide.diagnostics.workspacePull ${setting}): ${
+                setting === "never"
+                  ? "the setting is never"
+                  : "that version re-analyses every closed file on each pull; fixed in 1.0.0rc3"
+              }`,
+          );
+        }
+        return { items: [] };
+      },
+    };
+  }
+
   /** Start one runtime's language server: the process's, or the engine's in a worker thread. */
   private async startServer(
     runtime: Runtime,
@@ -202,6 +247,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       traceOutputChannel: this.traceChannel,
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       synchronize: { fileEvents: this.watcher() },
+      middleware: this.diagnosticsMiddleware(runtime),
     };
     const began = Date.now();
     const client =
@@ -333,7 +379,10 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       synchronize: {},
       // Read at each initialize, the client's own restarts included: the workspace as it stands then.
       initializationOptions: initializationOptions(() => this.feed.snapshot(), this.sync),
-      middleware: { workspace: { didChangeWatchedFile: () => Promise.resolve() } },
+      middleware: {
+        ...clientOptions.middleware,
+        workspace: { didChangeWatchedFile: () => Promise.resolve() },
+      },
     });
   }
 

@@ -352,7 +352,7 @@ are in `src/core/positions.ts`.
 ### `ctx.onDidChangeFiles`
 
 `{ folder, uris }` batches of created, changed and deleted files under the object folders and
-`.opentide/` (not `.opentide/exports/` or `.opentide/lsp/`), 300 ms after the last event.
+`.opentide/` (not `.opentide/exports/` or `.opentide/lsp/`), 300 ms after the last event. The language client's own watch (`SERVER_WATCH_GLOBS`, `src/core/services/watchGlobs.ts`) is narrower still: the object files, `.opentide/configurations` and `.opentide/schemas`. `workspace/diagnostic` is answered with nothing for a server older than 1.0.0rc3 (`src/core/runtime/diagnostics.ts`, `opentide.diagnostics.workspacePull`): it re-pulls 2 s after every answer and those servers re-analyse every closed file on the completion thread (opentide#1744). The engine's start-up reads `file:` files with `node:fs` (`src/engine/reader.ts`).
 
 ### Context keys
 

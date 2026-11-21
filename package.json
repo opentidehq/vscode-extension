@@ -379,6 +379,23 @@
             ],
             "markdownDescription": "How the extension runs opentide commands."
           },
+          "opentide.diagnostics.workspacePull": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "default": "auto",
+            "scope": "window",
+            "order": 8,
+            "enumDescriptions": [
+              "Ask the language server for the problems of closed files, except from an opentide older than 1.0.0rc3, whose server re-analyses every closed file on each request and stalls completion for seconds.",
+              "Always ask.",
+              "Never ask."
+            ],
+            "markdownDescription": "Whether VS Code asks the language server for the diagnostics of the workspace's closed files (`workspace/diagnostic`). It does so again 2 seconds after each answer, and an opentide older than 1.0.0rc3 re-analyses every closed file each time, on the thread that answers completions: stalls of seconds at a thousand objects. With `auto` those servers are not asked, **so the problems of closed files leave the Problems panel for them**; the files you have open keep theirs, and `opentide validate` (on save, on startup, from the palette) still reports the workspace."
+          },
           "opentide.trace.server": {
             "type": "string",
             "enum": [
