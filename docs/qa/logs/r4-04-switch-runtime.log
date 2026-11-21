@@ -1,0 +1,41 @@
+2026-11-21 11:45:36.455 [info] agents: host Visual Studio Code (vscode): MCP through an MCP server definition provider
+2026-11-21 11:45:36.455 [info] agents: the opentide skills are contributed by the extension: no opentidehq/skills plugin is installed
+2026-11-21 11:45:36.455 [info] restart: activation
+2026-11-21 11:45:36.455 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 11:45:36.455 [info] features: 12/12 activated
+2026-11-21 11:45:36.558 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+1719846)
+2026-11-21 11:45:36.558 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 11:45:36.949 [info] language server: host opentide 1.0.0-rc.3-dev+1719846, engine 1.0.0-rc.3-dev+1719846, catalog models
+2026-11-21 11:45:36.951 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 11:45:37.037 [info] opentide 1.0.0-rc.3-dev+1719846: 58 commands
+2026-11-21 11:45:37.039 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 11:45:37.428 [info] opentide serve 1.0.0-rc.3-dev+1719846 started (pid 7937)
+2026-11-21 11:45:38.213 [info] ✓ opentide --json validate  exit 0 in 1263 ms via serve
+2026-11-21 11:45:38.288 [info] ✓ opentide --json info catalog  exit 0 in 1249 ms via serve
+2026-11-21 11:45:38.905 [info] ▶ opentide --json info  (in /tmp/qa/ws)
+2026-11-21 11:45:38.912 [info] ✓ opentide --json info  exit 0 in 6 ms via serve
+2026-11-21 11:46:03.950 [info] restart: settings changed
+2026-11-21 11:46:04.201 [info] runtime: opentide 1.0.0rc2 (tier 2 · PATH) /tmp/qa/venv-native/bin/opentide [opentide.runtime is "installed"]
+2026-11-21 11:46:04.315 [info] language server: /tmp/qa/venv-native/bin/opentide lsp start
+2026-11-21 11:46:04.357 [info] opentide 1.0.0rc2: 58 commands
+2026-11-21 11:46:04.373 [info] language server: host opentide 1.0.0rc2, engine 1.0.0-rc.2, catalog models
+2026-11-21 11:46:04.374 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 11:46:04.383 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 11:46:04.463 [info] opentide serve 1.0.0rc2 started (pid 8083)
+2026-11-21 11:46:04.703 [info] ✓ opentide --json validate  exit 0 in 329 ms via serve
+2026-11-21 11:46:04.712 [info] ▶ opentide --json info  (in /tmp/qa/ws)
+2026-11-21 11:46:04.721 [info] ✓ opentide --json info catalog  exit 0 in 338 ms via serve
+2026-11-21 11:46:04.729 [info] ✓ opentide --json info  exit 0 in 18 ms via serve
+2026-11-21 11:46:17.182 [info] restart: settings changed
+2026-11-21 11:46:17.229 [info] runtime: opentide 1.0.0-rc.3-dev+1719846 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is "bundled"]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-21 11:46:17.248 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+1719846)
+2026-11-21 11:46:17.248 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 11:46:17.554 [info] opentide 1.0.0-rc.3-dev+1719846: 58 commands
+2026-11-21 11:46:17.570 [info] language server: host opentide 1.0.0-rc.3-dev+1719846, engine 1.0.0-rc.3-dev+1719846, catalog models
+2026-11-21 11:46:17.570 [info] ▶ opentide --json validate  (in /tmp/qa/ws)
+2026-11-21 11:46:17.580 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws)
+2026-11-21 11:46:17.931 [info] opentide serve 1.0.0-rc.3-dev+1719846 started (pid 8140)
+2026-11-21 11:46:18.580 [info] ✓ opentide --json validate  exit 0 in 1010 ms via serve
+2026-11-21 11:46:18.628 [info] ✓ opentide --json info catalog  exit 0 in 1048 ms via serve
+2026-11-21 11:46:18.979 [info] ▶ opentide --json info  (in /tmp/qa/ws)
+2026-11-21 11:46:18.989 [info] ✓ opentide --json info  exit 0 in 10 ms via serve

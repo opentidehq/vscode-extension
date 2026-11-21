@@ -1,0 +1,24 @@
+const { launch, shot, run, palette } = require('./lib');
+const W = '/tmp/qa/ws';
+(async () => {
+  const { app, page } = await launch({ exe: '/tmp/qa/vscode/code', ud: '/tmp/qa/ud-r4', ext: '/tmp/qa/ext-r4', folders: [W], extra: ['--disable-workspace-trust'], env: { ELASTIC_STAGING_API_KEY: 'fake-key-qa', VSCODE_CLI: '1' } });
+  await page.waitForTimeout(10000);
+  await page.keyboard.press('Control+Alt+b'); await page.waitForTimeout(300);
+  await page.keyboard.press('Control+p'); await page.waitForTimeout(500);
+  await page.keyboard.type('encoded-powershell.yaml', { delay: 30 }); await page.waitForTimeout(900);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(4000);
+  await page.keyboard.press('Control+g'); await page.waitForTimeout(500);
+  await page.keyboard.type('61', { delay: 40 }); await page.keyboard.press('Enter'); await page.keyboard.press('End'); await page.waitForTimeout(1500);
+  await shot(page, 'r4-10-vscode-03c-cursor-in-query-codelens');
+  const lens = page.locator('a:has-text("Validate live")').first();
+  console.log('lens count', await lens.count());
+  const seen = new Set(); const poll = setInterval(async () => { const t = await page.evaluate(() => Array.from(document.querySelectorAll('.notification-toast')).map(e => e.innerText.replace(/\n+/g, ' | ')).filter(x => !/root user/.test(x))).catch(() => []); t.forEach(x => { if (!seen.has(x)) { seen.add(x); console.log('TOAST:', x); shot(page, 'r4-10-fix-pass-toast-' + seen.size).catch(() => {}); } }); }, 400);
+  await lens.click({ timeout: 8000 }).catch(e => console.log('lens miss', e.message.split('\n')[0]));
+  await page.waitForTimeout(9000);
+  await shot(page, 'r4-10-vscode-03d-validate-live-credential-notice');
+  await page.getByRole('button', { name: 'Run Anyway' }).click({ timeout: 5000 }).catch(e => console.log('no run anyway'));
+  await page.waitForTimeout(10000);
+  await shot(page, 'r4-10-vscode-03e-validate-live-run-anyway');
+  await Promise.race([app.close(), new Promise(r => setTimeout(r, 15000))]);
+  process.exit(0);
+})().catch(e => { console.error(e); process.exit(1); });

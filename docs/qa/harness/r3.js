@@ -10,7 +10,7 @@ const cp = require('child_process');
   const t0 = Date.now();
   const { app, page } = await launch({ exe, ud, ext, folders: [folder], extra: process.env.TRUST === '1' ? ['--disable-workspace-trust'] : [], env });
   const seen = new Set(); const wait = +(process.env.WAIT || 14000); const tEnd = Date.now() + wait;
-  while (Date.now() < tEnd) { await page.waitForTimeout(700); const t = await page.evaluate(() => Array.from(document.querySelectorAll('.notification-toast')).map(e => e.innerText.replace(/\n+/g, ' | '))).catch(() => []); for (const x of t) { if (!seen.has(x) && !/root user/.test(x) && name !== '-') { await shot(page, name + '-toast-' + seen.size); } seen.add(x); } }
+  while (Date.now() < tEnd) { await page.waitForTimeout(700); if (process.env.CLICK_ADD) { const c = await page.evaluate(() => { const b = Array.from(document.querySelectorAll('.notification-toast .monaco-button')).find(x => x.innerText.trim() === 'Add'); if (b) { b.click(); return true; } return false; }); if (c) console.log('clicked Add (DOM of the extension\'s own notification)'); } const t = await page.evaluate(() => Array.from(document.querySelectorAll('.notification-toast')).map(e => e.innerText.replace(/\n+/g, ' | '))).catch(() => []); for (const x of t) { if (!seen.has(x) && !/root user/.test(x) && name !== '-') { await shot(page, name + '-toast-' + seen.size); } seen.add(x); } }
   console.log('TOASTS-SEEN', JSON.stringify([...seen].filter(x => !/root user/.test(x)), null, 1));
   await page.keyboard.press('Control+Alt+b').catch(() => {});
   for (const c of (process.env.CMDS || '').split(';').filter(Boolean)) {

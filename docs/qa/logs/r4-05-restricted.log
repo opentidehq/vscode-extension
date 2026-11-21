@@ -1,0 +1,9 @@
+2026-11-21 11:45:21.256 [info] agents: host Visual Studio Code (vscode): MCP through an MCP server definition provider
+2026-11-21 11:45:21.256 [info] agents: the opentide skills are contributed by the extension: no opentidehq/skills plugin is installed
+2026-11-21 11:45:21.256 [info] restart: activation
+2026-11-21 11:45:21.256 [warning] runtime: opentide engine (WASM) 1.0.0-rc.2: editor features only. The folder is not trusted (Restricted Mode): no opentide runs, the bundled WASI module included. Trust the folder for commands, validate, deploy and query. [Restricted Mode: no opentide runs, only the engine (WASM)]
+2026-11-21 11:45:21.256 [info] features: 12/12 activated
+2026-11-21 11:45:21.760 [info] engine: read 6 object file(s), 13 KiB, in 433 ms
+2026-11-21 11:45:21.760 [info] language server: /tmp/qa/ext-r4/opentidehq.opentide-0.1.2/dist/engine/opentide_wasm_bg.wasm in a worker thread (engine 1.0.0-rc.2)
+2026-11-21 11:45:21.986 [info] engine: initialized in 668 ms; file changes are sent as opentide/didChangeWorkspace
+2026-11-21 11:45:21.986 [info] language server: host none , engine 1.0.0, catalog models

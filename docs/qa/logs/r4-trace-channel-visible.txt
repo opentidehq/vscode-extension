@@ -1,0 +1,1958 @@
+                        "character": 0,
+                        "line": 0
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "metadata",
+                "range": {
+                    "end": {
+                        "character": 14,
+                        "line": 14
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 2
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 8,
+                        "line": 2
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 2
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "description",
+                "range": {
+                    "end": {
+                        "character": 35,
+                        "line": 18
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 17
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 11,
+                        "line": 17
+=====page=====
+                    "end": {
+                        "character": 11,
+                        "line": 17
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 17
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "response",
+                "range": {
+                    "end": {
+                        "character": 31,
+                        "line": 32
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 31
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 8,
+                        "line": 31
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 31
+                    }
+                }
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "children": [],
+                                "detail": "kuery",
+                                "kind": 15,
+                                "name": "query",
+                                "range": {
+                                    "end": {
+                                        "character": 64,
+                                        "line": 60
+=====page=====
+                                    "end": {
+                                        "character": 64,
+                                        "line": 60
+                                    },
+                                    "start": {
+                                        "character": 6,
+                                        "line": 60
+                                    }
+                                },
+                                "selectionRange": {
+                                    "end": {
+                                        "character": 64,
+                                        "line": 60
+                                    },
+                                    "start": {
+                                        "character": 6,
+                                        "line": 60
+                                    }
+                                }
+                            }
+                        ],
+                        "kind": 19,
+                        "name": "elastic",
+                        "range": {
+                            "end": {
+                                "character": 64,
+                                "line": 60
+                            },
+                            "start": {
+                                "character": 0,
+                                "line": 47
+                            }
+                        },
+                        "selectionRange": {
+                            "end": {
+                                "character": 9,
+                                "line": 47
+                            },
+                            "start": {
+                                "character": 2,
+                                "line": 47
+                            }
+                        }
+                    }
+                ],
+                "kind": 3,
+                "name": "configurations",
+                "range": {
+=====page=====
+                "kind": 3,
+                "name": "configurations",
+                "range": {
+                    "end": {
+                        "character": 64,
+                        "line": 60
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 44
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 14,
+                        "line": 44
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 44
+                    }
+                }
+            }
+        ],
+        "detail": "14313ce1-c1a4-4a42-9a13-3e54f76d760c",
+        "kind": 5,
+        "name": "Encoded PowerShell",
+        "range": {
+            "end": {
+                "character": 64,
+                "line": 60
+            },
+            "start": {
+                "character": 0,
+                "line": 0
+            }
+        },
+        "selectionRange": {
+            "end": {
+                "character": 24,
+                "line": 0
+            },
+            "start": {
+                "character": 6,
+                "line": 0
+            }
+        }
+    }
+=====page=====
+            }
+        }
+    }
+]
+Sending request 'textDocument/documentHighlight - (57)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    },
+    "position": {
+        "line": 60,
+        "character": 64
+    }
+}
+Received response 'textDocument/documentHighlight - (57)' in 3ms.
+Result: []
+Sending request 'textDocument/codeLens - (58)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    }
+}
+Sending request 'textDocument/documentSymbol - (59)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    }
+}
+Received response 'textDocument/codeLens - (58)' in 2ms.
+Result: []
+Received response 'textDocument/documentSymbol - (59)' in 1ms.
+Result: [
+    {
+        "children": [
+            {
+                "children": [],
+                "kind": 3,
+                "name": "name",
+                "range": {
+                    "end": {
+                        "character": 24,
+                        "line": 0
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 0
+                    }
+                },
+=====page=====
+                        "line": 0
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 4,
+                        "line": 0
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 0
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "metadata",
+                "range": {
+                    "end": {
+                        "character": 14,
+                        "line": 14
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 2
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 8,
+                        "line": 2
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 2
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "description",
+                "range": {
+                    "end": {
+                        "character": 35,
+                        "line": 18
+                    },
+=====page=====
+                        "character": 35,
+                        "line": 18
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 17
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 11,
+                        "line": 17
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 17
+                    }
+                }
+            },
+            {
+                "children": [],
+                "kind": 3,
+                "name": "response",
+                "range": {
+                    "end": {
+                        "character": 31,
+                        "line": 32
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 31
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 8,
+                        "line": 31
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 31
+                    }
+                }
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+=====page=====
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "children": [],
+                                "detail": "kuery",
+                                "kind": 15,
+                                "name": "query",
+                                "range": {
+                                    "end": {
+                                        "character": 64,
+                                        "line": 60
+                                    },
+                                    "start": {
+                                        "character": 6,
+                                        "line": 60
+                                    }
+                                },
+                                "selectionRange": {
+                                    "end": {
+                                        "character": 64,
+                                        "line": 60
+                                    },
+                                    "start": {
+                                        "character": 6,
+                                        "line": 60
+                                    }
+                                }
+                            }
+                        ],
+                        "kind": 19,
+                        "name": "elastic",
+                        "range": {
+                            "end": {
+                                "character": 64,
+                                "line": 60
+                            },
+                            "start": {
+                                "character": 0,
+                                "line": 47
+                            }
+                        },
+                        "selectionRange": {
+                            "end": {
+                                "character": 9,
+                                "line": 47
+                            },
+                            "start": {
+=====page=====
+                                "line": 47
+                            },
+                            "start": {
+                                "character": 2,
+                                "line": 47
+                            }
+                        }
+                    }
+                ],
+                "kind": 3,
+                "name": "configurations",
+                "range": {
+                    "end": {
+                        "character": 64,
+                        "line": 60
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 44
+                    }
+                },
+                "selectionRange": {
+                    "end": {
+                        "character": 14,
+                        "line": 44
+                    },
+                    "start": {
+                        "character": 0,
+                        "line": 44
+                    }
+                }
+            }
+        ],
+        "detail": "14313ce1-c1a4-4a42-9a13-3e54f76d760c",
+        "kind": 5,
+        "name": "Encoded PowerShell",
+        "range": {
+            "end": {
+                "character": 64,
+                "line": 60
+            },
+            "start": {
+                "character": 0,
+                "line": 0
+            }
+        },
+        "selectionRange": {
+            "end": {
+=====page=====
+        },
+        "selectionRange": {
+            "end": {
+                "character": 24,
+                "line": 0
+            },
+            "start": {
+                "character": 6,
+                "line": 0
+            }
+        }
+    }
+]
+Sending request 'workspace/diagnostic - (60)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "30640a56-aad1-4809-8dce-8061c99b1b4c"
+}
+Received response 'workspace/diagnostic - (60)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+=====page=====
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (61)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "23452b10-2aac-4e91-a709-264ee06916a4"
+}
+Received response 'workspace/diagnostic - (61)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+=====page=====
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (62)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+=====page=====
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "70b9c271-24e4-4741-ab11-d6d235a0ae5d"
+}
+Received response 'workspace/diagnostic - (62)' in 8ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (63)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+=====page=====
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "08a66071-3b23-46a6-9ebb-31933c17a649"
+}
+Received response 'workspace/diagnostic - (63)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'textDocument/documentHighlight - (64)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    },
+    "position": {
+        "line": 60,
+=====page=====
+    },
+    "position": {
+        "line": 60,
+        "character": 64
+    }
+}
+Received response 'textDocument/documentHighlight - (64)' in 2ms.
+Result: []
+Sending request 'workspace/diagnostic - (65)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "4b516f71-1d69-4a1b-a6af-9fa62b53e417"
+}
+Received response 'workspace/diagnostic - (65)' in 7ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+=====page=====
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (66)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "e61c38b0-cbf6-4875-a1ad-cb95da6c41d2"
+}
+Received response 'workspace/diagnostic - (66)' in 7ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+=====page=====
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'textDocument/documentHighlight - (67)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    },
+    "position": {
+        "line": 60,
+        "character": 64
+    }
+}
+Received response 'textDocument/documentHighlight - (67)' in 1ms.
+Result: []
+Sending request 'workspace/diagnostic - (68)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+=====page=====
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "ee99632a-f6f1-4445-8524-cc1a6200fdd6"
+}
+Received response 'workspace/diagnostic - (68)' in 7ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (69)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+=====page=====
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "6536edc0-2e7a-4d60-9c8f-76913037cc02"
+}
+Received response 'workspace/diagnostic - (69)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+=====page=====
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (70)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "c5c5e6c1-08f9-46ea-a06a-42e601b448e6"
+}
+Received response 'workspace/diagnostic - (70)' in 12ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+=====page=====
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'textDocument/inlayHint - (71)'.
+Params: {
+    "textDocument": {
+        "uri": "file:///tmp/qa/ws/objects/rules/encoded-powershell.yaml"
+    },
+    "range": {
+        "start": {
+            "line": 0,
+            "character": 0
+        },
+        "end": {
+            "line": 97,
+            "character": 15
+        }
+    }
+}
+Received response 'textDocument/inlayHint - (71)' in 2ms.
+Result: []
+Sending request 'workspace/diagnostic - (72)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+=====page=====
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "6f07fe70-bb19-4e09-9460-8b88a3f46508"
+}
+Received response 'workspace/diagnostic - (72)' in 9ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (73)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+=====page=====
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "c3ef30df-d6a6-40d6-9930-040e6061f07d"
+}
+Received response 'workspace/diagnostic - (73)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (74)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+=====page=====
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "82fdae41-6a46-4834-b655-605a85466a6d"
+}
+Received response 'workspace/diagnostic - (74)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+=====page=====
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (75)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "03607e87-6c04-466b-a17f-5358583defb2"
+}
+Received response 'workspace/diagnostic - (75)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+=====page=====
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (76)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "ef1e4bf7-34df-4cdf-96bd-e410d244666e"
+}
+Received response 'workspace/diagnostic - (76)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+=====page=====
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (77)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "02831a4e-2677-4adf-9fed-469c29534308"
+}
+Received response 'workspace/diagnostic - (77)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+=====page=====
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (78)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "f746c5af-0a60-4d29-a286-5b7c12633c3f"
+}
+=====page=====
+    ],
+    "partialResultToken": "f746c5af-0a60-4d29-a286-5b7c12633c3f"
+}
+Received response 'workspace/diagnostic - (78)' in 9ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (79)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+=====page=====
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "7f46569e-11d6-46b4-af67-45b2a8a668ec"
+}
+Received response 'workspace/diagnostic - (79)' in 8ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (80)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+=====page=====
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "81c8f074-3468-4265-a74a-78a90da0673f"
+}
+Received response 'workspace/diagnostic - (80)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (81)'.
+Params: {
+=====page=====
+}
+Sending request 'workspace/diagnostic - (81)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "03966a25-eb5c-4669-86c2-37861335a2ef"
+}
+Received response 'workspace/diagnostic - (81)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+=====page=====
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (82)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "6e9862de-cfa1-463c-9cd2-56e4dae750c6"
+}
+Received response 'workspace/diagnostic - (82)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+=====page=====
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (83)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "d8f0dd23-e0e2-4fa9-9ad3-86819b7e6857"
+}
+Received response 'workspace/diagnostic - (83)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+=====page=====
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (84)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "6fbea4af-9047-4c66-a61b-f1fb16fcf2c3"
+}
+Received response 'workspace/diagnostic - (84)' in 6ms.
+Result: {
+    "items": [
+=====page=====
+Received response 'workspace/diagnostic - (84)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (85)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+=====page=====
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "420660d7-29d6-4592-ad06-26a24b12dae6"
+}
+Received response 'workspace/diagnostic - (85)' in 6ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (86)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+=====page=====
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "02c891a6-6853-4065-83d2-d2011ee5ca66"
+}
+Received response 'workspace/diagnostic - (86)' in 7ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}
+Sending request 'workspace/diagnostic - (87)'.
+Params: {
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+=====page=====
+    "identifier": "opentide",
+    "previousResultIds": [
+        {
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "a4f89656-66f1-4662-b5b4-7216455d64a1"
+}
+Received response 'workspace/diagnostic - (87)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+=====page=====
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "value": "ac94f2ceb9f9c86d"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "value": "efc64f23f3bbaddf"
+        },
+        {
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "value": "db30d167be907cdd"
+        }
+    ],
+    "partialResultToken": "a4f89656-66f1-4662-b5b4-7216455d64a1"
+}
+Received response 'workspace/diagnostic - (87)' in 5ms.
+Result: {
+    "items": [
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/objectives/detect-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "ac94f2ceb9f9c86d",
+            "uri": "file:///tmp/qa/ws/objects/rules/defender-test.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "efc64f23f3bbaddf",
+            "uri": "file:///tmp/qa/ws/objects/rules/suspicious-lsass-access.yaml",
+            "version": null
+        },
+        {
+            "kind": "unchanged",
+            "resultId": "db30d167be907cdd",
+            "uri": "file:///tmp/qa/ws/objects/threats/credential-dumping.yaml",
+            "version": null
+        }
+    ]
+}

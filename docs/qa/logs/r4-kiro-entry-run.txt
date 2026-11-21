@@ -1,0 +1,31 @@
+# Rerun 4: the Kiro entry exactly as in ~/.kiro/settings/mcp.json (Kiro binary + mcp-launcher.cjs, OPENTIDE_EXTENSIONS_DIR), cwd = the workspace (what Kiro does: probe wrote /tmp/qa/ws)
+probe cwd: /tmp/qa/ws
+
+$ tools/call validate_rule
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp launcher: running opentidehq.opentide-0.1.2 | opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws | 
+fake: 
+
+$ tools/call run_query
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp launcher: running opentidehq.opentide-0.1.2 | opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws | 
+fake: POST,/api/detection_engine/rules/preview POST,/.preview.alerts-security.alerts-default/_search 
+
+$ tools/call deploy_rule
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp launcher: running opentidehq.opentide-0.1.2 | opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws | 
+fake: GET,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c DELETE,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c POST,/api/detection_engine/rules 
+
+# modern era (what Kiro sends)
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = complete | tools: 10 | result keys: resultType,ttlMs,cacheScope,tools
+tools/call       resultType = complete | isError = false | {"jsonrpc":"2.0","id":3,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n
+stderr first line: opentide mcp launcher: running opentidehq.opentide-0.1.2
+
+# cwd = $HOME
+isError = true | content parts = 2
+  part 0: Error executing tool coverage: workspace_not_found: no detection workspace at /root: no .opentide/ or objects/ there or above it. Set OPENTIDE_REPO_ROOT to your detection repository in the host's MCP server settings, start the host inside it, or create one with 'opentide setup'.
+  part 1: opentide found no repository: the editor started this server in /root, which is not inside a detection repository (no .opentide/ or objects/ there or above). Open the repository's folder in the editor, or set OPENTIDE_REPO_ROOT to its absolute path in the opentide server's env in the edito

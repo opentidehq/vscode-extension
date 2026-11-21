@@ -1,0 +1,21 @@
+# Rerun 4: bridge from the #95 build (64f36d9), module/wasi-host from opentide feat/mcp-wasi-fetch @ 1719846
+
+$ tools/call run_query
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+fake tenant: POST,/api/detection_engine/rules/preview POST,/.preview.alerts-security.alerts-default/_search 
+
+$ tools/call validate_query
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+fake tenant: POST,/api/detection_engine/rules/preview 
+
+$ tools/call deploy_rule
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+fake tenant: GET,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c DELETE,/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c POST,/api/detection_engine/rules 
+
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = complete | tools: 10 | result keys: resultType,ttlMs,cacheScope,tools
+tools/call       resultType = complete | isError = false | {"jsonrpc":"2.0","id":3,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"te
+stderr first line: opentide mcp bridge: cwd=/tmp/qa/ws; OPENTIDE_REPO_ROOT not set; repository root: /tmp/qa/ws
