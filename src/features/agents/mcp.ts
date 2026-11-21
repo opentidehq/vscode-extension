@@ -265,6 +265,8 @@ export interface McpServerPlan {
   readonly env: Readonly<Record<string, string>>;
   /** The opentide version: a new one makes VS Code read the server's tools again. */
   readonly version: string;
+  /** It runs the extension's bundled bridge (`dist/mcp-wasi.js`), not an installed opentide's `mcp start`. */
+  readonly bridge: boolean;
 }
 
 export type McpDecision =
@@ -386,6 +388,7 @@ export function decideMcp(inputs: McpInputs): McpDecision {
         ...(inputs.proxy ? { OPENTIDE_PROXY: inputs.proxy } : {}),
       },
       version: started.version,
+      bridge: bridge !== undefined,
     },
     ...(broken
       ? {

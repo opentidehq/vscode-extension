@@ -20,6 +20,7 @@ import {
   mergeMcpEntry,
   removeMcpEntry,
 } from "./forks";
+import { launcherEntry, launcherPath, launcherStale } from "./launcher";
 import {
   decideMcp,
   entryUsable,
@@ -305,6 +306,46 @@ function entryOf(decision: McpDecision & { provide: true }) {
   return { command: decision.server.command, args: decision.server.args, env };
 }
 
+/**
+ * The entry for a user-level MCP file. For the bundled bridge it names the stable launcher in the global storage
+ * (written here when it is missing or differs), so an extension update changes nothing in the file; for an
+ * installed opentide it is that opentide's own `mcp start`.
+ */
+async function forkEntryOf(
+  ctx: FeatureContext,
+  target: ForkTarget,
+  decision: McpDecision & { provide: true },
+): Promise<ReturnType<typeof entryOf>> {
+  if (!decision.server.bridge) return entryOf(decision);
+  const storageDir = ctx.extension.globalStorageUri.fsPath;
+  const source = await readFileOrUndefined(path.join(ctx.extension.extensionPath, "dist", "mcp-launcher.js"));
+  if (source !== undefined) {
+    const file = launcherPath(storageDir);
+    if (launcherStale(await readFileOrUndefined(file), source)) {
+      try {
+        await fs.promises.mkdir(storageDir, { recursive: true });
+        await fs.promises.writeFile(file, source, "utf8");
+        ctx.log.info(`agents: wrote the MCP launcher ${file}`);
+      } catch (error) {
+        ctx.log.warn(`agents: could not write the MCP launcher ${file}: ${String(error)}`);
+      }
+    }
+  } else {
+    ctx.log.warn(
+      "agents: this build has no dist/mcp-launcher.js; the entry runs the bridge by its versioned path",
+    );
+    return entryOf(decision);
+  }
+  const proxy = decision.server.env.OPENTIDE_PROXY;
+  return launcherEntry({
+    execPath: decision.server.command,
+    storageDir,
+    extensionPath: ctx.extension.extensionPath,
+    entryFile: target.file,
+    proxy,
+  });
+}
+
 async function readFileOrUndefined(file: string): Promise<string | undefined> {
   return fs.promises.readFile(file, "utf8").catch(() => undefined);
 }
@@ -353,7 +394,7 @@ function maintainForkEntry(ctx: FeatureContext, target: ForkTarget): void {
           if (choice !== "Add") return;
         }
       }
-      await writeForkEntry(ctx, target, entryOf(decision), ours ? "refresh" : "add");
+      await writeForkEntry(ctx, target, await forkEntryOf(ctx, target, decision), ours ? "refresh" : "add");
     });
   };
   ctx.subscriptions.push(...onMcpInputsChanged(ctx, apply));
@@ -425,7 +466,7 @@ async function addToForkMcp(ctx: FeatureContext): Promise<void> {
     void vscode.window.showWarningMessage(`The opentide MCP server is not available: ${decision.reason}.`);
     return;
   }
-  const entry = entryOf(decision);
+  const entry = await forkEntryOf(ctx, target, decision);
   const shown = target.file.replace(os.homedir(), "~");
   const picked = await vscode.window.showInformationMessage(
     `Add opentide to ${target.editor}'s MCP settings (${shown})? It runs ${path.basename(entry.command)} with the extension's bridge.`,

@@ -28,6 +28,28 @@ manual check to run before a release.
 | Verified | **against a scripted module** with `server/discover`, legacy `initialize`, a fetch-delegated tool call, an unreachable tenant, a cancelled call, an input closed mid-request, a forged answer and a leaked private-link line (`test/scripts/mcp-bridge.test.mjs`); **against the real module** for `initialize` and `tools/list`. **The real module's tenant path** (a deploy against a local fake tenant, a cancelled call, a closed input) is tested in `test/scripts/mcp-bridge.test.mjs` against a module built from opentide's `feat/mcp-wasi-fetch` (opentide#1742, at ed5d747 here; the Test VSIX workflow runs it), and **skips itself for a module without `OPENTIDE_FETCH`**. Against a released module (rc.3) it runs in CI once the pins are set; until then, "verified against the real module" means that test build |
 | Assumed | that every editor spawns the definition's `process.execPath` with the `env` it is given, and passes `ELECTRON_RUN_AS_NODE` through |
 
+## The user-level entry survives an extension update
+
+A user-level entry (Kiro, Devin Desktop, Windsurf) does not name the extension's own folder. An update deletes
+`<extensions>/opentidehq.opentide-<old version>`, and the entry is only rewritten when the extension next activates,
+so until then, in a workspace with no opentide content for instance, a path with the version in it points at nothing
+and the agent starts a missing file. The entry names a small stable launcher instead:
+
+| | |
+|-|-|
+| Command | the editor's own binary (`process.execPath`) with `ELECTRON_RUN_AS_NODE=1` |
+| Script | `<globalStorage>/mcp-launcher.cjs`, the extension's global storage folder (`context.globalStorageUri`), which does not change across versions. The extension copies `dist/mcp-launcher.js` there at activation when the file is missing or differs |
+| Environment | `OPENTIDE_EXTENSIONS_DIR`, the editor's extensions folder (`~/.kiro/extensions`, `~/.windsurf/extensions`, Devin's equivalent: the parent of the extension's own folder), and `OPENTIDE_MCP_ENTRY_FILE`, the MCP file the entry is in |
+| At start | the launcher lists `OPENTIDE_EXTENSIONS_DIR`, takes the highest version among `opentidehq.opentide-<version>[-<platform>]` folders that have `dist/mcp-wasi.js` (a half-deleted folder is skipped, and so is one in the editor's `.obsolete` list), and `require`s that bridge: stdio is untouched |
+| None installed | the extension was uninstalled: one line on stderr, an MCP error (`-32603`) for the first request, "the opentide extension is not installed; remove the opentide entry from `<file>` or reinstall", then it exits with 1 |
+| Refreshed | at activation: the launcher file, and the entry when the editor's binary or the extensions folder changed. The entry is **byte-identical across extension updates** |
+
+Tested by `test/unit/mcp-launcher/`, `test/unit/agents/launcher.test.ts` (the entry does not change on an update) and
+`test/scripts/mcp-launcher.test.mjs` (the built launcher against a fake extensions folder). **Assumed, not observed:**
+that Kiro, Devin Desktop and Windsurf keep their extensions in a folder named `opentidehq.opentide-<version>` and
+list obsolete ones in `.obsolete`, as VS Code does; the launcher falls back to "not installed" when the folder has
+none, rather than guessing.
+
 ## A user-level entry has no repository root ([#86](https://github.com/opentidehq/vscode-extension/issues/86))
 
 The entry the extension writes into Kiro's, Devin Desktop's or Windsurf's **user-level** file has no

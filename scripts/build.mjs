@@ -67,6 +67,18 @@ const mcpBridge = {
   metafile: true,
 };
 
+// The stable launcher of the user-level MCP entries (Kiro, Devin Desktop, Windsurf): copied into the extension's
+// global storage, it runs the newest installed copy's bridge. Dependency-free.
+const mcpLauncher = {
+  ...common,
+  entryPoints: { "mcp-launcher": join(root, "src", "mcp-launcher", "main.ts") },
+  outdir: join(root, "dist"),
+  platform: "node",
+  format: "cjs",
+  target: "node20",
+  metafile: true,
+};
+
 // The engine (WASM): unpacked from the pinned zip into .cache/ (downloaded once), checked by SHA-256.
 const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
 const engineDir = await prepareEngine(root, pins.engine);
@@ -123,6 +135,7 @@ const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), comm
 const configs = [
   extension,
   mcpBridge,
+  mcpLauncher,
   web,
   engineWorker,
   webEngineWorker,

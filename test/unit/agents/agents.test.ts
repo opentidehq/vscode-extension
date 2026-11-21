@@ -89,6 +89,7 @@ describe("agents: MCP server", () => {
       cwd: "/ws",
       env: { UV_X: "1", OPENTIDE_REPO_ROOT: "/ws", OPENTIDE_PROXY: "http://proxy:3128" },
       version: "0.21.0",
+      bridge: false,
     });
   });
 
@@ -652,6 +653,7 @@ describe("agents: Cursor's extension API", () => {
     cwd: "/ws",
     env: { ELECTRON_RUN_AS_NODE: "1", OPENTIDE_REPO_ROOT: "/ws" },
     version: "1.0.0-rc.3",
+    bridge: true,
   };
 
   it("is found only where cursor.mcp.registerServer and unregisterServer are", () => {
