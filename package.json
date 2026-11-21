@@ -91,6 +91,7 @@
     "onLanguage:lucene",
     "onLanguage:falco",
     "onMcpCollection:opentide",
+    "onStartupFinished",
     "onTaskType:opentide",
     "onTerminalProfile:opentide.terminal"
   ],

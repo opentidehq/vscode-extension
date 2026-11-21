@@ -210,6 +210,10 @@ describe("package.json", () => {
     assert.ok(pkg.activationEvents.includes("workspaceContains:.opentide/**"));
     assert.ok(pkg.activationEvents.includes("onLanguage:opentide-yaml"));
   });
+
+  it("also activates when the window has started, so the agent-knowledge detection runs in every window", () => {
+    assert.ok(pkg.activationEvents.includes("onStartupFinished"));
+  });
 });
 
 describe("Show in Graph", () => {

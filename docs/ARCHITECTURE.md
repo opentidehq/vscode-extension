@@ -42,6 +42,15 @@ test/fixtures/          fake-opentide.mjs (CLI and `serve`), commands-0.20.1.jso
 feature's `activate(ctx)`, then starts the runtime resolution and the language server in the
 background. Nothing on that path starts a process (SPEC §14: activation < 300 ms).
 
+The extension also activates on `onStartupFinished`, in every window (the `knowledge` feature sets the
+`opentide.skillsFromPlugin` context key its skills' `when` clause reads, which has to happen in windows with no
+opentide content too). A window with **no opentide content** (no opentide folder, no `opentide-yaml` or
+`opentide-config` file open) is **dormant** (`src/core/dormant.ts`): `start()` does not resolve the runtime or
+start the language server, the status item is hidden, and nothing else starts a process. The runtime still
+resolves on demand (`runtime.ready()`: a command, an MCP agent, a task), and everything starts when an opentide
+folder or file appears. Not measured in a real VS Code yet: the dormant path adds no process and no file read of
+the workspace to activation.
+
 - Features activate **in parallel and isolated**: one that throws or rejects is logged to the
   `opentide` output channel and the rest carry on.
 - `activate(ctx)` runs **before** the first runtime resolution finishes. Subscribe to events

@@ -14,6 +14,8 @@ pre-releases odd ones.
   before deploying, never deploy for real unless asked. They are left out when the opentide Agent Plugin
   supplies the skills (`opentide.agents.embeddedSkills` overrides). Cursor and Kiro do not read them: install the
   plugin or the Power.
+  The extension now activates in every window to decide that, and starts no opentide and shows no status item
+  in a window with no opentide content.
 - **opentide runs with nothing installed, and the bundled opentide is the default.** The extension carries
   opentide's own command line, compiled to WebAssembly, and runs it for the language server, the catalogue,
   the commands and MCP, whether or not you have opentide installed

@@ -1,5 +1,6 @@
 {
   "$comment": "Agent knowledge (SPEC §12, #6): the always-on instructions and the switch for the skills (contrib/skills.json, generated from opentidehq/skills, holds the chatSkills). No chatPromptFiles: VS Code's docs say prompt files run only in Local harness sessions, which are to be removed in February 2027, and recommend skills instead; the opentide-rule skill covers a new detection rule.",
+  "activationEvents": ["onStartupFinished"],
   "contributes": {
     "chatInstructions": [
       {
