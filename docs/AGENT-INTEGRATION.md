@@ -6,12 +6,15 @@ This page is the per-editor matrix: the mechanism, what has been **verified** (r
 what is **assumed** (from the maintainers' research of 2026-11-21 or from documentation, not run), and the
 manual check to run before a release.
 
-**Sources.** `vscode.d.ts`'s statement that a Node-based MCP server may use `process.execPath` to run its script
-in the editor's own Node (the `ELECTRON_RUN_AS_NODE=1` variable is undocumented, but implied); Cursor's
-[extension API for MCP](https://cursor.com/docs/context/mcp-extension-api); the MCP specification's stdio transport
-(2026-07-28 and legacy `initialize`). Kiro's, Devin Desktop's and Windsurf's file paths and Kiro's lack of an
-extension API come from the maintainers' research notes, which this repository does not hold: add their URLs here
-when they are written down.
+**Sources** (fetched by the maintainers on 2026-11-21; not re-fetched here):
+
+- **VS Code:** `vscode.d.ts` (a Node-based MCP server may use `process.execPath` to run its script in the editor's own Node; `ELECTRON_RUN_AS_NODE=1` is undocumented but implied). Forwarding to the Copilot harness: <https://code.visualstudio.com/api/extension-guides/ai/mcp> ("forwarding rejects configurations that require" input or command variables).
+- **MCP 2026-07-28 stdio transport:** <https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio.md> (a server must not write requests of its own to stdout).
+- **Cursor:** the extension API, <https://cursor.com/docs/context/mcp-extension-api> (`vscode.cursor.mcp.registerServer`); the "0 tools" bug, <https://forum.cursor.com/t/cursor-ide-mcp-server-provided-by-extension-displays-0-tools/169322>. Cursor reports VS Code extension API 1.128.0.
+- **Kiro:** Code OSS base and Open VSX, <https://kiro.dev/docs/upgrade-guides/migrating-from-vscode/>; MCP configuration, <https://kiro.dev/docs/mcp/configuration/> (user `~/.kiro/settings/mcp.json`, workspace `.kiro/settings/mcp.json`, the workspace wins; `mcpServers` with `command`, `args`, `env`, `disabled`, `autoApprove`, `disabledTools`); Powers, <https://kiro.dev/docs/powers/>. Kiro's documentation says nothing about extension MCP APIs.
+- **Devin Desktop** (formerly Windsurf, renamed 2026-06-02): the rename, <https://docs.devin.ai/desktop/devin-desktop-faq>; configuration, <https://docs.devin.ai/desktop/cascade/mcp> and <https://docs.devin.ai/cli/extensibility/mcp/configuration.md> (user `~/.config/devin/mcp_config.json`, `%APPDATA%\devin\mcp_config.json` on Windows, workspace `.devin/mcp_config.json`, `mcpServers`).
+
+**Open: Windsurf's path.** The Devin FAQ still mentions the old `~/.codeium/mcp_config.json`, while the writer uses `~/.codeium/windsurf/mcp_config.json` for builds that still call themselves Windsurf (from the first brief). The two disagree and neither is verified here; the writer takes the second, and only for an `appName` that says Windsurf. Check on a Windsurf build before relying on it.
 
 ## The shared core
 
