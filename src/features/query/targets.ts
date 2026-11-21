@@ -160,3 +160,13 @@ export async function loadTargets<T>(
     await settle();
   }
 }
+
+/**
+ * The arguments after the method name of a language-client request with one params object and an optional
+ * cancellation token. Never a trailing `undefined`: vscode-jsonrpc counts it as a second positional parameter and
+ * sends the params as the array `[params, null]`, which the server rejects as invalid params. That was the palette's
+ * "this rule has no platform query" (#87); the CodeLens, which passes a real token, worked.
+ */
+export function requestArguments<P, T>(params: P, token: T | undefined): [P] | [P, T] {
+  return token === undefined ? [params] : [params, token];
+}
