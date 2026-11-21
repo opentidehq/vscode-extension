@@ -5,6 +5,7 @@ import type { FeatureContext } from "../../core/context";
 import { bundledTerminalLimit } from "../../core/runtime/limits";
 import { cliCommand, hasCli } from "../../core/runtime/types";
 import { httpProxy } from "../../core/services/settings";
+import { explainUnavailable } from "../../core/services/unavailable";
 import { DRY_RUN } from "./safety";
 import {
   isTaskDefinition,
@@ -60,8 +61,8 @@ export class OpentideTaskProvider implements vscode.TaskProvider {
     original: vscode.TaskDefinition = definition,
   ): Promise<vscode.Task> {
     const name = taskName(definition);
-    const refuse = (message: string) =>
-      new vscode.Task(original, scope, name, "opentide", explanation(message), []);
+    const refuse = (message: string, offerSwitch = false) =>
+      new vscode.Task(original, scope, name, "opentide", explanation(message, offerSwitch), []);
     if (!this.ctx.trust.isTrusted) return refuse("Restricted Mode: trust this folder to run opentide tasks.");
     const runtime = this.ctx.runtime.current;
     if (!hasCli(runtime))
@@ -78,7 +79,7 @@ export class OpentideTaskProvider implements vscode.TaskProvider {
     const plan = taskPlan(definition, classification, tree?.hasOption(commandPath, DRY_RUN) ?? false);
     if (plan.kind === "refuse") return refuse(plan.reason);
     const limit = bundledTerminalLimit(runtime, commandPath, classification.contactsTenant);
-    if (limit) return refuse(limit);
+    if (limit) return refuse(limit, true);
     const credentials = classification.contactsTenant ? await this.ctx.backend.credentialEnv(folder) : {};
     const { command, args } = cliCommand(runtime, plan.argv);
     const task = new vscode.Task(
@@ -98,7 +99,7 @@ export class OpentideTaskProvider implements vscode.TaskProvider {
 }
 
 /** A task that prints why it cannot run, and fails. */
-function explanation(message: string): vscode.CustomExecution {
+function explanation(message: string, offerSwitch: boolean): vscode.CustomExecution {
   return new vscode.CustomExecution(async () => {
     const write = new vscode.EventEmitter<string>();
     const close = new vscode.EventEmitter<number>();
@@ -107,6 +108,8 @@ function explanation(message: string): vscode.CustomExecution {
       onDidClose: close.event,
       open: () => {
         write.fire(`opentide: ${message}\r\n`);
+        // A terminal has no button: the way out (Switch Runtime…) is offered where the person is looking too.
+        if (offerSwitch) void explainUnavailable("bundled-limit", message);
         close.fire(1);
       },
       close: () => undefined,

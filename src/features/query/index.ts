@@ -169,9 +169,16 @@ export default defineFeature({
           { textDocument: { uri: client.code2ProtocolConverter.asUri(document.uri) } },
           token,
         )) as LspDocumentSymbol[] | null;
-      } catch {
+      } catch (error) {
+        // Said, not swallowed: a server that answers with an error is not a rule with no query (#87).
+        if (!token?.isCancellationRequested)
+          ctx.log.warn(`query: documentSymbol for ${document.uri.fsPath} failed: ${String(error)}`);
         return undefined;
       }
+      ctx.log.debug(
+        `query: documentSymbol for ${document.uri.fsPath}: ${symbols ? `${symbols.length} symbol(s)` : "null"}, ` +
+          `${ruleQueryTargets(symbols).length} query target(s)${token ? "" : " (no cancellation token)"}`,
+      );
       return ruleQueryTargets(symbols).map((t) => ({
         uri: document.uri.toString(),
         range: t.range,
@@ -409,6 +416,10 @@ async function resolveTarget(
   if (only) targets = targets.filter((t) => t.kind === only);
   if (platform) targets = targets.filter((t) => t.platform === platform);
   if (targets.length === 0) {
+    ctx.log.info(
+      `query: no query target in ${document.uri.fsPath} (${document.languageId}, ` +
+        `language server ${ctx.client.current ? "running" : "not running"}, runtime ${ctx.runtime.current?.source ?? "none"})`,
+    );
     void vscode.window.showInformationMessage(
       document.languageId === "opentide-yaml"
         ? "This rule has no platform query, or the language server did not answer yet: try again in a moment."
