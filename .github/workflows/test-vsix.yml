@@ -13,10 +13,11 @@
 # then packages the extension with them (OPENTIDE_WASI_MODULE, scripts/wasi-lib.mjs: pins.json wasi is not
 # consulted), smoke-tests the .vsix, and runs the WASI tests of test/wasi/ in VS Code on it.
 #
-# Run it from the Actions tab ("Run workflow"), picking opentide's integration/unified-core (the default) or
-# feat/release-wasi-cli-npm-candidates (the opentide PR that adds the asset) or feat/mcp-wasi-fetch (opentide#1742:
-# the module's `mcp start` asks for its tenant requests, and McpFetchBridge, which the MCP bridge needs). It also runs on a pull request
-# that changes this file, so the workflow tests itself.
+# On this branch (the MCP bridge, which needs opentide's `mcp start` delegation, opentide#1742) the default ref is
+# feat/mcp-wasi-fetch (the module's `mcp start` asks for its tenant requests, and McpFetchBridge), until that is in
+# integration/unified-core and this goes back to it. Run it from the Actions tab ("Run workflow"), picking that,
+# integration/unified-core or feat/release-wasi-cli-npm-candidates (the opentide PR that adds the asset). It also
+# runs on a pull request that changes this file, so the workflow tests itself.
 name: Test VSIX
 
 on:
@@ -25,11 +26,11 @@ on:
       opentide_ref:
         description: "The opentide branch to build the WASI module and @opentide/wasi-host from"
         type: choice
-        default: integration/unified-core
+        default: feat/mcp-wasi-fetch
         options:
+          - feat/mcp-wasi-fetch
           - integration/unified-core
           - feat/release-wasi-cli-npm-candidates
-          - feat/mcp-wasi-fetch
   pull_request:
     paths:
       - ".github/workflows/test-vsix.yml"
@@ -43,7 +44,7 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
-  OPENTIDE_REF: ${{ inputs.opentide_ref || 'integration/unified-core' }}
+  OPENTIDE_REF: ${{ inputs.opentide_ref || 'feat/mcp-wasi-fetch' }}
   # @vscode/test-web's Chromium: nothing here needs it.
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
@@ -134,6 +135,10 @@ jobs:
         run: npm test
       - name: Package
         run: npm run package
+      # The MCP bridge against this module (dist/wasi/): a deploy against a local tenant through MCP, a cancelled
+      # call and a closed input. Skipped by the test itself for a module without opentide#1742.
+      - name: The MCP bridge against the module
+        run: npx mocha --grep "with the real module"
       - name: Smoke test the .vsix
         run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
       - name: Name the .vsix

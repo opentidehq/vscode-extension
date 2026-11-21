@@ -30,6 +30,7 @@ pre-releases odd ones.
   to make the requests; search, validate, lint, new and the catalogue work now.
 - **Cursor gets the server from the extension.** It is registered with Cursor's extension API, and
   `~/.cursor/mcp.json` is no longer written.
+- **When the MCP server finds no repository, it says where it was started and what to do.** The bridge's first log line names its working directory and the repository it will use, and a `workspace_not_found` answer says how to fix it (open the repository's folder, or set `OPENTIDE_REPO_ROOT`).
 - **Kiro, Devin Desktop and Windsurf get a user-level MCP entry, if you agree.** Kiro's core has the VS Code API for MCP servers but its agent does not use it, so the extension goes by the editor's name instead of by the API (it still registers the provider where there is one). The extension asks once
   before adding `opentide` to the editor's MCP file, keeps it current when it updates, and never touches an
   entry it did not write. `opentide.agents.writeEditorConfig` sets `ask`, `always` or `never`;

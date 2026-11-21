@@ -28,6 +28,35 @@ manual check to run before a release.
 | Verified | **against a scripted module** with `server/discover`, legacy `initialize`, a fetch-delegated tool call, an unreachable tenant, a cancelled call, an input closed mid-request, a forged answer and a leaked private-link line (`test/scripts/mcp-bridge.test.mjs`); **against the real module** for `initialize` and `tools/list`. **Against the real module's tenant path** (a deploy against a local fake tenant, a cancelled call, EOF) it was run by hand on opentide's `feat/mcp-wasi-fetch` (opentide#1742); it is **verified in the tests** once that is in a released module (rc.3) and `test/scripts/mcp-bridge.test.mjs` runs against it |
 | Assumed | that every editor spawns the definition's `process.execPath` with the `env` it is given, and passes `ELECTRON_RUN_AS_NODE` through |
 
+## A user-level entry has no repository root ([#86](https://github.com/opentidehq/vscode-extension/issues/86))
+
+The entry the extension writes into Kiro's, Devin Desktop's or Windsurf's **user-level** file has no
+`OPENTIDE_REPO_ROOT`: the file is global, and none of the editors documents a variable that names the workspace. So
+the server finds the repository from the directory the editor starts it in (opentide's `get_repo_root` walks up
+from the working directory to the nearest folder with `.opentide/` or `objects/`). Started anywhere else, its tools
+answer `workspace_not_found`. **Decision: keep the user-level entry** (option (b)); a workspace-level file through
+`opentide setup mcp` (option (a)) is the fallback if the check below fails for an editor, and a workspace argument on
+the tools (option (c)) is not planned.
+
+| Editor | What is known about the directory the server starts in | Confidence | Source |
+|--------|------|-----------|--------|
+| **Kiro** | The agent starts a stdio server in `config.cwd || <the connection's cwd>`, and the connection's cwd is the workspace folder (servers are keyed by name and cwd). The config's `cwd` field exists in the code, undocumented | **Medium: a static read** of the minified `kiro.kiro-agent` 1.5.11 `dist/extension.js`, not observed at run time | `StdioClientTransport` set-up in `kiro-agent`; the docs ([MCP configuration](https://kiro.dev/docs/mcp/configuration/), the custom-agents reference) are **silent** on the directory, a workspace variable (only `${VARIABLE}` of approved environment variables is expanded) and MCP roots |
+| **Devin Desktop** | Not documented. Devin Local shares Devin CLI's harness, which works on the project | **Low: documentation only**, and the pages say nothing on the directory, `cwd`, a workspace variable or roots | [Devin Local customizations, MCP](https://docs.devin.ai/desktop/cascade/mcp) and the CLI's [MCP configuration](https://docs.devin.ai/cli/extensibility/mcp/configuration.md). Its scopes: project `.devin/mcp_config.json` (checked in), local `.devin/mcp_config.local.json` (gitignored), user `~/.config/devin/mcp_config.json` |
+| **Windsurf** (older builds) | Not documented | **Low** | none |
+
+**The manual check** (the owner; Kiro needs a sign-in the QA session did not have): in a signed-in Kiro with a
+detection repository open, accept the entry, open the `opentide` server's log in Kiro's MCP panel and read the first
+line the bridge writes:
+
+```
+opentide mcp bridge: cwd=<folder>; OPENTIDE_REPO_ROOT not set; repository root: <folder>
+```
+
+`cwd` should name the open workspace and the root should not be `none found`. If it names the home folder (or anything
+outside the repository), the tools answer `workspace_not_found` with a hint that names that cwd, and the editor needs
+(a): the same check for Devin Desktop. Until then the matrix says "static read" for Kiro and "documentation only"
+for Devin Desktop and Windsurf.
+
 ## The matrix
 
 | Editor | Mechanism | Verified | Assumed or unknown | Manual check |
