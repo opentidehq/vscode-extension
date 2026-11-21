@@ -6,6 +6,7 @@ import {
   type PlatformCaps,
   PlatformInfoCache,
   parseInfoPlatforms,
+  providedVariables,
 } from "../../../src/features/query/platforms";
 
 // `opentide --json info` 0.21.0 (no tenants) and with opentide#754's tenants.
@@ -214,5 +215,34 @@ describe("platform caps and query lenses (#17)", () => {
     assert.equal(tenantPhrase(["prod"]), "prod");
     assert.equal(tenantPhrase(["prod", "dev"]), "prod and dev");
     assert.equal(tenantPhrase(["a", "b", "c"]), "3 tenants");
+  });
+});
+
+describe("providedVariables (#88: the preflight reads what the run reads)", () => {
+  const tenant = {
+    name: "elastic-local-fake",
+    description: "",
+    strategies: ["PREVIEW"],
+    variables: [{ name: "ELASTIC_STAGING_API_KEY", set: false }],
+  } as unknown as Parameters<typeof missingVariables>[0];
+
+  it("counts an opentide.envFile variable as set, as the run gets it", async () => {
+    // Nothing is stored and the process has none: only the env file names it.
+    const provided = await providedVariables(
+      [],
+      Promise.resolve({ ELASTIC_STAGING_API_KEY: "from-env-file" }),
+    );
+    assert.deepEqual(missingVariables(tenant, provided), []);
+  });
+
+  it("still reports a variable that neither the store nor the env file has", async () => {
+    const provided = await providedVariables(["OTHER"], Promise.resolve({ ANOTHER: "x" }));
+    assert.deepEqual(missingVariables(tenant, provided), ["ELASTIC_STAGING_API_KEY"]);
+  });
+
+  it("counts a stored credential too, and merges both", async () => {
+    const provided = await providedVariables(["ELASTIC_STAGING_API_KEY"], Promise.resolve({}));
+    assert.deepEqual(missingVariables(tenant, provided), []);
+    assert.deepEqual([...provided].sort(), ["ELASTIC_STAGING_API_KEY"]);
   });
 });

@@ -140,3 +140,23 @@ export function queryText(lines: readonly string[], range: LspRange): string {
   }
   return joined;
 }
+
+/**
+ * The targets of a rule, asked of a language server that may be starting or restarting: a request that fails or
+ * answers nothing is tried again after `settle` (waiting for the server), up to `retries` more times. A palette
+ * command asks at the moment the person does, when a restart (a setting changed, the folder trusted) can be
+ * under way; the CodeLens asks again when the server is back and so never showed it.
+ */
+export async function loadTargets<T>(
+  attempt: () => Promise<readonly T[] | undefined>,
+  settle: () => Promise<unknown>,
+  retries = 2,
+): Promise<T[]> {
+  let found: readonly T[] | undefined;
+  for (let tried = 0; ; tried += 1) {
+    found = await attempt();
+    if (found && found.length > 0) return [...found];
+    if (tried >= retries) return [];
+    await settle();
+  }
+}

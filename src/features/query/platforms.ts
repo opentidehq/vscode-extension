@@ -93,6 +93,17 @@ export function parseInfoPlatforms(document: unknown): Map<string, PlatformCaps>
   return out;
 }
 
+/**
+ * The names a run of the folder will have: stored credentials and the variables of `opentide.envFile` (what
+ * `backend.credentialEnv` hands the command), so a check says "not set" only for what the run lacks too.
+ */
+export async function providedVariables(
+  stored: Iterable<string>,
+  credentialEnv: Promise<Readonly<Record<string, string>>>,
+): Promise<Set<string>> {
+  return new Set([...stored, ...Object.keys(await credentialEnv)]);
+}
+
 /** The variables a tenant needs that neither the opentide environment nor the editor's store has. */
 export function missingVariables(tenant: TenantInfo, stored: ReadonlySet<string>): string[] {
   return tenant.variables.filter((v) => !v.set && !stored.has(v.name)).map((v) => v.name);

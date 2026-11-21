@@ -25,6 +25,7 @@ import {
   keepable,
   parseCredentialAction,
   pendingTabs,
+  plainMessage,
   progressFromEvent,
   queryIdentity,
   queryViewState,
@@ -371,5 +372,20 @@ describe("query: Set Credential… for a tenant info does not list", () => {
       [{ name: "TOKEN", set: true }],
       "info's list wins",
     );
+  });
+});
+
+describe("plainMessage (#89: notifications do not render codicons)", () => {
+  it("removes a leading codicon, with or without a spinner suffix", () => {
+    assert.equal(
+      plainMessage("$(pass) Query is valid on elastic-local-fake"),
+      "Query is valid on elastic-local-fake",
+    );
+    assert.equal(plainMessage("$(sync~spin) Validating"), "Validating");
+  });
+
+  it("keeps the rest as it is, a credential variable's $ included", () => {
+    assert.equal(plainMessage("needs $ELASTIC_API_KEY, not $(set)"), "needs $ELASTIC_API_KEY, not");
+    assert.equal(plainMessage("plain text"), "plain text");
   });
 });

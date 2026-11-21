@@ -18,11 +18,12 @@ import { type LensSpec, type LensTarget, lensesFor, platformLabel } from "./lens
 import { QueryPanels, type RunSpec } from "./panel";
 import { ensureCredentials, pickTenants, pickWindow, setCredentials } from "./pickers";
 import { PlatformInfoCache } from "./platforms";
-import { parseCredentialAction } from "./results";
+import { parseCredentialAction, plainMessage } from "./results";
 import {
   compiledMethod,
   elasticLanguage,
   type LspDocumentSymbol,
+  loadTargets,
   QUERY_FILE_PLATFORMS,
   queryText,
   ruleQueryTargets,
@@ -154,33 +155,39 @@ export default defineFeature({
       return { ...base, options: { ...base.options, window, ...(tenants ? { tenants } : {}) } };
     };
 
+    /** A rule's query targets from the language server; undefined when it does not answer. */
+    const ruleTargets = async (
+      document: vscode.TextDocument,
+      token?: vscode.CancellationToken,
+    ): Promise<LensTarget[] | undefined> => {
+      const client = ctx.client.current;
+      if (!client) return undefined;
+      let symbols: LspDocumentSymbol[] | null = null;
+      try {
+        symbols = (await client.sendRequest(
+          "textDocument/documentSymbol",
+          { textDocument: { uri: client.code2ProtocolConverter.asUri(document.uri) } },
+          token,
+        )) as LspDocumentSymbol[] | null;
+      } catch {
+        return undefined;
+      }
+      return ruleQueryTargets(symbols).map((t) => ({
+        uri: document.uri.toString(),
+        range: t.range,
+        platform: t.platform,
+        language: t.language,
+        kind: "rule",
+        ...(t.uuid ? { uuid: t.uuid } : {}),
+        name: t.ruleName,
+      }));
+    };
+
     const targetsOf = async (
       document: vscode.TextDocument,
       token?: vscode.CancellationToken,
     ): Promise<LensTarget[]> => {
-      if (document.languageId === "opentide-yaml") {
-        const client = ctx.client.current;
-        if (!client) return [];
-        let symbols: LspDocumentSymbol[] | null = null;
-        try {
-          symbols = (await client.sendRequest(
-            "textDocument/documentSymbol",
-            { textDocument: { uri: client.code2ProtocolConverter.asUri(document.uri) } },
-            token,
-          )) as LspDocumentSymbol[] | null;
-        } catch {
-          return [];
-        }
-        return ruleQueryTargets(symbols).map((t) => ({
-          uri: document.uri.toString(),
-          range: t.range,
-          platform: t.platform,
-          language: t.language,
-          kind: "rule",
-          ...(t.uuid ? { uuid: t.uuid } : {}),
-          name: t.ruleName,
-        }));
-      }
+      if (document.languageId === "opentide-yaml") return (await ruleTargets(document, token)) ?? [];
       const candidates = QUERY_FILE_PLATFORMS[document.languageId];
       if (!candidates) return [];
       const folder = ctx.folders.folderOf(document.uri);
@@ -196,6 +203,18 @@ export default defineFeature({
         kind: "query-file",
       }));
     };
+
+    // A command asks when the person does, which can be while the language server restarts: it waits for it.
+    const commandTargets = (document: vscode.TextDocument): Promise<LensTarget[]> =>
+      document.languageId === "opentide-yaml"
+        ? loadTargets(
+            () => ruleTargets(document),
+            async () => {
+              await ctx.client.ready();
+              await new Promise((resolve) => setTimeout(resolve, 400));
+            },
+          )
+        : targetsOf(document);
 
     const provider: vscode.CodeLensProvider = {
       onDidChangeCodeLenses: lensChanged.event,
@@ -248,7 +267,7 @@ export default defineFeature({
       }),
 
       vscode.commands.registerCommand("opentide.query.run", async (arg?: unknown) => {
-        const target = await resolveTarget(ctx, arg, targetsOf);
+        const target = await resolveTarget(ctx, arg, commandTargets);
         if (!target) return;
         const caps = await capsFor(ctx, info, target);
         if (caps && !caps.canQuery) {
@@ -262,7 +281,7 @@ export default defineFeature({
       }),
 
       vscode.commands.registerCommand("opentide.query.validateLive", async (arg?: unknown) => {
-        const target = await resolveTarget(ctx, arg, targetsOf, "rule");
+        const target = await resolveTarget(ctx, arg, commandTargets, "rule");
         if (target?.kind !== "rule") return;
         const uri = vscode.Uri.parse(target.uri);
         const folder = ctx.folders.folderOf(uri);
@@ -284,7 +303,7 @@ export default defineFeature({
       }),
 
       vscode.commands.registerCommand("opentide.query.showCompiled", async (arg?: unknown) => {
-        const target = await resolveTarget(ctx, arg, targetsOf);
+        const target = await resolveTarget(ctx, arg, commandTargets);
         if (!target) return;
         const method = compiledMethod(target.language);
         const client = ctx.client.current;
@@ -392,7 +411,7 @@ async function resolveTarget(
   if (targets.length === 0) {
     void vscode.window.showInformationMessage(
       document.languageId === "opentide-yaml"
-        ? "This rule has no platform query, or the language server is still starting."
+        ? "This rule has no platform query, or the language server did not answer yet: try again in a moment."
         : "This file is not a query opentide can run.",
     );
     return undefined;
@@ -455,12 +474,12 @@ async function validateLive(
     if (result.cancelled) return;
     const document = result.document;
     if (result.exitCode === 0 && document.status === "passed") {
-      void vscode.window.showInformationMessage(`$(pass) ${document.message}`);
+      void vscode.window.showInformationMessage(plainMessage(document.message));
       return;
     }
     const advice = typeof document.advice === "string" ? ` ${document.advice}` : "";
     const show = await (result.exitCode === 0 ? vscode.window.showInformationMessage : warn)(
-      `${document.message}${advice}`,
+      plainMessage(`${document.message}${advice}`),
       "Show Output",
     );
     if (show) ctx.log.show();
