@@ -235,6 +235,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
     doRestart(reason).catch((error: unknown) => log.error(`restart failed: ${String(error)}`)),
   );
   runtime.restartHandler = restart;
+  // The user installed the WASM WASI Core extension the module runs under: start it again.
+  wasiHost.onInstalled = () => void restart("the WASM WASI Core extension was installed");
 
   let lastPrimary = folders.all[0]?.path;
 

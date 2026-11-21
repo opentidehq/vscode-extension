@@ -36,6 +36,7 @@ export function runtimeSettings(scope: vscode.Uri | undefined): RuntimeSettings 
     interpreter: () => readRestricted<string>("opentide.interpreter", scope),
     uvUsePin: () => readRestricted<boolean>("opentide.uv.usePin", scope),
     uvPath: () => readRestricted<string>("opentide.uv.path", scope),
+    wasi: () => readSetting<boolean>("opentide.wasi.enabled", scope),
   };
 }
 
@@ -45,6 +46,7 @@ export const RESTART_SETTINGS = [
   "opentide.interpreter",
   "opentide.uv.usePin",
   "opentide.uv.path",
+  "opentide.wasi.enabled",
   "opentide.backend.serve",
 ];
 

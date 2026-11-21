@@ -936,7 +936,7 @@ async function serve() {
               platform: "sentinel",
               tenant: "prod",
               method: "GET",
-              url: "https://tenant.invalid/api",
+              url: process.env.FAKE_FETCH_URL ?? "https://tenant.invalid/api",
               headers: [["accept", "application/json"]],
               body: null,
               connect_timeout_ms: 1000,

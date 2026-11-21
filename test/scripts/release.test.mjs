@@ -153,6 +153,23 @@ describe("release: check", () => {
   it("passes when the notes PR moved [Unreleased] and bumped package.json", () => {
     assert.deepEqual(problems({ changelog: CHANGELOG, packageVersion: "0.3.0", tag: "v0.3.0" }), []);
     assert.deepEqual(problems({ changelog: CHANGELOG, packageVersion: "0.3.0" }), []);
+    // A real digest for the WASI module is fine; the marked placeholder keeps the release from going out.
+    const sha256 = "a".repeat(64);
+    assert.deepEqual(
+      problems({
+        changelog: CHANGELOG,
+        packageVersion: "0.3.0",
+        pins: { wasi: { version: "1.0.0-rc.3", sha256 } },
+      }),
+      [],
+    );
+    const placeholder = problems({
+      changelog: CHANGELOG,
+      packageVersion: "0.3.0",
+      pins: { wasi: { version: "1.0.0-rc.3", sha256: "PLACEHOLDER-set-it" } },
+    });
+    assert.equal(placeholder.length, 1);
+    assert.match(placeholder[0], /wasi\.sha256 is a placeholder.*v1\.0\.0-rc\.3/);
   });
 
   it("refuses a package.json that was not bumped", () => {

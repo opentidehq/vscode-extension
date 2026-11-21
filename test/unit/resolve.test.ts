@@ -55,6 +55,7 @@ function input(
       interpreter: () => undefined,
       uvUsePin: () => false,
       uvPath: () => undefined,
+      wasi: () => undefined,
       ...settings,
     },
     pin: undefined,
@@ -486,6 +487,18 @@ describe("runtime resolution", () => {
       const { runtime, attempts } = await resolveRuntime(value);
       assert.equal(runtime?.source, "wasi");
       assert.equal(attempts.find((a) => a.source === "path")?.outcome, "too-old");
+    });
+
+    it("is left out by opentide.wasi.enabled: the engine serves instead", async () => {
+      const { value, state } = input(
+        { wasi: WASI, engine: ENGINE },
+        { wasi: () => false },
+        { files: new Set(FILES) },
+      );
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime?.tier, 5);
+      assert.equal(attempts.find((a) => a.source === "wasi")?.outcome, "skipped");
+      assert.equal(state.probes.length, 0);
     });
 
     it("is not offered in Restricted Mode: the engine's editor features only", async () => {

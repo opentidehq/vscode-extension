@@ -21,6 +21,9 @@ import { GUEST_HOME, wasiEnv } from "../wasi/env";
 import { GuestPaths, guestPathOf, type Mount } from "../wasi/paths";
 import { wasiServeWire } from "../wasi/wire";
 
+/** The extension that hosts WASI modules in VS Code. */
+export const WASM_WASI_CORE = "ms-vscode.wasm-wasi-core";
+
 /**
  * `initialize`'s params for the server: ask for `opentide/fetch`, so tenant requests reach the extension
  * host. `@opentide/wasi-host`'s `FETCH_CAPABILITY`, which test/scripts/wasi-host.test.mjs holds it to.
@@ -57,16 +60,55 @@ export class WasiHost implements vscode.Disposable {
     private readonly log: Logger,
   ) {}
 
-  /** The WASM WASI Core extension's API, or why there is none (the extension is not installed). */
+  /**
+   * The WASM WASI Core extension's API, or why there is none. The manifest does not depend on it: VS Code
+   * disables an extension that does not support untrusted workspaces (it declares no such capability) in
+   * Restricted Mode, and an extension that depends on it would not activate there. So it is looked for
+   * here, and offered once when it is missing.
+   */
   private load(): Promise<Wasm> {
-    this.api ??= WasmApi.load().catch((error: unknown) => {
+    this.api ??= this.loadApi().catch((error: unknown) => {
       this.api = undefined;
-      throw new Error(
-        `the WASM WASI Core extension (ms-vscode.wasm-wasi-core) did not load: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw error;
     });
     return this.api;
   }
+
+  private async loadApi(): Promise<Wasm> {
+    if (!vscode.extensions.getExtension(WASM_WASI_CORE)) {
+      this.offerCore();
+      throw new Error(`the WASM WASI Core extension (${WASM_WASI_CORE}) is not installed`);
+    }
+    try {
+      return await WasmApi.load();
+    } catch (error) {
+      throw new Error(
+        `the WASM WASI Core extension (${WASM_WASI_CORE}) did not load: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private offered = false;
+
+  /** Say once per window what runs the module and offer to install it; the runtime restarts once it is. */
+  private offerCore(): void {
+    if (this.offered) return;
+    this.offered = true;
+    void vscode.window
+      .showWarningMessage(
+        "opentide runs its bundled WebAssembly module with the WASM WASI Core extension, which is not installed. Without it only the editor features of the opentide engine run, and commands run without a warm server.",
+        "Install",
+      )
+      .then(async (choice) => {
+        if (choice !== "Install") return;
+        await vscode.commands.executeCommand("workbench.extensions.installExtension", WASM_WASI_CORE);
+        this.api = undefined;
+        this.onInstalled?.();
+      });
+  }
+
+  /** Called after the user installed the core extension: re-resolve and restart. */
+  onInstalled: (() => void) | undefined;
 
   /** The module, compiled on first use and kept for every process of the window. */
   private module(wasm: Wasm, runtime: Runtime): Promise<WebAssembly.Module> {

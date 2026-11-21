@@ -56,9 +56,6 @@
   "extensionKind": [
     "workspace"
   ],
-  "extensionDependencies": [
-    "ms-vscode.wasm-wasi-core"
-  ],
   "main": "./dist/extension.js",
   "browser": "./dist/web/extension.js",
   "capabilities": {
@@ -334,6 +331,13 @@
             "ignoreSync": true,
             "order": 4,
             "markdownDescription": "The `uv` executable for `opentide.uv.usePin`. Default: `uv` on `PATH`. Ignored in Restricted Mode."
+          },
+          "opentide.wasi.enabled": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "order": 2,
+            "markdownDescription": "When no opentide is installed (`opentide.path`, the workspace's environment, `uv`), run the opentide module the extension carries: every command, the language server and MCP, with no install. Tenant requests (query, deploy, validate --live) are made by the extension host. Off: the editor features of the opentide engine (WASM) only. Ignored in Restricted Mode, where only the engine runs."
           },
           "opentide.envFile": {
             "type": "string",
@@ -2306,6 +2310,7 @@
     "test:integration": "npm run build && npm run compile-tests && vscode-test --label integration",
     "test:restricted": "npm run build && npm run compile-tests && node scripts/test-restricted.mjs",
     "test:engine": "npm run build && npm run compile-tests && vscode-test --label engine",
+    "test:wasi": "npm run build && npm run compile-tests && vscode-test --label wasi",
     "test:web": "npm run build && node scripts/test-web.mjs",
     "vscode:prepublish": "npm run build:production",
     "package": "node scripts/package.mjs",

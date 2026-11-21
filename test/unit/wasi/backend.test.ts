@@ -103,7 +103,7 @@ describe("the backend on the WASI runtime", () => {
     assert.equal((result.document.env as Record<string, string>).OPENTIDE_REPO_ROOT, REPO);
     assert.equal(instance.serveRunning, true);
     assert.ok(
-      logs.some((line) => /started \(WASI, in the extension host\)/.test(line)),
+      logs.some((line) => /opentide serve .* started/.test(line)),
       logs.join("\n"),
     );
   });

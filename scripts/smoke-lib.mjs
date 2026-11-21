@@ -25,7 +25,7 @@ export function checkWasiServe(initialize, run, manifest, exitCode) {
     errors.push(`WASI serve is ${result.version}, wasi.json says ${manifest.version}`);
   if (!/^[0-9a-f]{64}$/.test(result.commands_digest ?? "")) errors.push("WASI serve gave no commands_digest");
   const document = run?.result?.document;
-  if (!document || document.command !== "commands" || run.result.exit_code !== 0)
+  if (document?.command !== "commands" || run?.result?.exit_code !== 0)
     errors.push(`WASI serve did not run \`commands\`: ${JSON.stringify(run).slice(0, 300)}`);
   if (exitCode !== 0) errors.push(`the WASI process exited with ${exitCode} after exit`);
   return errors;

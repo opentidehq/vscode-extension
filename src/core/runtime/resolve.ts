@@ -42,6 +42,8 @@ export interface RuntimeSettings {
   readonly interpreter: () => string | undefined;
   readonly uvUsePin: () => boolean | undefined;
   readonly uvPath: () => string | undefined;
+  /** `opentide.wasi.enabled`: false leaves the WASI module out (the engine runs when no opentide does). */
+  readonly wasi: () => boolean | undefined;
 }
 
 export interface ResolveInput {
@@ -427,6 +429,8 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
   // Restricted Mode runs no opentide, this one included: the engine's editor features only.
   if (!input.trusted) {
     skip(4, "wasi", "Restricted Mode: no opentide runs, only the engine (WASM)");
+  } else if (input.settings.wasi() === false) {
+    skip(4, "wasi", "opentide.wasi.enabled is off");
   } else {
     const wasi = input.wasi;
     if (!wasi) {

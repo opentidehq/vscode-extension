@@ -61,6 +61,7 @@ try {
       const found = problems({
         changelog: changelog(),
         packageVersion: JSON.parse(read("package.json")).version,
+        pins: JSON.parse(read("pins.json")),
         tag,
       });
       if (found.length > 0) fail(found);

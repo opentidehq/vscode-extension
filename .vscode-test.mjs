@@ -6,6 +6,9 @@ import { delimiter, join } from "node:path";
 import { defineConfig } from "@vscode/test-cli";
 
 const workspaceFolder = "./test/fixtures/workspace";
+// The host of the WASI module, which the extension asks for when it is missing (it is no manifest dependency:
+// Restricted Mode disables it). Only the `wasi` label runs the module, so only it installs it.
+const installExtensions = ["ms-vscode.wasm-wasi-core"];
 // The tests use mocha's describe/it (as npm test does); test-cli's runner defaults to the tdd UI.
 const mocha = { ui: "bdd" };
 
@@ -35,7 +38,17 @@ export default defineConfig([
     env: { OPENTIDE_TEST_BIN: process.env.OPENTIDE_TEST_BIN ?? "" },
   },
   {
-    // No opentide anywhere: the engine (WASM) tier (test/engine/).
+    // No opentide anywhere: the WASI module the extension carries is the runtime (test/wasi/).
+    label: "wasi",
+    files: "out/test/wasi/**/*.test.js",
+    workspaceFolder,
+    launchArgs: ["--disable-workspace-trust"],
+    installExtensions,
+    mocha: { ...mocha, timeout: 120000 },
+    env: pathWithoutOpentide(),
+  },
+  {
+    // No opentide anywhere and the WASI module off: the engine (WASM) tier (test/engine/).
     label: "engine",
     files: "out/test/engine/**/*.test.js",
     workspaceFolder,

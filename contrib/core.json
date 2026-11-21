@@ -193,6 +193,13 @@
             "order": 4,
             "markdownDescription": "The `uv` executable for `opentide.uv.usePin`. Default: `uv` on `PATH`. Ignored in Restricted Mode."
           },
+          "opentide.wasi.enabled": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "order": 2,
+            "markdownDescription": "When no opentide is installed (`opentide.path`, the workspace's environment, `uv`), run the opentide module the extension carries: every command, the language server and MCP, with no install. Tenant requests (query, deploy, validate --live) are made by the extension host. Off: the editor features of the opentide engine (WASM) only. Ignored in Restricted Mode, where only the engine runs."
+          },
           "opentide.envFile": {
             "type": "string",
             "default": "",
