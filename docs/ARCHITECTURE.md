@@ -144,8 +144,13 @@ Tiers (SPEC §4): 1 `opentide.path`; 2 the workspace environment (`opentide.inte
 Environments, else the Python extension, else `.venv`, else `opentide` on `PATH`, else `python` on
 `PATH`); 3 `uv tool run --from opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier
 2); **4 the WASI module** the extension carries (`dist/wasi/`, `opentide.wasi.enabled`, trusted only); 5 the
-engine (WASM). A user's own opentide always comes first: it is the version they chose, with a network of its
-own; the extension bundles no Python (SPEC D1).
+engine (WASM). **The bundled module is the default** (`opentide.runtime`: `bundled`, owner decision 2026-11-21):
+`resolveRuntime` (`src/core/runtime/resolve.ts`) asks `chooseRuntimeMode` for the mode and why (the explicit
+`opentide.runtime`, else `installed` for a non-empty `opentide.path`, else `bundled`; it reads no setting in
+Restricted Mode), tries that mode's runtimes first and the other's second, and returns a `notice` for the
+fallback (shown once by `RuntimeManager`). The extension bundles no Python (SPEC D1). A task, a terminal or the
+terminal UI on the bundled module is refused by `bundledTerminalLimit` (`src/core/runtime/limits.ts`) with the
+way to `installed`.
 
 **Tier 4, the WASI module** (opentide's CLI on `wasm32-wasip1`, `pins.json` `wasi`; `kind: "opentide"`, so
 `hasCli` is true and every feature works). It runs in two places:

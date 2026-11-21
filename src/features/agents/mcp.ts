@@ -265,6 +265,8 @@ export interface McpServerPlan {
   readonly env: Readonly<Record<string, string>>;
   /** The opentide version: a new one makes VS Code read the server's tools again. */
   readonly version: string;
+  /** It runs the extension's bundled bridge (`dist/mcp-wasi.js`), not an installed opentide's `mcp start`. */
+  readonly bridge: boolean;
 }
 
 export type McpDecision =
@@ -338,18 +340,16 @@ export interface McpInputs {
   readonly proxy?: string;
   /** The bundled bridge, when this build and settings have one. */
   readonly bridge?: McpBridge | undefined;
-  /** `opentide.mcp.useBundled`: the bridge even where a native opentide resolves. */
-  readonly useBundled?: boolean;
 }
 
 /** Whether to provide the server, how it starts and its label. Nothing in Restricted Mode (SPEC §12, §13). */
 export function decideMcp(inputs: McpInputs): McpDecision {
   if (!inputs.trusted) return { provide: false, reason: "Restricted Mode" };
   if (inputs.mode === "never") return { provide: false, reason: "opentide.mcp.provide is never" };
-  // A user's own opentide comes first (SPEC §4): the bridge runs where none resolves (the bundled module is
-  // the runtime, or nothing is), or when `opentide.mcp.useBundled` asks for it.
+  // The runtime says which: with `opentide.runtime` bundled (the default) the module is the runtime and every
+  // editor gets the bridge; with `installed` a native opentide is the runtime and runs its own `mcp start`.
   const native = hasCli(inputs.runtime) && !isWasi(inputs.runtime);
-  const bridge = inputs.bridge && (inputs.useBundled || !native) ? inputs.bridge : undefined;
+  const bridge = inputs.bridge && !native ? inputs.bridge : undefined;
   if (!bridge) {
     if (!hasCli(inputs.runtime)) return { provide: false, reason: "no opentide runtime with commands" };
     if (inputs.hasMcpStart === undefined)
@@ -388,6 +388,7 @@ export function decideMcp(inputs: McpInputs): McpDecision {
         ...(inputs.proxy ? { OPENTIDE_PROXY: inputs.proxy } : {}),
       },
       version: started.version,
+      bridge: bridge !== undefined,
     },
     ...(broken
       ? {

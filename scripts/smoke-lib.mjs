@@ -114,6 +114,7 @@ export function checkWasiPackage(exists) {
     "dist/wasi/LICENSE",
     "dist/wasi/NOTICE",
     "dist/mcp-wasi.js",
+    "dist/mcp-launcher.js",
   ]
     .filter((file) => !exists(file))
     .map((file) => `the package has no ${file}`);

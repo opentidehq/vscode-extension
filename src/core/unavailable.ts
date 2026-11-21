@@ -2,7 +2,7 @@
 // the two ways out (install opentide, or switch the runtime). vscode-free.
 import { ENGINE_LABEL, type Runtime } from "./runtime/types";
 
-export type UnavailableCode = "no-runtime" | "untrusted" | "editor-only";
+export type UnavailableCode = "no-runtime" | "untrusted" | "editor-only" | "bundled-limit";
 
 export { INSTALL_URL } from "../engine/protocol";
 export const INSTALL_ACTION = "Install opentide";
@@ -20,5 +20,6 @@ export function editorOnlyText(runtime: Runtime | undefined, needs: string): str
 
 /** The actions a message about `code` offers. */
 export function unavailableActions(code: UnavailableCode): string[] {
-  return code === "untrusted" ? [] : [INSTALL_ACTION, SWITCH_ACTION];
+  if (code === "untrusted") return [];
+  return code === "bundled-limit" ? [SWITCH_ACTION] : [INSTALL_ACTION, SWITCH_ACTION];
 }

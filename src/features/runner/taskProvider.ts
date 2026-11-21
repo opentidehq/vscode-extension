@@ -2,6 +2,7 @@
 // keybindings and pre-launch chains, with `$opentide` filling Problems. Glue over tasks.ts.
 import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
+import { bundledTerminalLimit } from "../../core/runtime/limits";
 import { cliCommand, hasCli } from "../../core/runtime/types";
 import { httpProxy } from "../../core/services/settings";
 import { DRY_RUN } from "./safety";
@@ -76,6 +77,8 @@ export class OpentideTaskProvider implements vscode.TaskProvider {
     const classification = this.ctx.capabilities.classify(argv);
     const plan = taskPlan(definition, classification, tree?.hasOption(commandPath, DRY_RUN) ?? false);
     if (plan.kind === "refuse") return refuse(plan.reason);
+    const limit = bundledTerminalLimit(runtime, commandPath, classification.contactsTenant);
+    if (limit) return refuse(limit);
     const credentials = classification.contactsTenant ? await this.ctx.backend.credentialEnv(folder) : {};
     const { command, args } = cliCommand(runtime, plan.argv);
     const task = new vscode.Task(

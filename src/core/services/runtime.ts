@@ -89,6 +89,8 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   /** The resolution in flight: a new one cancels it, so a restart never waits for a stale probe. */
   private readonly slot = new ResolutionSlot<Runtime | undefined>();
   private readonly warned = new Set<string>();
+  /** Fallback notices already shown (once each, not on every restart). */
+  private readonly noticed = new Set<string>();
   restartHandler: ((reason: string) => Promise<void>) | undefined;
 
   readonly onDidChange = this.emitter.event;
@@ -203,21 +205,29 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       if (attempt.note) this.log.info(`runtime: ${attempt.note}`);
     }
     this.runtime = result.runtime;
+    // The line the QA harness reads: `runtime: opentide <version> (tier N · <source>) …`, then why that runtime.
+    const why = result.reason ? ` [${result.reason}]` : "";
+    if (result.notice && !this.noticed.has(result.notice)) {
+      this.noticed.add(result.notice);
+      this.log.warn(`runtime: ${result.notice}`);
+      void vscode.window.showInformationMessage(`opentide: ${result.notice}.`);
+    }
     if (result.runtime?.kind === "engine") {
-      this.log.warn(engineNotice(ENGINE_LABEL, result.runtime.version, trusted, result.attempts));
+      this.log.warn(engineNotice(ENGINE_LABEL, result.runtime.version, trusted, result.attempts) + why);
     } else if (result.runtime?.wasi) {
       this.log.info(
-        `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}): the module the extension carries, ` +
-          "no opentide installed answered. The editor's tenant requests are made by the extension host; a terminal or task has no network.",
+        `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}): the module the extension carries${why}. ` +
+          "The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).",
       );
     } else if (result.runtime) {
       this.log.info(
         `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}) ${result.runtime.command}` +
-          `${result.runtime.restricted ? " [Restricted Mode: language server only]" : ""}`,
+          `${result.runtime.restricted ? " [Restricted Mode: language server only]" : ""}${why}`,
       );
     } else {
       this.log.warn(
-        "runtime: none. Install opentide (pip install opentide) in the workspace's environment or set opentide.path.",
+        "runtime: none. Install opentide (pip install opentide) in the workspace's environment or set opentide.path." +
+          why,
       );
     }
     await this.setContextKeys();

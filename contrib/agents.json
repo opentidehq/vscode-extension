@@ -95,12 +95,6 @@
             "Never write that file."
           ],
           "markdownDescription": "Whether the extension writes an `opentide` entry into the user-level MCP file of an editor with no extension API for MCP servers (Kiro, Devin Desktop, Windsurf), and keeps it current when the extension updates. It only ever rewrites or removes an entry it wrote itself, marked `OPENTIDE_VSCODE_EXTENSION`. Cursor and VS Code get the server from the extension directly, and no file is written."
-        },
-        "opentide.mcp.useBundled": {
-          "type": "boolean",
-          "default": false,
-          "scope": "window",
-          "markdownDescription": "Run the MCP server with the opentide module the extension carries even where an opentide is installed. With no opentide installed the bundled module is used anyway. Tenant tools (deploy, live validate, query) work through the extension; see the bundled MCP server in the README."
         }
       }
     }

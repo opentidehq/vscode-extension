@@ -26,6 +26,22 @@ describe("runtime, backend and language server (#3, #5, #12)", () => {
     assert.ok(await api.ctx.client.ready());
   });
 
+  it("opentide.runtime: bundled beats opentide.path, and installed puts it back", async () => {
+    const config = vscode.workspace.getConfiguration("opentide");
+    const api = await activated();
+    try {
+      await config.update("runtime", "bundled", vscode.ConfigurationTarget.Workspace);
+      await api.ctx.runtime.restart("test: bundled");
+      assert.equal(api.ctx.runtime.current?.source, "wasi");
+      await config.update("runtime", "installed", vscode.ConfigurationTarget.Workspace);
+      await api.ctx.runtime.restart("test: installed");
+      assert.equal(api.ctx.runtime.current?.tier, 1);
+    } finally {
+      await config.update("runtime", undefined, vscode.ConfigurationTarget.Workspace);
+      await api.ctx.runtime.restart("test: done");
+    }
+  });
+
   it("runs a command through the backend and logs it in Activity", async () => {
     const api = await activated();
     const folder = api.ctx.folders.all[0];

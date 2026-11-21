@@ -13,5 +13,8 @@
 # Verbatim from opentidehq/skills (npm run skills:check compares its bytes; its LICENSE is CRLF).
 skills/** -text
 
+# The EUPL-1.2 text as opentide ships it (CRLF), byte for byte.
+LICENSE -text
+
 # Verbatim from the language-server highlights zip (npm run grammars:check compares its bytes).
 syntaxes/LICENSE.language-server -text

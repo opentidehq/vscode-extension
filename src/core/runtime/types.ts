@@ -73,6 +73,12 @@ export interface ResolveAttempt {
 export interface ResolveResult {
   readonly runtime: Runtime | undefined;
   readonly attempts: readonly ResolveAttempt[];
+  /** `opentide.runtime`'s effect: which runtimes were tried first. */
+  readonly mode?: "bundled" | "installed";
+  /** Why that mode: the setting that chose it, or the default. */
+  readonly reason?: string;
+  /** Set when the mode's own runtime was not available and another was used (shown once). */
+  readonly notice?: string;
 }
 
 /** Does this runtime have the CLI (commands, backend)? */
