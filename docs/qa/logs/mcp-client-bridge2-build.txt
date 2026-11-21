@@ -1,0 +1,65 @@
+# #83 @ 881ad91 with the module and @opentide/wasi-host built from opentide feat/mcp-wasi-fetch @ 3213bb17; fake Kibana/ES on 127.0.0.1
+
+$ tools/call run_query
+## tools/call run_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"source\": \"query\",\n  \"window\": {\n    \"from\": \"2026-11-20T09:09:05.734Z\",\n    \"to\": \"2026-11-21T09:09:05.734Z\"\n  },\n  \"limit\": 100,\n  \"tenants\": [\n    \"elastic-local-fake\"\n  ],\n  \"results\": [\n    {\n      \"tenant\": \"elastic-local-fake\",\n      \"status\": \"ok\",\n      \"columns\": [],\n      \"rows\": [],\n      \"row_count\": 0,\n      \"truncated\": false,\n      \"partial\": false,\n      \"language\": \"kuery\",\n      \"vendor_query_id\": \"p-1\",\n  
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 343
+
+$ tools/call validate_query
+## tools/call validate_query
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"mode\": \"live\",\n  \"supported\": true,\n  \"strategies\": [\n    \"PREVIEW\",\n    \"RELEASE\"\n  ],\n  \"queries_validated\": 1,\n  \"queries_per_tenant\": {\n    \"elastic-local-fake\": 1\n  },\n  \"status\": \"passed\",\n  \"message\": \"1 query valid on 1 tenant\"\n}"}],"isError":false}}
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 385
+
+$ tools/call deploy_rule
+## tools/call deploy_rule
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"action\": \"deploy\",\n  \"tenant\": null,\n  \"rule_id\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n  \"status\": \"STAGING\",\n  \"dry_run\": false,\n  \"platform\": \"elastic\",\n  \"message\": \"Deployed 1 rule to 1 tenant · 1 updated · 0 failed, 0 not attempted · 0.0s\"\n}"}],"isError":false}}
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 379
+
+$ tools/call deployment_status
+## tools/call deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platforms\": {\n    \"elastic\": {\n      \"deployed\": false,\n      \"rule_id\": null,\n      \"external_ids\": {},\n      \"tenants\": []\n    }\n  },\n  \"uuid\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n  \"found\": true\n}"}],"isError":false}}
+   [isError=false]
+
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): 
+elapsed ms 338
+
+# fake tenant saw:
+{"t":"2026-11-21T09:09:05.771Z","port":5601,"method":"POST","url":"/api/detection_engine/rules/preview","auth":"matches-env-file-value","ct":"application/json","body":"{\"type\":\"query\",\"language\":\"kuery\",\"query\":\"process
+{"t":"2026-11-21T09:09:05.779Z","port":9200,"method":"POST","url":"/.preview.alerts-security.alerts-default/_search","auth":"matches-env-file-value","ct":"application/json","body":"{\"size\":101,\"query\":{\"term\":{\"kibana.alert
+{"t":"2026-11-21T09:09:07.705Z","port":5601,"method":"POST","url":"/api/detection_engine/rules/preview","auth":"matches-env-file-value","ct":"application/json","body":"{\"rule_id\":\"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\"type\"
+{"t":"2026-11-21T09:09:09.610Z","port":5601,"method":"GET","url":"/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c","auth":"matches-env-file-value","ct":"application/json","body":""}
+{"t":"2026-11-21T09:09:09.616Z","port":5601,"method":"DELETE","url":"/api/detection_engine/rules?rule_id=14313ce1-c1a4-4a42-9a13-3e54f76d760c","auth":"matches-env-file-value","ct":"application/json","body":""}
+{"t":"2026-11-21T09:09:09.619Z","port":5601,"method":"POST","url":"/api/detection_engine/rules","auth":"matches-env-file-value","ct":"application/json","body":"{\"rule_id\":\"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\"type\":\"query
+
+$ (tenant DOWN) tools/call run_query {"query":"x","platform":"elastic","language":"kuery","live":
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"source\": \"query\",\n  \"window\": {\n    \"from\": \"2026-11-20T09:09:14.423Z\",\n    \"to\":
+   [isError=false]
+
+$ (tenant DOWN) tools/call validate_query {"query":"x","platform":"elastic","language":"kuery","live":
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"platform\": \"elastic\",\n  \"mode\": \"live\",\n  \"supported\": true,\n  \"tenant\": \"elastic-local-fake\",\n  \"host\": \
+   [isError=false]
+
+$ (tenant DOWN) tools/call deploy_rule {"uuid":"14313ce1-c1a4-4a42-9a13-3e54f76d760c","platform":"e
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"action\": \"error\",\n  \"tenant\": null,\n  \"rule_id\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n  \"status\": \"failed\"
+   [isError=false]
+
+$ (tenant DOWN) tools/call deploy_rule {"uuid":"14313ce1-c1a4-4a42-9a13-3e54f76d760c","platform":"n
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"action\": \"error\",\n  \"tenant\": null,\n  \"rule_id\": \"14313ce1-c1a4-4a42-9a13-3e54f76d760c\",\n  \"status\": \"unknown_
+   [isError=false]
+
+$ (tenant DOWN) tools/call validate_query {"platform":"elastic"}
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"Error executing tool validate_query: argument query is required"}],"isError":true}}
+   [isError=true]

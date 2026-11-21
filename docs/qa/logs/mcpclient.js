@@ -10,7 +10,7 @@ p.stdout.on('data', d => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0)
   if (m.method === 'opentide/fetch') bad.push('LEAKED opentide/fetch: ' + l.slice(0, 200));
   if (m.id !== undefined && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } } });
 let n = 0; const req = (method, params, ms = 20000) => new Promise((res) => { const id = ++n; pending.set(id, res); p.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); setTimeout(() => { if (pending.has(id)) { pending.delete(id); res({ timeout: true, method }); } }, ms); });
-const show = (label, m) => console.log(`\n## ${label}\n` + JSON.stringify(m).slice(0, 700));
+const show = (label, m) => console.log(`\n## ${label}\n` + JSON.stringify(m).slice(0, 700) + (m && m.result && 'isError' in m.result ? `\n   [isError=${m.result.isError}]` : ''));
 (async () => {
   const t0 = Date.now();
   show('server/discover', await req('server/discover', { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } }));

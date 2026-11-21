@@ -1,0 +1,13 @@
+2026-11-21 09:08:34.448 [info] agents: host Kiro (kiro): MCP through an MCP server definition provider
+2026-11-21 09:08:34.448 [info] restart: activation
+2026-11-21 09:08:34.448 [info] features: 11/11 activated
+2026-11-21 09:08:34.448 [info] runtime: opentide 1.0.0-rc.3-dev+3213bb1 (tier 4 · bundled WASI): the module the extension carries, no opentide installed answered. Every command works; tenant requests are made by the extension host.
+2026-11-21 09:08:34.537 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3-dev+3213bb1)
+2026-11-21 09:08:34.537 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-21 09:08:34.924 [info] opentide 1.0.0-rc.3-dev+3213bb1: 58 commands
+2026-11-21 09:08:34.951 [info] language server: host opentide 1.0.0-rc.3-dev+3213bb1, engine 1.0.0-rc.3-dev+3213bb1, catalog models
+2026-11-21 09:08:34.953 [info] ▶ opentide --json validate  (in /tmp/qa/ws-kiro)
+2026-11-21 09:08:34.962 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws-kiro)
+2026-11-21 09:08:35.269 [info] opentide serve 1.0.0-rc.3-dev+3213bb1 started (pid 21957)
+2026-11-21 09:08:35.922 [info] ✓ opentide --json validate  exit 0 in 968 ms via serve
+2026-11-21 09:08:35.976 [info] ✓ opentide --json info catalog  exit 0 in 1014 ms via serve
