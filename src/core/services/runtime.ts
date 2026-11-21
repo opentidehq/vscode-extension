@@ -91,6 +91,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   private readonly warned = new Set<string>();
   /** Fallback notices already shown (once each, not on every restart). */
   private readonly noticed = new Set<string>();
+  private readonly said = new Set<string>();
   restartHandler: ((reason: string) => Promise<void>) | undefined;
 
   readonly onDidChange = this.emitter.event;
@@ -199,6 +200,15 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
           `runtime tier ${attempt.tier} (${attempt.source}): ${attempt.outcome}: ${attempt.detail}`,
         );
     }
+    for (const text of result.warnings ?? []) this.logOnce("warn", `runtime: ${text}`);
+    // A tier-1 runtime that did not answer is said in the log with its path and why, not only in a notification.
+    for (const attempt of result.attempts) {
+      if (attempt.tier === 1 && (attempt.outcome === "failed" || attempt.outcome === "too-old"))
+        this.logOnce(
+          "warn",
+          `runtime: opentide.path ${attempt.path ?? ""}: ${attempt.detail}; the next runtime runs instead`,
+        );
+    }
     for (const attempt of result.attempts) {
       if (attempt.outcome === "too-old" || (attempt.outcome === "failed" && attempt.tier === 1))
         this.warn(attempt);
@@ -233,6 +243,13 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     await this.setContextKeys();
     this.emitter.fire(result.runtime);
     return result.runtime;
+  }
+
+  /** A line said once per text: the same problem on every restart is one line. */
+  private logOnce(level: "warn" | "info", line: string): void {
+    if (this.said.has(line)) return;
+    this.said.add(line);
+    this.log[level](line);
   }
 
   private warn(attempt: ResolveAttempt): void {
