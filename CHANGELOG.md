@@ -6,6 +6,33 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Added
+
+- **Everything works with no opentide installed.** The extension carries opentide's own command line,
+  compiled to WebAssembly, and runs it when none of your opentide installs answers: every command, the
+  language server, the catalogue and MCP. It runs after `opentide.path`, your environment and `uv`, and
+  before the opentide engine ([#75](https://github.com/opentidehq/vscode-extension/issues/75)).
+- **Tenant requests work from the bundled opentide.** Queries, deploys and `validate --live` are made by
+  the extension, so VS Code's proxy settings and certificate store apply. In a terminal the bundled
+  opentide has no network: install opentide to run a tenant command there.
+- **`opentide.wasi.enabled` turns the bundled opentide off.** With it off, and no opentide installed, only
+  the engine's editor features run.
+- **Grammars for CQL, Exabeam, YARA and YARA-L.** They come with opentide 1.0.0-rc.2's highlights and
+  highlight those queries inside rules. They are available through **Change Language Mode** and have no
+  file association yet.
+
+### Changed
+
+- **The package grows from 4 to 13 MiB** for the bundled opentide, one file for every platform.
+- **The bundled opentide runs with the WASM WASI Core extension.** The first time it is needed, the
+  extension offers to install `ms-vscode.wasm-wasi-core`. Until then the engine gives the editor features.
+- **The opentide engine is runtime tier 5, after the bundled opentide.** Restricted Mode still runs the
+  engine only: no opentide runs in an untrusted folder, the bundled one included.
+- **The engine and the grammars are opentide 1.0.0-rc.2's.** The engine now reads a folder's
+  `.opentide/configurations/*.toml`, which it needs to check rules in the object folders `paths.toml`
+  names.
+- **The `opentide` command in terminals also covers the bundled opentide**, where none is installed.
+
 ## [0.1.2] - 2026-11-10
 
 Uses the opentide you install instead of bundling one: one 4 MiB package for every platform.

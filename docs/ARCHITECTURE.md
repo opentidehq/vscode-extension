@@ -8,10 +8,11 @@ cross-repository interfaces are [`CONTRACTS.md`](CONTRACTS.md).
 ```text
 package.json            manifest; `contributes` and `activationEvents` are GENERATED (npm run manifest)
 contrib/                manifest fragments: core.json, grammars.json (generated), <feature>.json
-pins.json               the opentide CI tests against, highlights and engine zips (+SHA-256), VSIX size budget (PACKAGING.md)
+pins.json               the opentide CI tests against, the WASI module, highlights and engine (+SHA-256), VSIX size budget (PACKAGING.md)
 src/extension.ts        activate(): the core, then every feature (a virtual workspace gets src/web/ instead)
 src/web/                web mode (vscode.dev, github.dev, virtual workspaces): the engine, its views; no Node built-ins
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts
+src/core/wasi/          the WASI module's vscode-free parts: guest paths, environment, the serve wire, launcher.cjs
 src/engine/             the engine (WASM), shared by both bundles: its worker host, the client transport and the
                         workspace feed; no Node built-ins (src/core/engine/worker.ts is the desktop worker)
 src/features/<id>/      one folder per feature; index.ts default-exports defineFeature(...)
@@ -20,14 +21,16 @@ webview/<name>/main.ts  a webview entry, bundled to dist/webview/<name>.js
 webview/shared/         base.css (theme variables) and channel.ts (the webview end of the message channel)
 syntaxes/               TextMate grammars, copied by scripts/grammars.mjs (never hand-written)
 language-configuration/ comment tokens, brackets and pairs per language (hand-written)
-scripts/                manifest.mjs, features-index.mjs, grammars.mjs, engine-lib.mjs, build.mjs, release.mjs,
-                        package.mjs, smoke.mjs (+ *-lib.mjs, tested)
-.github/workflows/      ci.yml (every PR and push to main), publish.yml (releases: docs/RELEASING.md)
+scripts/                manifest.mjs, features-index.mjs, grammars.mjs, engine-lib.mjs, wasi.mjs, wasi-lib.mjs,
+                        build.mjs, release.mjs, package.mjs, smoke.mjs (+ *-lib.mjs, tested)
+.github/workflows/      ci.yml (every PR and push to main), publish.yml (releases: docs/RELEASING.md),
+                        test-vsix.yml (a test .vsix built from opentide's source, before a release: PACKAGING.md)
 test/unit/              mocha in plain node (npm test); test/stubs/vscode.ts stands in for `vscode`
 test/scripts/           tests of scripts/*.mjs
 test/integration/       @vscode/test-cli, label `integration` (needs a VS Code download)
 test/restricted/        scripts/test-restricted.mjs (Restricted Mode, workspace trust on)
-test/engine/            @vscode/test-cli, label `engine`: no opentide anywhere, the engine (WASM) tier
+test/engine/            @vscode/test-cli, label `engine`: no opentide anywhere and the WASI module off, the engine (WASM) tier
+test/wasi/              @vscode/test-cli, label `wasi`: no opentide anywhere, the WASI module (tier 4) under @vscode/wasm-wasi
 test/web/               @vscode/test-web in Chromium (npm run test:web): web mode on a virtual folder
 test/fixtures/          fake-opentide.mjs (CLI and `serve`), commands-0.20.1.json, a workspace
 ```
@@ -129,7 +132,7 @@ backend already logs every run (command line with secrets redacted, folder, dura
 
 | Member | |
 |--------|-|
-| `current: Runtime \| undefined` | The resolved runtime (`src/core/runtime/types.ts`): `tier` 1–4, `source`, `kind` (`opentide`, a bare `opentide-lsp`, or `engine`: the WebAssembly build), `command` (for `engine`, its module), `args`, `version`, `interpreter`, `restricted`, `binDirs` |
+| `current: Runtime \| undefined` | The resolved runtime (`src/core/runtime/types.ts`): `tier` 1–5, `source`, `kind` (`opentide`, a bare `opentide-lsp`, or `engine`: the WebAssembly build), `command` (for `engine`, its module; for `wasi`, VS Code's Node), `args`, `version`, `interpreter`, `restricted`, `binDirs`, and `wasi` (`{module, launcher}`) on tier 4 only: `isWasi(runtime)` |
 | `attempts` | How each tier answered (for diagnostics UIs) |
 | `pin` | The repository's exact opentide pin (`uv.lock`, `requirements*.txt`, `pyproject.toml`), if any |
 | `onDidChange` | After every resolution |
@@ -139,7 +142,32 @@ backend already logs every run (command line with secrets redacted, folder, dura
 Tiers (SPEC §4): 1 `opentide.path`; 2 the workspace environment (`opentide.interpreter`, else Python
 Environments, else the Python extension, else `.venv`, else `opentide` on `PATH`, else `python` on
 `PATH`); 3 `uv tool run --from opentide==<pin>`, only with `opentide.uv.usePin` (then tried before tier
-2). The extension bundles no opentide (SPEC D1). For an interpreter, `opentideForInterpreter`
+2); **4 the WASI module** the extension carries (`dist/wasi/`, `opentide.wasi.enabled`, trusted only); 5 the
+engine (WASM). A user's own opentide always comes first: it is the version they chose, with a network of its
+own; the extension bundles no Python (SPEC D1).
+
+**Tier 4, the WASI module** (opentide's CLI on `wasm32-wasip1`, `pins.json` `wasi`; `kind: "opentide"`, so
+`hasCli` is true and every feature works). It runs in two places:
+
+- **In the extension host, under `@vscode/wasm-wasi`** (`src/core/services/wasi.ts`, `WasiHost`): `opentide
+  serve` (the backend) and `opentide lsp start` (the language client). The module is compiled once per
+  window; each process is created with the window's folders mounted (guest `/workspace` or
+  `/workspaces/<name>`), a filtered environment, and pipes for stdio. `src/core/wasi/paths.ts` maps host
+  paths to guest paths going in and back coming out; `src/core/wasi/wire.ts` wraps the serve process as a
+  `ServeProcess` that does both and answers `opentide/fetch` with `@opentide/wasi-host`'s `FetchHost` (the
+  tenant request is made by Node's HTTP stack here, so VS Code's proxy settings and certificate store
+  apply). The backend therefore serves **every** command for a WASI runtime, the ones classified `spawn` and
+  the tenant ones included; it spawns only when the host cannot start the module.
+- **As a process of VS Code's**, where it asks for a command (MCP, tasks, terminals, the command tree):
+  `cliCommand(runtime, argv)` is VS Code's Node (`process.execPath`, with `ELECTRON_RUN_AS_NODE=1` in
+  `runtime.env`) running `dist/wasi/launcher.cjs <module> <argv>` under `node:wasi`. A feature that starts
+  opentide yourself, as below, needs no change. A tenant command run this way has no network.
+
+The WASM WASI Core extension (`ms-vscode.wasm-wasi-core`) is no manifest dependency: it declares no support
+for untrusted workspaces, so VS Code disables it in Restricted Mode and an extension that depended on it
+would not activate there. `WasiHost` looks for it, offers once to install it, and restarts the runtime when
+the user has. One that is missing or does not load fails the language server's start, which falls back to the engine (tier 5) for the editor
+features, and `serve`'s, which falls back to the launcher. For an interpreter, `opentideForInterpreter`
 (`src/core/runtime/resolve.ts`) gives its `opentide` script, then `python -m opentide`: a script that
 fails to run (blocked by an application-control policy, a stale shebang) is retried as the module, one
 that answers is not. `python` on `PATH` (`pythonsOnPath`: `python3`, `python`; on Windows `python`,
@@ -148,16 +176,16 @@ opentide process gets `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` in its `env`. 
 `MIN_OPENTIDE_VERSION` (`src/core/runtime/version.ts`) is refused with its upgrade command, except an
 untagged dev build (`0.1.devN+g<sha>`, what hatch-vcs reports for a checkout with no release tag), which
 cannot be ordered and is used with a note in the output channel. In Restricted Mode no opentide tier is
-tried: the engine (tier 4) runs, `restricted: true`.
+tried: the engine (tier 5) runs, `restricted: true`.
 
-Tier 4, when no other answers (no opentide installed, one that does not start, `opentide.path` naming
-nothing, Restricted Mode): the engine, language-server's `opentide-wasm` built for WebAssembly
+Tier 5, when no other answers (Restricted Mode, `opentide.wasi.enabled` off, a module that cannot run): the engine, language-server's `opentide-wasm` built for WebAssembly
 (`pins.json` `engine`, unpacked by `scripts/engine-lib.mjs` into `dist/engine/`). It is `kind: "engine"`
 and editor-only, like a bare `opentide-lsp`: `hasCli` is false and `backend.availability()` is
 `editor-only`. The language client runs it in a `worker_threads` Worker (`dist/engine/worker.js`) through
 `src/engine/transport.ts`, one JSON-RPC message per worker message. It has no filesystem, so the client
-reads each opentide folder's object files (`objects/` and the paths.toml object folders) and
-`visibility.toml` through `vscode.workspace` and gives them on `initialize`
+reads each opentide folder's object files (`objects/` and the paths.toml object folders) and its
+`.opentide/configurations/*.toml` (the 1.0 engine reads them as `validate` does: `paths.toml` says which YAML
+files are objects) through `vscode.workspace` and gives them on `initialize`
 (`initializationOptions.workspace`, `src/engine/feed.ts`); a file changed on disk is sent as
 `opentide/didChangeWorkspace` to an engine that says it takes it (`experimental.opentide.workspaceUpdates`),
 and restarts one that does not (0.10.0), a second after the last change, or once an open file whose text
@@ -195,7 +223,8 @@ run(folder: string, argv: string[], options?: {
 - **Routing:** `opentide serve` (one warm process per window, CONTRACTS.md) when the active opentide's
   tree has `serve` and `opentide.backend.serve` is `auto`; otherwise, and for commands classified
   `spawn` (setup, generate, query, deploy, doctor, migrate), `opentide --json <argv>` as its own process.
-  A serve that dies under a read-only request is restarted and the request retried once.
+  A WASI runtime serves all of them (above). A serve that dies under a read-only request is restarted and
+  the request retried once.
 - **Concurrency:** commands classified as writing run one at a time, in order; read-only ones run
   concurrently.
 - **Environment:** `OPENTIDE_REPO_ROOT=<folder>`, `NO_COLOR=1`, `http.proxy` as `OPENTIDE_PROXY`,
@@ -305,7 +334,7 @@ are in `src/core/positions.ts`.
 
 `opentide.trusted`, `opentide.hasWorkspace`, `opentide.runtimeReady`, `opentide.hasCli` (a trusted
 opentide runtime), `opentide.editorOnly` (the engine or a bare `opentide-lsp`: the language server, no
-commands), `opentide.runtimeTier`, `opentide.pinMismatch`, `opentide.serveRunning` (the warm backend runs), and
+commands), `opentide.runtimeTier` (1–5), `opentide.pinMismatch`, `opentide.serveRunning` (the warm backend runs), and
 `opentide.hasInfoCatalog` (the active opentide's command tree has `info catalog`, updated whenever the tree
 changes).
 
@@ -374,13 +403,15 @@ through the host.
 | `npm run grammars` / `grammars:check` | syntaxes/ and contrib/grammars.json from the pinned zip (SHA-256 checked) |
 | `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
 | `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
-| `npm run test:engine` | @vscode/test-cli label `engine`: no opentide anywhere, the engine (WASM) tier |
+| `npm run test:engine` | @vscode/test-cli label `engine`: no opentide anywhere and `opentide.wasi.enabled` off, the engine (WASM) tier |
+| `npm run test:wasi` | @vscode/test-cli label `wasi`: no opentide anywhere, the WASI module under `@vscode/wasm-wasi` (`ms-vscode.wasm-wasi-core` is installed into the test VS Code by the label) |
+| `npm run wasi [-- --module <file>]` | download and check the pinned WASI module (`pins.json` `wasi`), or a local one |
 | `npm run package` | dist-vsix/opentide-universal-<version>.vsix (+ `.size.json`), size gate, no `runtime/` |
-| `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the web entry is there, no `runtime/` |
+| `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the WASI module answers `serve` through its launcher, the web entry is there, no `runtime/` |
 | `node scripts/release.mjs <command>` | release helpers for publish.yml: `version`, `check`, `notes`, `assets`, `sums`, `sizes` ([RELEASING.md](RELEASING.md)) |
 
 Unit tests import vscode-free modules directly. A module that touches a little of the VS Code API
 loads against `test/stubs/vscode.ts` (registered by `.mocharc.json`); extend the stub when needed, and
 keep it to behaviour VS Code has. `test/fixtures/fake-opentide.mjs` is a fake opentide (`--version`,
-`--json <command>` and `serve` per CONTRACTS.md); `fakeRuntime()` in `test/unit/helpers.ts` runs it.
+`--json <command>` and `serve` per CONTRACTS.md); `fakeRuntime()` in `test/unit/helpers.ts` runs it. Its `serve` also offers `opentide/fetch` when `initialize` asks, as the WASI build does (`fetch-tenant`), so the wire (`test/unit/wasi/`) is tested against it, with the real `FetchHost` and a local HTTP server.
 Tests against a real opentide run when `OPENTIDE_TEST_BIN` and `OPENTIDE_TEST_WORKSPACE` are set.

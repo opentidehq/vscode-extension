@@ -58,7 +58,11 @@ It does this without installing Python and without leaving the editor.
 
 ## 2. Decisions
 
-### D1. Run the user's opentide; bundle no runtime
+### D1. Run the user's opentide; bundle no runtime. With none installed, run the WASI module
+
+**Amended for opentide 1.0 (UC-6.1, #75).** The extension still bundles no Python and still prefers the user's own opentide (tiers 1–3). What changes is the floor under it: with no opentide installed it runs **opentide's own command line compiled to `wasm32-wasip1`** (tier 4, [§4](#4-the-runtime-resolution-processes-status)), one module for every platform, about 7 MiB compressed, so every command, the language server and MCP work with nothing installed. The decision is the maintainer's (opentide ADR 0007, amended 2026-11-13: the extension is WASI-native); this supersedes #75's first plan of `@opentide/opentide` in-process (napi-rs). The module runs under VS Code's WASI host (`@vscode/wasm-wasi`, the `ms-vscode.wasm-wasi-core` extension, offered for install when missing), pinned to one opentide release (`pins.json` `wasi`), so the extension's coupling to opentide is one version number. It has no network of its own (WASI has no sockets): `serve` asks the extension host to make each tenant request (`opentide/fetch`, `@opentide/wasi-host`'s `FetchHost`), so VS Code's proxy settings and certificate store apply. A tenant command run anywhere else (a terminal, a task) fails with `network_unavailable`, naming the native CLI.
+
+The reasons below for dropping CPython do not apply to the module: it is no executable of its own (data that VS Code's own Node runs, so no unsigned binary under `~/.vscode/extensions`), it is one file for every platform instead of a closure per target, and it is a release asset of opentide rather than something this repository builds.
 
 **Revised in 0.1.2 (2026-11-10).** 0.1.0 and 0.1.1 bundled a CPython runtime and the opentide closure in eight per-platform packages (50 to 58 MiB each, 127 to 151 MiB installed), so a machine with no Python got every feature. That decision is reversed, for three reasons:
 
@@ -66,13 +70,13 @@ It does this without installing Python and without leaving the editor.
 - **Weight.** Every update re-downloaded tens of MB per user, so releases had to follow opentide's cadence rather than the extension's.
 - **Maintenance.** A CPython build, a hashed closure of about 80 packages per target, SBOMs, licence notices, and an x64-under-emulation runtime for Windows on Arm, all owned by this repository, for an opentide the team installs anyway: the one CI runs.
 
-So the extension ships one universal package: its code, the grammars and the engine (WASM), a few MB. It runs the user's opentide ([§4](#4-the-runtime-resolution-processes-status)): an interpreter's `opentide` command, else `python -m opentide` with that interpreter, and a `python` on `PATH` with opentide installed counts too. With no opentide, the engine gives the editor features with nothing installed, and every action that needs opentide says how to install it.
+So the extension ships one universal package: its code, the grammars, the engine (WASM) and, from 1.0, the WASI module (13 MiB in all, [PACKAGING.md](PACKAGING.md)). It runs the user's opentide ([§4](#4-the-runtime-resolution-processes-status)): an interpreter's `opentide` command, else `python -m opentide` with that interpreter, and a `python` on `PATH` with opentide installed counts too. With no opentide, it runs the WASI module; where that cannot run (Restricted Mode, `opentide.wasi.enabled` off), the engine gives the editor features, and every action that needs opentide says how to install it.
 
 The bundled-runtime design, its measurements and its build are in the history of this file and of [PACKAGING.md](PACKAGING.md) at v0.1.1.
 
 ### D2. Almost every action runs opentide in Python, so one warm process serves them
 
-**What needs the runtime.** Nearly everything.
+**What needs the runtime.** Nearly everything. (Written for the Python runtime of tiers 1–3. The WASI module (tier 4) is the same CLI and runs the same three channels in the extension host, below; the costs below are the native Python ones, the module's are in [§14](#14-quality-bar).)
 
 | Works without the Python runtime | Needs it |
 |----------------------------------|----------|
@@ -153,10 +157,11 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 | Package | Contents | Who gets it |
 |---------|----------|-------------|
-| 1 universal VSIX | Extension, grammars and the engine (WASM). Runs the workspace's opentide or `opentide.path`, else the engine for editor features, and says plainly which | Every platform, remotes, and the web entry ([§13](#13-trust-remote-and-web)) |
+| 1 universal VSIX | Extension, grammars, the WASI module and the engine (WASM). Runs the workspace's opentide or `opentide.path`, else the WASI module, else the engine for editor features, and says plainly which | Every platform, remotes, and the web entry ([§13](#13-trust-remote-and-web)) |
 
 - **No runtime and no `opentide-lsp` binary** (D1). `opentide.path` may name an `opentide-lsp` binary for people who want the bare server.
-- **The engine (WASM).** language-server's `opentide-wasm-web` zip (`pins.json` `engine`, pinned by URL and SHA-256 like the highlights zip, from the same release) is the runtime of tier 4: the language server, with nothing installed, on every platform VS Code runs on, the web included. It costs 3.4 MiB compressed (15.7 MiB installed). It is also the safety net for an opentide whose language server does not start: editor features survive what breaks Python ([PACKAGING.md](PACKAGING.md#the-package)).
+- **The WASI module.** opentide's CLI on `wasm32-wasip1`, the release asset `opentide-wasm32-wasip1.wasm` (`pins.json` `wasi`, pinned by URL and SHA-256, downloaded and verified by `scripts/wasi.mjs`) is the runtime of tier 4. It costs 7.2 MiB compressed (26.9 MiB installed). It needs the `ms-vscode.wasm-wasi-core` extension, which the extension offers to install when it is missing. It is not a manifest dependency: the core extension declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode, where a dependent extension would not activate ([PACKAGING.md](PACKAGING.md#the-package)).
+- **The engine (WASM).** opentide's `opentide-wasm-web` zip (`pins.json` `engine`, pinned by URL and SHA-256 like the highlights zip, from the same release) is the runtime of tier 5: the language server, with nothing installed and in Restricted Mode, on every platform VS Code runs on, the web included. It costs 5.3 MiB compressed (23.0 MiB installed). It is also the safety net for a language server that does not start ([PACKAGING.md](PACKAGING.md#the-package)).
 - **Size gate:** CI fails a package over `pins.json` `vsix.budgetBytes` and reports its size and its five largest directories on the PR.
 
 ### Publishing and supply chain
@@ -168,8 +173,8 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 - **Pre-releases** use odd minor versions with `--pre-release`. Stable uses even minor versions.
 - **Release cadence:** the package is small and carries no opentide, so releases follow the extension's own changes.
 - **Each VSIX carries** `dist/THIRD-PARTY-NOTICES.txt` for the npm packages it bundles, and a GitHub artifact attestation.
-- **Licences:** the extension is MIT. The engine and the grammars from language-server are EUPL-1.2; they ship as separate programs with their own licence files. opentide, which the user installs, is EUPL-1.2.
-- **Smoke test** the package: unpack the VSIX, check it carries no `runtime/`, start the engine's worker and check its `initialize` (`opentide-lsp` at `engine.json`'s version, no host), and check the web entry and its Web Worker are there.
+- **Licences:** the extension is MIT. The WASI module, the engine and the grammars from opentide are EUPL-1.2; they ship as separate files with their own licence files (`dist/wasi/LICENSE`, `NOTICE`, `dist/engine/`). The module is not linked into the extension: it is data that `ms-vscode.wasm-wasi-core`, a separate extension, runs, and the extension talks to it over stdio pipes (`serve`, `lsp start`), which is the arrangement the "separate programs" above rest on. **Whether that holds for a WASI module run in the extension host is the licence review ADR 0007 and #75 ask for, and it is the maintainers' to record before the first package that carries the module ships (open question 5): this change makes no decision.** opentide, which the user installs, is EUPL-1.2.
+- **Smoke test** the package: unpack the VSIX, check it carries no `runtime/`, start the engine's worker and check its `initialize` (`opentide-lsp` at `engine.json`'s version, no host), start the WASI module's `serve` through its launcher and check `initialize` (`opentide/fetch` offered, `wasi.json`'s version) and a run of `commands`, and check the web entry and its Web Worker are there.
 
 ### Store listing
 
@@ -188,18 +193,20 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Resolution (revises #3)
 
-The first tier that answers wins, in the order 1, 2, 3, 4, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
+The first tier that answers wins, in the order 1, 2, 3, 4, 5, except that with `opentide.uv.usePin` on, tier 3 is tried before tier 2: turning it on is the user's explicit choice of the repository's pin for this workspace, over whatever its environment has.
 
 | Tier | Source | Trust | Features |
 |-----:|--------|-------|----------|
 | 1 | `opentide.path`: an `opentide` executable (`lsp start`), or an `opentide-lsp` executable (`--stdio`, editor features only) | Trusted only | All, or editor only for `opentide-lsp` |
 | 2 | The workspace's environment: `opentide.interpreter`, else the Python Environments API, else the Python extension API, else `.venv`, else `opentide` on `PATH`, else `python` on `PATH` (`python3` then `python`; on Windows `python` then `py -3`). For an interpreter, the `opentide` script beside it, else `python -m opentide`: a script that does not run (an application-control policy, a stale shebang) is retried as the module; one that answers too old is not, as it is the same install. Re-resolved on `onDidChangeEnvironment` | Trusted only | All |
 | 3 | uv with the repository's pin: `uv tool run --from opentide==<pin>`. **Opt-in** (`opentide.uv.usePin`, then tried before tier 2): offered when the repository pins a version the active runtime does not match | Trusted only | All |
-| 4 | **The engine (WASM)**: language-server's `opentide-wasm` in a `worker_threads` Worker, used when no other tier answers (no opentide installed, or one that does not start), and the only tier in Restricted Mode | Always: it spawns nothing and reads the workspace through VS Code | Editor features only: diagnostics, hover, completion, semantic tokens, code actions, definitions, references, outline, lenses, the Catalogue, Relations, the graph and Find Detection (from `opentide/catalog`). Not configuration TOML checks, commands, validate and lint, deploy, query, setup, tasks or MCP |
+| 4 | **The WASI module**: opentide's own CLI compiled to `wasm32-wasip1` (`pins.json` `wasi`, `dist/wasi/`), used when no opentide answered (none installed, or one that does not start or is too old). `opentide serve` and `opentide lsp start` run in the extension host under `@vscode/wasm-wasi`, the workspace mounted as the module's file system; MCP, tasks and terminals run it through a launcher under VS Code's Node (`node:wasi`). `opentide.wasi.enabled` turns it off | Trusted only: Restricted Mode runs no opentide, this one included, and takes the engine | All: every command, the language server, the catalogue, MCP. No network of its own: tenant requests are made by the extension host (`opentide/fetch`), so a tenant command in a terminal fails and names the native CLI |
+| 5 | **The engine (WASM)**: opentide's `opentide-wasm` in a `worker_threads` Worker, used when no other tier answers (the WASI module off or unable to run), and the only tier in Restricted Mode | Always: it spawns nothing and reads the workspace through VS Code | Editor features only: diagnostics, hover, completion, semantic tokens, code actions, definitions, references, outline, lenses, the Catalogue, Relations, the graph and Find Detection (from `opentide/catalog`). Not configuration TOML checks, commands, validate and lint, deploy, query, setup, tasks or MCP |
 
 - **Minimum versions:** tiers 1–3 must be an opentide released after opentide#734. An older one is refused with the upgrade command, and the next tier takes over.
-- **Editor-only runtimes** (tier 4, and an `opentide-lsp` named by `opentide.path`) degrade the same way: every action that needs opentide says so in one line, with **Install opentide** and **Switch Runtime…**; the status item and the language status read `opentide engine (WASM): editor features only`, and the sidebar's opentide-only views say what they need.
-- **The engine's workspace.** It has no filesystem, so the client gives it each opentide folder's object files (`objects/` and the paths.toml object folders, read with `findFiles` and `workspace.fs` in batches of 32) and the primary folder's `visibility.toml` on `initialize` (`initializationOptions.workspace`, language-server `docs/EDITORS.md`). A change on disk goes to the engine as `opentide/didChangeWorkspace` when it says it takes it (`experimental.opentide.workspaceUpdates`, [§15](#15-what-this-needs-from-opentide-and-language-server) L5); 0.10.0 does not, so it is restarted with the new workspace a second after the last change (a file open in an editor counts once it is closed: until then the server reads the buffer). Its findings cover open documents: 0.10.0 does not check the files it is given, only indexes them.
+- **Tier order, and why.** The user's own opentide (1–3) comes first, as #75 keeps: it is the version they chose and pin, it has a network of its own, and it is what CI runs. The module (4) is what runs when there is none, ahead of the engine, which is the editor features alone (ADR 0007: the extension is WASI-native, one pinned module). A native opentide older than the minimum is skipped, and the module takes over rather than the engine. On the WASI or engine tier, an opentide that appears (a `.venv` created, the window focused again) replaces it without a restart of VS Code.
+- **Editor-only runtimes** (tier 5, and an `opentide-lsp` named by `opentide.path`) degrade the same way: every action that needs opentide says so in one line, with **Install opentide** and **Switch Runtime…**; the status item and the language status read `opentide engine (WASM): editor features only`, and the sidebar's opentide-only views say what they need.
+- **The engine's workspace.** It has no filesystem, so the client gives it each opentide folder's object files (`objects/` and the paths.toml object folders, read with `findFiles` and `workspace.fs` in batches of 32) and each folder's `.opentide/configurations/*.toml` (the 1.0 engine reads them as `validate` does: without `paths.toml` it does not check a rule in a custom object folder), and the primary folder's `visibility.toml` also as the `visibility` option, on `initialize` (`initializationOptions.workspace`, language-server `docs/EDITORS.md`). A change on disk goes to the engine as `opentide/didChangeWorkspace` when it says it takes it (`experimental.opentide.workspaceUpdates`, [§15](#15-what-this-needs-from-opentide-and-language-server) L5); 0.10.0 does not, so it is restarted with the new workspace a second after the last change (a file open in an editor counts once it is closed: until then the server reads the buffer). Its findings cover open documents: 0.10.0 does not check the files it is given, only indexes them.
 - **Several folders on the engine (0.10.0):** every root's index holds every folder's supplied files, so a reference from one folder to an object of another resolves (the CLI reports `invalid_ref`), and every root uses the primary folder's `visibility.toml`. The desktop catalogue keeps each folder's own objects (`serverCatalogDocument` filters by path), and the web views keep one copy of each. language-server#212 scopes supplied files to the root that holds them; the extension sends each folder's `visibility.toml` once a release carries it.
 - **Pin mismatch:** when the repository pins opentide (`pyproject.toml`, `requirements*.txt`, `uv.lock`) and the active tier's version differs, the status item shows `0.21.0 · repo pins 0.20.1`. It offers "Use the pinned version" (tier 3) and "Create .venv with the pinned version" (`uv venv` + install, or the Python extension's create-environment command).
 
@@ -207,8 +214,8 @@ The first tier that answers wins, in the order 1, 2, 3, 4, except that with `ope
 
 | Process | Lifetime | Environment |
 |---------|----------|-------------|
-| `opentide lsp start` | One per window; restarted by "opentide: Restart Server" and by interpreter or settings changes | `OPENTIDE_OUTPUT=mcp` is implied. Never credentials |
-| `opentide serve` (D2) | One per window, started on the first request; restarted with the language server, and after a crash on the next request | As for a CLI command; credentials only on requests that contact a tenant |
+| `opentide lsp start` | One per window; restarted by "opentide: Restart Server" and by interpreter or settings changes. On tier 4, in the extension host (a WASI process, not an operating-system one) | `OPENTIDE_OUTPUT=mcp` is implied. Never credentials |
+| `opentide serve` (D2) | One per window, started on the first request; restarted with the language server, and after a crash on the next request. On tier 4, in the extension host: it serves **every** command, the tenant ones included, and answers `opentide/fetch` ([CONTRACTS.md](CONTRACTS.md#the-wasi-module-opentide-10-opentidehqopentide-docsinternalvscode-wasimd)) | As for a CLI command; credentials only on requests that contact a tenant. On tier 4 the module sees only `OPENTIDE_*`, the proxy variables and `NO_COLOR`, and the workspace as `/workspace` |
 | `opentide --json <cmd>` | One per action, or every action when the runtime has no `serve` | `OPENTIDE_REPO_ROOT=<folder>` (multi-root: the folder the action is about); `NO_COLOR=1`; VS Code's `http.proxy` passed as `OPENTIDE_PROXY`; credentials from SecretStorage, only for commands that contact a tenant. Status commands that only count credentials (`info`, `doctor --offline`) get each credential (a stored name, a variable a tenant names, any env-file variable that is not configuration) with a placeholder value, never the value; the env file's configuration (`OPENTIDE_*` such as `OPENTIDE_REPO_ROOT`, `*_PROXY`/`NO_PROXY`, `PYTHON*`, CA bundles) keeps its value unless its name reads as a secret (`…TOKEN`, `…_KEY`) |
 
 - **Concurrency:** at most one command that writes the workspace runs at a time; others queue. Read-only commands run concurrently.
@@ -733,7 +740,7 @@ Revises #6.
 Revises #8 and #10.
 
 - **Restricted Mode:**
-  - Only the engine (WASM) runs, in a worker thread: no process starts.
+  - Only the engine (WASM) runs, in a worker thread: no process starts, and the WASI module does not run either: Restricted Mode runs no opentide.
   - No workspace interpreter, no uv, no `opentide.path`, no CLI commands, tasks, panels or MCP.
   - A Restricted Mode test asserts nothing is spawned.
   - The views show "Trust this folder to load the catalogue".
@@ -768,6 +775,7 @@ The targets the design is held to. CI checks two of them: the quick search keyst
 | Catalogue refresh after a save, from `opentide serve` (spawning: 1.3 s) | < 300 ms |
 | Validate on save of one file, from `opentide serve` (spawning: 1.5–1.7 s) | < 500 ms |
 | Memory: language server + backend, per window, 500 rules | < 400 MB |
+| Tier 4, the WASI module: compile once per window, then `serve` answering `initialize` (measured in VS Code 1.147, linux-x64, a 28 MB module: 0.6–0.8 s, then about 0.8 s) | < 1 s, < 1.5 s |
 | Quick search results per keystroke (client-side index) | < 50 ms |
 | Graph Focus mode render, from cached data | < 300 ms |
 | First command after install (bytecode compile, endpoint scanning), Windows included | < 5 s |
@@ -872,11 +880,11 @@ As planned for 0.1; D1's 0.1.2 revision undoes the bundled runtime in #1, #3, #6
 
 These need a decision before the milestone named.
 
-1. **Bundling (M0).** Confirm D1: a 50–58 MiB download per platform package with opentide 0.22.0, 127–151 MiB on disk, downloaded again on every update.
+1. **Bundling (M0).** Settled by D1: no Python bundled. The WASI module is 7.2 MiB compressed (13 MiB for the package), the same file for every platform.
 2. **Real deploys from the editor (M4).** Never, with CI only (the recommendation for 1.0), or later behind a setting, for tenants marked non-production, one rule at a time, with a modal confirmation? The latter needs O7 and a confirmation contract in `opentide deploy`.
 3. **Publisher identity (M0).** Settled: `opentidehq` on both stores. Marketplace publisher verification for `opentide.org` becomes possible after six months.
 4. **The VS Code floor and forks (M0).** Check the VS Code version Cursor and Windsurf are based on today, and set `engines.vscode` so they install the extension. Everything newer is feature-detected.
-5. **Licence review (M0).** EUPL-1.2 opentide, engine and (optionally) skills inside an MIT VSIX, shipped as separate programs. This extends #6's review to the runtime.
+5. **Licence review (M0).** **Open: needs the maintainers' decision before a package that carries the module ships** (ADR 0007, #75). EUPL-1.2 opentide, engine, WASI module and (optionally) skills inside an MIT VSIX. The engine, grammars and module ship as separate files with their own licence files; the module is run by a separate extension (`ms-vscode.wasm-wasi-core`) and spoken to over stdio, never linked. The options #75 names: accept that; license the bindings compatibly; or keep a process boundary (the native `opentide`, which tiers 1–3 are). The THIRD-PARTY notices, SBOM and README follow the decision.
 6. **Object form editor (later).** A custom editor that edits an object as a form beside its YAML. Not planned for 1.0: the YAML, the server's completion and the templates cover authoring, and a second editing surface would have to stay in sync with every schema revision.
 
 ### Non-goals for 1.0
