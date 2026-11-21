@@ -13,6 +13,20 @@ const manifest = JSON.parse(readFileSync(path.join(ROOT, "dist", "wasi", "wasi.j
   version: string;
 };
 
+describe("the bundled opentide is the default runtime", () => {
+  it("runs with nothing set: opentide.runtime and opentide.path at their defaults", async () => {
+    const config = vscode.workspace.getConfiguration("opentide");
+    await config.update("path", undefined, vscode.ConfigurationTarget.Global);
+    await config.update("runtime", undefined, vscode.ConfigurationTarget.Global);
+    const api = await activated();
+    await api.ctx.runtime.restart("wasi default test");
+    const runtime = api.ctx.runtime.current;
+    assert.equal(runtime?.source, "wasi", JSON.stringify(api.ctx.runtime.attempts));
+    const first = api.ctx.runtime.attempts.find((a) => a.tier === 1);
+    assert.match(first?.detail ?? "", /opentide\.runtime is at its default, bundled/);
+  });
+});
+
 describe("the WASI module (tier 4), with no opentide anywhere", () => {
   before(async () => {
     await vscode.workspace
@@ -27,7 +41,7 @@ describe("the WASI module (tier 4), with no opentide anywhere", () => {
       .update("path", undefined, vscode.ConfigurationTarget.Global);
   });
 
-  it("is the runtime once opentide.path and the environment fail", async () => {
+  it("is the runtime when opentide.path (which selects the installed opentide) names nothing", async () => {
     const api = await activated();
     const runtime = api.ctx.runtime.current;
     assert.equal(runtime?.source, "wasi", JSON.stringify(api.ctx.runtime.attempts));

@@ -517,32 +517,46 @@ async function switchRuntime(ctx: FeatureContext): Promise<void> {
   const config = vscode.workspace.getConfiguration("opentide");
   const items: (vscode.QuickPickItem & { run: () => Thenable<unknown> })[] = [
     {
-      label: "Automatic",
+      label: "Bundled opentide (default)",
       detail:
-        "opentide.path, then the workspace's environment (its opentide, else python -m opentide), then the opentide engine (WASM) for editor features",
-      run: () => config.update("path", undefined, vscode.ConfigurationTarget.Workspace),
+        "The opentide the extension carries: nothing to install, the same version for everyone. Sets opentide.runtime to bundled for this workspace",
+      run: async () => {
+        await config.update("runtime", "bundled", vscode.ConfigurationTarget.Workspace);
+      },
+    },
+    {
+      label: "My installed opentide",
+      detail:
+        "opentide.path, the workspace's environment (its opentide, else python -m opentide), uv, then PATH; the bundled one if none answers. Sets opentide.runtime to installed for this workspace",
+      run: async () => {
+        await config.update("runtime", "installed", vscode.ConfigurationTarget.Workspace);
+      },
     },
     {
       label: "Choose an opentide executable…",
-      detail: "Sets opentide.path for this workspace",
+      detail: "Sets opentide.path, and opentide.runtime to installed, for this workspace",
       run: async () => {
         const picked = await vscode.window.showOpenDialog({
           canSelectMany: false,
           openLabel: "Use this opentide",
         });
-        if (picked?.[0]) await config.update("path", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        if (!picked?.[0]) return;
+        await config.update("path", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        await config.update("runtime", "installed", vscode.ConfigurationTarget.Workspace);
       },
     },
     {
       label: "Choose a Python interpreter…",
-      detail: "Sets opentide.interpreter for this workspace: a Python with opentide installed",
+      detail:
+        "Sets opentide.interpreter, and opentide.runtime to installed, for this workspace: a Python with opentide installed",
       run: async () => {
         const picked = await vscode.window.showOpenDialog({
           canSelectMany: false,
           openLabel: "Use this interpreter",
         });
-        if (picked?.[0])
-          await config.update("interpreter", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        if (!picked?.[0]) return;
+        await config.update("interpreter", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+        await config.update("runtime", "installed", vscode.ConfigurationTarget.Workspace);
       },
     },
   ];

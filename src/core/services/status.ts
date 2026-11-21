@@ -101,7 +101,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
     if (runtime?.kind === "engine") {
       tooltip.appendMarkdown(`**${ENGINE_STATUS}** · engine ${runtime.version}\n\n`);
       tooltip.appendMarkdown(
-        "No opentide answered (`opentide.path`, the workspace's environment, `python -m opentide`), so the " +
+        "No opentide runs (the bundled module is off or missing, and no installed one answered), so the " +
           "language server built for WebAssembly runs in the extension: diagnostics, hover, completion, " +
           "code actions, navigation, the Catalogue and Relations. Commands, validate and lint, deploy, query, " +
           "setup and MCP need opentide.",
@@ -118,8 +118,9 @@ export class StatusManager implements StatusService, vscode.Disposable {
       tooltip.appendText(runtime.wasi?.module ?? runtime.command);
       if (runtime.wasi)
         tooltip.appendMarkdown(
-          "\n\nNo opentide is installed, so the module the extension carries runs. Tenant requests (query, deploy, validate --live) " +
-            "are made by the extension host; install opentide (`pip install opentide`) to run it natively.",
+          "\n\nThe bundled opentide runs (`opentide.runtime`: bundled, the default). Tenant requests (query, deploy, validate --live) " +
+            "are made by the extension host; a terminal or task has no network. Set `opentide.runtime` to installed " +
+            "to run your own opentide (`pip install opentide`).",
         );
       tooltip.appendMarkdown(`\n\n${model.serve ? "$(zap)" : "$(circle-large-outline)"} ${serveText(model)}`);
       tooltip.appendMarkdown(

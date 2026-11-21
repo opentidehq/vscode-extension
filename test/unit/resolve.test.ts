@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import {
+  chooseRuntimeMode,
   opentideForInterpreter,
   type ProbeOptions,
   type ProbeResult,
@@ -429,7 +430,7 @@ describe("runtime resolution", () => {
     };
     const FILES = [WASI.module, WASI.launcher, ENGINE.module];
 
-    it("is the runtime when no opentide answers, ahead of the engine", async () => {
+    it("is the default runtime, ahead of the engine", async () => {
       const { value, state } = input({ wasi: WASI, engine: ENGINE }, {}, { files: new Set(FILES) });
       const { runtime, attempts } = await resolveRuntime(value);
       assert.equal(runtime?.tier, 4);
@@ -438,14 +439,17 @@ describe("runtime resolution", () => {
       assert.equal(runtime?.version, "1.0.0-rc.3");
       assert.equal(runtime?.restricted, false);
       assert.equal(isWasi(runtime), true);
-      assert.deepEqual(attempts.at(-1), {
-        tier: 4,
-        source: "wasi",
-        outcome: "ok",
-        path: WASI.module,
-        version: "1.0.0-rc.3",
-        detail: `${WASI.module} 1.0.0-rc.3`,
-      });
+      assert.deepEqual(
+        attempts.find((a) => a.tier === 4),
+        {
+          tier: 4,
+          source: "wasi",
+          outcome: "ok",
+          path: WASI.module,
+          version: "1.0.0-rc.3",
+          detail: `${WASI.module} 1.0.0-rc.3`,
+        },
+      );
       // It is not probed: a probe would compile 28 MB on every resolution.
       assert.equal(
         state.probes.some((p) => p.command === WASI.execPath),
@@ -461,10 +465,10 @@ describe("runtime resolution", () => {
       assert.deepEqual(runtime.wasi, { module: WASI.module, launcher: WASI.launcher });
     });
 
-    it("comes after every tier of the user's own opentide: tiers 1 to 3 answer first", async () => {
+    it("comes after every tier of the user's own opentide when opentide.runtime is installed", async () => {
       const { value } = input(
         { wasi: WASI, engine: ENGINE },
-        {},
+        { runtime: () => "installed" },
         {
           files: new Set(FILES),
           onPath: { opentide: "/usr/bin/opentide" },
@@ -476,10 +480,10 @@ describe("runtime resolution", () => {
       assert.equal(runtime?.source, "path");
     });
 
-    it("replaces an opentide that does not answer or is too old", async () => {
+    it("replaces an installed opentide that does not answer or is too old", async () => {
       const { value } = input(
         { wasi: WASI, engine: ENGINE },
-        {},
+        { runtime: () => "installed" },
         {
           files: new Set(FILES),
           onPath: { opentide: "/usr/bin/opentide" },
@@ -562,6 +566,7 @@ describe("runtime resolution", () => {
       assert.deepEqual(
         attempts.map((a) => [a.tier, a.outcome]),
         [
+          [4, "missing"],
           [1, "missing"],
           [3, "skipped"],
           [2, "missing"],
@@ -569,7 +574,6 @@ describe("runtime resolution", () => {
           [2, "missing"],
           [2, "missing"],
           [2, "missing"],
-          [4, "missing"],
           [5, "ok"],
         ],
       );
@@ -727,4 +731,132 @@ describe("malformed dist manifests give a reason, never a throw", () => {
       assert.equal(readEngineManifest(text, dir), undefined);
     });
   }
+});
+
+describe("opentide.runtime: the bundled opentide is the default, an installed one is opt-in", () => {
+  const WASI: WasiLayout = {
+    module: path.join(EXT, "dist", "wasi", "opentide.wasm"),
+    launcher: path.join(EXT, "dist", "wasi", "launcher.cjs"),
+    version: "1.0.0-rc.3",
+    execPath: "/usr/share/code/code",
+  };
+  const ENGINE = { module: path.join(EXT, "dist", "engine", "opentide_wasm_bg.wasm"), version: "1.0.0-rc.2" };
+  const FILES = new Set([WASI.module, WASI.launcher, ENGINE.module]);
+  const INSTALLED = {
+    onPath: { opentide: "/usr/bin/opentide" },
+    versions: { "/usr/bin/opentide": "opentide 0.22.0" },
+  };
+
+  it("chooses the mode: runtime when set, else installed for a set opentide.path, else bundled", () => {
+    const mode = (settings: Partial<RuntimeSettings>) =>
+      chooseRuntimeMode({
+        path: () => undefined,
+        interpreter: () => undefined,
+        uvUsePin: () => undefined,
+        uvPath: () => undefined,
+        wasi: () => undefined,
+        ...settings,
+      });
+    assert.equal(mode({}).mode, "bundled");
+    assert.match(mode({}).reason, /default/);
+    assert.equal(mode({ runtime: () => "installed" }).mode, "installed");
+    assert.equal(mode({ runtime: () => "bundled" }).mode, "bundled");
+    // An explicit opentide.path selects installed ...
+    assert.equal(mode({ path: () => "/opt/opentide" }).mode, "installed");
+    assert.match(mode({ path: () => "/opt/opentide" }).reason, /opentide\.path is set/);
+    assert.equal(mode({ path: () => "   " }).mode, "bundled");
+    // ... unless opentide.runtime is set explicitly, which wins.
+    assert.equal(mode({ path: () => "/opt/opentide", runtime: () => "bundled" }).mode, "bundled");
+  });
+
+  it("bundled (the default) runs the module even when an opentide is on PATH, and does not probe it", async () => {
+    const { value, state } = input({ wasi: WASI, engine: ENGINE }, {}, { files: FILES, ...INSTALLED });
+    const result = await resolveRuntime(value);
+    assert.equal(result.runtime?.tier, 4);
+    assert.equal(result.mode, "bundled");
+    assert.match(result.reason ?? "", /default/);
+    assert.equal(result.notice, undefined);
+    assert.deepEqual(state.probes, []);
+  });
+
+  it("installed uses the installed opentide when one resolves", async () => {
+    const { value } = input(
+      { wasi: WASI, engine: ENGINE },
+      { runtime: () => "installed" },
+      { files: FILES, ...INSTALLED },
+    );
+    const result = await resolveRuntime(value);
+    assert.equal(result.runtime?.tier, 2);
+    assert.equal(result.mode, "installed");
+    assert.equal(result.notice, undefined);
+  });
+
+  it("installed falls back to the bundled module with a notice when none resolves: never silently", async () => {
+    const { value } = input({ wasi: WASI, engine: ENGINE }, { runtime: () => "installed" }, { files: FILES });
+    const result = await resolveRuntime(value);
+    assert.equal(result.runtime?.tier, 4);
+    assert.match(result.notice ?? "", /no installed opentide answered; using the bundled WASI module/);
+  });
+
+  it("installed with nothing at all ends on the engine, and says why", async () => {
+    const { value } = input({ engine: ENGINE }, { runtime: () => "installed" }, { files: FILES });
+    const result = await resolveRuntime(value);
+    assert.equal(result.runtime?.tier, 5);
+    assert.match(result.notice ?? "", /no installed opentide answered/);
+  });
+
+  it("an explicit opentide.path selects installed (migration) and an unset opentide.runtime does not undo it", async () => {
+    const { value } = input(
+      { wasi: WASI, engine: ENGINE },
+      { path: () => "/opt/opentide" },
+      { files: FILES, versions: { "/opt/opentide": "opentide 0.23.0" } },
+    );
+    const result = await resolveRuntime(value);
+    assert.equal(result.runtime?.tier, 1);
+    assert.equal(result.mode, "installed");
+    assert.match(result.reason ?? "", /opentide\.path is set/);
+  });
+
+  it("an explicit opentide.runtime: bundled beats opentide.path", async () => {
+    const { value, state } = input(
+      { wasi: WASI, engine: ENGINE },
+      { path: () => "/opt/opentide", runtime: () => "bundled" },
+      { files: FILES, versions: { "/opt/opentide": "opentide 0.23.0" } },
+    );
+    const result = await resolveRuntime(value);
+    assert.equal(result.runtime?.tier, 4);
+    assert.deepEqual(state.probes, []);
+  });
+
+  it("bundled switched off (opentide.wasi.enabled) or missing falls back to an installed opentide, with a notice", async () => {
+    const off = input({ wasi: WASI, engine: ENGINE }, { wasi: () => false }, { files: FILES, ...INSTALLED });
+    const a = await resolveRuntime(off.value);
+    assert.equal(a.runtime?.tier, 2);
+    assert.match(
+      a.notice ?? "",
+      /bundled WASI module is not available.*using the installed opentide instead/,
+    );
+    const missing = input({ engine: ENGINE }, {}, { files: FILES, ...INSTALLED });
+    const b = await resolveRuntime(missing.value);
+    assert.equal(b.runtime?.tier, 2);
+    assert.match(b.notice ?? "", /this build carries no WASI module/);
+  });
+
+  it("Restricted Mode is the engine only, whatever opentide.runtime and opentide.path say; no setting is read", async () => {
+    const { value, state } = input(
+      { trusted: false, wasi: WASI, engine: ENGINE },
+      {
+        path: throwing("opentide.path"),
+        runtime: throwing("opentide.runtime"),
+        interpreter: throwing("x"),
+        uvUsePin: throwing("y"),
+        uvPath: throwing("z"),
+      },
+      { files: FILES, ...INSTALLED },
+    );
+    const result = await resolveRuntime(value);
+    assert.equal(result.runtime?.tier, 5);
+    assert.equal(result.runtime?.restricted, true);
+    assert.deepEqual(state.probes, []);
+  });
 });

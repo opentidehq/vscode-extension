@@ -159,6 +159,7 @@ describe("package.json", () => {
     assert.equal(untrusted.supported, "limited");
     assert.deepEqual(untrusted.restrictedConfigurations, [
       "opentide.path",
+      "opentide.runtime",
       "opentide.interpreter",
       "opentide.uv.usePin",
       "opentide.uv.path",
