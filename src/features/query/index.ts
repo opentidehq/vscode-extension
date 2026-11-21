@@ -26,6 +26,7 @@ import {
   loadTargets,
   QUERY_FILE_PLATFORMS,
   queryText,
+  requestArguments,
   ruleQueryTargets,
   writesPreviewAlerts,
 } from "./targets";
@@ -164,11 +165,12 @@ export default defineFeature({
       if (!client) return undefined;
       let symbols: LspDocumentSymbol[] | null = null;
       try {
-        symbols = (await client.sendRequest(
-          "textDocument/documentSymbol",
-          { textDocument: { uri: client.code2ProtocolConverter.asUri(document.uri) } },
-          token,
-        )) as LspDocumentSymbol[] | null;
+        const params = { textDocument: { uri: client.code2ProtocolConverter.asUri(document.uri) } };
+        // Never an explicit `undefined` token: it goes out as the array `[params, null]` (#87, requestArguments).
+        const [, cancellation] = requestArguments(params, token);
+        symbols = (await (cancellation
+          ? client.sendRequest("textDocument/documentSymbol", params, cancellation)
+          : client.sendRequest("textDocument/documentSymbol", params))) as LspDocumentSymbol[] | null;
       } catch (error) {
         // Said, not swallowed: a server that answers with an error is not a rule with no query (#87).
         if (!token?.isCancellationRequested)

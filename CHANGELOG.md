@@ -68,6 +68,11 @@ pre-releases odd ones.
 - **Validate Query on Tenants works from the Command Palette** while the language server is restarting (a
   setting changed, the folder trusted): the command waits for the server instead of saying the rule has no
   query.
+- **Validate Query on Tenants and Run Query work from the Command Palette.** They said "this rule has no platform
+  query" because the extension asked the language server for the rule's outline with parameters it rejected;
+  the CodeLens, which asks another way, worked.
+- **`opentide.trace.server` shows the trace.** The `opentide Language Server Trace` output stayed empty unless the
+  channel's log level was set to Trace by hand; it now follows the setting.
 - **The credential check no longer says a variable is "not set" when `opentide.envFile` provides it.** It
   reads the same file the run does.
 - **The query-validation notification no longer shows `$(pass)` as text.**
