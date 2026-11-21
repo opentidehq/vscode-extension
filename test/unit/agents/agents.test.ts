@@ -4,6 +4,7 @@ import type { CatalogDocument } from "../../../src/core/catalog/types";
 import { which } from "../../../src/core/runtime/process";
 import { cursorMcp, cursorRegistration } from "../../../src/features/agents/cursor";
 import {
+  chooseMcpMechanism,
   forkTarget,
   hasOurEntry,
   MARKER_ENV,
@@ -431,6 +432,80 @@ describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, 
     );
     assert.equal(forkTarget("Cursor", "/home/me"), undefined);
     assert.equal(forkTarget("Visual Studio Code", "/home/me"), undefined);
+    // The URI scheme names the host too.
+    assert.equal(forkTarget("Code - OSS", "/home/me", "linux", undefined, "kiro")?.editor, "Kiro");
+    assert.equal(forkTarget("Code - OSS", "/home/me", "linux", undefined, "windsurf")?.editor, "Windsurf");
+  });
+
+  describe("chooseMcpMechanism: by host, not by API presence (#84)", () => {
+    const base = {
+      cursor: false,
+      appName: "Kiro",
+      uriScheme: "kiro",
+      home: "/home/me",
+      platform: "linux",
+    } as const;
+    const kiroFile = path.join("/home/me", ".kiro", "settings", "mcp.json");
+
+    it("gives Kiro its MCP file although its Code OSS core has the provider API, and registers the provider too", () => {
+      // The regression: Kiro's core has registerMcpServerDefinitionProvider, kiro-agent never reads it, and the
+      // file used to be skipped because the API was there.
+      const withApi = chooseMcpMechanism({ ...base, hasProviderApi: true });
+      assert.equal(withApi.fork?.file, kiroFile);
+      assert.equal(withApi.provider, true);
+      assert.equal(withApi.cursor, false);
+      assert.match(withApi.description, /Kiro/);
+      assert.match(withApi.description, /has the MCP server definition provider API/);
+      assert.match(withApi.description, /user-level MCP file .*mcp\.json and the provider/);
+      const without = chooseMcpMechanism({ ...base, hasProviderApi: false });
+      assert.equal(without.fork?.file, kiroFile);
+      assert.equal(without.provider, false);
+    });
+
+    it("does the same for Devin Desktop and Windsurf, whether or not they have the API, by name or scheme", () => {
+      for (const [appName, uriScheme, editor] of [
+        ["Devin Desktop", "devin", "Devin Desktop"],
+        ["Windsurf", "windsurf", "Windsurf"],
+        ["Code - OSS", "windsurf", "Windsurf"],
+      ] as const)
+        for (const hasProviderApi of [true, false]) {
+          const chosen = chooseMcpMechanism({ ...base, appName, uriScheme, hasProviderApi });
+          assert.equal(chosen.fork?.editor, editor, `${appName} ${uriScheme}`);
+          assert.equal(chosen.provider, hasProviderApi);
+        }
+    });
+
+    it("gives VS Code and other hosts the provider only, and Cursor its own API", () => {
+      const code = chooseMcpMechanism({
+        ...base,
+        appName: "Visual Studio Code",
+        uriScheme: "vscode",
+        hasProviderApi: true,
+      });
+      assert.equal(code.fork, undefined);
+      assert.equal(code.provider, true);
+      assert.match(code.description, /an MCP server definition provider/);
+      const cursor = chooseMcpMechanism({
+        ...base,
+        cursor: true,
+        appName: "Cursor",
+        uriScheme: "cursor",
+        hasProviderApi: true,
+      });
+      assert.deepEqual([cursor.cursor, cursor.provider, cursor.fork], [true, false, undefined]);
+      const none = chooseMcpMechanism({
+        ...base,
+        appName: "Other",
+        uriScheme: "other",
+        hasProviderApi: false,
+      });
+      assert.deepEqual([none.cursor, none.provider, none.fork], [false, false, undefined]);
+      assert.match(none.description, /none/);
+    });
+
+    it("logs the host, its scheme and what is used", () => {
+      assert.match(chooseMcpMechanism({ ...base, hasProviderApi: true }).description, /^host Kiro \(kiro\):/);
+    });
   });
 
   it("writes a marked opentide entry, keeping every other server and key, and the file's indent", () => {

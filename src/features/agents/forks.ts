@@ -30,8 +30,10 @@ export function forkTarget(
   home: string,
   platform: NodeJS.Platform = process.platform,
   appData?: string,
+  uriScheme = "",
 ): ForkTarget | undefined {
-  const name = appName.toLowerCase();
+  // The host is known by its name or its URI scheme (`kiro`, `windsurf`): either says which editor this is.
+  const name = `${appName} ${uriScheme}`.toLowerCase();
   if (name.includes("kiro"))
     return {
       editor: "Kiro",
@@ -52,6 +54,68 @@ export function forkTarget(
       workspaceVariable: false,
     };
   return undefined;
+}
+
+/** How the opentide MCP server reaches an editor's agent, decided by the host (SPEC §12). */
+export interface McpMechanism {
+  /** Cursor's `cursor.mcp.registerServer`. */
+  readonly cursor: boolean;
+  /** `vscode.lm.registerMcpServerDefinitionProvider`: registered wherever the host has it. */
+  readonly provider: boolean;
+  /** The user-level MCP file of a known editor whose agent reads it. */
+  readonly fork?: ForkTarget;
+  /** A line for the log: the host, what it has, and what is used. */
+  readonly description: string;
+}
+
+/**
+ * Which mechanisms to use. By host, not by API presence: Kiro's Code OSS core has the provider API, but
+ * kiro-agent never consumes it (it reads `~/.kiro/settings/mcp.json` and `<workspace>/.kiro/settings/mcp.json`;
+ * #84), so a server registered through the API reaches nothing there. A known editor therefore gets its MCP
+ * file (after the user agrees) **and**, where the host has it, the provider (harmless where the agent ignores
+ * it). Cursor has its own API. Any other host gets the provider when it has it.
+ */
+export function chooseMcpMechanism(input: {
+  readonly cursor: boolean;
+  readonly hasProviderApi: boolean;
+  readonly appName: string;
+  readonly uriScheme: string;
+  readonly home: string;
+  readonly platform?: NodeJS.Platform;
+  readonly appData?: string;
+}): McpMechanism {
+  const host = `${input.appName} (${input.uriScheme})`;
+  if (input.cursor)
+    return {
+      cursor: true,
+      provider: false,
+      description: `host ${host}: MCP through cursor.mcp.registerServer`,
+    };
+  const fork = forkTarget(
+    input.appName,
+    input.home,
+    input.platform ?? process.platform,
+    input.appData,
+    input.uriScheme,
+  );
+  const api = input.hasProviderApi ? "has" : "has no";
+  if (fork)
+    return {
+      cursor: false,
+      provider: input.hasProviderApi,
+      fork,
+      description:
+        `host ${host}: a known editor (${fork.editor}) whose agent reads its user-level MCP file; ` +
+        `it ${api} the MCP server definition provider API${input.hasProviderApi ? ", registered too (harmless where the agent ignores it)" : ""}: ` +
+        `MCP through the user-level MCP file ${fork.file}${input.hasProviderApi ? " and the provider" : ""}`,
+    };
+  return {
+    cursor: false,
+    provider: input.hasProviderApi,
+    description: input.hasProviderApi
+      ? `host ${host}: MCP through an MCP server definition provider`
+      : `host ${host}: none (no MCP API, and not an editor with a known MCP file)`,
+  };
 }
 
 export interface McpEntry {

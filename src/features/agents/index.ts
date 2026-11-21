@@ -11,7 +11,14 @@ import { which } from "../../core/runtime/process";
 import { readWasi } from "../../core/services/runtime";
 import { httpProxy, readRestricted, readSetting } from "../../core/services/settings";
 import { cursorMcp, cursorRegistration } from "./cursor";
-import { type ForkTarget, forkTarget, hasOurEntry, mergeMcpEntry, removeMcpEntry } from "./forks";
+import {
+  chooseMcpMechanism,
+  type ForkTarget,
+  forkTarget,
+  hasOurEntry,
+  mergeMcpEntry,
+  removeMcpEntry,
+} from "./forks";
 import {
   decideMcp,
   entryUsable,
@@ -79,21 +86,23 @@ export default defineFeature({
     const hasProviderApi =
       typeof lm.registerMcpServerDefinitionProvider === "function" &&
       newer.McpStdioServerDefinition !== undefined;
-    // Cursor has its own API; a host with the provider API (VS Code, and Kiro if it implements it) gets the
-    // provider, whatever it is called; only the rest get a user-level file, after the user agrees.
-    const fork = cursor || hasProviderApi ? undefined : forkTarget(vscode.env.appName, os.homedir());
-    const mechanism = cursor
-      ? "cursor.mcp.registerServer"
-      : hasProviderApi
-        ? "an MCP server definition provider"
-        : fork
-          ? `the user-level MCP file ${fork.file}`
-          : "none (no MCP API, and not an editor with a known MCP file)";
-    ctx.log.info(`agents: host ${vscode.env.appName} (${vscode.env.uriScheme}): MCP through ${mechanism}`);
-    void vscode.commands.executeCommand("setContext", "opentide.agents.forkMcp", fork?.editor ?? false);
+    // By host, not by API presence (#84): Kiro's core has the provider API but its agent never reads it.
+    const mechanism = chooseMcpMechanism({
+      cursor: cursor !== undefined,
+      hasProviderApi,
+      appName: vscode.env.appName,
+      uriScheme: vscode.env.uriScheme,
+      home: os.homedir(),
+    });
+    ctx.log.info(`agents: ${mechanism.description}`);
+    void vscode.commands.executeCommand(
+      "setContext",
+      "opentide.agents.forkMcp",
+      mechanism.fork?.editor ?? false,
+    );
     if (cursor) registerCursorServer(ctx, cursor);
-    else if (hasProviderApi) registerMcpProvider(ctx);
-    else if (fork) maintainForkEntry(ctx, fork);
+    if (mechanism.provider) registerMcpProvider(ctx);
+    if (mechanism.fork) maintainForkEntry(ctx, mechanism.fork);
     ctx.subscriptions.push(
       vscode.commands.registerCommand("opentide.agents.addToEditorMcp", () => addToForkMcp(ctx)),
       vscode.commands.registerCommand("opentide.agents.removeFromEditorMcp", () => removeFromForkMcp(ctx)),
@@ -326,7 +335,7 @@ function maintainForkEntry(ctx: FeatureContext, target: ForkTarget): void {
           asked = true;
           const shown = target.file.replace(os.homedir(), "~");
           const choice = await vscode.window.showInformationMessage(
-            `${target.editor} has no extension API for MCP servers. Add the opentide MCP server to ${shown}?`,
+            `${target.editor}'s agent reads MCP servers from ${shown}, not from extensions. Add the opentide MCP server to it?`,
             "Add",
             "Not now",
             "Never",
@@ -383,7 +392,13 @@ async function writeForkEntry(
 
 /** The command: write the entry now, after confirming it, whatever the setting says. */
 async function addToForkMcp(ctx: FeatureContext): Promise<void> {
-  const target = forkTarget(vscode.env.appName, os.homedir());
+  const target = forkTarget(
+    vscode.env.appName,
+    os.homedir(),
+    process.platform,
+    undefined,
+    vscode.env.uriScheme,
+  );
   if (!target) {
     void vscode.window.showInformationMessage(
       "This editor gets the opentide MCP server from the extension itself; there is nothing to add.",
@@ -416,7 +431,13 @@ async function addToForkMcp(ctx: FeatureContext): Promise<void> {
 
 /** The command: remove the extension's entry, and only that. */
 async function removeFromForkMcp(ctx: FeatureContext): Promise<void> {
-  const target = forkTarget(vscode.env.appName, os.homedir());
+  const target = forkTarget(
+    vscode.env.appName,
+    os.homedir(),
+    process.platform,
+    undefined,
+    vscode.env.uriScheme,
+  );
   if (!target) return;
   const shown = target.file.replace(os.homedir(), "~");
   const existing = await readFileOrUndefined(target.file);
