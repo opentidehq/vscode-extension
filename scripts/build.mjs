@@ -115,7 +115,8 @@ const wasiOut = join(root, "dist", "wasi");
 mkdirSync(wasiOut, { recursive: true });
 writeFileSync(join(wasiOut, WASI_MODULE), wasi.wasm);
 copyFileSync(join(root, "src", "core", "wasi", "launcher.cjs"), join(wasiOut, WASI_LAUNCHER));
-for (const legal of ["LICENSE", "NOTICE"]) copyFileSync(join(engineDir, legal), join(wasiOut, legal));
+// The module's own licence set (pins.json wasi.licences), not the engine's: it belongs to another build.
+for (const [name, text] of wasi.licences) writeFileSync(join(wasiOut, name), text);
 writeFileSync(join(wasiOut, "wasi.json"), `${JSON.stringify(wasi.manifest, null, 2)}\n`);
 
 const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), common);

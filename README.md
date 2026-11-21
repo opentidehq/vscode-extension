@@ -12,8 +12,10 @@ and others through Open VSX).
 It runs the opentide you install (`pip install opentide`): the repository's `.venv`, the Python
 extension's interpreter, `opentide` on `PATH`, or `opentide.path`, so the editor checks what CI checks.
 Where the `opentide` command cannot run, it runs `python -m opentide`. With no opentide at all, it runs
-the opentide module it carries (opentide's own command line, compiled to WebAssembly), so every command,
-the language server and MCP work with nothing installed.
+the opentide module it carries (opentide's own command line, compiled to WebAssembly), so the commands, the
+language server and MCP run with nothing installed. Tenant requests are the one thing it cannot make itself
+(WebAssembly has no network): the extension makes them for the editor and for MCP, and a terminal or task has
+none ([what runs where](#the-bundled-opentide-what-runs-where)).
 
 ![The Relations view following an objective: what it covers, its signals and technique, and the rules that implement it](docs/images/relations.png)
 
@@ -357,9 +359,21 @@ The first that answers wins:
    `py -3` on Windows). For an interpreter, the `opentide` command beside it, else `python -m opentide`.
 3. With `opentide.uv.usePin`: `uv tool run --from opentide==<pin>` (tried before tier 2).
 4. The opentide module the package carries: opentide's own command line compiled to WebAssembly
-   (`opentide.wasi.enabled`, on by default). Every command, the language server and MCP, with nothing
-   installed; tenant requests are made by the extension.
+   (`opentide.wasi.enabled`, on by default). The language server, the catalogue, the commands and MCP, with
+   nothing installed; tenant requests are made by the extension ([what runs where](#the-bundled-opentide-what-runs-where)).
 5. The opentide engine (WASM): the language server built for WebAssembly, which the package carries.
+
+#### The bundled opentide: what runs where
+
+The module has no network of its own, so a command that contacts a tenant needs the extension to make the HTTP
+request (through VS Code's proxy settings and certificate store). Which surface can:
+
+| | The editor (palette, sidebar, panels, CodeLens) | MCP (an agent) | A terminal or a task |
+|-|-|-|-|
+| Search, validate, lint, new, the catalogue, a query's check, a deploy's **dry run** | yes | yes | yes |
+| Tenant commands: `query`, `deploy` without `--dry-run`, `validate query --live`; MCP's `run_query`, `validate_query` with `live`, `deploy_rule` without `dry_run` | yes: the extension makes each request | yes, through the extension's MCP bridge (`dist/mcp-wasi.js`), **with a module that supports it: opentide 1.0.0-rc.3 or later**; with an older module they fail with `network_unavailable` | no: `network_unavailable`; install opentide to run them there |
+
+An opentide you install (tiers 1–3) has the network and does all of it everywhere.
 
 The opentide output channel lists each tier's answer: an `opentide` a policy blocks shows as failed,
 then `python -m opentide` as used. To choose the interpreter yourself, set `opentide.interpreter`.

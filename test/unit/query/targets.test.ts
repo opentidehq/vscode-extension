@@ -3,6 +3,7 @@ import {
   compiledMethod,
   elasticLanguage,
   type LspDocumentSymbol,
+  loadTargets,
   queryText,
   ruleQueryTargets,
   writesPreviewAlerts,
@@ -101,5 +102,49 @@ describe("query targets (#17)", () => {
     assert.equal(elasticLanguage("carbon_black_cloud", "lucene"), undefined);
     assert.equal(writesPreviewAlerts("elastic", "kuery"), true);
     assert.equal(writesPreviewAlerts("elastic", "esql"), false);
+  });
+});
+
+describe("loadTargets (#87: a palette command that asks while the language server restarts)", () => {
+  it("returns the targets of the first answer", async () => {
+    let settled = 0;
+    const found = await loadTargets(
+      async () => ["a"],
+      async () => {
+        settled += 1;
+      },
+    );
+    assert.deepEqual(found, ["a"]);
+    assert.equal(settled, 0);
+  });
+
+  it("waits for the server and asks again when the first request failed or answered nothing", async () => {
+    const answers: (string[] | undefined)[] = [undefined, [], ["query"]];
+    const order: string[] = [];
+    const found = await loadTargets(
+      async () => {
+        order.push("ask");
+        return answers.shift();
+      },
+      async () => {
+        order.push("settle");
+      },
+    );
+    assert.deepEqual(found, ["query"]);
+    assert.deepEqual(order, ["ask", "settle", "ask", "settle", "ask"]);
+  });
+
+  it("gives up with none after its retries: a rule with no query", async () => {
+    let asked = 0;
+    const found = await loadTargets(
+      async () => {
+        asked += 1;
+        return [];
+      },
+      async () => undefined,
+      1,
+    );
+    assert.deepEqual(found, []);
+    assert.equal(asked, 2);
   });
 });

@@ -277,6 +277,30 @@ describe("status text", () => {
   });
 });
 
+describe("status text: the bundled WASI module", () => {
+  it("says 'bundled WASI' in the text, not only in the tooltip, so the runtime in use is visible", () => {
+    const wasi = fakeRuntime({
+      tier: 4,
+      source: "wasi",
+      version: "1.0.0-rc.3",
+      wasi: { module: "/x/opentide.wasm", launcher: "/x/launcher.cjs" },
+    });
+    const model = {
+      runtime: wasi,
+      resolving: false,
+      pin: undefined,
+      counts: { errors: 0, warnings: 0 },
+      trusted: true,
+    };
+    assert.equal(statusText(model), "$(shield) 1.0.0-rc.3 bundled WASI");
+    assert.equal(statusText({ ...model, serve: true }), "$(shield) 1.0.0-rc.3 bundled WASI $(zap)");
+    assert.match(statusLabel(model), /opentide 1\.0\.0-rc\.3, bundled WASI/);
+    // A user's opentide shows its version alone.
+    const native = fakeRuntime({ version: "0.21.0" });
+    assert.equal(statusText({ ...model, runtime: native }), "$(shield) 0.21.0");
+  });
+});
+
 describe("status item: the engine (WASM)", () => {
   const engine = fakeRuntime({ tier: 4, source: "engine", kind: "engine", version: "0.10.0" });
   const counts = { errors: 1, warnings: 0 };

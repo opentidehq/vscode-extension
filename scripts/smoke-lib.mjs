@@ -86,7 +86,17 @@ export function checkMcpBridge(lines, exitCode) {
 
 /** The WASI module's files in an unpacked package (`exists` takes a path relative to the extension folder). */
 export function checkWasiPackage(exists) {
-  return ["dist/wasi/opentide.wasm", "dist/wasi/launcher.cjs", "dist/wasi/wasi.json", "dist/mcp-wasi.js"]
+  // The licence set ships with the module it belongs to (pins.json wasi.licences).
+  return [
+    "dist/wasi/opentide.wasm",
+    "dist/wasi/launcher.cjs",
+    "dist/wasi/wasi.json",
+    "dist/wasi/THIRD-PARTY-LICENSES.html",
+    "dist/wasi/WASI-LIBC-LICENSES.txt",
+    "dist/wasi/LICENSE",
+    "dist/wasi/NOTICE",
+    "dist/mcp-wasi.js",
+  ]
     .filter((file) => !exists(file))
     .map((file) => `the package has no ${file}`);
 }

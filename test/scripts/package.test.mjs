@@ -249,7 +249,7 @@ describe("smoke: checks", () => {
     assert.equal(releaseOf("0.10.0"), "0.10.0");
   });
 
-  it("the package carries the WASI module, its launcher and its manifest, and the MCP bridge", () => {
+  it("the package carries the WASI module, its launcher, its manifest, its licence set and the MCP bridge", () => {
     assert.deepEqual(
       checkWasiPackage(() => true),
       [],
@@ -259,6 +259,10 @@ describe("smoke: checks", () => {
       [
         "the package has no dist/wasi/opentide.wasm",
         "the package has no dist/wasi/launcher.cjs",
+        "the package has no dist/wasi/THIRD-PARTY-LICENSES.html",
+        "the package has no dist/wasi/WASI-LIBC-LICENSES.txt",
+        "the package has no dist/wasi/LICENSE",
+        "the package has no dist/wasi/NOTICE",
         "the package has no dist/mcp-wasi.js",
       ],
     );

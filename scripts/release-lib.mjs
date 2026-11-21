@@ -2,6 +2,7 @@
 // the release assets and their SHA256SUMS. No process exits and no writes; release.mjs does the IO.
 import { createHash } from "node:crypto";
 import { readZip } from "./grammars-lib.mjs";
+import { unpinnedLicences } from "./wasi-lib.mjs";
 
 /** The tree does not say what to release, or the assets are not what it says. */
 export class ReleaseError extends Error {}
@@ -76,6 +77,13 @@ export function problems({ changelog, packageVersion, tag, pins }) {
     found.push(
       `pins.json wasi.sha256 is a placeholder: set it from the v${pins.wasi.version} release's SHA256SUMS first (docs/PACKAGING.md)`,
     );
+  }
+  if (pins?.wasi) {
+    const unpinned = unpinnedLicences(pins.wasi);
+    if (unpinned.length > 0)
+      found.push(
+        `pins.json wasi.licences has no digest for ${unpinned.join(", ")}: set them from the v${pins.wasi.version} release's SHA256SUMS first (docs/PACKAGING.md)`,
+      );
   }
   let version;
   try {

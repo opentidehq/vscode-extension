@@ -8,13 +8,15 @@ pre-releases odd ones.
 
 ### Added
 
-- **Everything works with no opentide installed.** The extension carries opentide's own command line,
-  compiled to WebAssembly, and runs it when none of your opentide installs answers: every command, the
-  language server, the catalogue and MCP. It runs after `opentide.path`, your environment and `uv`, and
-  before the opentide engine ([#75](https://github.com/opentidehq/vscode-extension/issues/75)).
-- **Tenant requests work from the bundled opentide.** Queries, deploys and `validate --live` are made by
-  the extension, so VS Code's proxy settings and certificate store apply. In a terminal the bundled
-  opentide has no network: install opentide to run a tenant command there.
+- **opentide runs with nothing installed.** The extension carries opentide's own command line, compiled to
+  WebAssembly, and runs it when none of your opentide installs answers: the language server, the catalogue,
+  the commands and MCP. It runs after `opentide.path`, your environment and `uv`, and before the opentide
+  engine ([#75](https://github.com/opentidehq/vscode-extension/issues/75)).
+- **Tenant requests work from the bundled opentide in the editor and in MCP.** Queries, deploys and
+  `validate --live` are made by the extension, so VS Code's proxy settings and certificate store apply. In
+  MCP that needs opentide 1.0.0-rc.3 or later (the module asks the extension for each request); with an older
+  module the MCP tenant tools say `network_unavailable`. In a terminal or a task the bundled opentide has no
+  network: install opentide to run a tenant command there.
 - **`opentide.wasi.enabled` turns the bundled opentide off.** With it off, and no opentide installed, only
   the engine's editor features run.
 - **Grammars for CQL, Exabeam, YARA and YARA-L.** They come with opentide 1.0.0-rc.2's highlights and
@@ -42,6 +44,22 @@ pre-releases odd ones.
   `.opentide/configurations/*.toml`, which it needs to check rules in the object folders `paths.toml`
   names.
 - **The `opentide` command in terminals also covers the bundled opentide**, where none is installed.
+- **The bundled opentide ships its own licences.** `dist/wasi/` carries the licence set of the module's own
+  release (every Rust crate it links, the wasi-libc texts, `LICENSE` and `NOTICE`), checked against the pinned
+  checksums, instead of the engine's copy.
+
+### Fixed
+
+- **Validate Query on Tenants works from the Command Palette** while the language server is restarting (a
+  setting changed, the folder trusted): the command waits for the server instead of saying the rule has no
+  query.
+- **The credential check no longer says a variable is "not set" when `opentide.envFile` provides it.** It
+  reads the same file the run does.
+- **The query-validation notification no longer shows `$(pass)` as text.**
+- **The log no longer tells you to install opentide in Restricted Mode.** It says no opentide runs there and
+  to trust the folder.
+- **The status bar says "bundled WASI" next to the version** when the module the extension carries is the
+  runtime, so you can see which opentide is running without opening the tooltip.
 
 ## [0.1.2] - 2026-11-10
 

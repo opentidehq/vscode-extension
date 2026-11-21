@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
 import { isDuration, type QueryWindow } from "./argv";
 import { platformLabel } from "./lenses";
-import { credentialVariables, missingVariables, type TenantInfo } from "./platforms";
+import { credentialVariables, missingVariables, providedVariables, type TenantInfo } from "./platforms";
 
 const ALL = "all";
 
@@ -117,7 +117,10 @@ export async function ensureCredentials(
   folder: string,
   tenants: readonly TenantInfo[],
 ): Promise<boolean> {
-  const stored = new Set(await ctx.credentials.names(folder));
+  const stored = await providedVariables(
+    await ctx.credentials.names(folder),
+    ctx.backend.credentialEnv(folder),
+  );
   const missing = [...new Set(tenants.flatMap((tenant) => missingVariables(tenant, stored)))];
   if (missing.length === 0) return true;
   const names = missing.map((name) => `$${name}`).join(", ");
@@ -153,7 +156,8 @@ export async function setCredentials(
   tenantName: string,
   fromError: readonly string[] = [],
 ): Promise<boolean> {
-  const stored = new Set(await ctx.credentials.names(folder));
+  const storedNames = new Set(await ctx.credentials.names(folder));
+  const stored = await providedVariables(storedNames, ctx.backend.credentialEnv(folder));
   const variables = credentialVariables(tenants, fromError);
   if (variables.length === 0) {
     void vscode.window.showInformationMessage(
@@ -168,9 +172,11 @@ export async function setCredentials(
       name: variable.name,
       description: missing.has(variable.name)
         ? "not set"
-        : stored.has(variable.name)
+        : storedNames.has(variable.name)
           ? "set in the editor"
-          : "set in the environment",
+          : stored.has(variable.name) && !variable.set
+            ? "set in opentide.envFile"
+            : "set in the environment",
       picked: missing.has(variable.name) || missing.size === 0,
     })),
     {

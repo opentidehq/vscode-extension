@@ -155,18 +155,38 @@ describe("release: check", () => {
     assert.deepEqual(problems({ changelog: CHANGELOG, packageVersion: "0.3.0" }), []);
     // A real digest for the WASI module is fine; the marked placeholder keeps the release from going out.
     const sha256 = "a".repeat(64);
+    const licences = Object.fromEntries(
+      ["THIRD-PARTY-LICENSES.html", "WASI-LIBC-LICENSES.txt", "LICENSE", "NOTICE"].map((name) => [
+        name,
+        { url: `https://example.invalid/${name}`, sha256 },
+      ]),
+    );
     assert.deepEqual(
       problems({
         changelog: CHANGELOG,
         packageVersion: "0.3.0",
-        pins: { wasi: { version: "1.0.0-rc.3", sha256 } },
+        pins: { wasi: { version: "1.0.0-rc.3", sha256, licences } },
       }),
       [],
     );
+    // The licence set is pinned too: a digest still a placeholder keeps the release from going out.
+    const unpinned = problems({
+      changelog: CHANGELOG,
+      packageVersion: "0.3.0",
+      pins: {
+        wasi: {
+          version: "1.0.0-rc.3",
+          sha256,
+          licences: { ...licences, NOTICE: { url: "u", sha256: "PLACEHOLDER-x" } },
+        },
+      },
+    });
+    assert.equal(unpinned.length, 1);
+    assert.match(unpinned[0], /wasi\.licences has no digest for NOTICE/);
     const placeholder = problems({
       changelog: CHANGELOG,
       packageVersion: "0.3.0",
-      pins: { wasi: { version: "1.0.0-rc.3", sha256: "PLACEHOLDER-set-it" } },
+      pins: { wasi: { version: "1.0.0-rc.3", sha256: "PLACEHOLDER-set-it", licences } },
     });
     assert.equal(placeholder.length, 1);
     assert.match(placeholder[0], /wasi\.sha256 is a placeholder.*v1\.0\.0-rc\.3/);

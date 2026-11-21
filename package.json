@@ -337,7 +337,7 @@
             "default": true,
             "scope": "window",
             "order": 2,
-            "markdownDescription": "When no opentide is installed (`opentide.path`, the workspace's environment, `uv`), run the opentide module the extension carries: every command, the language server and MCP, with no install. Tenant requests (query, deploy, validate --live) are made by the extension host. Off: the editor features of the opentide engine (WASM) only. Ignored in Restricted Mode, where only the engine runs."
+            "markdownDescription": "When no opentide is installed (`opentide.path`, the workspace's environment, `uv`), run the opentide module the extension carries: the language server, the catalogue, the commands and MCP, with no install. It has no network of its own: the extension host makes the tenant requests (query, deploy, validate --live) for the editor and, with opentide 1.0.0-rc.3 or later, for MCP; a terminal or task has none. Off: the editor features of the opentide engine (WASM) only. Ignored in Restricted Mode, where only the engine runs."
           },
           "opentide.envFile": {
             "type": "string",
