@@ -15,6 +15,7 @@ import {
 } from "../../../src/features/agents/forks";
 import { parseJsonc, stripJsonc } from "../../../src/features/agents/jsonc";
 import {
+  bridgeInsteadText,
   cursorWorkspaceDiscovered,
   decideMcp,
   definesOpentide,
@@ -25,7 +26,9 @@ import {
   MCP_SEPARATE_LABEL,
   McpDecisionLog,
   type McpInputs,
+  MIN_NATIVE_MCP_FOR_FILES,
   mcpBridge,
+  nativeMcpTooOldForFiles,
   opentideEntryCommand,
   opentideServerCommand,
   provideMode,
@@ -891,5 +894,136 @@ describe("agents: language-model tools", () => {
       true,
     );
     assert.equal(caseless.object?.uuid, "r1");
+  });
+});
+
+describe("agents: a window with no opentide folder provides no MCP server (#96)", () => {
+  const bridge = {
+    command: "/usr/share/code/code",
+    args: ["/ext/dist/mcp-wasi.js"],
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    version: "1.0.0-rc.3",
+  };
+  const inputs = (overrides: Partial<McpInputs> = {}): McpInputs => ({
+    trusted: true,
+    mode: "auto",
+    runtime: undefined,
+    hasMcpStart: undefined,
+    folder: "/ws",
+    workspaceEntries: [],
+    bridge,
+    ...overrides,
+  });
+
+  it("is dormant: nothing is provided, whatever the runtime, the bridge or the folder", () => {
+    const dormant = decideMcp(inputs({ dormant: true }));
+    assert.deepEqual(dormant, { provide: false, reason: "no opentide folder in this window" });
+    assert.deepEqual(
+      decideMcp(inputs({ dormant: true, runtime: fakeRuntime(), hasMcpStart: true })),
+      dormant,
+    );
+  });
+
+  it("provides the server once opentide content appears: the same inputs, no longer dormant", () => {
+    assert.equal(decideMcp(inputs({ dormant: true })).provide, false);
+    assert.equal(decideMcp(inputs({ dormant: false })).provide, true);
+    assert.equal(decideMcp(inputs()).provide, true);
+  });
+
+  it("is still off in Restricted Mode and with `never`, with their own reasons", () => {
+    assert.deepEqual(decideMcp(inputs({ trusted: false, dormant: true })), {
+      provide: false,
+      reason: "Restricted Mode",
+    });
+    assert.deepEqual(decideMcp(inputs({ mode: "never", dormant: true })), {
+      provide: false,
+      reason: "opentide.mcp.provide is never",
+    });
+  });
+
+  it("is logged once, as a reason", () => {
+    const log = new McpDecisionLog();
+    const dormant = decideMcp(inputs({ dormant: true }));
+    assert.equal(log.line(dormant), "MCP server not provided: no opentide folder in this window");
+    assert.equal(log.line(dormant), undefined);
+  });
+});
+
+describe("agents: an installed opentide too old for a user-level MCP file gets the bridge (#97)", () => {
+  const bridge = {
+    command: "/usr/share/kiro/kiro",
+    args: ["/ext/dist/mcp-wasi.js"],
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    version: "1.0.0-rc.3",
+  };
+  const native = (version: string) => fakeRuntime({ version });
+  const inputs = (overrides: Partial<McpInputs> = {}): McpInputs => ({
+    trusted: true,
+    mode: "auto",
+    runtime: native("1.0.0rc2"),
+    hasMcpStart: true,
+    folder: "/ws",
+    workspaceEntries: [],
+    bridge,
+    forFile: true,
+    ...overrides,
+  });
+
+  it("the version gate: below 1.0.0rc3 is too old, rc3 and later is not, an untagged dev build is left alone", () => {
+    assert.equal(MIN_NATIVE_MCP_FOR_FILES, "1.0.0rc3");
+    for (const old of ["1.0.0rc2", "1.0.0-rc.2", "1.0.0rc1", "0.21.0", "0.99.9", "1.0.0.dev4"])
+      assert.equal(nativeMcpTooOldForFiles(old), true, old);
+    for (const fine of ["1.0.0rc3", "1.0.0-rc.3", "1.0.0", "1.0.1", "1.1.0", "2.0.0rc1", "0.1.dev3+g8b55d0c"])
+      assert.equal(nativeMcpTooOldForFiles(fine), false, fine);
+  });
+
+  it("a file entry runs the bridge, and says why, with an opentide 1.0.0rc2", () => {
+    const decision = decideMcp(inputs());
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, true);
+    assert.equal(decision.server.command, "/usr/share/kiro/kiro");
+    assert.deepEqual(decision.bridgeInstead, { nativeVersion: "1.0.0rc2", minimum: "1.0.0rc3" });
+    const log = new McpDecisionLog();
+    assert.match(
+      log.line(decision) ?? "",
+      /bundled bridge, not the installed opentide 1\.0\.0rc2.*resultType.*1\.0\.0rc3/,
+    );
+    assert.equal(log.line(decision), undefined, "once");
+    assert.match(
+      bridgeInsteadText(decision.bridgeInstead ?? { nativeVersion: "", minimum: "" }),
+      /Upgrade opentide/,
+    );
+  });
+
+  it("an opentide that is new enough keeps its own `mcp start`", () => {
+    for (const version of ["1.0.0rc3", "1.0.0", "1.2.0"]) {
+      const decision = decideMcp(inputs({ runtime: native(version) }));
+      assert.ok(decision.provide, version);
+      assert.equal(decision.server.bridge, false, version);
+      assert.equal(decision.bridgeInstead, undefined, version);
+    }
+  });
+
+  it("is only for a user-level file: the editor APIs (VS Code's provider, Cursor) keep the old opentide", () => {
+    const decision = decideMcp(inputs({ forFile: false }));
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, false);
+    assert.equal(decision.bridgeInstead, undefined);
+    assert.equal(decideMcp(inputs({ forFile: undefined })).provide, true);
+  });
+
+  it("without a bridge in this build, the old opentide stays: nothing better to write", () => {
+    const decision = decideMcp(inputs({ bridge: undefined }));
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, false);
+    assert.equal(decision.bridgeInstead, undefined);
+  });
+
+  it("the bundled module as the runtime is the bridge anyway, and no notice", () => {
+    const wasi = fakeRuntime({ tier: 4, source: "wasi", wasi: { module: "/m.wasm", launcher: "/l.cjs" } });
+    const decision = decideMcp(inputs({ runtime: wasi }));
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, true);
+    assert.equal(decision.bridgeInstead, undefined);
   });
 });

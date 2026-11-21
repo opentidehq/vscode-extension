@@ -22,6 +22,7 @@ import {
 } from "./forks";
 import { launcherEntry, launcherPath, launcherStale } from "./launcher";
 import {
+  bridgeInsteadText,
   decideMcp,
   entryUsable,
   environmentLookup,
@@ -117,8 +118,30 @@ export default defineFeature({
  * Whether and how the opentide MCP server is provided now (SPEC §12): the one decision the provider, Cursor's
  * registration and the user-level file all follow. Nothing in Restricted Mode, without reading a setting or a file.
  */
-async function decideNow(ctx: FeatureContext, log?: McpDecisionLog): Promise<McpDecision> {
+async function decideNow(
+  ctx: FeatureContext,
+  log?: McpDecisionLog,
+  options: { readonly forFile?: boolean; readonly explicit?: boolean } = {},
+): Promise<McpDecision> {
   if (!ctx.trust.isTrusted) return { provide: false, reason: "Restricted Mode" };
+  // A window with no opentide folder gets no server, and does not resolve the runtime for one (#96): Copilot starts
+  // whatever the provider names, and without a repository its tools can only answer `workspace_not_found`. A command the
+  // person ran on purpose (`explicit`) is not held to it.
+  const dormant = options.explicit !== true && ctx.folders.all.length === 0;
+  if (dormant) {
+    const decision = decideMcp({
+      trusted: true,
+      dormant: true,
+      mode: provideMode(readRestricted<string>("opentide.mcp.provide")),
+      runtime: undefined,
+      hasMcpStart: undefined,
+      folder: undefined,
+      workspaceEntries: [],
+    });
+    const line = log?.line(decision);
+    if (line) ctx.log.info(line);
+    return decision;
+  }
   const runtime = await ctx.runtime.ready();
   const tree = (await ctx.capabilities.ready()) ?? ctx.capabilities.current;
   const mode = provideMode(readRestricted<string>("opentide.mcp.provide"));
@@ -132,6 +155,7 @@ async function decideNow(ctx: FeatureContext, log?: McpDecisionLog): Promise<Mcp
     workspaceEntries: mode === "never" ? [] : await workspaceEntries(),
     proxy: httpProxy(),
     bridge: bundledBridge(ctx),
+    ...(options.forFile ? { forFile: true } : {}),
   });
   const line = log?.line(decision);
   if (line) ctx.log.info(line);
@@ -361,14 +385,22 @@ const DECLINED_KEY = "opentide.agents.writeEditorConfig.declined";
 function maintainForkEntry(ctx: FeatureContext, target: ForkTarget): void {
   const log = new McpDecisionLog();
   let asked = false;
+  const told = new Set<string>();
   let lastProblem: string | undefined;
   let running = Promise.resolve();
   const apply = () => {
     running = running.then(async () => {
       const mode = readSetting<string>("opentide.agents.writeEditorConfig") ?? "ask";
       if (mode === "never") return;
-      const decision = await decideNow(ctx, log);
+      const decision = await decideNow(ctx, log, { forFile: true });
       if (!decision.provide) return;
+      // Once per version: the entry runs the bundled bridge because the installed opentide is too old for this editor.
+      if (decision.bridgeInstead && !told.has(decision.bridgeInstead.nativeVersion)) {
+        told.add(decision.bridgeInstead.nativeVersion);
+        void vscode.window.showInformationMessage(
+          `${target.editor}: ${bridgeInsteadText(decision.bridgeInstead)}.`,
+        );
+      }
       const existing = await readFileOrUndefined(target.file);
       // A file the extension cannot read is not offered an entry: say so once, in the log, and leave it.
       const problem = configProblem(existing);
@@ -461,7 +493,7 @@ async function addToForkMcp(ctx: FeatureContext): Promise<void> {
     );
     return;
   }
-  const decision = await decideNow(ctx);
+  const decision = await decideNow(ctx, undefined, { forFile: true, explicit: true });
   if (!decision.provide) {
     void vscode.window.showWarningMessage(`The opentide MCP server is not available: ${decision.reason}.`);
     return;

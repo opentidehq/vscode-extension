@@ -28,6 +28,20 @@ manual check to run before a release.
 | Verified | **against a scripted module** with `server/discover`, legacy `initialize`, a fetch-delegated tool call, an unreachable tenant, a cancelled call, an input closed mid-request, a forged answer and a leaked private-link line (`test/scripts/mcp-bridge.test.mjs`); **against the real module** for `initialize` and `tools/list`. **The real module's tenant path** (a deploy against a local fake tenant, a cancelled call, a closed input) is tested in `test/scripts/mcp-bridge.test.mjs` against a module built from opentide's `feat/mcp-wasi-fetch` (opentide#1742, at ed5d747 here; the Test VSIX workflow runs it), and **skips itself for a module without `OPENTIDE_FETCH`**. Against a released module (rc.3) it runs in CI once the pins are set; until then, "verified against the real module" means that test build |
 | Assumed | that every editor spawns the definition's `process.execPath` with the `env` it is given, and passes `ELECTRON_RUN_AS_NODE` through |
 
+## Two gates on the server (QA rerun 3)
+
+- **No opentide folder, no server (#96).** In a window with no opentide folder, `provideMcpServerDefinitions` returns
+  nothing and the runtime is not resolved for it: Copilot starts whatever the provider names, and without a
+  repository the tools can only answer `workspace_not_found`. It provides the server, and fires
+  `onDidChangeMcpServerDefinitions`, when an opentide folder appears. The **Add to editor MCP settings** command is
+  not held to it.
+- **An installed opentide older than 1.0.0rc3 does not get the user-level file (#97).** The `tools/list` of rc2 lacks
+  `resultType`, which Kiro rejects. For Kiro, Devin Desktop and Windsurf, when `opentide.runtime` is `installed` and
+  the installed opentide is older than 1.0.0rc3 (`MIN_NATIVE_MCP_FOR_FILES`, read from the runtime's version; an
+  untagged dev build is left alone), the entry runs the bundled bridge through the launcher instead, with a log line
+  and a one-time notice saying why and to upgrade. VS Code's provider and Cursor are not gated. Without a bridge in the
+  build the installed opentide stays.
+
 ## The user-level entry survives an extension update
 
 A user-level entry (Kiro, Devin Desktop, Windsurf) does not name the extension's own folder. An update deletes
