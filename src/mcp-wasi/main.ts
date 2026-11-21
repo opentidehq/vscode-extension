@@ -12,6 +12,7 @@
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import { isForgedAnswer, LineGuard, leaksPrivateLink } from "../core/wasi/mcpGuard";
+import { checkRoot, startupLine, withWorkspaceHint, workspaceHint } from "../core/wasi/mcpHint";
 
 async function main(): Promise<void> {
   // The package is ESM only: loaded here, bundled into dist/mcp-wasi.js.
@@ -19,6 +20,12 @@ async function main(): Promise<void> {
   const wasiDir = process.env.OPENTIDE_WASI_DIR ?? path.join(__dirname, "wasi");
   const launcher = path.join(wasiDir, "launcher.cjs");
   const module = path.join(wasiDir, "opentide.wasm");
+
+  // Where this server runs and which repository it will use: the first thing to read in the editor's log for it
+  // when its tools say `workspace_not_found` (#86).
+  const root = checkRoot(process.cwd(), process.env);
+  process.stderr.write(`${startupLine(process.cwd(), root)}\n`);
+  const hint = workspaceHint(process.cwd(), root);
 
   const child = spawn(process.execPath, [launcher, module, "mcp", "start"], {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ...MCP_FETCH_ENVIRONMENT },
@@ -46,7 +53,7 @@ async function main(): Promise<void> {
     toClient: (line) => {
       const { lines, dropped } = fromModule.push(line);
       if (dropped > 0) note("dropped a line of the module's private link");
-      for (const out of lines) process.stdout.write(out);
+      for (const out of lines) process.stdout.write(withWorkspaceHint(out, hint));
     },
   });
 
@@ -73,7 +80,7 @@ async function main(): Promise<void> {
     bridge.endServer();
     bridge.dispose();
     const { lines } = fromModule.end();
-    for (const out of lines) process.stdout.write(out);
+    for (const out of lines) process.stdout.write(withWorkspaceHint(out, hint));
     // Everything the module wrote is flushed before the process ends.
     process.stdout.write("", () => process.exit(code ?? (signal ? 1 : 0)));
   });

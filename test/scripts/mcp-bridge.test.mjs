@@ -4,7 +4,7 @@
 // when there is one (OPENTIDE_WASI_MODULE, or dist/wasi/ after `npm run build`).
 import * as assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import * as http from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -13,6 +13,31 @@ import * as esbuild from "esbuild";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const REAL = process.env.OPENTIDE_WASI_MODULE ?? join(root, "dist", "wasi", "opentide.wasm");
+
+/** A rule for the elastic tenant of the real-module test. */
+const RULE = `name: Elastic create rule
+metadata:
+  uuid: 6b2e9c14-7a31-4f58-9d0c-1e8a4b7c0001
+  schema: rule::1.0
+  version: 1
+  created: 2026-01-01
+  modified: 2026-01-02
+  tlp: clear
+description: A rule the tenant stand-in receives in a deploy that sends.
+response:
+  alert_severity: High
+configurations:
+  elastic:
+    schema: platform::elastic::1.0
+    status: STAGING
+    type: query
+    language: kuery
+    query: |
+      process.name: "powershell.exe"
+    scheduling:
+      interval: 5m
+      lookback: 1m
+`;
 
 /**
  * A fake `launcher.cjs <module> mcp start`: MCP over stdio, with `opentide/fetch` interleaved as opentide's
@@ -34,6 +59,8 @@ const answer = (m) => {
     return send({ jsonrpc: "2.0", id: m.id, result: { via: m.method, fetch: mode, serverInfo: { name: "scripted" } } });
   if (m.method === "tools/list") return send({ jsonrpc: "2.0", id: m.id, result: { tools: [{ name: "deploy" }] } });
   if (m.method === "ping") return send({ jsonrpc: "2.0", id: m.id, result: {} });
+  if (m.method === "test/notfound")
+    return send({ jsonrpc: "2.0", id: m.id, result: { isError: true, content: [{ type: "text", text: "workspace_not_found: no detection workspace here" }] } });
   if (m.method === "test/leak") {
     // A private-link line cut short, then the answer: the first must never reach the editor.
     process.stdout.write('{"jsonrpc":"2.0","id":"opentide-fetch-99","method":"opentide/fetch","params":{"headers":[["authorization","Bearer hunter2"]]\n');
@@ -374,6 +401,58 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
     }
   });
 
+  it("says on stderr where it runs and which repository it will use, and hints when the server finds none (#86)", async () => {
+    const home = mkdtempSync(join(tmpdir(), "mcp-bridge-home-"));
+    const repo = mkdtempSync(join(tmpdir(), "mcp-bridge-repo-"));
+    mkdirSync(join(repo, ".opentide"));
+    const run = async (cwd, extra) => {
+      const child = spawn(process.execPath, [bridge], {
+        cwd,
+        env: { ...process.env, OPENTIDE_WASI_DIR: dir, OPENTIDE_REPO_ROOT: "", ...extra },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stderr = "";
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+      let out = "";
+      child.stdout.on("data", (chunk) => {
+        out += chunk;
+      });
+      const closed = new Promise((resolve) => child.once("close", resolve));
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "test/notfound" })}\n`);
+      for (let waited = 0; !out.includes("\n") && waited < 200; waited += 1)
+        await new Promise((r) => setTimeout(r, 50));
+      child.stdin.end();
+      await closed;
+      return { stderr, answer: JSON.parse(out.split("\n")[0]) };
+    };
+    try {
+      const lost = await run(home, {});
+      assert.match(
+        lost.stderr,
+        new RegExp(
+          `cwd=${home.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")}; OPENTIDE_REPO_ROOT not set; repository root: none found`,
+        ),
+      );
+      const parts = lost.answer.result.content;
+      assert.equal(parts.length, 2, "the module's text, then the hint");
+      assert.match(parts[0].text, /^workspace_not_found/);
+      assert.match(parts[1].text, /started this server in .* not inside a detection repository/);
+      assert.match(parts[1].text, /set OPENTIDE_REPO_ROOT to its absolute path/);
+      const found = await run(join(repo), {});
+      assert.match(found.stderr, /repository root: .*mcp-bridge-repo-/);
+      const named = await run(home, { OPENTIDE_REPO_ROOT: repo });
+      assert.match(
+        named.stderr,
+        /OPENTIDE_REPO_ROOT=.*mcp-bridge-repo-.*; repository root: .*mcp-bridge-repo-/,
+      );
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it("keeps the editor's other messages until the call returns, in order", async () => {
     const talking = session(bridge, scripted());
     try {
@@ -436,6 +515,142 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
   describe("with the real module", function () {
     before(function () {
       if (!existsSync(REAL)) this.skip();
+    });
+
+    describe("a tenant tool, when the module asks its client to make the request (opentide#1742)", () => {
+      let wasi;
+      let workspace;
+      let tenant;
+      const seen = { requests: [], aborted: 0 };
+
+      before(async function () {
+        wasi = existsSync(join(root, "dist", "wasi", "launcher.cjs"))
+          ? join(root, "dist", "wasi")
+          : undefined;
+        // A module without the delegation (before opentide 1.0.0-rc.3) answers `network_unavailable`.
+        if (!wasi || !readFileSync(join(wasi, "opentide.wasm")).includes("OPENTIDE_FETCH")) this.skip();
+        workspace = mkdtempSync(join(tmpdir(), "mcp-bridge-tenant-"));
+        mkdirSync(join(workspace, ".opentide", "configurations", "platforms"), { recursive: true });
+        mkdirSync(join(workspace, "objects", "rules"), { recursive: true });
+        writeFileSync(join(workspace, "objects", "rules", "elastic-create.yaml"), RULE);
+        tenant = http.createServer((request, response) => {
+          seen.requests.push(`${request.method} ${request.url}`);
+          if (holding) {
+            response.on("close", () => {
+              if (!response.writableEnded) seen.aborted += 1;
+            });
+            return;
+          }
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(JSON.stringify({ id: "r1", rule_id: "r1" }));
+        });
+        await new Promise((resolve) => tenant.listen(0, "127.0.0.1", resolve));
+        writeFileSync(
+          join(workspace, ".opentide", "configurations", "platforms", "elastic.toml"),
+          `[platform]\nenabled = true\nname = "Elastic Security"\n\n[[tenants]]\nname = "soc"\nstrategies = ["PREVIEW", "RELEASE"]\n[tenants.setup]\nssl = false\nurl = "http://127.0.0.1:${tenant.address().port}"\nelasticsearch_url = "http://127.0.0.1:${tenant.address().port}"\napi_key = "$ELASTIC_API_KEY"\nspace = "soc"\nindex = ["logs-*"]\n`,
+        );
+      });
+      after(async () => {
+        if (tenant) await new Promise((resolve) => tenant.close(resolve));
+        if (workspace) rmSync(workspace, { recursive: true, force: true });
+      });
+
+      let holding = false;
+      const DEPLOY = {
+        name: "deploy_rule",
+        arguments: { uuid: "6b2e9c14-7a31-4f58-9d0c-1e8a4b7c0001", platform: "elastic", dry_run: false },
+      };
+      const start = () =>
+        session(bridge, {
+          OPENTIDE_WASI_DIR: wasi,
+          OPENTIDE_REPO_ROOT: workspace,
+          ELASTIC_API_KEY: "stand-in",
+        });
+      const initialize = async (talking) => {
+        talking.send({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "test", version: "0" },
+          },
+        });
+        talking.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+        await talking.next();
+      };
+
+      it("is deployed through the bridge: the extension makes the tenant's requests, and only MCP reaches the editor", async () => {
+        seen.requests.length = 0;
+        holding = false;
+        const talking = start();
+        try {
+          await initialize(talking);
+          talking.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: DEPLOY });
+          const answered = await talking.next();
+          assert.equal(answered.id, 2);
+          const text = answered.result.content.map((part) => part.text).join("\n");
+          assert.match(text, /Deployed 1 rule to 1 tenant/, text);
+          assert.ok(
+            seen.requests.some((line) => line.startsWith("POST /s/soc/api/detection_engine/rules")),
+            seen.requests.join("\n"),
+          );
+          assert.doesNotMatch(JSON.stringify(answered), /opentide-fetch-|"opentide\/fetch"/);
+          talking.end();
+          assert.equal(await talking.closed, 0);
+        } finally {
+          talking.kill();
+        }
+      });
+
+      it("a cancelled call aborts the tenant's request and the server goes on", async () => {
+        seen.requests.length = 0;
+        seen.aborted = 0;
+        holding = true;
+        const talking = start();
+        try {
+          await initialize(talking);
+          talking.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: DEPLOY });
+          for (let waited = 0; seen.requests.length === 0 && waited < 200; waited += 1)
+            await new Promise((r) => setTimeout(r, 50));
+          assert.ok(seen.requests.length > 0, "the tenant received the request");
+          talking.send({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 2 } });
+          talking.send({ jsonrpc: "2.0", id: 3, method: "tools/list" });
+          const lines = [await talking.next(), await talking.next()];
+          assert.ok(lines.some((line) => line.id === 3 && Array.isArray(line.result.tools)));
+          for (let waited = 0; seen.aborted === 0 && waited < 100; waited += 1)
+            await new Promise((r) => setTimeout(r, 50));
+          assert.ok(seen.aborted > 0, "the tenant request was aborted");
+          talking.end();
+          assert.equal(await talking.closed, 0);
+        } finally {
+          holding = false;
+          talking.kill();
+        }
+      });
+
+      it("an input closed with the request unanswered fails the call, aborts the request and ends the bridge", async () => {
+        seen.requests.length = 0;
+        seen.aborted = 0;
+        holding = true;
+        const talking = start();
+        try {
+          await initialize(talking);
+          talking.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: DEPLOY });
+          for (let waited = 0; seen.requests.length === 0 && waited < 200; waited += 1)
+            await new Promise((r) => setTimeout(r, 50));
+          talking.end();
+          assert.equal(await talking.closed, 0);
+          for (let waited = 0; seen.aborted === 0 && waited < 100; waited += 1)
+            await new Promise((r) => setTimeout(r, 50));
+          assert.ok(seen.aborted > 0, "the tenant request was aborted");
+          assert.doesNotMatch(talking.stderr(), /write after end|ERR_STREAM|TypeError/);
+        } finally {
+          holding = false;
+          talking.kill();
+        }
+      });
     });
 
     it("initializes and lists opentide's tools: nothing but MCP reaches the editor", async () => {
