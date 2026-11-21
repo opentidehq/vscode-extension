@@ -22,10 +22,10 @@ manual check to run before a release.
 |-|-|
 | Command | the editor's own binary: `process.execPath`, `ELECTRON_RUN_AS_NODE=1` |
 | Script | `dist/mcp-wasi.js` in the extension: runs the module's `mcp start` in a child process and pipes MCP stdio through |
-| Tenant tools | the bridge answers the module's `opentide/fetch` (`OPENTIDE_FETCH=stdio`, opentide's side in progress) with FetchHost; nothing but valid MCP reaches the editor |
+| Tenant tools | `@opentide/wasi-host`'s `McpFetchBridge` answers the module's `opentide/fetch` (`OPENTIDE_FETCH=stdio`, opentide#1742, in rc.3) with FetchHost; nothing but MCP reaches the editor |
 | Native first | a native opentide (tiers 1–3) wins unless `opentide.mcp.useBundled` is on |
 | Restricted Mode | off |
-| Verified | the bridge against the real module (`initialize`, `tools/list`), and against a scripted module with `server/discover`, legacy `initialize`, a fetch-delegated tool call, noise on stdout and an unreachable tenant (`test/scripts/mcp-bridge.test.mjs`); the filter (`test/unit/wasi/mcpBridge.test.ts`) |
+| Verified | the bridge against the real module (`initialize`, `tools/list`), and against a scripted module with `server/discover`, legacy `initialize`, a fetch-delegated tool call, an unreachable tenant, a cancelled call and an input closed mid-request (`test/scripts/mcp-bridge.test.mjs`) |
 | Assumed | that every editor spawns the definition's `process.execPath` with the `env` it is given, and passes `ELECTRON_RUN_AS_NODE` through |
 
 ## The matrix

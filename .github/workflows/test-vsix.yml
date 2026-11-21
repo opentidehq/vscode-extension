@@ -12,7 +12,8 @@
 # consulted), smoke-tests the .vsix, and runs the WASI tests of test/wasi/ in VS Code on it.
 #
 # Run it from the Actions tab ("Run workflow"), picking opentide's integration/unified-core (the default) or
-# feat/release-wasi-cli-npm-candidates (the opentide PR that adds the asset). It also runs on a pull request
+# feat/release-wasi-cli-npm-candidates (the opentide PR that adds the asset) or feat/mcp-wasi-fetch (opentide#1742:
+# the module's `mcp start` asks for its tenant requests, and McpFetchBridge, which the MCP bridge needs). It also runs on a pull request
 # that changes this file, so the workflow tests itself.
 name: Test VSIX
 
@@ -26,6 +27,7 @@ on:
         options:
           - integration/unified-core
           - feat/release-wasi-cli-npm-candidates
+          - feat/mcp-wasi-fetch
   pull_request:
     paths:
       - ".github/workflows/test-vsix.yml"

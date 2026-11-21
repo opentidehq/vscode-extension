@@ -3,47 +3,49 @@
 // the bundled WASI module's `mcp start` in a child process (the launcher, `node:wasi`) and pipes MCP stdio
 // through. A child process, not a worker thread: `node:wasi` is synchronous, so while the module waits for a
 // tenant request's answer nothing in its process can do HTTP, and the child's stdio is an ordinary OS pipe
-// this process reads with its event loop free. This process makes the tenant requests the module asks for
-// (`OPENTIDE_FETCH=stdio`: `opentide/fetch`, answered by @opentide/wasi-host's FetchHost) and writes nothing to
-// stdout but the module's MCP messages.
+// this process reads with its event loop free. The module, started with `OPENTIDE_FETCH=stdio`
+// (`MCP_FETCH_ENVIRONMENT`), asks for each tenant request as an `opentide/fetch` line among its MCP messages;
+// @opentide/wasi-host's McpFetchBridge takes those lines out, answers them with its FetchHost, and passes
+// every MCP message through in order, so nothing but MCP reaches the editor's stdout.
 //
 //   node dist/mcp-wasi.js        env: OPENTIDE_REPO_ROOT, OPENTIDE_PROXY, OPENTIDE_WASI_DIR (default: ./wasi)
 import { spawn } from "node:child_process";
 import * as path from "node:path";
-import { filterModuleLine } from "../core/wasi/mcpBridge";
 
 async function main(): Promise<void> {
   // The package is ESM only: loaded here, bundled into dist/mcp-wasi.js.
-  const { FetchHost } = await import("@opentide/wasi-host");
+  const { MCP_FETCH_ENVIRONMENT, McpFetchBridge } = await import("@opentide/wasi-host");
   const wasiDir = process.env.OPENTIDE_WASI_DIR ?? path.join(__dirname, "wasi");
   const launcher = path.join(wasiDir, "launcher.cjs");
   const module = path.join(wasiDir, "opentide.wasm");
 
   const child = spawn(process.execPath, [launcher, module, "mcp", "start"], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", OPENTIDE_FETCH: "stdio" },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ...MCP_FETCH_ENVIRONMENT },
     stdio: ["pipe", "pipe", "inherit"],
     windowsHide: true,
   });
-
-  const host = new FetchHost((message) => {
-    child.stdin.write(`${JSON.stringify(message)}\n`);
-  });
-
-  // The editor's messages go to the module as they are.
-  process.stdin.pipe(child.stdin);
   child.stdin.on("error", () => undefined);
 
-  let buffer = "";
-  child.stdout.setEncoding("utf8");
-  child.stdout.on("data", (chunk: string) => {
-    buffer += chunk;
-    for (let index = buffer.indexOf("\n"); index >= 0; index = buffer.indexOf("\n")) {
-      const line = buffer.slice(0, index).replace(/\r$/, "");
-      buffer = buffer.slice(index + 1);
-      const { upstream, dropped } = filterModuleLine(line, host);
-      if (upstream !== undefined) process.stdout.write(`${upstream}\n`);
-      if (dropped) process.stderr.write(`opentide mcp bridge: ${dropped}\n`);
-    }
+  const bridge = new McpFetchBridge({
+    // The editor's messages and the answers to the module's tenant requests. After the editor closed its
+    // input (below) an answer has nowhere to go: the module fails the call itself.
+    toServer: (line) => {
+      if (child.stdin.writable) child.stdin.write(line);
+    },
+    toClient: (line) => {
+      process.stdout.write(line);
+    },
+  });
+
+  process.stdin.on("data", (chunk: Buffer) => {
+    bridge.fromClient(chunk);
+  });
+  process.stdin.on("end", () => {
+    bridge.endClient();
+    child.stdin.end();
+  });
+  child.stdout.on("data", (chunk: Buffer) => {
+    bridge.fromServer(chunk);
   });
 
   child.on("error", (error) => {
@@ -51,8 +53,10 @@ async function main(): Promise<void> {
     process.exit(1);
   });
   child.on("close", (code, signal) => {
-    host.dispose();
-    process.exit(code ?? (signal ? 1 : 0));
+    bridge.endServer();
+    bridge.dispose();
+    // Everything the module wrote is flushed before the process ends.
+    process.stdout.write("", () => process.exit(code ?? (signal ? 1 : 0)));
   });
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
