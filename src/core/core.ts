@@ -18,7 +18,7 @@ import { processEnv } from "./runtime/env";
 import { fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
 import { which } from "./runtime/process";
-import { shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
+import { isBundled, shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
 import { engineRuntime, uvExecutable } from "./runtime/resolve";
 import { cliCommand, describeRuntime, ENGINE_LABEL, isEditorOnly } from "./runtime/types";
 import { execStep, runSteps, venvSteps } from "./runtime/venv";
@@ -28,6 +28,7 @@ import { onDidChangePythonEnvironment } from "./services/python";
 import { RuntimeManager, readEngine } from "./services/runtime";
 import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./services/settings";
 import { StatusManager } from "./services/status";
+import { WASI_INITIALIZE_PARAMS, WasiHost } from "./services/wasi";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
 import { menuSections, problemsText } from "./statusText";
 import { editorOnlyText, INSTALL_URL } from "./unavailable";
@@ -111,6 +112,19 @@ export function createCore(context: vscode.ExtensionContext): Core {
   const credentials = new CredentialStore(context.secrets);
   subscriptions.push(credentials);
 
+  // The WASI module (tier 4) runs `serve` and the language server here, under @vscode/wasm-wasi. What it is
+  // given of the environment: its own settings and the proxy (src/core/wasi/env.ts).
+  const wasiHost = new WasiHost(
+    context,
+    () => runtime.current,
+    () => {
+      const proxy = httpProxy();
+      return { ...process.env, ...(proxy ? { OPENTIDE_PROXY: proxy } : {}) };
+    },
+    log,
+  );
+  subscriptions.push(wasiHost);
+
   const backend = new Backend({
     runtime: () => runtime.current,
     commands: () => capabilities.ready(),
@@ -121,6 +135,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     credentials: async (folder) => ({ ...envFileVariables(folder, log), ...(await credentials.env(folder)) }),
     platform: process.platform,
     log: (level, message) => log[level](message),
+    wasi: { start: () => wasiHost.startServe(), initializeParams: WASI_INITIALIZE_PARAMS },
   });
   subscriptions.push({ dispose: () => void backend.dispose() });
 
@@ -139,6 +154,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
       const engine = readEngine(context.extensionPath);
       return engine ? engineRuntime(engine, restricted) : undefined;
     },
+    wasiHost,
   );
   subscriptions.push({ dispose: () => void client.dispose() });
 
@@ -259,6 +275,9 @@ export function createCore(context: vscode.ExtensionContext): Core {
         void restart("workspace folders changed");
       } else if (runtime.current?.kind === "engine") {
         void restart("opentide folders changed: the engine reads them again");
+      } else if (runtime.current?.wasi) {
+        // The module's file system is the window's folders as they were when it started.
+        void restart("workspace folders changed: the WASI module is mounted on them again");
       }
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -293,18 +312,19 @@ export function createCore(context: vscode.ExtensionContext): Core {
       () => void vscode.commands.executeCommand("setContext", "opentide.trusted", trust.isTrusted),
     ),
   );
-  // On the engine tier: an opentide that appears later replaces it without a Restart Server.
+  // On the WASI and engine tiers: an opentide that appears later replaces it without a Restart Server.
   let lastRecheck: number | undefined;
   const recheck = async (reason: string, force: boolean): Promise<void> => {
     const now = Date.now();
     if (!force && !shouldRecheck(runtime.current, lastRecheck, now)) return;
-    if (runtime.current?.kind !== "engine") return;
+    if (!isBundled(runtime.current)) return;
     lastRecheck = now;
     const attempts = runtime.attempts;
     const rt = await runtime.resolveAgain();
-    if (rt?.kind !== "engine") await restart(reason);
+    // A user's own opentide (tiers 1-3) replaces what the extension carries; anything else changes nothing.
+    if (rt && rt.tier <= 3) await restart(reason);
     else if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
-      log.debug(`runtime: looked again (${reason}); still the engine`);
+      log.debug(`runtime: looked again (${reason}); still ${rt ? describeRuntime(rt) : "no runtime"}`);
   };
   // Anything created under a .venv, a second after the last: a file made right after its new folder
   // can slip past a recursive watcher, and an install creates thousands at once.
@@ -313,7 +333,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
   subscriptions.push(
     venvWatcher,
     venvWatcher.onDidCreate(() => {
-      if (runtime.current?.kind !== "engine") return;
+      if (!isBundled(runtime.current)) return;
       if (venvTimer) clearTimeout(venvTimer);
       venvTimer = setTimeout(() => void recheck("something appeared in a .venv", true), VENV_SETTLE_MS);
     }),

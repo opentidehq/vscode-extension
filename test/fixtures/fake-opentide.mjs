@@ -15,6 +15,8 @@
 // file. FAKE_INFO_PLAIN=1 makes `info` with no section a usage error.
 // Graph and search: FAKE_CATALOG_FILE names a JSON file whose keys (objects, edges, signals, attack,
 // summary) `info catalog` prints; FAKE_UNREVIEWED lists the paths (comma-separated) `rules unreviewed` reports.
+// `serve` offers `opentide/fetch` when `initialize` asks (`capabilities.fetch`), as the WASI build does:
+// the `fetch-tenant` run sends one tenant request to the client and answers with what came back.
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -871,6 +873,9 @@ async function serve() {
     busy = false;
   };
   let shutDown = false;
+  let fetching = false;
+  let fetchCount = 0;
+  const fetches = new Map();
   const handle = async (message) => {
     const { id, method, params } = message;
     if (method === "initialize") {
@@ -878,7 +883,16 @@ async function serve() {
       const delay = Number(process.env.FAKE_SERVE_INIT_DELAY_MS ?? 0);
       if (delay > 0) await new Promise((done) => setTimeout(done, delay));
       const protocol = Number(process.env.FAKE_SERVE_PROTOCOL ?? 1);
-      return send({ id, result: { protocol, version, commands_digest: "fake-digest" } });
+      fetching = params?.capabilities?.fetch === true;
+      return send({
+        id,
+        result: {
+          protocol,
+          version,
+          commands_digest: "fake-digest",
+          ...(fetching ? { capabilities: { fetch: true } } : {}),
+        },
+      });
     }
     if (method === "shutdown") {
       shutDown = true;
@@ -897,6 +911,53 @@ async function serve() {
       if (!params || !Array.isArray(params.argv))
         return send({ id, error: { code: -32602, message: "run needs argv" } });
       if (params.argv[0] === "crash") process.exit(3);
+      if (params.argv[0] === "fetch-tenant") {
+        // Without the capability the WASI build has no network: the command fails, naming the native CLI.
+        if (!fetching)
+          return send({
+            id,
+            result: {
+              document: envelope("fetch-tenant", {}, 1, {
+                code: "network_unavailable",
+                message: "this command needs the network; run the opentide CLI",
+              }),
+              exit_code: 1,
+            },
+          });
+        fetchCount += 1;
+        const fetchId = `h${fetchCount}`;
+        const answer = await new Promise((resolve) => {
+          fetches.set(fetchId, resolve);
+          send({
+            id: fetchId,
+            method: "opentide/fetch",
+            params: {
+              run: String(id),
+              platform: "sentinel",
+              tenant: "prod",
+              method: "GET",
+              url: "https://tenant.invalid/api",
+              headers: [["accept", "application/json"]],
+              body: null,
+              connect_timeout_ms: 1000,
+              read_timeout_ms: 1000,
+              tls: { verify: true, ca_bundles: [] },
+              proxy: null,
+              cwd: params.cwd,
+            },
+          });
+        });
+        return send({
+          id,
+          result: {
+            document: envelope("fetch-tenant", {
+              fetch: answer.result ?? null,
+              fetch_error: answer.error ?? null,
+            }),
+            exit_code: answer.error ? 1 : 0,
+          },
+        });
+      }
       if (params.argv[0] === "crash-once" && !existsSync(process.env.FAKE_CRASH_FILE)) {
         writeFileSync(process.env.FAKE_CRASH_FILE, "crashed");
         process.exit(3);
@@ -928,6 +989,11 @@ async function serve() {
       message = JSON.parse(line);
     } catch {
       return send({ id: null, error: { code: -32700, message: "Parse error" } });
+    }
+    // The client's answer to an `opentide/fetch` request: it wakes the run that waits for it.
+    if (message.method === undefined && typeof message.id === "string" && fetches.has(message.id)) {
+      fetches.get(message.id)(message);
+      return void fetches.delete(message.id);
     }
     // Notifications act at once; requests are handled one at a time, in order.
     if (message.method === "$/cancelRequest") return void cancels.add(message.params?.id);

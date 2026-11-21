@@ -8,9 +8,13 @@ import {
   type ResolveInput,
   type RuntimeSettings,
   readEngineManifest,
+  readWasiManifest,
   resolveRuntime,
   uvExecutable,
+  type WasiLayout,
+  wasiRuntime,
 } from "../../src/core/runtime/resolve";
+import { isWasi } from "../../src/core/runtime/types";
 
 const EXT = "/ext";
 const FOLDER = "/work/detections";
@@ -392,28 +396,149 @@ describe("runtime resolution", () => {
         versions: { "/usr/bin/opentide": "opentide 0.21.0" },
       },
     );
-    const { runtime } = await resolveRuntime(value);
-    assert.equal(runtime?.tier, 4);
+    const { runtime, attempts } = await resolveRuntime(value);
+    assert.equal(runtime?.tier, 5);
     assert.equal(runtime?.kind, "engine");
     assert.equal(runtime?.restricted, true);
     assert.equal(state.probes.length, 0);
+    // The WASI module is no opentide process either: it is skipped, not tried.
+    assert.equal(attempts.find((a) => a.source === "wasi")?.outcome, "skipped");
   });
 
   it("a build without the engine and no opentide has no runtime, and says why", async () => {
     const { value } = input({}, {}, { files: new Set() });
     const { runtime, attempts } = await resolveRuntime(value);
     assert.equal(runtime, undefined);
-    assert.equal(attempts.at(-1)?.tier, 4);
+    assert.equal(attempts.at(-1)?.tier, 5);
     assert.match(attempts.at(-1)?.detail ?? "", /carries no engine/);
   });
 
-  describe("tier 4: the engine (WASM)", () => {
+  describe("tier 4: the WASI module", () => {
+    const WASI: WasiLayout = {
+      module: path.join(EXT, "dist", "wasi", "opentide.wasm"),
+      launcher: path.join(EXT, "dist", "wasi", "launcher.cjs"),
+      version: "1.0.0-rc.3",
+      execPath: "/usr/share/code/code",
+    };
+    const ENGINE = {
+      module: path.join(EXT, "dist", "engine", "opentide_wasm_bg.wasm"),
+      version: "1.0.0-rc.2",
+    };
+    const FILES = [WASI.module, WASI.launcher, ENGINE.module];
+
+    it("is the runtime when no opentide answers, ahead of the engine", async () => {
+      const { value, state } = input({ wasi: WASI, engine: ENGINE }, {}, { files: new Set(FILES) });
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime?.tier, 4);
+      assert.equal(runtime?.source, "wasi");
+      assert.equal(runtime?.kind, "opentide");
+      assert.equal(runtime?.version, "1.0.0-rc.3");
+      assert.equal(runtime?.restricted, false);
+      assert.equal(isWasi(runtime), true);
+      assert.deepEqual(attempts.at(-1), {
+        tier: 4,
+        source: "wasi",
+        outcome: "ok",
+        path: WASI.module,
+        version: "1.0.0-rc.3",
+        detail: `${WASI.module} 1.0.0-rc.3`,
+      });
+      // It is not probed: a probe would compile 28 MB on every resolution.
+      assert.equal(
+        state.probes.some((p) => p.command === WASI.execPath),
+        false,
+      );
+    });
+
+    it("runs through the launcher wherever VS Code starts the process: Node, as Node", () => {
+      const runtime = wasiRuntime(WASI);
+      assert.equal(runtime.command, "/usr/share/code/code");
+      assert.deepEqual(runtime.args, [WASI.launcher, WASI.module]);
+      assert.deepEqual(runtime.env, { ELECTRON_RUN_AS_NODE: "1" });
+      assert.deepEqual(runtime.wasi, { module: WASI.module, launcher: WASI.launcher });
+    });
+
+    it("comes after every tier of the user's own opentide: tiers 1 to 3 answer first", async () => {
+      const { value } = input(
+        { wasi: WASI, engine: ENGINE },
+        {},
+        {
+          files: new Set(FILES),
+          onPath: { opentide: "/usr/bin/opentide" },
+          versions: { "/usr/bin/opentide": "opentide 0.22.0" },
+        },
+      );
+      const { runtime } = await resolveRuntime(value);
+      assert.equal(runtime?.tier, 2);
+      assert.equal(runtime?.source, "path");
+    });
+
+    it("replaces an opentide that does not answer or is too old", async () => {
+      const { value } = input(
+        { wasi: WASI, engine: ENGINE },
+        {},
+        {
+          files: new Set(FILES),
+          onPath: { opentide: "/usr/bin/opentide" },
+          versions: { "/usr/bin/opentide": "opentide 0.19.0" },
+        },
+      );
+      const { runtime, attempts } = await resolveRuntime(value);
+      assert.equal(runtime?.source, "wasi");
+      assert.equal(attempts.find((a) => a.source === "path")?.outcome, "too-old");
+    });
+
+    it("is not offered in Restricted Mode: the engine's editor features only", async () => {
+      const { value, state } = input(
+        { trusted: false, wasi: WASI, engine: ENGINE },
+        {},
+        { files: new Set(FILES) },
+      );
+      const { runtime } = await resolveRuntime(value);
+      assert.equal(runtime?.tier, 5);
+      assert.equal(state.probes.length, 0);
+    });
+
+    it("is missing without its files, and the engine serves instead", async () => {
+      const without = await resolveRuntime(
+        input({ engine: ENGINE }, {}, { files: new Set([ENGINE.module]) }).value,
+      );
+      assert.equal(without.runtime?.tier, 5);
+      assert.match(without.attempts.find((a) => a.source === "wasi")?.detail ?? "", /carries no WASI module/);
+      const moved = await resolveRuntime(
+        input({ wasi: WASI, engine: ENGINE }, {}, { files: new Set([WASI.module, ENGINE.module]) }).value,
+      );
+      assert.equal(moved.runtime?.tier, 5);
+      assert.match(moved.attempts.find((a) => a.source === "wasi")?.detail ?? "", /launcher does not exist/);
+    });
+
+    it("reads dist/wasi/wasi.json", () => {
+      const dir = path.join(EXT, "dist", "wasi");
+      const text =
+        '{"version":"1.0.0-rc.3","module":"opentide.wasm","launcher":"launcher.cjs","source":"release"}';
+      assert.deepEqual(readWasiManifest(text, dir, "/node"), {
+        module: path.join(dir, "opentide.wasm"),
+        launcher: path.join(dir, "launcher.cjs"),
+        version: "1.0.0-rc.3",
+        execPath: "/node",
+      });
+      assert.equal(readWasiManifest(undefined, dir, "/node"), undefined);
+      assert.equal(readWasiManifest("not json", dir, "/node"), undefined);
+      assert.equal(
+        readWasiManifest('{"version":"1","module":"../x.wasm","launcher":"l.cjs"}', dir, "/node"),
+        undefined,
+      );
+      assert.equal(readWasiManifest('{"version":"1","module":"x.wasm"}', dir, "/node"), undefined);
+    });
+  });
+
+  describe("tier 5: the engine (WASM)", () => {
     const ENGINE = { module: path.join(EXT, "dist", "engine", "opentide_wasm_bg.wasm"), version: "0.10.0" };
 
     it("is the runtime when no opentide answers", async () => {
       const { value, state } = input({ engine: ENGINE }, {}, { files: new Set([ENGINE.module]) });
       const { runtime, attempts } = await resolveRuntime(value);
-      assert.equal(runtime?.tier, 4);
+      assert.equal(runtime?.tier, 5);
       assert.equal(runtime?.source, "engine");
       assert.equal(runtime?.kind, "engine");
       assert.equal(runtime?.command, ENGINE.module);
@@ -429,7 +554,8 @@ describe("runtime resolution", () => {
           [2, "missing"],
           [2, "missing"],
           [2, "missing"],
-          [4, "ok"],
+          [4, "missing"],
+          [5, "ok"],
         ],
       );
       // The engine is not probed: nothing is spawned for it.
@@ -462,7 +588,7 @@ describe("runtime resolution", () => {
         { path: () => "/nowhere/opentide" },
         { files: new Set([ENGINE.module]) },
       );
-      assert.equal((await resolveRuntime(value)).runtime?.tier, 4);
+      assert.equal((await resolveRuntime(value)).runtime?.tier, 5);
     });
 
     it("never replaces a tier that answers", async () => {

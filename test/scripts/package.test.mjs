@@ -16,7 +16,13 @@ import {
   zipEntries,
   zipRead,
 } from "../../scripts/package-lib.mjs";
-import { checkEngineInitialize, checkWebEntry } from "../../scripts/smoke-lib.mjs";
+import {
+  checkEngineInitialize,
+  checkWasiPackage,
+  checkWasiServe,
+  checkWebEntry,
+  releaseOf,
+} from "../../scripts/smoke-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -94,12 +100,12 @@ describe("package: the size gate", () => {
     assert.throws(() => budgetFor({ opentide: pins.opentide }), PackageError);
   });
 
-  it("the committed budget and target are PACKAGING.md's 20 MiB and 10 MiB: no runtime", () => {
+  it("the committed budget and target are PACKAGING.md's 20 MiB and 15 MiB: the WASI module, no runtime", () => {
     const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
     assert.equal(committed.vsix.budgetBytes, 20 * 1024 * 1024);
-    assert.equal(committed.vsix.targetBytes, 10 * 1024 * 1024);
+    assert.equal(committed.vsix.targetBytes, 15 * 1024 * 1024);
     const packaging = readFileSync(join(root, "docs", "PACKAGING.md"), "utf8");
-    assert.match(packaging, /The size gate \(20 MiB\) and the target \(10 MiB\)/);
+    assert.match(packaging, /The size gate \(20 MiB\) and the target \(15 MiB\)/);
   });
 
   it("counts bytes per distribution under site-packages, else per folder", () => {
@@ -225,6 +231,64 @@ describe("smoke: checks", () => {
       )[0],
       /did not load/,
     );
+  });
+
+  it("the engine reports the crate's version, without the release candidate's suffix", () => {
+    const answer = (engine) => ({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        serverInfo: { name: "opentide-lsp" },
+        capabilities: { experimental: { opentide: { host: null, engine } } },
+      },
+    });
+    assert.deepEqual(checkEngineInitialize(answer("1.0.0"), "1.0.0-rc.2", 0), []);
+    assert.equal(checkEngineInitialize(answer("1.0.1"), "1.0.0-rc.2", 0).length, 1);
+    assert.equal(releaseOf("1.0.0-rc.3-dev+8b55d0c"), "1.0.0");
+    assert.equal(releaseOf("0.10.0"), "0.10.0");
+  });
+
+  it("the package carries the WASI module, its launcher and its manifest", () => {
+    assert.deepEqual(
+      checkWasiPackage(() => true),
+      [],
+    );
+    assert.deepEqual(
+      checkWasiPackage((file) => file === "dist/wasi/wasi.json"),
+      ["the package has no dist/wasi/opentide.wasm", "the package has no dist/wasi/launcher.cjs"],
+    );
+  });
+
+  it("the WASI module's serve offers opentide/fetch, agrees with wasi.json and runs a command", () => {
+    const manifest = { version: "1.0.0-rc.3" };
+    const digest = "a".repeat(64);
+    const initialize = (extra = {}) => ({
+      id: 1,
+      result: {
+        protocol: 1,
+        version: "1.0.0-rc.3",
+        commands_digest: digest,
+        capabilities: { fetch: true },
+        ...extra,
+      },
+    });
+    const run = { id: 2, result: { document: { command: "commands" }, exit_code: 0 } };
+    assert.deepEqual(checkWasiServe(initialize(), run, manifest, 0), []);
+    // A development build's suffix does not matter, the release does.
+    assert.deepEqual(checkWasiServe(initialize({ version: "1.0.0-rc.3-dev+8b55d0c" }), run, manifest, 0), []);
+    assert.match(checkWasiServe(initialize({ version: "1.0.1" }), run, manifest, 0)[0], /wasi.json says/);
+    assert.match(checkWasiServe(initialize({ capabilities: {} }), run, manifest, 0)[0], /opentide\/fetch/);
+    assert.match(checkWasiServe(initialize({ protocol: 2 }), run, manifest, 0)[0], /protocol 2/);
+    assert.match(
+      checkWasiServe(initialize({ commands_digest: "x" }), run, manifest, 0)[0],
+      /commands_digest/,
+    );
+    assert.match(
+      checkWasiServe(initialize(), { id: 2, result: { exit_code: 1 } }, manifest, 0)[0],
+      /did not run/,
+    );
+    assert.match(checkWasiServe(initialize(), run, manifest, 1)[0], /exited with 1/);
+    assert.match(checkWasiServe({ id: 1, error: { message: "trap" } }, run, manifest, 0)[0], /trap/);
   });
 });
 

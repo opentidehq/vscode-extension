@@ -73,7 +73,9 @@ describe("the engine (WASM), for real", function () {
     const pins = JSON.parse(readFileSync(path.join(ROOT, "pins.json"), "utf8")) as {
       engine: { version: string };
     };
-    assert.equal(module.version(), pins.engine.version);
+    // The browser build reports the crate's version, without the release candidate's suffix:
+    // `1.0.0` for opentide 1.0.0-rc.2.
+    assert.equal(module.version(), pins.engine.version.replace(/[-+].*$/, ""));
   });
 
   it("answers diagnostics, hover and opentide/catalog from the workspace it is given", async () => {
@@ -94,6 +96,7 @@ describe("the engine (WASM), for real", function () {
           documents: [
             document("objects/objectives/detect-lsass-access.yaml"),
             document("objects/rules/suspicious-lsass-access.yaml"),
+            document(".opentide/configurations/paths.toml"),
           ],
         },
       },

@@ -2,6 +2,7 @@
 import type * as cp from "node:child_process";
 import type { CancellationToken } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
+import { fromChildProcess, isServeProcess, type ServeProcess } from "./process";
 import { lineSplitter } from "./spawn";
 import { BackendError, type Envelope, isEnvelope, type ProgressEvent } from "./types";
 
@@ -31,8 +32,13 @@ interface Pending {
 }
 
 export interface ServeClientOptions {
-  /** Start the `opentide serve` process (stdin, stdout and stderr piped). */
-  readonly start: () => cp.ChildProcess;
+  /**
+   * Start the `opentide serve` process: a child process (stdin, stdout and stderr piped), or a
+   * `ServeProcess` such as the WASI module in the extension host, which starts asynchronously.
+   */
+  readonly start: () => cp.ChildProcess | ServeProcess | Promise<cp.ChildProcess | ServeProcess>;
+  /** The params of `initialize` (default `{}`): `{capabilities: {fetch: true}}` asks for `opentide/fetch`. */
+  readonly initializeParams?: object;
   readonly log?: (level: "debug" | "info" | "warn", message: string) => void;
   readonly initializeTimeoutMs?: number;
   readonly shutdownTimeoutMs?: number;
@@ -40,7 +46,7 @@ export interface ServeClientOptions {
 
 /** One `opentide serve` process. Create a new client after it exits. */
 export class ServeClient {
-  private child: cp.ChildProcess | undefined;
+  private proc: ServeProcess | undefined;
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
   private exited = false;
@@ -59,12 +65,13 @@ export class ServeClient {
 
   constructor(private readonly options: ServeClientOptions) {}
 
+  /** Started (the process may still be coming up) and not ended. */
   get isRunning(): boolean {
-    return this.child !== undefined && !this.exited;
+    return this.initialized !== undefined && !this.exited;
   }
 
   get pid(): number | undefined {
-    return this.child?.pid;
+    return this.proc?.pid;
   }
 
   /** Start the process and send `initialize`. Idempotent. */
@@ -75,34 +82,30 @@ export class ServeClient {
   }
 
   private async doStart(): Promise<InitializeResult> {
-    let child: cp.ChildProcess;
+    let proc: ServeProcess;
     try {
-      child = this.options.start();
+      const started = await this.options.start();
+      proc = isServeProcess(started) ? started : fromChildProcess(started);
     } catch (error) {
       this.exited = true;
       throw new BackendError("spawn-failed", `could not start opentide serve: ${String(error)}`);
     }
-    this.child = child;
+    this.proc = proc;
     const stdout = lineSplitter((line) => this.onLine(line));
     const stderr = lineSplitter((line) => {
       this.stderrTail.push(line);
       if (this.stderrTail.length > 40) this.stderrTail.shift();
       this.options.log?.("debug", `serve: ${line}`);
     });
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => stdout.push(chunk));
-    child.stderr?.on("data", (chunk: string) => stderr.push(chunk));
-    child.stdin?.on("error", () => {
-      // EPIPE after the process died; the exit handler rejects what is pending.
-    });
+    proc.onStdout((chunk) => stdout.push(chunk));
+    proc.onStderr((chunk) => stderr.push(chunk));
     const startError = new Promise<never>((_, reject) => {
-      child.on("error", (error) => {
+      proc.onError((error) => {
         this.handleExit(null, null);
         reject(new BackendError("spawn-failed", `could not start opentide serve: ${error.message}`));
       });
     });
-    child.on("close", (code, signal) => this.handleExit(code, signal));
+    proc.onClose((code, signal) => this.handleExit(code, signal));
 
     const timeoutMs = this.options.initializeTimeoutMs ?? 30_000;
     let timer: NodeJS.Timeout | undefined;
@@ -115,7 +118,7 @@ export class ServeClient {
     });
     try {
       const result = (await Promise.race([
-        this.request("initialize", {}),
+        this.request("initialize", this.options.initializeParams ?? {}),
         startError,
         timeout,
       ])) as InitializeResult;
@@ -162,7 +165,7 @@ export class ServeClient {
 
   /** `shutdown`, then `exit`; kills the process when it does not exit in time. */
   async stop(): Promise<void> {
-    if (!this.child || this.exited) return;
+    if (!this.proc || this.exited) return;
     this.stopping = true;
     const exited = new Promise<void>((resolve) => this.onDidExit(() => resolve()));
     const timeoutMs = this.options.shutdownTimeoutMs ?? 2000;
@@ -181,7 +184,7 @@ export class ServeClient {
   }
 
   kill(): void {
-    if (this.child && !this.exited) this.child.kill("SIGKILL");
+    if (this.proc && !this.exited) this.proc.kill();
   }
 
   private request(method: string, params: unknown): Promise<unknown> {
@@ -195,7 +198,7 @@ export class ServeClient {
   ): { id: number; promise: Promise<unknown> } {
     const id = this.nextId++;
     const promise = new Promise<unknown>((resolve, reject) => {
-      if (this.exited || !this.child?.stdin) {
+      if (this.exited || !this.proc) {
         reject(new BackendError("crashed", "opentide serve is not running", this.stderrTail.join("\n")));
         return;
       }
@@ -211,7 +214,7 @@ export class ServeClient {
   }
 
   private write(message: object): void {
-    this.child?.stdin?.write(`${JSON.stringify(message)}\n`);
+    this.proc?.write(`${JSON.stringify(message)}\n`);
   }
 
   private onLine(line: string): void {

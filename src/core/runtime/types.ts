@@ -11,9 +11,18 @@ export type RuntimeSource =
   | "path" // tier 2: opentide on PATH
   | "python" // tier 2: python on PATH, `python -m opentide`
   | "uv" // tier 3: uv tool run --from opentide==<pin>
-  | "engine"; // tier 4: <extensionPath>/dist/engine, the language server built for WebAssembly
+  | "wasi" // tier 4: <extensionPath>/dist/wasi, opentide's CLI compiled to wasm32-wasip1
+  | "engine"; // tier 5: <extensionPath>/dist/engine, the language server built for WebAssembly
 
-export type RuntimeTier = 1 | 2 | 3 | 4;
+export type RuntimeTier = 1 | 2 | 3 | 4 | 5;
+
+/** The WASI module a tier-4 runtime runs, and what runs it where VS Code starts a process itself. */
+export interface WasiModule {
+  /** `dist/wasi/opentide.wasm`. */
+  readonly module: string;
+  /** `dist/wasi/launcher.cjs`: runs the module under Node's WASI (MCP, terminals, tasks). */
+  readonly launcher: string;
+}
 
 export interface Runtime {
   readonly tier: RuntimeTier;
@@ -23,10 +32,16 @@ export interface Runtime {
    * (`engine`, run in a worker thread), serve editor features only.
    */
   readonly kind: "opentide" | "opentide-lsp" | "engine";
-  /** The executable to spawn; for `engine`, the WebAssembly module. */
+  /**
+   * The executable to spawn; for `engine`, the WebAssembly module. For `wasi`, VS Code's own Node (run
+   * with `ELECTRON_RUN_AS_NODE`), which runs the launcher: `serve` and the language server run in the
+   * extension host instead (src/core/services/wasi.ts), and this command is for what VS Code starts.
+   */
   readonly command: string;
   /** Arguments before opentide's own argv (`-m opentide` when opentide runs as a module). */
   readonly args: readonly string[];
+  /** Set for tier 4: this runtime is the WASI module. */
+  readonly wasi?: WasiModule;
   /** The opentide version, or the engine version for `opentide-lsp`. */
   readonly version: string;
   /** The Python interpreter, when known. */
@@ -65,6 +80,11 @@ export function hasCli(runtime: Runtime | undefined): runtime is Runtime {
   return runtime !== undefined && runtime.kind === "opentide" && !runtime.restricted;
 }
 
+/** Whether the runtime is the WASI module (tier 4): no native opentide, no network of its own. */
+export function isWasi(runtime: Runtime | undefined): runtime is Runtime & { readonly wasi: WasiModule } {
+  return runtime?.wasi !== undefined;
+}
+
 /** Whether the runtime serves editor features only (a bare `opentide-lsp`, or the engine). */
 export function isEditorOnly(runtime: Runtime | undefined): boolean {
   return runtime !== undefined && runtime.kind !== "opentide";
@@ -94,6 +114,7 @@ export function describeRuntime(runtime: Runtime): string {
     path: "PATH",
     python: "python -m opentide",
     uv: "uv (repository pin)",
+    wasi: "bundled WASI",
     engine: ENGINE_LABEL,
   };
   return `tier ${runtime.tier} · ${names[runtime.source]}`;

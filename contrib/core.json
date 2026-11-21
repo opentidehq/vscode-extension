@@ -68,6 +68,26 @@
         "aliases": ["Falco", "falco"],
         "extensions": [".falco"],
         "configuration": "./language-configuration/falco.json"
+      },
+      {
+        "id": "cql",
+        "aliases": ["CrowdStrike Query Language", "CQL", "cql"],
+        "configuration": "./language-configuration/cql.json"
+      },
+      {
+        "id": "exabeam",
+        "aliases": ["Exabeam", "exabeam"],
+        "configuration": "./language-configuration/exabeam.json"
+      },
+      {
+        "id": "yara",
+        "aliases": ["YARA", "yara"],
+        "configuration": "./language-configuration/yara.json"
+      },
+      {
+        "id": "yaral",
+        "aliases": ["YARA-L", "yaral"],
+        "configuration": "./language-configuration/yaral.json"
       }
     ],
     "viewsContainers": {

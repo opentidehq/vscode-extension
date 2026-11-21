@@ -3,6 +3,34 @@
 
 export class SmokeError extends Error {}
 
+/** A version without its pre-release and build suffixes: `1.0.0-rc.3-dev+abc` is `1.0.0`. */
+export function releaseOf(version) {
+  return typeof version === "string" ? version.replace(/[-+].*$/, "") : version;
+}
+
+/**
+ * The WASI module's `opentide serve`, as the extension's launcher runs it: `initialize` answers protocol 1
+ * with `capabilities.fetch` (tenant requests are the client's), a version that agrees with wasi.json's, and
+ * a `run` of `commands` answers its document; the process ends 0 after `exit`.
+ */
+export function checkWasiServe(initialize, run, manifest, exitCode) {
+  const errors = [];
+  const result = initialize?.result;
+  if (!result)
+    return [`WASI serve initialize failed: ${JSON.stringify(initialize?.error ?? initialize).slice(0, 300)}`];
+  if (result.protocol !== 1) errors.push(`WASI serve speaks protocol ${result.protocol}, not 1`);
+  if (result.capabilities?.fetch !== true)
+    errors.push("WASI serve does not offer opentide/fetch: no tenant request could be made");
+  if (typeof result.version !== "string" || releaseOf(result.version) !== releaseOf(manifest.version))
+    errors.push(`WASI serve is ${result.version}, wasi.json says ${manifest.version}`);
+  if (!/^[0-9a-f]{64}$/.test(result.commands_digest ?? "")) errors.push("WASI serve gave no commands_digest");
+  const document = run?.result?.document;
+  if (!document || document.command !== "commands" || run.result.exit_code !== 0)
+    errors.push(`WASI serve did not run \`commands\`: ${JSON.stringify(run).slice(0, 300)}`);
+  if (exitCode !== 0) errors.push(`the WASI process exited with ${exitCode} after exit`);
+  return errors;
+}
+
 /**
  * The engine (WASM) worker's `initialize`: the server is opentide-lsp at the version dist/engine/engine.json
  * records, hosted by nothing, and the worker ended after `exit`.
@@ -15,10 +43,19 @@ export function checkEngineInitialize(response, version, exitCode) {
   if (result.serverInfo?.name !== "opentide-lsp")
     errors.push(`engine serverInfo.name is ${result.serverInfo?.name}`);
   const info = result.capabilities?.experimental?.opentide;
-  if (info?.engine !== version) errors.push(`engine is ${info?.engine}, engine.json says ${version}`);
+  // The browser build reports the crate's version, without a release candidate's suffix (1.0.0 for 1.0.0-rc.2).
+  if (releaseOf(info?.engine) !== releaseOf(version))
+    errors.push(`engine is ${info?.engine}, engine.json says ${version}`);
   if (info?.host !== null) errors.push(`engine host is ${JSON.stringify(info?.host)}, expected none`);
   if (exitCode !== 0) errors.push(`the engine worker exited with ${exitCode} after exit`);
   return errors;
+}
+
+/** The WASI module's files in an unpacked package (`exists` takes a path relative to the extension folder). */
+export function checkWasiPackage(exists) {
+  return ["dist/wasi/opentide.wasm", "dist/wasi/launcher.cjs", "dist/wasi/wasi.json"]
+    .filter((file) => !exists(file))
+    .map((file) => `the package has no ${file}`);
 }
 
 /**

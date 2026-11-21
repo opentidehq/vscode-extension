@@ -6,7 +6,13 @@ import * as vscode from "vscode";
 import type { Logger, RuntimeService } from "../context";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
 import { isFile, probe, which } from "../runtime/process";
-import { type EngineLayout, readEngineManifest, resolveRuntime } from "../runtime/resolve";
+import {
+  type EngineLayout,
+  readEngineManifest,
+  readWasiManifest,
+  resolveRuntime,
+  type WasiLayout,
+} from "../runtime/resolve";
 import type { ResolveAttempt, Runtime } from "../runtime/types";
 import { describeRuntime, ENGINE_LABEL } from "../runtime/types";
 import { Emitter } from "../util/event";
@@ -23,6 +29,18 @@ export function readEngine(extensionPath: string): EngineLayout | undefined {
     return undefined;
   }
   return readEngineManifest(text, dir);
+}
+
+/** The WASI module the extension carries (`dist/wasi/wasi.json`), if it has one. */
+export function readWasi(extensionPath: string): WasiLayout | undefined {
+  const dir = path.join(extensionPath, "dist", "wasi");
+  let text: string | undefined;
+  try {
+    text = fs.readFileSync(path.join(dir, "wasi.json"), "utf8");
+  } catch {
+    return undefined;
+  }
+  return readWasiManifest(text, dir, process.execPath);
 }
 
 /** Read the pin files at the top of a folder. */
@@ -128,6 +146,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       probe: (command, args, options) => probe(command, args, options),
       pythonEnvironments: () => pythonEnvironmentsInterpreter(folder?.uri),
       pythonExtension: () => pythonExtensionInterpreter(folder?.uri),
+      wasi: readWasi(this.context.extensionPath),
       engine: readEngine(this.context.extensionPath),
     });
     this.lastAttempts = result.attempts;
@@ -146,7 +165,13 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     if (result.runtime?.kind === "engine") {
       this.log.warn(
         `runtime: ${ENGINE_LABEL} ${result.runtime.version}: editor features only. No opentide answered ` +
-          "(opentide.path, the workspace's environment, python -m opentide): install opentide for commands, validate, deploy and query.",
+          "(opentide.path, the workspace's environment, python -m opentide) and the bundled WASI module is not available: " +
+          "install opentide for commands, validate, deploy and query.",
+      );
+    } else if (result.runtime?.wasi) {
+      this.log.info(
+        `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}): the module the extension carries, ` +
+          "no opentide installed answered. Every command works; tenant requests are made by the extension host.",
       );
     } else if (result.runtime) {
       this.log.info(

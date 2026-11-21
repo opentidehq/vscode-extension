@@ -115,7 +115,12 @@ export class StatusManager implements StatusService, vscode.Disposable {
       );
     } else if (runtime) {
       tooltip.appendMarkdown(`**opentide ${runtime.version}** · ${describeRuntime(runtime)}\n\n`);
-      tooltip.appendText(runtime.command);
+      tooltip.appendText(runtime.wasi?.module ?? runtime.command);
+      if (runtime.wasi)
+        tooltip.appendMarkdown(
+          "\n\nNo opentide is installed, so the module the extension carries runs. Tenant requests (query, deploy, validate --live) " +
+            "are made by the extension host; install opentide (`pip install opentide`) to run it natively.",
+        );
       tooltip.appendMarkdown(`\n\n${model.serve ? "$(zap)" : "$(circle-large-outline)"} ${serveText(model)}`);
       tooltip.appendMarkdown(
         `\n\n$(${counts.errors ? "error" : counts.warnings ? "warning" : "pass"}) ${problemsText(counts)} in opentide's checks` +
@@ -179,7 +184,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
       return;
     }
     this.language.text = `opentide ${info?.host?.version ?? runtime.version}`;
-    const where = `${describeRuntime(runtime)} · ${runtime.interpreter ?? runtime.command}`;
+    const where = `${describeRuntime(runtime)} · ${runtime.interpreter ?? runtime.wasi?.module ?? runtime.command}`;
     this.language.detail = info
       ? `host ${info.host ? `${info.host.name} ${info.host.version}` : "none"} · engine ${info.engine} · catalog ${info.catalog} · ` +
         `configurationChecks ${info.configurationChecks} · configurationSchemas ${info.configurationSchemas} · ${where}`

@@ -1,12 +1,15 @@
-// Runtime resolution in four tiers (SPEC §4, #3): three that run an installed opentide, then the engine
-// (WASM). vscode-free: every side effect is injected, so the tier logic is unit-tested with fakes.
+// Runtime resolution in five tiers (SPEC §4, #3): three that run an installed opentide, then the WASI module
+// the extension carries (opentide's CLI on wasm32-wasip1), then the engine (WASM). vscode-free: every side
+// effect is injected, so the tier logic is unit-tested with fakes.
 //
-// opentide is the user's own install: the extension carries no Python. Where its console script cannot
+// Tiers 1-3 are the user's own install: the extension carries no Python. Where its console script cannot
 // run (not on PATH, a pip --user install, or blocked by an application-control policy that allows the
 // signed python but not the unsigned opentide launcher), the same interpreter runs `python -m opentide`.
+// A user's own opentide comes first: it is the version they chose and pin, with a network of its own. The
+// WASI module (tier 4) is what runs when there is none, and the engine (tier 5) when nothing else can.
 import * as path from "node:path";
 import type { RepoPin } from "./pins";
-import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier } from "./types";
+import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier, WasiModule } from "./types";
 import {
   atLeast,
   checkMinimum,
@@ -58,8 +61,36 @@ export interface ResolveInput {
   pythonEnvironments(): Promise<string | undefined>;
   /** The interpreter the Python extension picked for `folder`, when installed. */
   pythonExtension(): Promise<string | undefined>;
-  /** Tier 4: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
+  /** Tier 4: the WASI module this build carries, from dist/wasi/wasi.json; undefined without one. */
+  readonly wasi?: WasiLayout | undefined;
+  /** Tier 5: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
   readonly engine?: EngineLayout | undefined;
+}
+
+/** The WASI module in the extension: its files, its version, and the Node that runs its launcher. */
+export interface WasiLayout extends WasiModule {
+  readonly version: string;
+  /** VS Code's own Node: `process.execPath`, run with `ELECTRON_RUN_AS_NODE=1`. */
+  readonly execPath: string;
+}
+
+/** `dist/wasi/wasi.json`'s fields, when they have the expected shape. */
+export function readWasiManifest(
+  text: string | undefined,
+  dir: string,
+  execPath: string,
+): WasiLayout | undefined {
+  if (!text) return undefined;
+  try {
+    const manifest = JSON.parse(text) as { version?: unknown; module?: unknown; launcher?: unknown };
+    const { version, module, launcher } = manifest;
+    if (typeof version !== "string" || typeof module !== "string" || typeof launcher !== "string")
+      return undefined;
+    for (const name of [module, launcher]) if (name.includes("/") || name.includes("\\")) return undefined;
+    return { module: path.join(dir, module), launcher: path.join(dir, launcher), version, execPath };
+  } catch {
+    return undefined;
+  }
 }
 
 /** The engine (WASM) in the extension: its module and version (dist/engine/engine.json). */
@@ -391,19 +422,43 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
     }
   }
 
-  // Tier 4: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
+  // Tier 4: the WASI module, opentide's own CLI: every command, `serve`, the language server and MCP, with
+  // no install. It runs in the extension host and reads the workspace through the mount VS Code gives it.
+  // Restricted Mode runs no opentide, this one included: the engine's editor features only.
+  if (!input.trusted) {
+    skip(4, "wasi", "Restricted Mode: no opentide runs, only the engine (WASM)");
+  } else {
+    const wasi = input.wasi;
+    if (!wasi) {
+      missing(4, "wasi", "this build carries no WASI module (dist/wasi/wasi.json)");
+    } else if (!input.exists(wasi.module) || !input.exists(wasi.launcher)) {
+      missing(4, "wasi", `${wasi.module} or its launcher does not exist`);
+    } else {
+      attempts.push({
+        tier: 4,
+        source: "wasi",
+        outcome: "ok",
+        path: wasi.module,
+        version: wasi.version,
+        detail: `${wasi.module} ${wasi.version}`,
+      });
+      return { runtime: wasiRuntime(wasi), attempts };
+    }
+  }
+
+  // Tier 5: the engine built for WebAssembly, in a worker thread. Editor features only; it starts no
   // process and reads the workspace through VS Code, so Restricted Mode runs it too.
   const engine = input.engine;
   if (!engine) {
-    missing(4, "engine", "this build carries no engine (dist/engine/engine.json)");
+    missing(5, "engine", "this build carries no engine (dist/engine/engine.json)");
     return { runtime: undefined, attempts };
   }
   if (!input.exists(engine.module)) {
-    missing(4, "engine", `${engine.module} does not exist`);
+    missing(5, "engine", `${engine.module} does not exist`);
     return { runtime: undefined, attempts };
   }
   attempts.push({
-    tier: 4,
+    tier: 5,
     source: "engine",
     outcome: "ok",
     path: engine.module,
@@ -413,10 +468,30 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
   return { runtime: engineRuntime(engine, !input.trusted), attempts };
 }
 
-/** The tier-4 runtime of an engine layout. */
-export function engineRuntime(engine: EngineLayout, restricted: boolean): Runtime {
+/**
+ * The tier-4 runtime of a WASI layout: VS Code's Node (as Node, not Electron) running the launcher, which is
+ * the command wherever VS Code starts a process itself. `serve` and the language server run in the
+ * extension host, from `wasi` (src/core/services/wasi.ts).
+ */
+export function wasiRuntime(wasi: WasiLayout): Runtime {
   return {
     tier: 4,
+    source: "wasi",
+    kind: "opentide",
+    command: wasi.execPath,
+    args: [wasi.launcher, wasi.module],
+    version: wasi.version,
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    restricted: false,
+    binDirs: [],
+    wasi: { module: wasi.module, launcher: wasi.launcher },
+  };
+}
+
+/** The tier-5 runtime of an engine layout. */
+export function engineRuntime(engine: EngineLayout, restricted: boolean): Runtime {
+  return {
+    tier: 5,
     source: "engine",
     kind: "engine",
     command: engine.module,

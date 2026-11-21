@@ -1,5 +1,6 @@
 // One language client per window (#5): `opentide lsp start` (or `opentide-lsp --stdio`) from the runtime,
-// or the engine built for WebAssembly in a worker thread, fed the workspace through VS Code (tier 4).
+// the same command in the WASI module under @vscode/wasm-wasi (tier 4), or the engine built for WebAssembly
+// in a worker thread, fed the workspace through VS Code (tier 5).
 // Pulled diagnostics stay on and nothing handles `publishDiagnostics`, so each finding shows once; the
 // server's refresh requests (diagnostics, semantic tokens, inlay hints, code lenses) are honoured by
 // vscode-languageclient itself.
@@ -32,6 +33,7 @@ import { languageServerCommand, type Runtime } from "../runtime/types";
 import { Emitter } from "../util/event";
 import { SerialQueue } from "../util/serial";
 import { startEngineWorker } from "./engine";
+import type { WasiHost, WasiLanguageServer } from "./wasi";
 
 /** How long after the last file change the engine is restarted with the new workspace. */
 const ENGINE_RESTART_MS = 1000;
@@ -92,12 +94,16 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private readonly staleWhileOpen = new Set<string>();
 
   private lastFallback: Fallback | undefined;
+  /** The WASI module's language server, while it runs. */
+  private wasiServer: WasiLanguageServer | undefined;
 
   constructor(
     private readonly log: Logger,
     engineFolders: () => readonly FeedFolder[] = () => [],
     /** The engine's runtime, when the extension carries one: the fallback for a server that does not start. */
     private readonly engineRuntime: (restricted: boolean) => Runtime | undefined = () => undefined,
+    /** Runs `opentide lsp start` for a WASI runtime, in the extension host. */
+    private readonly wasi: WasiHost | undefined = undefined,
   ) {
     this.feed = new WorkspaceFeed(engineFolders, (message) => this.log.warn(message));
     this.disposables.push(
@@ -201,7 +207,9 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     const client =
       runtime.kind === "engine"
         ? await this.engineClient(runtime, clientOptions, reuseWorkspace)
-        : this.processClient(runtime, cwd, clientOptions);
+        : runtime.wasi && this.wasi
+          ? this.wasiClient(this.wasi, runtime, clientOptions)
+          : this.processClient(runtime, cwd, clientOptions);
     try {
       await client.start();
     } catch (error) {
@@ -209,6 +217,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       this.log.error(`language server failed to start: ${message}`);
       await client.dispose().then(undefined, () => undefined);
       this.endEngine();
+      this.endWasi();
       return { ok: false, error: message };
     }
     this.client = client;
@@ -270,6 +279,29 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     const executable = serverExecutable(runtime, cwd);
     this.log.info(`language server: ${executable.command} ${(executable.args ?? []).join(" ")}`);
     return new LanguageClient("opentide", "opentide Language Server", executable, clientOptions);
+  }
+
+  /**
+   * `opentide lsp start` in the WASI module, in the extension host: the workspace is the module's file
+   * system, so the watcher's events go to the server as they do to a native one, and the transports map
+   * the folders' URIs to guest URIs and back (src/core/wasi/paths.ts).
+   */
+  private wasiClient(wasi: WasiHost, runtime: Runtime, clientOptions: LanguageClientOptions): LanguageClient {
+    this.log.info(`language server: opentide lsp start in the WASI module (${runtime.version})`);
+    const transports = async (): Promise<MessageTransports> => {
+      this.endWasi();
+      const server = await wasi.startLanguageServer((text) => {
+        for (const line of text.split(/\r?\n/)) if (line) this.outputChannel.debug(line);
+      });
+      this.wasiServer = server;
+      return server.transports;
+    };
+    return new LanguageClient("opentide", "opentide Language Server", transports, clientOptions);
+  }
+
+  private endWasi(): void {
+    this.wasiServer?.terminate();
+    this.wasiServer = undefined;
   }
 
   /**
@@ -363,6 +395,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     this.info = undefined;
     if (!client) {
       this.endEngine();
+      this.endWasi();
       return;
     }
     this.emitter.fire(undefined);
@@ -373,6 +406,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     }
     await client.dispose().then(undefined, () => undefined);
     this.endEngine();
+    this.endWasi();
   }
 
   private async showReferences(args: unknown[]): Promise<void> {

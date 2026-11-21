@@ -88,11 +88,11 @@ describe("engine: the pinned WebAssembly build of the language server", () => {
       return body ? { ok: true, arrayBuffer: async () => body } : { ok: false, status: 404 };
     };
 
-  it("is pinned by URL and SHA-256 from the same language-server release as the highlights", () => {
+  it("is pinned by URL and SHA-256 from the same opentide release as the highlights", () => {
     assert.equal(pins.engine.version, pins.highlights.version);
     assert.equal(
       pins.engine.url,
-      `https://github.com/opentidehq/language-server/releases/download/v${pins.engine.version}/opentide-wasm-web-v${pins.engine.version}.zip`,
+      `https://github.com/opentidehq/opentide/releases/download/v${pins.engine.version}/opentide-wasm-web-v${pins.engine.version}.zip`,
     );
     assert.match(pins.engine.sha256, /^[0-9a-f]{64}$/);
     assert.match(
