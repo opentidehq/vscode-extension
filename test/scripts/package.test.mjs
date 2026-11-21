@@ -18,6 +18,7 @@ import {
 } from "../../scripts/package-lib.mjs";
 import {
   checkEngineInitialize,
+  checkMcpBridge,
   checkWasiPackage,
   checkWasiServe,
   checkWebEntry,
@@ -248,15 +249,35 @@ describe("smoke: checks", () => {
     assert.equal(releaseOf("0.10.0"), "0.10.0");
   });
 
-  it("the package carries the WASI module, its launcher and its manifest", () => {
+  it("the package carries the WASI module, its launcher and its manifest, and the MCP bridge", () => {
     assert.deepEqual(
       checkWasiPackage(() => true),
       [],
     );
     assert.deepEqual(
       checkWasiPackage((file) => file === "dist/wasi/wasi.json"),
-      ["the package has no dist/wasi/opentide.wasm", "the package has no dist/wasi/launcher.cjs"],
+      [
+        "the package has no dist/wasi/opentide.wasm",
+        "the package has no dist/wasi/launcher.cjs",
+        "the package has no dist/mcp-wasi.js",
+      ],
     );
+  });
+
+  it("the MCP bridge answers as opentide and writes only an MCP server's messages", () => {
+    const good = [
+      '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"opentide"}}}',
+      '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"search"}]}}',
+    ];
+    assert.deepEqual(checkMcpBridge(good, 0), []);
+    assert.equal(checkMcpBridge(["not json", ...good], 0).length, 1);
+    assert.match(
+      checkMcpBridge([...good, '{"jsonrpc":"2.0","id":"h1","method":"opentide/fetch","params":{}}'], 0)[0],
+      /no message of an MCP server/,
+    );
+    assert.match(checkMcpBridge([good[1]], 0)[0], /did not answer as opentide/);
+    assert.match(checkMcpBridge([good[0]], 0)[0], /no `search` tool/);
+    assert.match(checkMcpBridge(good, 3)[0], /exited with 3/);
   });
 
   it("the WASI module's serve offers opentide/fetch, agrees with wasi.json and runs a command", () => {

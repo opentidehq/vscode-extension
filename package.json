@@ -395,6 +395,22 @@
             ],
             "markdownDescription": "Whether the extension gives VS Code's agents the opentide MCP server (`opentide mcp start` with the resolved runtime). Off in Restricted Mode, where this setting is not read."
           },
+          "opentide.agents.writeEditorConfig": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "always",
+              "never"
+            ],
+            "default": "ask",
+            "scope": "machine",
+            "enumDescriptions": [
+              "Ask once before adding the opentide MCP server to the user-level MCP file of Kiro, Devin Desktop or Windsurf, which have no extension API for it.",
+              "Add it, and keep it current, without asking.",
+              "Never write that file."
+            ],
+            "markdownDescription": "Whether the extension writes an `opentide` entry into the user-level MCP file of an editor with no extension API for MCP servers (Kiro, Devin Desktop, Windsurf), and keeps it current when the extension updates. It only ever rewrites or removes an entry it wrote itself, marked `OPENTIDE_VSCODE_EXTENSION`. Cursor and VS Code get the server from the extension directly, and no file is written."
+          },
           "opentide.mcp.useBundled": {
             "type": "boolean",
             "default": false,
@@ -554,6 +570,11 @@
         "title": "Add opentide to This Editor's MCP Settings",
         "category": "opentide",
         "icon": "$(plug)"
+      },
+      {
+        "command": "opentide.agents.removeFromEditorMcp",
+        "title": "Remove opentide from This Editor's MCP Settings",
+        "category": "opentide"
       },
       {
         "command": "opentide.deployPlan.open",
@@ -1058,6 +1079,10 @@
         {
           "command": "opentide.agents.addToEditorMcp",
           "when": "isWorkspaceTrusted && opentide.agents.forkMcp"
+        },
+        {
+          "command": "opentide.agents.removeFromEditorMcp",
+          "when": "opentide.agents.forkMcp"
         },
         {
           "command": "opentide.deployPlan.open",
@@ -2241,7 +2266,7 @@
           {
             "id": "agentFork",
             "title": "Bring your agent",
-            "description": "Add opentide's MCP server to this editor's MCP settings (Cursor or Windsurf), and install the opentidehq/skills Agent Plugin (recommended) with Bring Your Agent…\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)\n[Bring Your Agent…](command:opentide.setup.agents)",
+            "description": "Add opentide's MCP server to this editor's MCP settings (Kiro, Devin Desktop or Windsurf; Cursor and VS Code get it from the extension), and install the opentidehq/skills Agent Plugin (recommended) with Bring Your Agent…\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)\n[Bring Your Agent…](command:opentide.setup.agents)",
             "when": "opentide.agents.forkMcp",
             "media": {
               "markdown": "media/walkthrough/agent.md"

@@ -17,6 +17,7 @@ import { Worker } from "node:worker_threads";
 import { PackageError, zipEntries, zipRead } from "./package-lib.mjs";
 import {
   checkEngineInitialize,
+  checkMcpBridge,
   checkWasiPackage,
   checkWasiServe,
   checkWebEntry,
@@ -135,6 +136,55 @@ function wasiServe(extension) {
   });
 }
 
+/** The MCP bridge as an editor starts it: initialize and tools/list over stdio, then the input ends. */
+function mcpBridge(extension) {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(process.execPath, [join(extension, "dist", "mcp-wasi.js")], {
+      cwd: extension,
+      env: { ...process.env, OPENTIDE_REPO_ROOT: extension },
+      stdio: ["pipe", "pipe", "inherit"],
+    });
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new SmokeError(`the MCP bridge did not answer in ${TIMEOUT_MS / 1000} s`));
+    }, TIMEOUT_MS);
+    const lines = [];
+    let buffer = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      buffer += chunk;
+      for (let index = buffer.indexOf("\n"); index >= 0; index = buffer.indexOf("\n")) {
+        lines.push(buffer.slice(0, index));
+        buffer = buffer.slice(index + 1);
+      }
+      if (lines.length >= 2) child.stdin.end();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(new SmokeError(`the MCP bridge: ${error.message}`));
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolvePromise({ lines, exitCode: code });
+    });
+    for (const message of [
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "smoke", version: "0" },
+        },
+      },
+      { jsonrpc: "2.0", method: "notifications/initialized" },
+      { jsonrpc: "2.0", id: 2, method: "tools/list" },
+    ])
+      child.stdin.write(`${JSON.stringify(message)}\n`);
+  });
+}
+
 async function main() {
   if (!vsix) throw new SmokeError("usage: npm run smoke -- <file.vsix> [--keep]");
   const temp = mkdtempSync(join(tmpdir(), "opentide-smoke-"));
@@ -162,6 +212,10 @@ async function main() {
     const wasi = await wasiServe(extension);
     errors.push(...checkWasiServe(wasi.initialize, wasi.run, wasi.manifest, wasi.exitCode));
     console.log(`smoke: WASI opentide ${wasi.initialize?.result?.version} (${wasi.manifest.source})`);
+
+    step("MCP bridge: initialize and tools/list");
+    const mcp = await mcpBridge(extension);
+    errors.push(...checkMcpBridge(mcp.lines, mcp.exitCode));
 
     if (existsSync(join(extension, "runtime")))
       errors.push("the package carries runtime/: the extension runs the user's own opentide");

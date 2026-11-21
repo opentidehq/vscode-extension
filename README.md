@@ -393,6 +393,7 @@ workspace's opentide need a trusted folder.
 | `opentide.uv.usePin` | `false` | Run the repository's pinned opentide with `uv tool run`, before the workspace's environment |
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
 | `opentide.wasi.enabled` | `true` | With no opentide installed, run the opentide module the extension carries; off: the engine's editor features only |
+| `opentide.agents.writeEditorConfig` | `ask` | In Kiro, Devin Desktop and Windsurf (no extension API for MCP servers): `ask` before adding the opentide entry to the editor's user-level MCP file, `always`, or `never` (machine setting) |
 | `opentide.mcp.useBundled` | `false` | Run the MCP server with the opentide module the extension carries even where opentide is installed (it is used anyway with none) |
 | `opentide.envFile` | | A `.env` file whose variables reach commands that contact a tenant |
 | `opentide.backend.serve` | `auto` | `auto` (one warm `opentide serve`) or `never` (spawn each command) |

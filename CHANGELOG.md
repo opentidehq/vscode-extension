@@ -21,6 +21,18 @@ pre-releases odd ones.
   highlight those queries inside rules. They are available through **Change Language Mode** and have no
   file association yet.
 
+- **Agents get opentide's MCP tools with no opentide installed.** The extension gives VS Code's agent mode
+  an `opentide` MCP server that runs the bundled opentide through a small script, run by the editor's own
+  Node. An installed opentide still comes first; `opentide.mcp.useBundled` picks the bundled one.
+  Tenant tools (deploy, live validate, query) work through the extension once opentide's MCP server asks it
+  to make the requests; search, validate, lint, new and the catalogue work now.
+- **Cursor gets the server from the extension.** It is registered with Cursor's extension API, and
+  `~/.cursor/mcp.json` is no longer written.
+- **Kiro, Devin Desktop and Windsurf get a user-level MCP entry, if you agree.** The extension asks once
+  before adding `opentide` to the editor's MCP file, keeps it current when it updates, and never touches an
+  entry it did not write. `opentide.agents.writeEditorConfig` sets `ask`, `always` or `never`;
+  **Remove opentide from This Editor's MCP Settings** takes it away.
+
 ### Changed
 
 - **The package grows from 4 to 13 MiB** for the bundled opentide, one file for every platform.

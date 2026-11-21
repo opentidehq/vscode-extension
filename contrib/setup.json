@@ -152,7 +152,7 @@
           {
             "id": "agentFork",
             "title": "Bring your agent",
-            "description": "Add opentide's MCP server to this editor's MCP settings (Cursor or Windsurf), and install the opentidehq/skills Agent Plugin (recommended) with Bring Your Agent…\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)\n[Bring Your Agent…](command:opentide.setup.agents)",
+            "description": "Add opentide's MCP server to this editor's MCP settings (Kiro, Devin Desktop or Windsurf; Cursor and VS Code get it from the extension), and install the opentidehq/skills Agent Plugin (recommended) with Bring Your Agent…\n[Add opentide to This Editor's MCP Settings](command:opentide.setup.step?%5B%22editorMcp%22%5D)\n[Bring Your Agent…](command:opentide.setup.agents)",
             "when": "opentide.agents.forkMcp",
             "media": {
               "markdown": "media/walkthrough/agent.md"

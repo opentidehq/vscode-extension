@@ -10,6 +10,7 @@ package.json            manifest; `contributes` and `activationEvents` are GENER
 contrib/                manifest fragments: core.json, grammars.json (generated), <feature>.json
 pins.json               the opentide CI tests against, the WASI module, highlights and engine (+SHA-256), VSIX size budget (PACKAGING.md)
 src/extension.ts        activate(): the core, then every feature (a virtual workspace gets src/web/ instead)
+src/mcp-wasi/           the MCP bridge, bundled to dist/mcp-wasi.js (run by the editor's own Node)
 src/web/                web mode (vscode.dev, github.dev, virtual workspaces): the engine, its views; no Node built-ins
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts
 src/core/wasi/          the WASI module's vscode-free parts: guest paths, environment, the serve wire, launcher.cjs
@@ -199,6 +200,8 @@ and restarts one that does not (0.10.0), a second after the last change, or once
 changed is closed. It spawns nothing, so it also runs in Restricted Mode (`restricted: true`). Say why a
 command cannot run with `editorOnlyText(runtime, what)` and `explainUnavailable` (`src/core/unavailable.ts`,
 `src/core/services/unavailable.ts`): Install opentide and Switch Runtime….
+
+**MCP with no opentide installed** (`src/features/agents/`, `src/mcp-wasi/`, `src/core/wasi/mcpBridge.ts`): the MCP provider (and Cursor's `cursor.mcp.registerServer`, and the user-level file of Kiro, Devin Desktop and Windsurf) follow one decision, `decideNow` over `decideMcp`: a native runtime first, else the bundled bridge, `dist/mcp-wasi.js`, which the editor runs with its own Node (`process.execPath`, `ELECTRON_RUN_AS_NODE=1`). The bridge runs the module's `mcp start` in a child process (the launcher) and answers its `opentide/fetch` with `FetchHost`; see CONTRACTS.md. [AGENT-INTEGRATION.md](AGENT-INTEGRATION.md) has what each editor gets and how.
 
 To start opentide yourself (a terminal, a task, an MCP server definition), use the runtime as it is:
 `cliCommand(runtime, ["mcp", "start"])` gives `{ command, args }` (for `python -m opentide`, the

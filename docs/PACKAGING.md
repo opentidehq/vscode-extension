@@ -27,6 +27,8 @@ the launcher as child processes: nothing to install. It is no `extensionDependen
 extension declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode, and an
 extension that depended on it would not activate there.
 
+`dist/mcp-wasi.js` is the MCP bridge (`src/mcp-wasi/main.ts`, bundled with `@opentide/wasi-host` by `npm run build`, about 17 KiB): the editor runs it with its own Node to give agents opentide's MCP tools with no opentide installed ([CONTRACTS.md](CONTRACTS.md#the-mcp-bridge), [AGENT-INTEGRATION.md](AGENT-INTEGRATION.md)). It adds nothing to the package's size to speak of.
+
 `dist/engine/` is the engine (WASM), the runtime of tier 5:
 `npm run build` unpacks the `opentide-wasm-web` zip that `pins.json` `engine` pins (URL and SHA-256, the
 zip's line in the opentide release's `SHA256SUMS`, cached in `.cache/`), bundles its wasm-bindgen
@@ -219,5 +221,6 @@ with `code --uninstall-extension opentidehq.opentide`. Try it **on a machine wit
    platform's policy says. Cancel a running query: it stops (`interrupted`). In the integrated terminal,
    `opentide query …` through the PATH launcher fails with `this command needs the network; run the opentide
    CLI`: expected, the module has no network there. **Contact only tenants you own.**
-6. **Switching off.** `opentide.wasi.enabled` off, and **opentide: Restart Server**: the engine (tier 5) runs,
+6. **An agent, with no opentide installed.** In VS Code, **MCP: List Servers** shows `opentide`; start it and **Show Output**: it answers `initialize`, and `tools/list` has `search`. Ask Copilot's agent for a `search`, then `validate`. Where the server comes from a Copilot harness session rather than the window, check that it still starts (whether a forwarded definition keeps its `env` is unknown: the output says what ran). In Cursor, the server appears in its MCP settings (toggle it if it shows "0 tools"); in Kiro, Devin Desktop and Windsurf, accept the notification and check the editor's MCP panel. `OPENTIDE_FETCH=stdio` tenant tools (deploy, live validate, query) work once opentide's `mcp start` supports it: [AGENT-INTEGRATION.md](AGENT-INTEGRATION.md).
+7. **Switching off.** `opentide.wasi.enabled` off, and **opentide: Restart Server**: the engine (tier 5) runs,
    editor features only. In an untrusted folder (Restricted Mode) the engine runs too.
