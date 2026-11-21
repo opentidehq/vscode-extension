@@ -25,6 +25,9 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The extension is licensed under the EUPL-1.2**, the licence of opentide and of the engine and grammars
+  it carries, instead of MIT, so the whole package is under one licence. Third-party material keeps its own
+  licence (`NOTICE`, `THIRD-PARTY-LICENSES`).
 - **The package grows from 4 to 13 MiB** for the bundled opentide, one file for every platform.
 - **The opentide engine is runtime tier 5, after the bundled opentide.** Restricted Mode still runs the
   engine only: no opentide runs in an untrusted folder, the bundled one included.

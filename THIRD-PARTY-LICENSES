@@ -1,6 +1,9 @@
 Third-party material copied into this extension
 ================================================
 
+The extension itself is under the EUPL-1.2 (LICENSE). What is listed here is not: each item keeps the
+licence it came with, which its entry names and reproduces.
+
 syntaxes/opentide-config.tmLanguage.json
 ----------------------------------------
 Source:  https://github.com/tamasfe/taplo/blob/release-even-better-toml-0.21.2/editors/vscode/toml.tmLanguage.json
