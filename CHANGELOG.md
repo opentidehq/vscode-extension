@@ -27,6 +27,19 @@ pre-releases odd ones.
   highlight those queries inside rules. They are available through **Change Language Mode** and have no
   file association yet.
 
+- **Agents get opentide's MCP tools with no opentide installed.** The extension gives VS Code's agent mode
+  an `opentide` MCP server that runs the bundled opentide through a small script, run by the editor's own
+  Node. With `opentide.runtime` set to `installed`, your own opentide's `mcp start` runs instead.
+  Tenant tools (deploy, live validate, query) work through the extension once opentide's MCP server asks it
+  to make the requests; search, validate, lint, new and the catalogue work now.
+- **Cursor gets the server from the extension.** It is registered with Cursor's extension API, and
+  `~/.cursor/mcp.json` is no longer written.
+- **When the MCP server finds no repository, it says where it was started and what to do.** The bridge's first log line names its working directory and the repository it will use, and a `workspace_not_found` answer says how to fix it (open the repository's folder, or set `OPENTIDE_REPO_ROOT`).
+- **Kiro, Devin Desktop and Windsurf get a user-level MCP entry, if you agree.** Kiro's core has the VS Code API for MCP servers but its agent does not use it, so the extension goes by the editor's name instead of by the API (it still registers the provider where there is one). The extension asks once
+  before adding `opentide` to the editor's MCP file, keeps it current when it updates, and never touches an
+  entry it did not write. `opentide.agents.writeEditorConfig` sets `ask`, `always` or `never`;
+  **Remove opentide from This Editor's MCP Settings** takes it away.
+
 ### Changed
 
 - **The extension is licensed under the EUPL-1.2**, the licence of opentide and of the engine and grammars
@@ -79,6 +92,19 @@ pre-releases odd ones.
   with it, and that runtime is skipped. It no longer fails without a word.
 - **A reply from `opentide serve` that does not have the expected shape is reported as a protocol error**
   instead of being read as if it were well formed.
+- **The opentide entry in Kiro's, Devin Desktop's and Windsurf's MCP file keeps working after an extension
+  update.** It runs a small launcher the extension keeps in its own storage, which starts the newest installed
+  copy of the extension, instead of naming a folder the update deletes. If the extension was uninstalled, the
+  agent is told to remove the entry or reinstall.
+- **A window with no opentide folder no longer starts the opentide MCP server.** Agents there got a server that
+  could only say it found no repository; it appears when an opentide folder does.
+- **Kiro, Devin Desktop and Windsurf get the bundled MCP server when your installed opentide is older than
+  1.0.0rc3.** Kiro rejects the older opentide's tool list. The extension says so once and writes the bundled
+  entry; upgrade opentide to use your own there.
+- **A damaged Kiro, Devin Desktop or Windsurf MCP file is left alone and the problem is named.** A file that
+  is not JSON, has an `mcpServers` that is not an object, or holds comments is no longer offered an
+  opentide entry, and **opentide: Remove from the Editor's MCP Settings** says what is wrong with it instead
+  of saying it has no entry.
 
 ## [0.1.2] - 2026-11-10
 

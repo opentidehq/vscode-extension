@@ -14,6 +14,7 @@
 //   the pinned WASI module (opentide's CLI on wasm32-wasip1, pins.json `wasi`; OPENTIDE_WASI_MODULE builds with a
 //                            module made from opentide's source instead) and src/core/wasi/launcher.cjs -> dist/wasi/,
 //                            with wasi.json (version and checksum, read by the runtime resolver) and the licences
+//   src/mcp-wasi/main.ts    -> dist/mcp-wasi.js (node, CommonJS: the MCP bridge, with @opentide/wasi-host bundled in)
 //   the npm packages bundled in any of them -> dist/THIRD-PARTY-NOTICES.txt
 // Flags: --production (minify, no source maps), --watch.
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -53,6 +54,30 @@ const extension = {
 };
 
 const web = webExtensionOptions(root, common);
+
+// The MCP bridge: the editor runs it with its own Node (SPEC §12).
+const mcpBridge = {
+  ...common,
+  entryPoints: { "mcp-wasi": join(root, "src", "mcp-wasi", "main.ts") },
+  outdir: join(root, "dist"),
+  platform: "node",
+  format: "cjs",
+  target: "node20",
+  mainFields: ["module", "main"],
+  metafile: true,
+};
+
+// The stable launcher of the user-level MCP entries (Kiro, Devin Desktop, Windsurf): copied into the extension's
+// global storage, it runs the newest installed copy's bridge. Dependency-free.
+const mcpLauncher = {
+  ...common,
+  entryPoints: { "mcp-launcher": join(root, "src", "mcp-launcher", "main.ts") },
+  outdir: join(root, "dist"),
+  platform: "node",
+  format: "cjs",
+  target: "node20",
+  metafile: true,
+};
 
 // The engine (WASM): unpacked from the pinned zip into .cache/ (downloaded once), checked by SHA-256.
 const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
@@ -109,6 +134,8 @@ writeFileSync(join(wasiOut, "wasi.json"), `${JSON.stringify(wasi.manifest, null,
 const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), common);
 const configs = [
   extension,
+  mcpBridge,
+  mcpLauncher,
   web,
   engineWorker,
   webEngineWorker,

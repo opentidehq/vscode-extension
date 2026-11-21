@@ -2,9 +2,20 @@ import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import type { CatalogDocument } from "../../../src/core/catalog/types";
 import { which } from "../../../src/core/runtime/process";
-import { forkTarget, mergeMcpEntry } from "../../../src/features/agents/forks";
+import { cursorMcp, cursorRegistration } from "../../../src/features/agents/cursor";
+import {
+  chooseMcpMechanism,
+  configProblem,
+  forkTarget,
+  hasOurEntry,
+  MARKER_ENV,
+  MARKER_VALUE,
+  mergeMcpEntry,
+  removeMcpEntry,
+} from "../../../src/features/agents/forks";
 import { parseJsonc, stripJsonc } from "../../../src/features/agents/jsonc";
 import {
+  bridgeInsteadText,
   cursorWorkspaceDiscovered,
   decideMcp,
   definesOpentide,
@@ -15,6 +26,9 @@ import {
   MCP_SEPARATE_LABEL,
   McpDecisionLog,
   type McpInputs,
+  MIN_NATIVE_MCP_FOR_FILES,
+  mcpBridge,
+  nativeMcpTooOldForFiles,
   opentideEntryCommand,
   opentideServerCommand,
   provideMode,
@@ -78,6 +92,7 @@ describe("agents: MCP server", () => {
       cwd: "/ws",
       env: { UV_X: "1", OPENTIDE_REPO_ROOT: "/ws", OPENTIDE_PROXY: "http://proxy:3128" },
       version: "0.21.0",
+      bridge: false,
     });
   });
 
@@ -396,44 +411,360 @@ describe("agents: MCP server", () => {
   });
 });
 
-/** Cursor's `${workspaceFolder}`, which the editor expands (spelled so that no linter takes it for a template). */
-const WORKSPACE_FOLDER = ["$", "{workspaceFolder}"].join("");
+describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, Windsurf)", () => {
+  const entry = {
+    command: "/usr/share/kiro/kiro",
+    args: ["/home/me/.kiro/extensions/opentidehq.opentide-0.3.0/dist/mcp-wasi.js"],
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+  };
 
-describe("agents: forks without the provider API", () => {
-  it("knows Cursor's and Windsurf's user-level MCP files", () => {
-    assert.deepEqual(forkTarget("Cursor", "/home/me"), {
-      editor: "Cursor",
-      file: path.join("/home/me", ".cursor", "mcp.json"),
-      workspaceVariable: true,
-    });
+  it("knows each editor's file, and has none for VS Code or Cursor (Cursor has an API)", () => {
+    assert.equal(
+      forkTarget("Kiro", "/home/me")?.file,
+      path.join("/home/me", ".kiro", "settings", "mcp.json"),
+    );
+    assert.equal(
+      forkTarget("Devin Desktop", "/home/me", "linux")?.file,
+      path.join("/home/me", ".config", "devin", "mcp_config.json"),
+    );
+    assert.equal(
+      forkTarget("Devin", "/home/me", "win32", "C:\\Users\\me\\AppData\\Roaming")?.file,
+      "C:\\Users\\me\\AppData\\Roaming\\devin\\mcp_config.json",
+    );
     assert.equal(
       forkTarget("Windsurf", "/home/me")?.file,
       path.join("/home/me", ".codeium", "windsurf", "mcp_config.json"),
     );
+    assert.equal(forkTarget("Cursor", "/home/me"), undefined);
     assert.equal(forkTarget("Visual Studio Code", "/home/me"), undefined);
+    // The URI scheme names the host too.
+    assert.equal(forkTarget("Code - OSS", "/home/me", "linux", undefined, "kiro")?.editor, "Kiro");
+    assert.equal(forkTarget("Code - OSS", "/home/me", "linux", undefined, "windsurf")?.editor, "Windsurf");
   });
 
-  it("adds opentide to the file, keeping every other server", () => {
-    const entry = {
-      command: "/ext/runtime/bin/python3",
-      args: ["-I", "-m", "opentide", "mcp", "start"],
-      env: {},
-    };
-    const merged = mergeMcpEntry('{ "theme": 1, "mcpServers": { "other": { "command": "x" } } }', entry);
-    assert.ok("text" in merged);
+  describe("chooseMcpMechanism: by host, not by API presence (#84)", () => {
+    const base = {
+      cursor: false,
+      appName: "Kiro",
+      uriScheme: "kiro",
+      home: "/home/me",
+      platform: "linux",
+    } as const;
+    const kiroFile = path.join("/home/me", ".kiro", "settings", "mcp.json");
+
+    it("gives Kiro its MCP file although its Code OSS core has the provider API, and registers the provider too", () => {
+      // The regression: Kiro's core has registerMcpServerDefinitionProvider, kiro-agent never reads it, and the
+      // file used to be skipped because the API was there.
+      const withApi = chooseMcpMechanism({ ...base, hasProviderApi: true });
+      assert.equal(withApi.fork?.file, kiroFile);
+      assert.equal(withApi.provider, true);
+      assert.equal(withApi.cursor, false);
+      assert.match(withApi.description, /Kiro/);
+      assert.match(withApi.description, /has the MCP server definition provider API/);
+      assert.match(withApi.description, /user-level MCP file .*mcp\.json and the provider/);
+      const without = chooseMcpMechanism({ ...base, hasProviderApi: false });
+      assert.equal(without.fork?.file, kiroFile);
+      assert.equal(without.provider, false);
+    });
+
+    it("does the same for Devin Desktop and Windsurf, whether or not they have the API, by name or scheme", () => {
+      for (const [appName, uriScheme, editor] of [
+        ["Devin Desktop", "devin", "Devin Desktop"],
+        ["Windsurf", "windsurf", "Windsurf"],
+        ["Code - OSS", "windsurf", "Windsurf"],
+      ] as const)
+        for (const hasProviderApi of [true, false]) {
+          const chosen = chooseMcpMechanism({ ...base, appName, uriScheme, hasProviderApi });
+          assert.equal(chosen.fork?.editor, editor, `${appName} ${uriScheme}`);
+          assert.equal(chosen.provider, hasProviderApi);
+        }
+    });
+
+    it("gives VS Code and other hosts the provider only, and Cursor its own API", () => {
+      const code = chooseMcpMechanism({
+        ...base,
+        appName: "Visual Studio Code",
+        uriScheme: "vscode",
+        hasProviderApi: true,
+      });
+      assert.equal(code.fork, undefined);
+      assert.equal(code.provider, true);
+      assert.match(code.description, /an MCP server definition provider/);
+      const cursor = chooseMcpMechanism({
+        ...base,
+        cursor: true,
+        appName: "Cursor",
+        uriScheme: "cursor",
+        hasProviderApi: true,
+      });
+      assert.deepEqual([cursor.cursor, cursor.provider, cursor.fork], [true, false, undefined]);
+      const none = chooseMcpMechanism({
+        ...base,
+        appName: "Other",
+        uriScheme: "other",
+        hasProviderApi: false,
+      });
+      assert.deepEqual([none.cursor, none.provider, none.fork], [false, false, undefined]);
+      assert.match(none.description, /none/);
+    });
+
+    it("logs the host, its scheme and what is used", () => {
+      assert.match(chooseMcpMechanism({ ...base, hasProviderApi: true }).description, /^host Kiro \(kiro\):/);
+    });
+  });
+
+  it("writes a marked opentide entry, keeping every other server and key, and the file's indent", () => {
+    const merged = mergeMcpEntry(
+      '{\n    "theme": 1,\n    "mcpServers": { "other": { "command": "x" } }\n}\n',
+      entry,
+    );
+    assert.equal(merged.kind, "write");
+    if (merged.kind !== "write") return;
+    assert.match(merged.text, /^\{\n {4}"theme": 1,/);
     assert.deepEqual(JSON.parse(merged.text), {
       theme: 1,
-      mcpServers: { other: { command: "x" }, opentide: { command: entry.command, args: entry.args } },
+      mcpServers: {
+        other: { command: "x" },
+        opentide: {
+          command: entry.command,
+          args: entry.args,
+          env: { ELECTRON_RUN_AS_NODE: "1", [MARKER_ENV]: MARKER_VALUE },
+        },
+      },
     });
-    const fresh = mergeMcpEntry(undefined, { ...entry, env: { OPENTIDE_REPO_ROOT: WORKSPACE_FOLDER } });
-    assert.ok("text" in fresh);
-    assert.deepEqual(JSON.parse(fresh.text).mcpServers.opentide.env, {
-      OPENTIDE_REPO_ROOT: WORKSPACE_FOLDER,
-    });
-    assert.deepEqual(mergeMcpEntry("[1]", entry), { error: "is not a JSON object" });
+    const fresh = mergeMcpEntry(undefined, entry);
+    assert.equal(fresh.kind, "write");
+    assert.equal(mergeMcpEntry("  \n", entry).kind, "write");
+  });
+
+  it("is idempotent: the entry it wrote is the same, and a changed command or version rewrites only it", () => {
+    const first = mergeMcpEntry('{"mcpServers": {"other": {"command": "x"}}}', entry);
+    assert.equal(first.kind, "write");
+    if (first.kind !== "write") return;
+    assert.deepEqual(mergeMcpEntry(first.text, entry), { kind: "same" });
+    const moved = {
+      ...entry,
+      args: ["/home/me/.kiro/extensions/opentidehq.opentide-0.4.0/dist/mcp-wasi.js"],
+    };
+    const second = mergeMcpEntry(first.text, moved);
+    assert.equal(second.kind, "write");
+    if (second.kind !== "write") return;
+    assert.deepEqual(JSON.parse(second.text).mcpServers.opentide.args, moved.args);
+    assert.deepEqual(JSON.parse(second.text).mcpServers.other, { command: "x" });
+    assert.equal(hasOurEntry(second.text), true);
+  });
+
+  it("never touches an opentide server the user wrote, a file it cannot read, or one with comments", () => {
+    const own = '{"mcpServers": {"opentide": {"command": "/opt/opentide", "args": ["mcp", "start"]}}}';
+    assert.deepEqual(mergeMcpEntry(own, entry), { kind: "foreign" });
+    assert.deepEqual(removeMcpEntry(own), { kind: "none" });
+    assert.equal(hasOurEntry(own), false);
+    assert.deepEqual(mergeMcpEntry("[1]", entry), { kind: "error", error: "is not a JSON object" });
+    assert.deepEqual(mergeMcpEntry("{ nope", entry), { kind: "error", error: "is not valid JSON" });
     assert.deepEqual(mergeMcpEntry('{"mcpServers": []}', entry), {
+      kind: "error",
       error: "has an `mcpServers` that is not an object",
     });
+    const commented = mergeMcpEntry('{\n  // mine\n  "mcpServers": {}\n}', entry);
+    assert.equal(commented.kind, "error");
+    assert.match(commented.kind === "error" ? commented.error : "", /comments/);
+  });
+
+  it("removes its own entry, and `mcpServers` with it only when it was the last server", () => {
+    const written = mergeMcpEntry('{"theme": 1, "mcpServers": {"other": {"command": "x"}}}', entry);
+    assert.equal(written.kind, "write");
+    if (written.kind !== "write") return;
+    const removed = removeMcpEntry(written.text);
+    assert.equal(removed.kind, "write");
+    if (removed.kind !== "write") return;
+    assert.deepEqual(JSON.parse(removed.text), { theme: 1, mcpServers: { other: { command: "x" } } });
+    const only = mergeMcpEntry('{"theme": 1}', entry);
+    assert.equal(only.kind, "write");
+    if (only.kind !== "write") return;
+    const removedOnly = removeMcpEntry(only.text);
+    assert.equal(removedOnly.kind, "write");
+    if (removedOnly.kind !== "write") return;
+    assert.deepEqual(JSON.parse(removedOnly.text), { theme: 1 });
+  });
+
+  describe("malformed files give a clear error and are never rewritten or crashed on", () => {
+    const malformed: [string, string, RegExp][] = [
+      ["a JSON string", '"hello"', /not a JSON object/],
+      ["a JSON number", "42", /not a JSON object/],
+      ["null", "null", /not a JSON object/],
+      ["an array", "[]", /not a JSON object/],
+      ["truncated JSON", '{"mcpServers": {"opentide": ', /not valid JSON/],
+      ["binary noise", "\u0000\u0001\u0002", /not valid JSON/],
+      ["a null mcpServers", '{"mcpServers": null}', /`mcpServers` that is not an object/],
+      ["a string mcpServers", '{"mcpServers": "x"}', /`mcpServers` that is not an object/],
+      ["a numeric mcpServers", '{"mcpServers": 3}', /`mcpServers` that is not an object/],
+      ["comments", '{\n  // mine\n  "mcpServers": {}\n}', /comments/],
+    ];
+    for (const [name, text, pattern] of malformed) {
+      it(`${name}`, () => {
+        const merged = mergeMcpEntry(text, entry);
+        assert.equal(merged.kind, "error");
+        assert.match(merged.kind === "error" ? merged.error : "", pattern);
+        const removed = removeMcpEntry(text);
+        assert.equal(removed.kind, "error");
+        assert.match(removed.kind === "error" ? removed.error : "", pattern);
+        assert.match(configProblem(text) ?? "", pattern);
+        assert.equal(hasOurEntry(text), false);
+      });
+    }
+
+    it("treats an entry that is not an object as the user's own, without throwing", () => {
+      for (const value of [
+        "null",
+        "7",
+        '"x"',
+        "[]",
+        "true",
+        '{"env": null}',
+        '{"env": "x"}',
+        '{"env": []}',
+      ]) {
+        const text = `{"mcpServers": {"opentide": ${value}}}`;
+        assert.deepEqual(mergeMcpEntry(text, entry), { kind: "foreign" }, value);
+        assert.deepEqual(removeMcpEntry(text), { kind: "none" }, value);
+        assert.equal(hasOurEntry(text), false, value);
+        assert.equal(configProblem(text), undefined, value);
+      }
+    });
+
+    it("rewrites its own entry even when the entry's other fields are malformed", () => {
+      const ours = `{"mcpServers": {"opentide": {"command": 5, "args": "x", "env": {"${MARKER_ENV}": "${MARKER_VALUE}"}}}}`;
+      const merged = mergeMcpEntry(ours, entry);
+      assert.equal(merged.kind, "write");
+      if (merged.kind !== "write") return;
+      assert.equal(JSON.parse(merged.text).mcpServers.opentide.command, entry.command);
+      assert.equal(removeMcpEntry(ours).kind, "write");
+    });
+
+    it("has no problem with an empty or missing file", () => {
+      assert.equal(configProblem(undefined), undefined);
+      assert.equal(configProblem(" \n"), undefined);
+    });
+  });
+});
+
+describe("agents: Cursor's extension API", () => {
+  const plan = {
+    label: "opentide",
+    command: "/Applications/Cursor.app/Contents/MacOS/Cursor",
+    args: ["/ext/dist/mcp-wasi.js"],
+    cwd: "/ws",
+    env: { ELECTRON_RUN_AS_NODE: "1", OPENTIDE_REPO_ROOT: "/ws" },
+    version: "1.0.0-rc.3",
+    bridge: true,
+  };
+
+  it("is found only where cursor.mcp.registerServer and unregisterServer are", () => {
+    const api = { registerServer: () => undefined, unregisterServer: () => undefined };
+    assert.equal(cursorMcp({ cursor: { mcp: api } }), api);
+    assert.equal(cursorMcp({ cursor: { mcp: { registerServer: () => undefined } } }), undefined);
+    assert.equal(cursorMcp({ cursor: {} }), undefined);
+    assert.equal(cursorMcp({}), undefined);
+    assert.equal(cursorMcp(undefined), undefined);
+  });
+
+  it("registers the same stdio command as everywhere else, by the server's label", () => {
+    assert.deepEqual(cursorRegistration(plan), {
+      name: "opentide",
+      server: { command: plan.command, args: plan.args, env: plan.env },
+    });
+  });
+});
+
+describe("agents: the bundled MCP bridge", () => {
+  const bridge = {
+    command: "/usr/share/code/code",
+    args: ["/ext/dist/mcp-wasi.js"],
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    version: "1.0.0-rc.3",
+  };
+  const inputs = (overrides: Partial<McpInputs> = {}): McpInputs => ({
+    trusted: true,
+    mode: "auto",
+    runtime: undefined,
+    hasMcpStart: undefined,
+    folder: "/ws",
+    workspaceEntries: [],
+    bridge,
+    ...overrides,
+  });
+
+  it("is the server where no native opentide resolves: the editor's own Node runs the bridge, in the folder", () => {
+    const decision = decideMcp(inputs());
+    assert.ok(decision.provide);
+    assert.equal(decision.server.command, "/usr/share/code/code");
+    assert.deepEqual(decision.server.args, ["/ext/dist/mcp-wasi.js"]);
+    assert.deepEqual(decision.server.env, { ELECTRON_RUN_AS_NODE: "1", OPENTIDE_REPO_ROOT: "/ws" });
+    assert.equal(decision.server.cwd, "/ws");
+    assert.equal(decision.server.label, MCP_LABEL);
+    assert.equal(decision.server.version, "1.0.0-rc.3");
+    const proxied = decideMcp(inputs({ proxy: "http://proxy:3128" }));
+    assert.ok(proxied.provide);
+    assert.equal(proxied.server.env.OPENTIDE_PROXY, "http://proxy:3128");
+  });
+
+  it("is the server when the bundled WASI module is the runtime, and needs no command tree", () => {
+    const wasi = fakeRuntime({ tier: 4, source: "wasi", wasi: { module: "/m.wasm", launcher: "/l.cjs" } });
+    const decision = decideMcp(inputs({ runtime: wasi, hasMcpStart: undefined }));
+    assert.ok(decision.provide);
+    assert.equal(decision.server.args[0], "/ext/dist/mcp-wasi.js");
+  });
+
+  it("runs a native opentide's own `mcp start` when it is the runtime (opentide.runtime: installed), else the bridge", () => {
+    const native = fakeRuntime();
+    const first = decideMcp(inputs({ runtime: native, hasMcpStart: true }));
+    assert.ok(first.provide);
+    assert.equal(first.server.command, native.command);
+    assert.deepEqual(first.server.args.slice(-2), ["mcp", "start"]);
+    // With the bundled module as the runtime (the default), every editor gets the bridge, even where the
+    // command tree of an installed opentide has `mcp start`.
+    const wasi = fakeRuntime({ tier: 4, source: "wasi", wasi: { module: "/m.wasm", launcher: "/l.cjs" } });
+    const bundled = decideMcp(inputs({ runtime: wasi, hasMcpStart: true }));
+    assert.ok(bundled.provide);
+    assert.equal(bundled.server.args[0], "/ext/dist/mcp-wasi.js");
+  });
+
+  it("is off in Restricted Mode and with `never`, and without a bridge falls back to what it was", () => {
+    assert.deepEqual(decideMcp(inputs({ trusted: false })), { provide: false, reason: "Restricted Mode" });
+    assert.equal(decideMcp(inputs({ mode: "never" })).provide, false);
+    const without = decideMcp(inputs({ bridge: undefined }));
+    assert.deepEqual(without, { provide: false, reason: "no opentide runtime with commands" });
+    assert.equal(decideMcp(inputs({ folder: undefined })).provide, false);
+  });
+
+  it("keeps the label and dedup rules: defers to a workspace entry VS Code can start, else takes the other label", () => {
+    const usable = (usableEntry: boolean): WorkspaceEntry => ({
+      file: "ws/.mcp.json",
+      command: "/opt/opentide",
+      usable: usableEntry,
+      order: 1,
+    });
+    assert.equal(decideMcp(inputs({ workspaceEntries: [usable(true)] })).provide, false);
+    const separate = decideMcp(inputs({ workspaceEntries: [usable(false)] }));
+    assert.ok(separate.provide);
+    assert.equal(separate.server.label, MCP_SEPARATE_LABEL);
+    assert.equal(decideMcp(inputs({ workspaceEntries: [usable(true)], mode: "always" })).provide, true);
+  });
+
+  it("is built from the extension folder: its script and the module's manifest must be there", () => {
+    const exists = (file: string) => file === path.join("/ext", "dist", "mcp-wasi.js");
+    assert.deepEqual(mcpBridge("/ext", "/node", { version: "1.0.0" }, exists, true), {
+      command: "/node",
+      args: [path.join("/ext", "dist", "mcp-wasi.js")],
+      env: { ELECTRON_RUN_AS_NODE: "1" },
+      version: "1.0.0",
+    });
+    assert.equal(mcpBridge("/ext", "/node", undefined, exists, true), undefined);
+    assert.equal(mcpBridge("/ext", "/node", { version: "1.0.0" }, exists, false), undefined);
+    assert.equal(
+      mcpBridge("/ext", "/node", { version: "1.0.0" }, () => false, true),
+      undefined,
+    );
   });
 });
 
@@ -563,5 +894,136 @@ describe("agents: language-model tools", () => {
       true,
     );
     assert.equal(caseless.object?.uuid, "r1");
+  });
+});
+
+describe("agents: a window with no opentide folder provides no MCP server (#96)", () => {
+  const bridge = {
+    command: "/usr/share/code/code",
+    args: ["/ext/dist/mcp-wasi.js"],
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    version: "1.0.0-rc.3",
+  };
+  const inputs = (overrides: Partial<McpInputs> = {}): McpInputs => ({
+    trusted: true,
+    mode: "auto",
+    runtime: undefined,
+    hasMcpStart: undefined,
+    folder: "/ws",
+    workspaceEntries: [],
+    bridge,
+    ...overrides,
+  });
+
+  it("is dormant: nothing is provided, whatever the runtime, the bridge or the folder", () => {
+    const dormant = decideMcp(inputs({ dormant: true }));
+    assert.deepEqual(dormant, { provide: false, reason: "no opentide folder in this window" });
+    assert.deepEqual(
+      decideMcp(inputs({ dormant: true, runtime: fakeRuntime(), hasMcpStart: true })),
+      dormant,
+    );
+  });
+
+  it("provides the server once opentide content appears: the same inputs, no longer dormant", () => {
+    assert.equal(decideMcp(inputs({ dormant: true })).provide, false);
+    assert.equal(decideMcp(inputs({ dormant: false })).provide, true);
+    assert.equal(decideMcp(inputs()).provide, true);
+  });
+
+  it("is still off in Restricted Mode and with `never`, with their own reasons", () => {
+    assert.deepEqual(decideMcp(inputs({ trusted: false, dormant: true })), {
+      provide: false,
+      reason: "Restricted Mode",
+    });
+    assert.deepEqual(decideMcp(inputs({ mode: "never", dormant: true })), {
+      provide: false,
+      reason: "opentide.mcp.provide is never",
+    });
+  });
+
+  it("is logged once, as a reason", () => {
+    const log = new McpDecisionLog();
+    const dormant = decideMcp(inputs({ dormant: true }));
+    assert.equal(log.line(dormant), "MCP server not provided: no opentide folder in this window");
+    assert.equal(log.line(dormant), undefined);
+  });
+});
+
+describe("agents: an installed opentide too old for a user-level MCP file gets the bridge (#97)", () => {
+  const bridge = {
+    command: "/usr/share/kiro/kiro",
+    args: ["/ext/dist/mcp-wasi.js"],
+    env: { ELECTRON_RUN_AS_NODE: "1" },
+    version: "1.0.0-rc.3",
+  };
+  const native = (version: string) => fakeRuntime({ version });
+  const inputs = (overrides: Partial<McpInputs> = {}): McpInputs => ({
+    trusted: true,
+    mode: "auto",
+    runtime: native("1.0.0rc2"),
+    hasMcpStart: true,
+    folder: "/ws",
+    workspaceEntries: [],
+    bridge,
+    forFile: true,
+    ...overrides,
+  });
+
+  it("the version gate: below 1.0.0rc3 is too old, rc3 and later is not, an untagged dev build is left alone", () => {
+    assert.equal(MIN_NATIVE_MCP_FOR_FILES, "1.0.0rc3");
+    for (const old of ["1.0.0rc2", "1.0.0-rc.2", "1.0.0rc1", "0.21.0", "0.99.9", "1.0.0.dev4"])
+      assert.equal(nativeMcpTooOldForFiles(old), true, old);
+    for (const fine of ["1.0.0rc3", "1.0.0-rc.3", "1.0.0", "1.0.1", "1.1.0", "2.0.0rc1", "0.1.dev3+g8b55d0c"])
+      assert.equal(nativeMcpTooOldForFiles(fine), false, fine);
+  });
+
+  it("a file entry runs the bridge, and says why, with an opentide 1.0.0rc2", () => {
+    const decision = decideMcp(inputs());
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, true);
+    assert.equal(decision.server.command, "/usr/share/kiro/kiro");
+    assert.deepEqual(decision.bridgeInstead, { nativeVersion: "1.0.0rc2", minimum: "1.0.0rc3" });
+    const log = new McpDecisionLog();
+    assert.match(
+      log.line(decision) ?? "",
+      /bundled bridge, not the installed opentide 1\.0\.0rc2.*resultType.*1\.0\.0rc3/,
+    );
+    assert.equal(log.line(decision), undefined, "once");
+    assert.match(
+      bridgeInsteadText(decision.bridgeInstead ?? { nativeVersion: "", minimum: "" }),
+      /Upgrade opentide/,
+    );
+  });
+
+  it("an opentide that is new enough keeps its own `mcp start`", () => {
+    for (const version of ["1.0.0rc3", "1.0.0", "1.2.0"]) {
+      const decision = decideMcp(inputs({ runtime: native(version) }));
+      assert.ok(decision.provide, version);
+      assert.equal(decision.server.bridge, false, version);
+      assert.equal(decision.bridgeInstead, undefined, version);
+    }
+  });
+
+  it("is only for a user-level file: the editor APIs (VS Code's provider, Cursor) keep the old opentide", () => {
+    const decision = decideMcp(inputs({ forFile: false }));
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, false);
+    assert.equal(decision.bridgeInstead, undefined);
+    assert.equal(decideMcp(inputs({ forFile: undefined })).provide, true);
+  });
+
+  it("without a bridge in this build, the old opentide stays: nothing better to write", () => {
+    const decision = decideMcp(inputs({ bridge: undefined }));
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, false);
+    assert.equal(decision.bridgeInstead, undefined);
+  });
+
+  it("the bundled module as the runtime is the bridge anyway, and no notice", () => {
+    const wasi = fakeRuntime({ tier: 4, source: "wasi", wasi: { module: "/m.wasm", launcher: "/l.cjs" } });
+    const decision = decideMcp(inputs({ runtime: wasi }));
+    assert.ok(decision.provide);
+    assert.equal(decision.server.bridge, true);
+    assert.equal(decision.bridgeInstead, undefined);
   });
 });
