@@ -15,7 +15,7 @@ import { isForgedAnswer, LineGuard, leaksPrivateLink } from "../core/wasi/mcpGua
 
 async function main(): Promise<void> {
   // The package is ESM only: loaded here, bundled into dist/mcp-wasi.js.
-  const { MCP_FETCH_ENVIRONMENT, McpFetchBridge } = await import("@opentide/wasi-host");
+  const { MCP_FETCH_ENVIRONMENT, MCP_FETCH_ID_PREFIX, McpFetchBridge } = await import("@opentide/wasi-host");
   const wasiDir = process.env.OPENTIDE_WASI_DIR ?? path.join(__dirname, "wasi");
   const launcher = path.join(wasiDir, "launcher.cjs");
   const module = path.join(wasiDir, "opentide.wasm");
@@ -34,8 +34,8 @@ async function main(): Promise<void> {
   const note = (what: string): void => {
     process.stderr.write(`opentide mcp bridge: ${what}\n`);
   };
-  const fromEditor = new LineGuard(isForgedAnswer);
-  const fromModule = new LineGuard(leaksPrivateLink);
+  const fromEditor = new LineGuard((line) => isForgedAnswer(line, MCP_FETCH_ID_PREFIX));
+  const fromModule = new LineGuard((line) => leaksPrivateLink(line, MCP_FETCH_ID_PREFIX));
 
   const bridge = new McpFetchBridge({
     // The editor's messages and the answers to the module's tenant requests. After the editor closed its
