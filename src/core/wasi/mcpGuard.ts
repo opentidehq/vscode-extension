@@ -6,6 +6,9 @@
 // package, so the bridge imports it and hands it in): what follows it (a counter, or a nonce and a counter) is
 // not this file's business.
 
+// Every decision below is made on the parsed value, never on a substring of the raw line: JSON lets a key or a
+// string be written with escapes (`"id":"opentide\u002dfetch-1"`, `"meth\u006fd"`), which no substring test sees.
+
 function parse(line: string): Record<string, unknown> | undefined {
   try {
     const value: unknown = JSON.parse(line);
@@ -23,9 +26,22 @@ function parse(line: string): Record<string, unknown> | undefined {
  * (the module rejects it); the bridge writes the host's own answers itself, not through here.
  */
 export function isForgedAnswer(line: string, prefix: string): boolean {
-  const message = parse(line);
-  if (!message || message.method !== undefined) return false;
-  return typeof message.id === "string" && message.id.startsWith(prefix);
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    return false;
+  }
+  // A batch is checked element by element: one forged answer among innocent messages is still one.
+  const messages: unknown[] = Array.isArray(value) ? value : [value];
+  return messages.some((message) => {
+    if (typeof message !== "object" || message === null || Array.isArray(message)) return false;
+    const { method, id } = message as { method?: unknown; id?: unknown };
+    // A string method makes it a request of the client's own; anything else (none, null, a number) is no request,
+    // so with the private link's id it is taken for the answer to one.
+    if (typeof method === "string") return false;
+    return typeof id === "string" && id.startsWith(prefix);
+  });
 }
 
 /**
