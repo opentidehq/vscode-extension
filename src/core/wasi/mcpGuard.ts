@@ -64,6 +64,17 @@ export function leaksPrivateLink(line: string, prefix: string): boolean {
   return typeof id === "string" && id.startsWith(prefix);
 }
 
+/**
+ * What the bridge's stderr says when `McpFetchBridge` drops a line it could not handle (a line nested past the parser's
+ * limit, a pipe that closed): the kind of error and its system code, never its message or the line, which may hold a
+ * tenant's credentials (a parser's message quotes its input).
+ */
+export function describeDroppedLine(error: unknown): string {
+  const name = error instanceof Error ? error.name : typeof error;
+  const code = (error as { code?: unknown } | null)?.code;
+  return `dropped a line it could not handle (${name}${typeof code === "string" ? `, ${code}` : ""})`;
+}
+
 /** Splits chunks into whole lines (each with its newline) and holds back a partial one. */
 export class LineGuard {
   private partial = "";

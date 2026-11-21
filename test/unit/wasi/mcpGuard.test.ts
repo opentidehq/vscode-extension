@@ -1,5 +1,10 @@
 import * as assert from "node:assert/strict";
-import { isForgedAnswer, LineGuard, leaksPrivateLink } from "../../../src/core/wasi/mcpGuard";
+import {
+  describeDroppedLine,
+  isForgedAnswer,
+  LineGuard,
+  leaksPrivateLink,
+} from "../../../src/core/wasi/mcpGuard";
 
 const PREFIX = "opentide-fetch-";
 
@@ -247,6 +252,27 @@ describe("the MCP bridge's guards (src/core/wasi/mcpGuard.ts)", () => {
       );
       assert.equal(b.dropped, 1);
       assert.equal(b.lines.length, 1);
+    });
+  });
+
+  describe("what the bridge says about a line it dropped", () => {
+    it("names the kind of error and its code, never the message or the line", () => {
+      const secret = "Bearer hunter2";
+      const parse = new SyntaxError(`Unexpected token in {"authorization":"${secret}"`);
+      assert.equal(describeDroppedLine(parse), "dropped a line it could not handle (SyntaxError)");
+      const pipe = Object.assign(new Error(`write EPIPE ${secret}`), { code: "EPIPE" });
+      assert.equal(describeDroppedLine(pipe), "dropped a line it could not handle (Error, EPIPE)");
+      assert.equal(
+        describeDroppedLine(new RangeError("Maximum call stack size exceeded")),
+        "dropped a line it could not handle (RangeError)",
+      );
+      assert.equal(
+        describeDroppedLine(`a thrown string ${secret}`),
+        "dropped a line it could not handle (string)",
+      );
+      assert.equal(describeDroppedLine(null), "dropped a line it could not handle (object)");
+      for (const error of [parse, pipe])
+        assert.doesNotMatch(describeDroppedLine(error), /hunter2|Bearer|authorization/);
     });
   });
 });
