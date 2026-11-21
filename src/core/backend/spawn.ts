@@ -1,9 +1,10 @@
 // `opentide --json <argv>` as a process of its own. vscode-free.
 import * as cp from "node:child_process";
 import type { CancellationToken } from "../util/cancellation";
+import { type SpawnFn, terminateChild } from "./terminate";
 import { BackendError, cancelledEnvelope, type Envelope, isEnvelope, type ProgressEvent } from "./types";
 
-export type SpawnFn = (command: string, args: readonly string[], options: cp.SpawnOptions) => cp.ChildProcess;
+export type { SpawnFn } from "./terminate";
 
 export interface SpawnRunOptions {
   readonly command: string;
@@ -29,19 +30,7 @@ export interface SpawnRunResult {
   readonly cancelled: boolean;
 }
 
-/** End a process tree on Windows (`taskkill /T /F`); a plain kill elsewhere. */
-export function killTree(child: cp.ChildProcess, platform: NodeJS.Platform, spawn: SpawnFn = cp.spawn): void {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  if (platform === "win32" && child.pid !== undefined) {
-    const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    killer.on("error", () => child.kill());
-    return;
-  }
-  child.kill("SIGKILL");
-}
+export { killTree } from "./terminate";
 
 /** Split a stream into lines, calling `onLine` for each complete one. */
 export function lineSplitter(onLine: (line: string) => void): { push(chunk: string): void; end(): void } {
@@ -126,7 +115,6 @@ export function spawnRun(options: SpawnRunOptions): Promise<SpawnRunResult> {
     const stdout: string[] = [];
     const stderrTail: string[] = [];
     let cancelled = false;
-    let killTimer: NodeJS.Timeout | undefined;
     const stderr = lineSplitter((line) => {
       const event = parseProgressLine(line);
       if (event && options.onProgress) {
@@ -146,22 +134,21 @@ export function spawnRun(options: SpawnRunOptions): Promise<SpawnRunResult> {
     const subscription = options.token?.onCancellationRequested(() => {
       if (cancelled) return;
       cancelled = true;
-      if (options.platform === "win32") {
-        killTree(child, options.platform, spawn);
-      } else {
-        child.kill("SIGINT");
-        killTimer = setTimeout(() => killTree(child, options.platform, spawn), options.killAfterMs ?? 5000);
-      }
+      // Ctrl-C first (opentide ends with 130), the tree after `killAfterMs`: the one termination every path uses.
+      void terminateChild(child, {
+        platform: options.platform,
+        spawn,
+        signal: "SIGINT",
+        graceMs: options.killAfterMs ?? 5000,
+      });
     });
 
     child.on("error", (error) => {
       subscription?.dispose();
-      if (killTimer) clearTimeout(killTimer);
       reject(new BackendError("spawn-failed", `could not start ${options.command}: ${error.message}`));
     });
     child.on("close", (code, signal) => {
       subscription?.dispose();
-      if (killTimer) clearTimeout(killTimer);
       stderr.end();
       const exitCode = code ?? (signal === "SIGINT" ? 130 : 1);
       const document = parseDocument(stdout.join(""));

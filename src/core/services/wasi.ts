@@ -25,8 +25,10 @@ import {
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import type { MessageTransports } from "vscode-languageclient/node";
 import { fromChildProcess, type ServeProcess } from "../backend/process";
+import { terminateChild } from "../backend/terminate";
 import type { Logger } from "../context";
 import { cliCommand, type Runtime } from "../runtime/types";
+import { Buffered } from "../wasi/buffered";
 import { GUEST_HOME, wasiEnv } from "../wasi/env";
 import { GuestPaths, guestPathOf, launcherMounts, type Mount } from "../wasi/paths";
 import { wasiServeWire } from "../wasi/wire";
@@ -247,7 +249,7 @@ export class WasiHost implements vscode.Disposable {
           paths,
         ),
         terminate: () => {
-          child.kill();
+          void terminateChild(child);
         },
       };
     }
@@ -302,7 +304,8 @@ export class WasiHost implements vscode.Disposable {
     const decoder = new TextDecoder();
     const out = new Buffered<string>();
     const err = new Buffered<string>();
-    const close = new Buffered<[number | null, string | null]>();
+    // The exit is a fact: a listener that comes after it still hears it.
+    const close = new Buffered<[number | null, string | null]>(true);
     const fail = new Buffered<Error>();
     proc.stdout?.onData((chunk) => out.push(decoder.decode(chunk, { stream: true })));
     const errDecoder = new TextDecoder();
@@ -335,26 +338,20 @@ export class WasiHost implements vscode.Disposable {
     };
   }
 
-  dispose(): void {
-    for (const proc of this.live) void proc.terminate().catch(() => undefined);
+  /**
+   * End every process of the window and wait until they are gone: a launcher child gets the termination every path
+   * uses (a polite stop, then its tree), so the extension host does not leave before they have.
+   */
+  async shutdown(): Promise<void> {
+    const ending: Promise<unknown>[] = [];
+    for (const proc of this.live) ending.push(proc.terminate().catch(() => undefined));
     this.live.clear();
-    for (const child of this.children) child.kill();
+    for (const child of this.children) ending.push(terminateChild(child));
     this.children.clear();
-  }
-}
-
-/** Values that may arrive before anyone listens (a process starts running at once): held, then replayed. */
-class Buffered<T> {
-  private readonly held: T[] = [];
-  private listener: ((value: T) => void) | undefined;
-
-  push(value: T): void {
-    if (this.listener) this.listener(value);
-    else this.held.push(value);
+    await Promise.all(ending);
   }
 
-  listen(listener: (value: T) => void): void {
-    this.listener = listener;
-    for (const value of this.held.splice(0)) listener(value);
+  dispose(): void {
+    void this.shutdown();
   }
 }

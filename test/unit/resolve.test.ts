@@ -4,6 +4,8 @@ import {
   opentideForInterpreter,
   type ProbeOptions,
   type ProbeResult,
+  parseEngineManifest,
+  parseWasiManifest,
   pythonsOnPath,
   type ResolveInput,
   type RuntimeSettings,
@@ -678,4 +680,51 @@ describe("the uv executable (tier 3 and Create .venv with the pinned version)", 
       undefined,
     );
   });
+});
+
+describe("malformed dist manifests give a reason, never a throw", () => {
+  const dir = path.join(EXT, "dist", "x");
+  const problem = (r: { problem: string } | { layout: unknown }): string => ("problem" in r ? r.problem : "");
+
+  const wasi: [string, string, RegExp][] = [
+    ["not JSON", "{nope", /not valid JSON/],
+    ["null", "null", /not a JSON object/],
+    ["an array", "[]", /not a JSON object/],
+    ["a number", "7", /not a JSON object/],
+    ["a numeric version", '{"version":1,"module":"m","launcher":"l"}', /no version/],
+    ["an empty version", '{"version":"","module":"m","launcher":"l"}', /no version/],
+    ["a missing module", '{"version":"1","launcher":"l"}', /no module/],
+    ["a numeric launcher", '{"version":"1","module":"m","launcher":3}', /no launcher/],
+    [
+      "a module with a path",
+      '{"version":"1","module":"../m","launcher":"l"}',
+      /module with a path|names its module with a path/,
+    ],
+    [
+      "a backslash launcher",
+      '{"version":"1","module":"m","launcher":"a\\\\b"}',
+      /names its launcher with a path/,
+    ],
+    ["a dot launcher", '{"version":"1","module":"m","launcher":".."}', /names its launcher with a path/],
+  ];
+  for (const [name, text, pattern] of wasi) {
+    it(`wasi.json: ${name}`, () => {
+      assert.match(problem(parseWasiManifest(text, dir, "/node")), pattern);
+      assert.equal(readWasiManifest(text, dir, "/node"), undefined);
+    });
+  }
+
+  const engine: [string, string, RegExp][] = [
+    ["not JSON", "", /not valid JSON/],
+    ["null", "null", /not a JSON object/],
+    ["no version", '{"module":"m"}', /no version/],
+    ["a non-string module", '{"version":"1","module":{}}', /no module/],
+    ["a module with a path", '{"version":"1","module":"a/m"}', /names its module with a path/],
+  ];
+  for (const [name, text, pattern] of engine) {
+    it(`engine.json: ${name}`, () => {
+      assert.match(problem(parseEngineManifest(text, dir)), pattern);
+      assert.equal(readEngineManifest(text, dir), undefined);
+    });
+  }
 });
