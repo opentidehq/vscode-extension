@@ -1,6 +1,6 @@
 // The status bar text, as pure functions. vscode-free.
 import type { RepoPin } from "./runtime/pins";
-import { ENGINE_STATUS, type Runtime } from "./runtime/types";
+import { ENGINE_STATUS, type Runtime, WASI_STATUS } from "./runtime/types";
 
 export interface ProblemCounts {
   readonly errors: number;
@@ -22,7 +22,10 @@ export function statusText(model: StatusModel): string {
   if (model.resolving && !model.runtime) return "$(loading~spin) opentide";
   if (!model.runtime) return "$(shield) opentide: no runtime";
   const parts = [
-    model.runtime.kind === "engine" ? `$(shield) ${ENGINE_STATUS}` : `$(shield) ${model.runtime.version}`,
+    model.runtime.kind === "engine"
+      ? `$(shield) ${ENGINE_STATUS}`
+      : // The bundled module says so: the version alone does not tell whether an opentide of the user's is running.
+        `$(shield) ${model.runtime.version}${model.runtime.wasi ? ` ${WASI_STATUS}` : ""}`,
   ];
   if (model.serve) parts.push("$(zap)");
   if (model.counts.errors > 0) parts.push(`✗ ${model.counts.errors}`);
@@ -63,7 +66,7 @@ export function statusLabel(model: StatusModel): string {
   const parts = [
     model.runtime.kind === "engine"
       ? `${ENGINE_STATUS}, engine ${model.runtime.version}`
-      : `opentide ${model.runtime.version}`,
+      : `opentide ${model.runtime.version}${model.runtime.wasi ? `, ${WASI_STATUS}` : ""}`,
   ];
   if (model.serve) parts.push("warm backend");
   if (model.counts.errors || model.counts.warnings) parts.push(problemsText(model.counts));

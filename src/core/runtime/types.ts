@@ -104,6 +104,9 @@ export function cliCommand(runtime: Runtime, argv: readonly string[]): { command
   return { command: runtime.command, args: [...runtime.args, ...argv] };
 }
 
+/** What the status bar says beside the version when the bundled WASI module is the runtime. */
+export const WASI_STATUS = "bundled WASI";
+
 export function describeRuntime(runtime: Runtime): string {
   const names: Record<RuntimeSource, string> = {
     setting: "opentide.path",

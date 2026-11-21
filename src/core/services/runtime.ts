@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Logger, RuntimeService } from "../context";
+import { engineNotice } from "../runtime/notice";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
 import { isFile, probe, which } from "../runtime/process";
 import {
@@ -163,11 +164,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     }
     this.runtime = result.runtime;
     if (result.runtime?.kind === "engine") {
-      this.log.warn(
-        `runtime: ${ENGINE_LABEL} ${result.runtime.version}: editor features only. No opentide answered ` +
-          "(opentide.path, the workspace's environment, python -m opentide) and the bundled WASI module is not available: " +
-          "install opentide for commands, validate, deploy and query.",
-      );
+      this.log.warn(engineNotice(ENGINE_LABEL, result.runtime.version, trusted, result.attempts));
     } else if (result.runtime?.wasi) {
       this.log.info(
         `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}): the module the extension carries, ` +
