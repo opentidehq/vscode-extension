@@ -115,8 +115,16 @@ describe("wasi: the pinned WASI module", () => {
     assert.equal(local.manifest.version, "1.0.0-rc.3-dev+abc");
     assert.equal(local.manifest.url, undefined);
     assert.equal(local.manifest.moduleSha256, sha256(MODULE));
-    const unversioned = await prepareWasi(dir, pins.wasi, { modulePath: file });
-    assert.equal(unversioned.manifest.version, `${pins.wasi.version}+local`);
+    // Without a version of its own, the pin's, marked local: whatever OPENTIDE_WASI_VERSION says in the environment
+    // (the test build sets it) is not the test's input.
+    const named = process.env.OPENTIDE_WASI_VERSION;
+    delete process.env.OPENTIDE_WASI_VERSION;
+    try {
+      const unversioned = await prepareWasi(dir, pins.wasi, { modulePath: file });
+      assert.equal(unversioned.manifest.version, `${pins.wasi.version}+local`);
+    } finally {
+      if (named !== undefined) process.env.OPENTIDE_WASI_VERSION = named;
+    }
     (await import("node:fs")).writeFileSync(file, "nope");
     await assert.rejects(prepareWasi(dir, pins.wasi, { modulePath: file }), /not a WebAssembly module/);
   });
