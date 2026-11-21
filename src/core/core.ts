@@ -30,6 +30,7 @@ import { httpProxy, RESTART_SETTINGS, readRestricted, readSetting } from "./serv
 import { StatusManager } from "./services/status";
 import { WASI_INITIALIZE_PARAMS, WasiHost } from "./services/wasi";
 import { FileEvents, FolderManager, registerLanguageAssociation } from "./services/workspace";
+import { runShutdown, type ShutdownResult } from "./shutdown";
 import { menuSections, problemsText } from "./statusText";
 import { editorOnlyText, INSTALL_URL } from "./unavailable";
 import { Emitter } from "./util/event";
@@ -40,6 +41,12 @@ export interface Core {
   readonly ctx: FeatureContext;
   /** Resolve the runtime and start the language server, in the background. */
   start(): Promise<void>;
+  /**
+   * End every process the extension started and wait until they are gone, within `deadlineMs` (VS Code gives
+   * `deactivate` about five seconds). Safe to call twice; what `context.subscriptions` disposes afterwards finds
+   * nothing left to do.
+   */
+  shutdown(deadlineMs?: number): Promise<ShutdownResult>;
 }
 
 /** The commands cache: one file per opentide version under globalStorage/commands/. */
@@ -151,7 +158,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     log,
     () => folders.all.map((folder) => ({ uri: folder.folder.uri, objectFolders: folder.objectFolders })),
     (restricted) => {
-      const engine = readEngine(context.extensionPath);
+      const engine = readEngine(context.extensionPath, (problem) => log.warn(`engine: ${problem}`));
       return engine ? engineRuntime(engine, restricted) : undefined;
     },
     wasiHost,
@@ -209,7 +216,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
     await backend.restart();
     // Which host runs the module is asked again: the WASM WASI Core extension may have been installed.
     wasiHost.reset();
-    const rt = await runtime.resolve();
+    // From scratch, now: a resolution still running (a stale uv probe) is cancelled, not waited for.
+    const rt = await runtime.resolveAgain();
     void capabilities.load(rt);
     status.update({ runtime: rt, resolving: false, pin: runtime.pin, trusted: trust.isTrusted });
     const cwd = trust.isTrusted ? primaryFolder()?.uri.fsPath : context.globalStorageUri.fsPath;
@@ -386,6 +394,33 @@ export function createCore(context: vscode.ExtensionContext): Core {
   return {
     ctx,
     start: () => restart("activation"),
+    shutdown: async (deadlineMs = 4000) => {
+      // In order: stop what would start more (a resolution in flight), then the language server, `serve`, and last
+      // what is left of the WASI processes. Each is awaited: `subscriptions` disposes them without waiting.
+      const result = await runShutdown(
+        [
+          {
+            name: "runtime resolution",
+            run: async () => {
+              runtime.cancelResolution();
+            },
+          },
+          { name: "language server", run: () => client.dispose() },
+          { name: "opentide serve", run: () => backend.dispose() },
+          { name: "WASI processes", run: () => wasiHost.shutdown() },
+        ],
+        {
+          deadlineMs,
+          // What did not finish in time is ended without waiting, so nothing outlives the host.
+          onTimeout: (stuck) => {
+            log.warn(`shutdown: "${stuck}" did not finish in ${deadlineMs} ms: ending what is left`);
+            wasiHost.dispose();
+          },
+        },
+      );
+      for (const { name, error } of result.failed) log.warn(`shutdown: ${name}: ${error}`);
+      return result;
+    },
   };
 }
 

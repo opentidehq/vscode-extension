@@ -1,6 +1,7 @@
 // The process an `opentide serve` client talks to: a child process, or the WASI module in the extension host.
 // vscode-free.
 import type * as cp from "node:child_process";
+import { terminateChild } from "./terminate";
 
 /** What `ServeClient` needs of the process: lines in, lines out, and how it ends. */
 export interface ServeProcess {
@@ -44,8 +45,9 @@ export function fromChildProcess(child: cp.ChildProcess): ServeProcess {
     onClose: (listener) => {
       child.on("close", listener);
     },
+    // A serve process that is being killed is past the protocol's shutdown: its tree ends at once.
     kill: () => {
-      child.kill("SIGKILL");
+      void terminateChild(child, { graceMs: 0 });
     },
   };
 }

@@ -34,6 +34,8 @@ export interface ProbeOptions {
   readonly restricted: boolean;
   readonly binDirs: readonly string[];
   readonly timeoutMs: number;
+  /** Aborting it ends the probe's process at once (a restart must not wait for a probe that no longer matters). */
+  readonly signal?: AbortSignal | undefined;
 }
 
 /** The settings the resolver reads. Restricted keys are read only when the workspace is trusted. */
@@ -67,6 +69,8 @@ export interface ResolveInput {
   readonly wasi?: WasiLayout | undefined;
   /** Tier 5: the engine (WASM) this build carries, from dist/engine/engine.json; undefined without one. */
   readonly engine?: EngineLayout | undefined;
+  /** Aborted when the resolution is stale: its probes end and the rest of the tiers are not tried. */
+  readonly signal?: AbortSignal | undefined;
 }
 
 /** The WASI module in the extension: its files, its version, and the Node that runs its launcher. */
@@ -76,6 +80,56 @@ export interface WasiLayout extends WasiModule {
   readonly execPath: string;
 }
 
+/** A parsed manifest, or why it is unusable (a message fit for the log). */
+export type ManifestResult<T> = { readonly layout: T } | { readonly problem: string };
+
+/** The JSON object in a manifest's text, or why it is not one. */
+function manifestObject(text: string, what: string): Record<string, unknown> | string {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    return `${what} is not valid JSON (${error instanceof Error ? error.message : String(error)})`;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return `${what} is not a JSON object`;
+  return value as Record<string, unknown>;
+}
+
+/** A manifest field that must name a file next to the manifest: a non-empty string without a path in it. */
+function manifestFile(
+  manifest: Record<string, unknown>,
+  key: string,
+  what: string,
+): string | { problem: string } {
+  const value = manifest[key];
+  if (typeof value !== "string" || value === "") return { problem: `${what} has no ${key} (a file name)` };
+  if (value.includes("/") || value.includes("\\") || value === "." || value === "..")
+    return { problem: `${what} names its ${key} with a path ("${value}"); it must be a file name` };
+  return value;
+}
+
+/** `dist/wasi/wasi.json`'s fields, or the reason they are unusable. */
+export function parseWasiManifest(text: string, dir: string, execPath: string): ManifestResult<WasiLayout> {
+  const what = "dist/wasi/wasi.json";
+  const manifest = manifestObject(text, what);
+  if (typeof manifest === "string") return { problem: manifest };
+  if (typeof manifest.version !== "string" || manifest.version === "")
+    return { problem: `${what} has no version` };
+  const module = manifestFile(manifest, "module", what);
+  if (typeof module !== "string") return module;
+  const launcher = manifestFile(manifest, "launcher", what);
+  if (typeof launcher !== "string") return launcher;
+  return {
+    layout: {
+      module: path.join(dir, module),
+      launcher: path.join(dir, launcher),
+      version: manifest.version,
+      execPath,
+    },
+  };
+}
+
 /** `dist/wasi/wasi.json`'s fields, when they have the expected shape. */
 export function readWasiManifest(
   text: string | undefined,
@@ -83,16 +137,8 @@ export function readWasiManifest(
   execPath: string,
 ): WasiLayout | undefined {
   if (!text) return undefined;
-  try {
-    const manifest = JSON.parse(text) as { version?: unknown; module?: unknown; launcher?: unknown };
-    const { version, module, launcher } = manifest;
-    if (typeof version !== "string" || typeof module !== "string" || typeof launcher !== "string")
-      return undefined;
-    for (const name of [module, launcher]) if (name.includes("/") || name.includes("\\")) return undefined;
-    return { module: path.join(dir, module), launcher: path.join(dir, launcher), version, execPath };
-  } catch {
-    return undefined;
-  }
+  const result = parseWasiManifest(text, dir, execPath);
+  return "layout" in result ? result.layout : undefined;
 }
 
 /** The engine (WASM) in the extension: its module and version (dist/engine/engine.json). */
@@ -101,17 +147,23 @@ export interface EngineLayout {
   readonly version: string;
 }
 
+/** `dist/engine/engine.json`'s fields, or the reason they are unusable. */
+export function parseEngineManifest(text: string, dir: string): ManifestResult<EngineLayout> {
+  const what = "dist/engine/engine.json";
+  const manifest = manifestObject(text, what);
+  if (typeof manifest === "string") return { problem: manifest };
+  if (typeof manifest.version !== "string" || manifest.version === "")
+    return { problem: `${what} has no version` };
+  const module = manifestFile(manifest, "module", what);
+  if (typeof module !== "string") return module;
+  return { layout: { module: path.join(dir, module), version: manifest.version } };
+}
+
 /** `dist/engine/engine.json`'s fields, when they have the expected shape. */
 export function readEngineManifest(text: string | undefined, dir: string): EngineLayout | undefined {
   if (!text) return undefined;
-  try {
-    const manifest = JSON.parse(text) as { version?: unknown; module?: unknown };
-    if (typeof manifest.version !== "string" || typeof manifest.module !== "string") return undefined;
-    if (manifest.module.includes("/") || manifest.module.includes("\\")) return undefined;
-    return { module: path.join(dir, manifest.module), version: manifest.version };
-  } catch {
-    return undefined;
-  }
+  const result = parseEngineManifest(text, dir);
+  return "layout" in result ? result.layout : undefined;
 }
 
 const PROBE_TIMEOUT_MS = 20_000;
@@ -220,6 +272,7 @@ interface Candidate {
 export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult> {
   const attempts: ResolveAttempt[] = [];
   const check = async (candidate: Candidate, restricted: boolean): Promise<Runtime | undefined> => {
+    if (input.signal?.aborted) return undefined;
     const lsp = candidate.kind === "opentide-lsp";
     const env = { ...(lsp ? {} : OPENTIDE_ENV), ...candidate.env };
     const probeArgs = lsp ? [...candidate.args, "--version", "--json"] : [...candidate.args, "--version"];
@@ -229,6 +282,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       restricted,
       binDirs,
       timeoutMs: candidate.timeoutMs ?? PROBE_TIMEOUT_MS,
+      signal: input.signal,
     });
     const base = { tier: candidate.tier, source: candidate.source, path: candidate.command };
     if (result.error || result.code !== 0) {
