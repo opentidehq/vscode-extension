@@ -1,0 +1,22 @@
+name: WASI Windows probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: The released module
+        shell: bash
+        run: curl -fsSL -o "${RUNNER_TEMP}/opentide.wasm" https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/opentide-wasm32-wasip1.wasm
+      - name: Probe
+        shell: bash
+        working-directory: test/fixtures/workspace
+        run: node ../../../probe/probe.cjs "${RUNNER_TEMP}/opentide.wasm" --json validate
