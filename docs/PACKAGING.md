@@ -138,27 +138,29 @@ is for what VS Code starts itself.
    dist-tag for a release candidate).
 3. `npm run grammars && npm run manifest`: new grammars may need a language in `contrib/core.json`.
 4. `npm run build`, `npm test`, `npm run package`, `npm run smoke -- <vsix>`. The engine reports the
-   crate's version without a suffix (`1.0.0`): that is expected.
+   crate's version without a suffix (`1.0.0`) up to rc.2 and the release's (`1.0.0-rc.3`) from rc.3: the test accepts both.
 
 opentide's CI runs this repository's `scripts/grammars.mjs --zip` and `scripts/engine-lib.mjs`
 (`prepareEngine`, `GLUE`, `WASM`) on every release's assets (`check-vscode-extension.mjs`): keep their
 interfaces.
 
-## When opentide 1.0.0-rc.3 is released
+## The rc.3 pins
 
-Until opentide releases `opentide-wasm32-wasip1.wasm` and publishes `@opentide/wasi-host@1.0.0-rc.3` (npm
-dist-tag `next`), `pins.json` `wasi.sha256` is a placeholder and `package-lock.json` names a package the
-registry does not have. CI fails on exactly that: `npm ci` (404 for `@opentide/wasi-host`), and `npm run
-build` (the placeholder). Then:
+opentide 1.0.0-rc.3 is released (its release workflow's `verify-assets` job checked every asset's attestation
+before any registry published). `pins.json` names its assets by the digests of the release's `SHA256SUMS`
+(the `opentide-wasm32-wasip1.wasm` module, its four licence files, `highlights-v1.0.0-rc.3.zip`,
+`opentide-wasm-web-v1.0.0-rc.3.zip` and the engine's `THIRD-PARTY-LICENSES.html`, which is the same asset as the
+module's), `package.json` and `package-lock.json` name `@opentide/wasi-host` 1.0.0-rc.3 with the registry's
+integrity, and `opentide.version` (the opentide CI's real-opentide tests install) is `1.0.0rc3`. The module is
+22.1 MB (opt-level `s`, for a faster language-server start in large workspaces: opentide#1774) and the package
+15.2 MiB. The engine zip carries the notices and licences of the data catalogues compiled into it
+(`data/catalogs/<name>/NOTICE`, `LICENSE*`); `scripts/engine-lib.mjs` ships exactly those files under
+`dist/engine/data/` and refuses any other file there. The release also lists `THIRD-PARTY-DATA-LICENSES.txt`, the
+same notices in one file, which `wasi.licences` does not pin.
 
-1. Set `pins.json` `wasi.sha256` to the `opentide-wasm32-wasip1.wasm` line of the release's `SHA256SUMS`
-   (check the asset's attestation: `gh attestation verify opentide-wasm32-wasip1.wasm --repo
-   opentidehq/opentide`).
-2. `npm install`, to let npm add the package's `integrity` to `package-lock.json` (it already names the
-   version and the registry URL); commit both.
-3. `npm run build && npm test && npm run package && npm run smoke -- dist-vsix/*.vsix`, and `npm run
-   test:wasi`; push, and re-run CI.
-4. Check the module's version: `wasi.json`'s and `serve`'s `initialize` must agree on `1.0.0-rc.3`.
+A later release candidate is the procedure above (the opentide the extension carries), with
+`npm install --save-exact @opentide/wasi-host@<version>` for step 2: a plain `npm install` keeps a lock entry
+that has no `integrity`, and `npm ci` then installs whatever the registry serves.
 
 ## A test build
 

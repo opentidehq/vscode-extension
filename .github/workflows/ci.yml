@@ -172,7 +172,11 @@ jobs:
       # No opentide anywhere (opentide.path names nothing, none on PATH, no python with it): the WASI module
       # the extension carries runs (tier 4, under @vscode/wasm-wasi: the label installs
       # ms-vscode.wasm-wasi-core).
+      # OPENTIDE_PERF also runs test/wasi/perf.test.ts: the first document's wait for diagnostics after a server start,
+      # on the pinned module (`WASI-PERF` lines in this log; it fails only when over a quarter of the rounds get none).
       - name: WASI module tests, with no opentide
+        env:
+          OPENTIDE_PERF: "1"
         run: |
           set -euo pipefail
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
@@ -182,6 +186,8 @@ jobs:
           fi
       # The same without the WASM WASI Core extension: the module runs through the launcher.
       - name: WASI module tests through the launcher, with no opentide
+        env:
+          OPENTIDE_PERF: "1"
         run: |
           set -euo pipefail
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
