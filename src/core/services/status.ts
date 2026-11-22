@@ -36,6 +36,12 @@ export class StatusManager implements StatusService, vscode.Disposable {
     this.item.show();
   }
 
+  /** A window with no opentide content shows no status item; it appears when some does. */
+  setDormant(dormant: boolean): void {
+    if (dormant) this.item.hide();
+    else this.item.show();
+  }
+
   setCounts(source: string, counts: ProblemCounts | undefined): void {
     if (counts) this.counts.set(source, counts);
     else this.counts.delete(source);

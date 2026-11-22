@@ -12,6 +12,7 @@ import { CatalogStore, INFO_CATALOG } from "./catalog/store";
 import { folderSymbols, type WorkspaceSymbol } from "./catalog/symbols";
 import type { FeatureContext, Logger, StatusMenuItem, TrustService } from "./context";
 import { CredentialStore } from "./credentials";
+import { hasOpentideContent } from "./dormant";
 import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
@@ -393,9 +394,35 @@ export function createCore(context: vscode.ExtensionContext): Core {
 
   registerCoreCommands(ctx, status, runtime);
 
+  // A window with no opentide content (the extension activates everywhere on `onStartupFinished`) starts no runtime
+  // and no language server, and shows no status item: it only runs what needs no runtime, such as the agent-knowledge
+  // detection. The runtime still resolves on demand (`runtime.ready()`: a command, an MCP agent, a task), and the
+  // whole thing starts when an opentide folder or file appears.
+  const withContent = () =>
+    hasOpentideContent(
+      folders.all.length,
+      vscode.workspace.textDocuments.map((document) => document.languageId),
+    );
+  const start = async (): Promise<void> => {
+    if (withContent()) return restart("activation");
+    status.setDormant(true);
+    log.info("activation: no opentide content in this window: the runtime starts when some appears");
+    const wake = (why: string) => {
+      if (!withContent()) return;
+      for (const disposable of waiting) disposable.dispose();
+      status.setDormant(false);
+      void restart(why);
+    };
+    const waiting: vscode.Disposable[] = [
+      folders.onDidChange(() => wake("an opentide folder appeared")),
+      vscode.workspace.onDidOpenTextDocument(() => wake("an opentide file was opened")),
+    ];
+    subscriptions.push(...waiting);
+  };
+
   return {
     ctx,
-    start: () => restart("activation"),
+    start,
     shutdown: async (deadlineMs = 4000) => {
       // In order: stop what would start more (a resolution in flight), then the language server, `serve`, and last
       // what is left of the WASI processes. Each is awaited: `subscriptions` disposes them without waiting.

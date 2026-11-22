@@ -9,6 +9,8 @@
 !images/activity.svg
 !dist/**
 !syntaxes/**
+!skills/**
+!instructions/**
 !language-configuration/**
 dist/**/*.map
 !images/placeholder.svg

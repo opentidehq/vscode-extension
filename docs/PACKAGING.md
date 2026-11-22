@@ -85,6 +85,7 @@ It exits non-zero on any failure.
 | `opentide.version` | The opentide CI tests the extension against (`pip install opentide==<version>` in the real-opentide and integration jobs): a user's own opentide, tiers 1–3. The extension bundles no Python |
 | `wasi` | The WASI module: opentide's `opentide-wasm32-wasip1.wasm` release asset (version, URL, SHA-256) and, in `licences`, its licence set: `THIRD-PARTY-LICENSES.html`, `WASI-LIBC-LICENSES.txt`, `LICENSE`, `NOTICE`, `THIRD-PARTY-DATA-LICENSES.txt` (each URL, SHA-256). A `sha256` that is a marked placeholder (`PLACEHOLDER-…`) is refused by `npm run wasi`, `npm run build` and the release check, which say how to set it |
 | `highlights` | opentide's highlights zip (version, URL, SHA-256) the grammars come from |
+| `skills` | The opentide skills (opentidehq/skills, EUPL-1.2): a commit (the archive URL names it) and `contentSha256`, a digest of the files of `skills/` and `LICENSE` that `scripts/skills-lib.mjs` computes (GitHub does not promise its archive bytes stay the same; the files of a commit do). `npm run skills` copies them into `skills/` and writes `contrib/skills.json` (`contributes.chatSkills`); `npm run manifest`, then `skills:check` in CI. The latest upstream tag is v2.1.0 and `plugin.json` is 2.2.2 at the pinned commit: ask upstream to tag it |
 | `engine` | opentide's `opentide-wasm-web` zip (version, URL, SHA-256) and the release's `THIRD-PARTY-LICENSES.html` (URL, SHA-256): the engine (WASM). Same release as `highlights` |
 | `tomlGrammar` | The TOML grammar from Even Better TOML (URL, SHA-256) |
 | `vsix.budgetBytes`, `vsix.targetBytes` | The size gate (20 MiB) and the target (16 MiB). The gate is opentide's plan §11 and ADR 0007; the target was 15 MiB until rc.3's WASI module, built at opt-level `s` for a faster language-server start in large workspaces (opentide#1774), grew to about 22 MB (see "The gates") |
@@ -126,6 +127,12 @@ is for what VS Code starts itself.
 2. Drop a `vsix.budgetOverrideBytes` for the old version.
 3. CI runs the tests against the new opentide. Users get it with `pip install --upgrade opentide`: the
    extension needs no release for it.
+
+**The skills the extension carries** (`skills`, opentidehq/skills):
+
+1. Pick a commit of [opentidehq/skills](https://github.com/opentidehq/skills) (ideally a tag), set `pins.json` `skills.commit`, `url` (`…/archive/<commit>.zip`) and `version` (`plugin.json`'s).
+2. `npm run skills -- --print-digest` prints the content digest of what the URL serves (the first run stops on the old one); set `contentSha256` to it.
+3. `npm run skills && npm run manifest`, then `npm test` (the skills' names, descriptions and contributions are checked) and `npm run package && npm run smoke -- <vsix>`. CI's `skills:check` fails when `skills/` or `contrib/skills.json` differ from the pin.
 
 **The opentide the extension carries** (`wasi`, `highlights`, `engine`, one opentide release `v<version>`):
 

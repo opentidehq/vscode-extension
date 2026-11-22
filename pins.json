@@ -55,5 +55,13 @@
   "vsix": {
     "budgetBytes": 20971520,
     "targetBytes": 16777216
+  },
+  "skills": {
+    "$comment": "The opentide skills (opentidehq/skills, EUPL-1.2), contributed to VS Code's agents through contributes.chatSkills (SPEC §12). Pinned by commit, which the archive URL names, and by contentSha256: the digest scripts/skills-lib.mjs computes over the files of skills/ and LICENSE (GitHub does not promise its archive bytes stay the same, the files of a commit do). `npm run skills -- --print-digest` prints it. version is plugin.json's at that commit (not tagged upstream: the latest tag is v2.1.0).",
+    "repository": "opentidehq/skills",
+    "version": "2.2.2",
+    "commit": "fef6b571350a10d5097f2ffac733a021014a6102",
+    "url": "https://github.com/opentidehq/skills/archive/fef6b571350a10d5097f2ffac733a021014a6102.zip",
+    "contentSha256": "095c47971744bbf8539a4957bc18e36e101f85651a426fd5267229644176c8c5"
   }
 }

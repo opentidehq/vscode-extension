@@ -17,6 +17,7 @@ import { Worker } from "node:worker_threads";
 import { PackageError, zipEntries, zipRead } from "./package-lib.mjs";
 import {
   checkEngineInitialize,
+  checkKnowledgePackage,
   checkMcpBridge,
   checkWasiPackage,
   checkWasiServe,
@@ -197,6 +198,13 @@ async function main() {
     step("the web extension: package.json browser and the engine's Web Worker");
     errors.push(
       ...checkWebEntry(JSON.parse(readFileSync(join(extension, "package.json"), "utf8")), (file) =>
+        existsSync(join(extension, ...file.split("/"))),
+      ),
+    );
+
+    step("agent knowledge: the skills and instructions package.json contributes");
+    errors.push(
+      ...checkKnowledgePackage(JSON.parse(readFileSync(join(extension, "package.json"), "utf8")), (file) =>
         existsSync(join(extension, ...file.split("/"))),
       ),
     );
