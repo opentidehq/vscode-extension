@@ -50,6 +50,6 @@
   },
   "vsix": {
     "budgetBytes": 20971520,
-    "targetBytes": 15728640
+    "targetBytes": 16777216
   }
 }
