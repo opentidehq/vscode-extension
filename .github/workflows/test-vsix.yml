@@ -181,11 +181,28 @@ jobs:
       - name: WASI tests in VS Code, under @vscode/wasm-wasi
         env:
           OPENTIDE_PERF: "1"
+          OPENTIDE_LSP_TIMING: "1"
         run: xvfb-run -a npm run test:wasi
       - name: WASI tests in VS Code, through the launcher (nothing else installed)
         env:
           OPENTIDE_PERF: "1"
+          OPENTIDE_LSP_TIMING: "1"
         run: xvfb-run -a npm run test:wasi-launcher
+      # The perf run's logs and the language server's protocol trace (opentide.trace.server verbose, OPENTIDE_LSP_TIMING=1,
+      # the extension at log level trace), whole, for finding why a round got no diagnostics.
+      - name: Language server traces from the perf run
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p perf-logs
+          [[ -d .vscode-test/user-data/logs ]] && cp -r .vscode-test/user-data/logs/. perf-logs/ || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: perf-lsp-logs-${{ steps.vsix.outputs.artifact }}
+          path: perf-logs
+          if-no-files-found: ignore
+          retention-days: 7
       - name: The extension's logs from the WASI tests
         if: failure()
         run: |

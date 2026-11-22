@@ -5,6 +5,7 @@
 import * as assert from "node:assert/strict";
 import { rmSync, writeFileSync } from "node:fs";
 import * as vscode from "vscode";
+import type { ExtensionApi } from "../../src/extension";
 import { activated, fixture } from "../integration/helpers";
 
 const ROUNDS = 4;
@@ -28,6 +29,32 @@ configurations:
       DeviceProcessEvents
       | where FileName =~ "perf-${n}.exe"
 `;
+
+/** What a round that got nothing looks like from the client: the shape that tells a silent server from a silent client. */
+async function probe(api: Required<ExtensionApi>, uri: vscode.Uri): Promise<string> {
+  const client = api.ctx.client.current;
+  const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+  const parts = [
+    `client=${client ? String(client.state) : "none"}`,
+    `document=${document ? `open v${document.version} ${document.languageId}` : "not open"}`,
+    `diagnostics=${vscode.languages.getDiagnostics(uri).length}`,
+  ];
+  if (client) {
+    const started = Date.now();
+    try {
+      const reply = await Promise.race([
+        client.sendRequest("textDocument/documentSymbol", { textDocument: { uri: uri.toString() } }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("no answer in 5 s")), 5000)),
+      ]);
+      parts.push(
+        `documentSymbol=answered in ${Date.now() - started}ms (${Array.isArray(reply) ? reply.length : "?"} items)`,
+      );
+    } catch (error) {
+      parts.push(`documentSymbol=${String(error)}`);
+    }
+  }
+  return parts.join(" ");
+}
 
 /** From `opened` until the document has a diagnostic (an event, so the resolution is not a poll interval's). */
 function firstDiagnostics(uri: vscode.Uri): Promise<void> {
@@ -55,6 +82,8 @@ describe("language server cold start, with and without the warm-up", function ()
   it("the first document after a server start gets its diagnostics sooner with the warm-up", async () => {
     const api = await activated();
     const host = vscode.extensions.getExtension("ms-vscode.wasm-wasi-core") ? "wasm-wasi-core" : "launcher";
+    const traceConfig = vscode.workspace.getConfiguration("opentide");
+    await traceConfig.update("trace.server", "verbose", vscode.ConfigurationTarget.Global);
     const config = vscode.workspace.getConfiguration("opentide.languageServer");
     const result: Record<string, { ready: number[]; first: number[] }> = {};
     let n = 0;
@@ -66,6 +95,9 @@ describe("language server cold start, with and without the warm-up", function ()
         await config.update("warmUp", warmUp, vscode.ConfigurationTarget.Global);
         for (let round = 1; round <= ROUNDS; round += 1) {
           const t0 = Date.now();
+          api.ctx.log.info(
+            `PERF-ROUND host=${host} warmUp=${warmUp} round=${round} restart ${new Date(t0).toISOString()}`,
+          );
           await api.ctx.runtime.restart("perf");
           await api.ctx.client.ready();
           const ready = Date.now() - t0;
@@ -78,6 +110,9 @@ describe("language server cold start, with and without the warm-up", function ()
           try {
             const diagnostics = firstDiagnostics(uri);
             const t1 = Date.now();
+            api.ctx.log.info(
+              `PERF-ROUND host=${host} warmUp=${warmUp} round=${round} open ${new Date(t1).toISOString()} ${uri.toString()}`,
+            );
             await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
             try {
               await diagnostics;
@@ -90,8 +125,10 @@ describe("language server cold start, with and without the warm-up", function ()
             } catch (error) {
               // Said and counted, not fatal: a round with no diagnostics is a finding, not a reason to lose the others.
               timeouts += 1;
+              const shape = await probe(api, uri);
+              api.ctx.log.warn(`PERF-ROUND host=${host} warmUp=${warmUp} round=${round} TIMEOUT ${shape}`);
               say(
-                `WASI-PERF host=${host} warmUp=${warmUp} round=${round} restart->ready=${ready}ms TIMEOUT ${String(error)}`,
+                `WASI-PERF host=${host} warmUp=${warmUp} round=${round} restart->ready=${ready}ms TIMEOUT ${String(error)}; ${shape}`,
               );
             }
           } finally {
