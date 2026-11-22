@@ -1,6 +1,7 @@
 name: WASI Windows probe
 on:
-  workflow_dispatch:
+  push:
+    branches: [probe/wasi-windows]
 permissions:
   contents: read
 jobs:
