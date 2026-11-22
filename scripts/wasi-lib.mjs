@@ -19,9 +19,15 @@ export const WASI_LAUNCHER = "launcher.cjs";
  * dist/wasi/ beside the module, pinned with it (pins.json `wasi.licences`): not the engine's copies, which belong
  * to another build.
  */
-export const WASI_LICENCES = ["THIRD-PARTY-LICENSES.html", "WASI-LIBC-LICENSES.txt", "LICENSE", "NOTICE"];
+export const WASI_LICENCES = [
+  "THIRD-PARTY-LICENSES.html",
+  "WASI-LIBC-LICENSES.txt",
+  "LICENSE",
+  "NOTICE",
+  "THIRD-PARTY-DATA-LICENSES.txt",
+];
 
-/** Set this to a folder holding those four files, for a module made from opentide's source. */
+/** Set this to a folder holding those five files, for a module made from opentide's source. */
 export const LICENCES_ENV = "OPENTIDE_WASI_LICENCES";
 
 /** Set this to build with a module made from opentide's source instead of the pinned release asset. */
@@ -92,7 +98,7 @@ export function wasiLicenceCachePath(root, pin, name) {
   );
 }
 
-/** The licence files of a folder (a module made from source): all four must be there and not empty. */
+/** The licence files of a folder (a module made from source): all five must be there and not empty. */
 export function localLicences(dir) {
   if (!dir)
     throw new GrammarError(

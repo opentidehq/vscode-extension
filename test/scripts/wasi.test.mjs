@@ -49,7 +49,7 @@ describe("wasi: the pinned WASI module", () => {
     [pin.url]: wasm,
     ...Object.fromEntries(WASI_LICENCES.map((name) => [pin.licences[name].url, LICENCE_TEXTS[name]])),
   });
-  /** A folder with the four licence files, as a build from opentide's source has them. */
+  /** A folder with the five licence files, as a build from opentide's source has them. */
   const licenceFolder = () => {
     const folder = join(dir, "licences");
     mkdirSync(folder, { recursive: true });
@@ -168,12 +168,13 @@ describe("wasi: the pinned WASI module", () => {
   });
 
   describe("the module's licence set (#92)", () => {
-    it("is pinned next to the module: four files of the same release, each with a URL and a digest", () => {
+    it("is pinned next to the module: five files of the same release, each with a URL and a digest", () => {
       assert.deepEqual(WASI_LICENCES, [
         "THIRD-PARTY-LICENSES.html",
         "WASI-LIBC-LICENSES.txt",
         "LICENSE",
         "NOTICE",
+        "THIRD-PARTY-DATA-LICENSES.txt",
       ]);
       for (const name of WASI_LICENCES) {
         const entry = pins.wasi.licences[name];
@@ -216,7 +217,7 @@ describe("wasi: the pinned WASI module", () => {
       assert.equal(existsSync(wasiLicenceCachePath(dir, pin, "NOTICE")), false);
     });
 
-    it("a module made from source needs the four files of its own build, none empty", () => {
+    it("a module made from source needs the five files of its own build, none empty", () => {
       assert.throws(() => localLicences(undefined), /OPENTIDE_WASI_LICENCES/);
       const folder = licenceFolder();
       assert.deepEqual([...localLicences(folder).keys()], WASI_LICENCES);

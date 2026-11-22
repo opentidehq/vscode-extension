@@ -62,6 +62,7 @@ export function checkWasiPackage(exists) {
     "dist/wasi/WASI-LIBC-LICENSES.txt",
     "dist/wasi/LICENSE",
     "dist/wasi/NOTICE",
+    "dist/wasi/THIRD-PARTY-DATA-LICENSES.txt",
   ]
     .filter((file) => !exists(file))
     .map((file) => `the package has no ${file}`);
