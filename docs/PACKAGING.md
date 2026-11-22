@@ -281,7 +281,7 @@ shared buffer) to save about 50 ms a start. The MCP bridge is started by the edi
 with the extension host. A helper process with a worker per protocol would share one compile between `serve` and the language
 server for the same 50 ms, at the cost of a protocol for the helper and extra inherited descriptors (Windows).
 
-**Not explained: rounds with no diagnostics.** In the same run, 11 of 32 rounds (both hosts, with the warm-up off as well as on)
+**Not explained: rounds with no diagnostics.** In the same run, 8 of 32 rounds (both hosts, with the warm-up off as well as on)
 got no diagnostics for a fresh rule in 30 s, and two took 9.5 s and 17.7 s; the other rounds took 130–300 ms. The rounds were a
 server restart, 1.5 s of idle, a new file in `detections/rules/`, and opening it. The test now prints `TIMEOUT` for such a round and
 fails only when more than a quarter have none. The workspace-diagnostic pull was being skipped in that run for a mistaken reason
