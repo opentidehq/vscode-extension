@@ -1,0 +1,37 @@
+[
+  {
+    "restart": 1,
+    "errors_before": 1,
+    "cleared_ms": null,
+    "back_ms": 2519,
+    "errors_after_2s": 1
+  },
+  {
+    "restart": 2,
+    "errors_before": 1,
+    "cleared_ms": null,
+    "back_ms": 2515,
+    "errors_after_2s": 1
+  },
+  {
+    "restart": 3,
+    "errors_before": 1,
+    "cleared_ms": null,
+    "back_ms": 2509,
+    "errors_after_2s": 1
+  },
+  {
+    "restart": 4,
+    "errors_before": 1,
+    "cleared_ms": 74,
+    "back_ms": 102,
+    "errors_after_2s": 1
+  },
+  {
+    "restart": 5,
+    "errors_before": 1,
+    "cleared_ms": null,
+    "back_ms": 2502,
+    "errors_after_2s": 1
+  }
+]

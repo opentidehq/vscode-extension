@@ -1,0 +1,71 @@
+{
+  "label": "vscode-r4-ws-rc3",
+  "runs": [
+    {
+      "spawn_to_initialize_ms": 224,
+      "tools_list_ms": 2,
+      "validate_rule_first_ms": 413,
+      "validate_rule_warm_ms": 11,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 1,
+      "coverage_first_ms": 15,
+      "coverage_warm_ms": 4,
+      "rss_mb": 253
+    },
+    {
+      "spawn_to_initialize_ms": 233,
+      "tools_list_ms": 3,
+      "validate_rule_first_ms": 406,
+      "validate_rule_warm_ms": 9,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 1,
+      "coverage_first_ms": 11,
+      "coverage_warm_ms": 3,
+      "rss_mb": 252
+    },
+    {
+      "spawn_to_initialize_ms": 200,
+      "tools_list_ms": 2,
+      "validate_rule_first_ms": 420,
+      "validate_rule_warm_ms": 9,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 1,
+      "coverage_first_ms": 11,
+      "coverage_warm_ms": 3,
+      "rss_mb": 253
+    },
+    {
+      "spawn_to_initialize_ms": 215,
+      "tools_list_ms": 3,
+      "validate_rule_first_ms": 407,
+      "validate_rule_warm_ms": 9,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 0,
+      "coverage_first_ms": 11,
+      "coverage_warm_ms": 3,
+      "rss_mb": 252
+    },
+    {
+      "spawn_to_initialize_ms": 228,
+      "tools_list_ms": 2,
+      "validate_rule_first_ms": 347,
+      "validate_rule_warm_ms": 9,
+      "explain_first_ms": 2,
+      "explain_warm_ms": 1,
+      "coverage_first_ms": 11,
+      "coverage_warm_ms": 3,
+      "rss_mb": 253
+    }
+  ],
+  "median": {
+    "spawn_to_initialize_ms": 224,
+    "tools_list_ms": 2,
+    "validate_rule_first_ms": 407,
+    "validate_rule_warm_ms": 9,
+    "explain_first_ms": 1,
+    "explain_warm_ms": 1,
+    "coverage_first_ms": 11,
+    "coverage_warm_ms": 3,
+    "rss_mb": 253
+  }
+}

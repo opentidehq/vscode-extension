@@ -1,0 +1,71 @@
+{
+  "label": "kiro-rc3-ws-rc3-big",
+  "runs": [
+    {
+      "spawn_to_initialize_ms": 238,
+      "tools_list_ms": 3,
+      "validate_rule_first_ms": 340,
+      "validate_rule_warm_ms": 127,
+      "explain_first_ms": 2,
+      "explain_warm_ms": 1,
+      "coverage_first_ms": 73,
+      "coverage_warm_ms": 72,
+      "rss_mb": 262
+    },
+    {
+      "spawn_to_initialize_ms": 216,
+      "tools_list_ms": 3,
+      "validate_rule_first_ms": 328,
+      "validate_rule_warm_ms": 128,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 0,
+      "coverage_first_ms": 72,
+      "coverage_warm_ms": 70,
+      "rss_mb": 262
+    },
+    {
+      "spawn_to_initialize_ms": 218,
+      "tools_list_ms": 3,
+      "validate_rule_first_ms": 324,
+      "validate_rule_warm_ms": 113,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 0,
+      "coverage_first_ms": 57,
+      "coverage_warm_ms": 53,
+      "rss_mb": 261
+    },
+    {
+      "spawn_to_initialize_ms": 214,
+      "tools_list_ms": 3,
+      "validate_rule_first_ms": 296,
+      "validate_rule_warm_ms": 129,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 1,
+      "coverage_first_ms": 77,
+      "coverage_warm_ms": 71,
+      "rss_mb": 263
+    },
+    {
+      "spawn_to_initialize_ms": 230,
+      "tools_list_ms": 4,
+      "validate_rule_first_ms": 319,
+      "validate_rule_warm_ms": 133,
+      "explain_first_ms": 1,
+      "explain_warm_ms": 0,
+      "coverage_first_ms": 58,
+      "coverage_warm_ms": 53,
+      "rss_mb": 261
+    }
+  ],
+  "median": {
+    "spawn_to_initialize_ms": 218,
+    "tools_list_ms": 3,
+    "validate_rule_first_ms": 324,
+    "validate_rule_warm_ms": 128,
+    "explain_first_ms": 1,
+    "explain_warm_ms": 0,
+    "coverage_first_ms": 72,
+    "coverage_warm_ms": 70,
+    "rss_mb": 262
+  }
+}

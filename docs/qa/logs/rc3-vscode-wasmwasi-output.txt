@@ -1,0 +1,15 @@
+2026-11-22 18:45:17.561 [info] restart: activation
+2026-11-22 18:45:17.561 [info] runtime: opentide 1.0.0-rc.3 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at 
+its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: 
+installed runs your own opentide there).
+2026-11-22 18:45:17.561 [info] features: 12/12 activated
+2026-11-22 18:45:17.561 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3)
+2026-11-22 18:45:17.608 [info] WASI: running under @vscode/wasm-wasi (ms-vscode.wasm-wasi-core 1.0.4)
+2026-11-22 18:45:17.751 [info] opentide 1.0.0-rc.3: 58 commands
+2026-11-22 18:45:17.876 [info] WASI: compiled /tmp/qa/ext-rc3w/opentidehq.opentide-0.1.2/dist/wasi/opentide.wasm in 267 ms
+2026-11-22 18:45:18.524 [info] language server: host opentide 1.0.0-rc.3, engine 1.0.0-rc.3, catalog models
+2026-11-22 18:45:18.526 [info] ▶ opentide --json validate  (in /tmp/qa/ws-rc3)
+2026-11-22 18:45:18.529 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws-rc3)
+2026-11-22 18:45:19.315 [info] opentide serve 1.0.0-rc.3 started (WASI, in the extension host)
+2026-11-22 18:45:19.897 [warning] ✗ opentide --json validate  exit 1 (issues_found) in 1371 ms via serve
+2026-11-22 18:45:20.158 [info] ✓ opentide --json info catalog  exit 0 in 1629 ms via serve

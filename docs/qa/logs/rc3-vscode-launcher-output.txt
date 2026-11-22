@@ -1,0 +1,15 @@
+the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide 
+there).
+2026-11-22 18:43:24.973 [info] features: 12/12 activated
+2026-11-22 18:43:25.019 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3)
+2026-11-22 18:43:25.019 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS 
+Code's Node (the launcher), one process per protocol
+2026-11-22 18:43:25.312 [info] opentide 1.0.0-rc.3: 58 commands
+2026-11-22 18:43:25.355 [info] language server: host opentide 1.0.0-rc.3, engine 1.0.0-rc.3, catalog models
+2026-11-22 18:43:25.356 [info] ▶ opentide --json validate  (in /tmp/qa/ws-rc3)
+2026-11-22 18:43:25.368 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws-rc3)
+2026-11-22 18:43:25.686 [info] opentide serve 1.0.0-rc.3 started (pid 1263)
+2026-11-22 18:43:25.935 [warning] ✗ opentide --json validate  exit 1 (issues_found) in 579 ms via serve
+2026-11-22 18:43:25.968 [info] ✓ opentide --json info catalog  exit 0 in 601 ms via serve
+2026-11-22 18:43:26.027 [info] ▶ opentide --json info  (in /tmp/qa/ws-rc3)
+2026-11-22 18:43:26.035 [info] ✓ opentide --json info  exit 0 in 8 ms via serve

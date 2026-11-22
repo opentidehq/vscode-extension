@@ -1,0 +1,16 @@
+2026-11-22 18:47:17.106 [info] agents: host Kiro (kiro): a known editor (Kiro) whose agent reads its user-level MCP file; it has the MCP server definition provider API, registered too (harmless where the agent ignores it): MCP through the user-level MCP file /root/.kiro/settings/mcp.json and the provider
+2026-11-22 18:47:17.106 [info] agents: the opentide skills are contributed by the extension: this VS Code has no chat.plugins.enabled
+2026-11-22 18:47:17.106 [info] restart: activation
+2026-11-22 18:47:17.106 [info] runtime: opentide 1.0.0-rc.3 (tier 4 · bundled WASI): the module the extension carries [opentide.runtime is at its default, bundled]. The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).
+2026-11-22 18:47:17.106 [info] features: 12/12 activated
+2026-11-22 18:47:17.106 [info] language server: opentide lsp start in the WASI module (1.0.0-rc.3)
+2026-11-22 18:47:17.106 [info] WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node (the launcher), one process per protocol
+2026-11-22 18:47:17.323 [info] language server: host opentide 1.0.0-rc.3, engine 1.0.0-rc.3, catalog models
+2026-11-22 18:47:17.325 [info] ▶ opentide --json validate  (in /tmp/qa/ws-rc3)
+2026-11-22 18:47:17.340 [info] opentide 1.0.0-rc.3: 58 commands
+2026-11-22 18:47:17.341 [info] ▶ opentide --json info catalog  (in /tmp/qa/ws-rc3)
+2026-11-22 18:47:17.592 [info] agents: wrote the MCP launcher /tmp/qa/ud-kr3/User/globalStorage/opentidehq.opentide/mcp-launcher.cjs
+2026-11-22 18:47:17.596 [info] agents: added opentide (/tmp/qa/kiro/Kiro/kiro) in /root/.kiro/settings/mcp.json
+2026-11-22 18:47:17.684 [info] opentide serve 1.0.0-rc.3 started (pid 2557)
+2026-11-22 18:47:17.837 [warning] ✗ opentide --json validate  exit 1 (issues_found) in 511 ms via serve
+2026-11-22 18:47:17.864 [info] ✓ opentide --json info catalog  exit 0 in 523 ms via serve

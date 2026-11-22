@@ -16,6 +16,7 @@ async function launch({ exe, ud, ext, folders = [], env = {}, extra = [] }) {
 async function shot(page, name) {
   const f = `${SCREENS}/${name}.png`;
   await page.screenshot({ path: f });
+  if (process.env.ROOTSHOT) { try { require('child_process').execSync(`import -window root ${f.replace('.png', '-desktop.png')}`, { env: process.env }); } catch {} }
   console.log('shot', f);
 }
 async function palette(page, text, wait = 1500) {

@@ -1,0 +1,141 @@
+{
+  "label": "rc3w-small",
+  "out": [
+    {
+      "extHostCandidates": [
+        [
+          21667,
+          361
+        ],
+        [
+          21612,
+          229
+        ],
+        [
+          21631,
+          212
+        ],
+        [
+          21632,
+          121
+        ]
+      ],
+      "ext_host_rss_mb": 361,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          146
+        ]
+      ]
+    },
+    {
+      "extHostCandidates": [
+        [
+          21967,
+          360
+        ],
+        [
+          21912,
+          228
+        ],
+        [
+          21931,
+          194
+        ],
+        [
+          21932,
+          120
+        ]
+      ],
+      "ext_host_rss_mb": 360,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          147
+        ]
+      ]
+    },
+    {
+      "extHostCandidates": [
+        [
+          22277,
+          347
+        ],
+        [
+          22222,
+          228
+        ],
+        [
+          22241,
+          191
+        ],
+        [
+          22242,
+          120
+        ]
+      ],
+      "ext_host_rss_mb": 347,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          147
+        ]
+      ]
+    },
+    {
+      "extHostCandidates": [
+        [
+          22595,
+          360
+        ],
+        [
+          22520,
+          228
+        ],
+        [
+          22539,
+          205
+        ],
+        [
+          22540,
+          120
+        ]
+      ],
+      "ext_host_rss_mb": 360,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          147
+        ]
+      ]
+    },
+    {
+      "extHostCandidates": [
+        [
+          22876,
+          361
+        ],
+        [
+          22821,
+          228
+        ],
+        [
+          22840,
+          201
+        ],
+        [
+          22841,
+          121
+        ]
+      ],
+      "ext_host_rss_mb": 361,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          147
+        ]
+      ]
+    }
+  ],
+  "median_ext_host_mb": 360
+}

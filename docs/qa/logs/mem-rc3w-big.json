@@ -1,0 +1,136 @@
+{
+  "label": "rc3w-big",
+  "out": [
+    {
+      "extHostCandidates": [
+        [
+          23230,
+          447
+        ],
+        [
+          23163,
+          229
+        ],
+        [
+          23182,
+          197
+        ],
+        [
+          23183,
+          121
+        ]
+      ],
+      "ext_host_rss_mb": 447,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          147
+        ]
+      ]
+    },
+    {
+      "extHostCandidates": [
+        [
+          23538,
+          441
+        ],
+        [
+          23480,
+          229
+        ],
+        [
+          23502,
+          195
+        ],
+        [
+          23503,
+          121
+        ]
+      ],
+      "ext_host_rss_mb": 441,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          147
+        ]
+      ]
+    },
+    {
+      "extHostCandidates": [
+        [
+          23849,
+          467
+        ],
+        [
+          23793,
+          230
+        ],
+        [
+          23812,
+          195
+        ],
+        [
+          23813,
+          120
+        ]
+      ],
+      "ext_host_rss_mb": 467,
+      "opentide_procs": []
+    },
+    {
+      "extHostCandidates": [
+        [
+          24144,
+          464
+        ],
+        [
+          24089,
+          228
+        ],
+        [
+          24108,
+          185
+        ],
+        [
+          24109,
+          121
+        ]
+      ],
+      "ext_host_rss_mb": 464,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          147
+        ]
+      ]
+    },
+    {
+      "extHostCandidates": [
+        [
+          24467,
+          468
+        ],
+        [
+          24400,
+          229
+        ],
+        [
+          24419,
+          207
+        ],
+        [
+          24420,
+          121
+        ]
+      ],
+      "ext_host_rss_mb": 468,
+      "opentide_procs": [
+        [
+          "opentide.wasm mcp start",
+          146
+        ]
+      ]
+    }
+  ],
+  "median_ext_host_mb": 464
+}

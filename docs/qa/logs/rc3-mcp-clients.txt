@@ -1,0 +1,78 @@
+# rc.3 build: MCP through the definitions each editor uses (own client: server/discover, initialize, tools/list, tools/call)
+
+## VS Code definition: <code binary> dist/mcp-wasi.js, ELECTRON_RUN_AS_NODE=1, OPENTIDE_REPO_ROOT
+
+$ tools/call validate_rule {"uuid":"4280fd71-92b7-47a0-bfe6-5271b61ee396"}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, 
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-align
+## tools/list
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"valid\": true,\n  \"errors\": [],\n  \"warnings\": [],\n  \"issues\": [],\n  \"next_actions\": []\n}"}],"isError":false}}
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws-rc3; OPENTIDE_REPO_ROOT=/tmp/qa/ws-rc3; repository root: /tmp/qa/ws-rc3 | 
+
+$ tools/call explain {"code":"deployment_state_uuid_mismatch"}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, 
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-align
+## tools/list
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"found\": true,\n  \"code\": \"deployment_state_uuid_mismatch\",\n  \"meaning\": \"A deployment state shard's file name and contents name different rules.\",\n  \"markdown\": \"# deployment_state_uuid_mismatch\\n\\nA deployment state shard's file name and contents name different rules.\\n\\nSeverity: error. Reported by `opentide validate` (sche
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws-rc3; OPENTIDE_REPO_ROOT=/tmp/qa/ws-rc3; repository root: /tmp/qa/ws-rc3 | 
+
+$ tools/call info {}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, 
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-align
+## tools/list
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"Unknown tool: info"}],"isError":true}}
+   [isError=true]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws-rc3; OPENTIDE_REPO_ROOT=/tmp/qa/ws-rc3; repository root: /tmp/qa/ws-rc3 | 
+
+$ tools/call search {"query":"lsass"}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, 
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-align
+## tools/list
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"uuid\": \"4280fd71-92b7-47a0-bfe6-5271b61ee396\",\n  \"type\": \"rule\",\n  \"title\": \"LSASS Access KQL\",\n  \"status\": \"DESIGN\"\n}"},{"type":"text","text":"{\n  \"uuid\": \"0518d34f-3885-4067-8712-c5e473ba4c3e\",\n  \"type\": \"rule\",\n  \"title\": \"LSASS Access SPL\",\n  \"status\": \"DESIGN\"\n}"},{"type":"text","text":"{\n  \"uuid\
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp bridge: cwd=/tmp/qa/ws-rc3; OPENTIDE_REPO_ROOT=/tmp/qa/ws-rc3; repository root: /tmp/qa/ws-rc3 | 
+
+## Kiro entry: Kiro binary + mcp-launcher.cjs (OPENTIDE_EXTENSIONS_DIR), cwd = workspace
+
+$ tools/call validate_rule {"uuid":"4280fd71-92b7-47a0-bfe6-5271b61ee396"}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, 
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-align
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"valid\": true,\n  \"errors\": [],\n  \"warnings\": [],\n  \"issues\": [],\n  \"next_actions\": []\n}"}],"isError":false}}
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp launcher: running opentidehq.opentide-0.1.2 | opentide mcp bridge: cwd=/tmp/qa/ws-rc3; OPENTIDE_REPO_ROOT=/tmp/qa/ws-rc3; repository root: /tmp/qa/ws-rc3 | 
+
+$ tools/call explain {"code":"deployment_state_uuid_mismatch"}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, 
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-align
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"found\": true,\n  \"code\": \"deployment_state_uuid_mismatch\",\n  \"meaning\": \"A deployment state shard's file name and contents name different rules.\",\n  \"markdown\": \"# deployment_state_uuid_mismatch\\n\\nA deployment state shard's file name and contents name different rules.\\n\\nSeverity: error. Reported by `opentide validate` (sche
+   [isError=false]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp launcher: running opentidehq.opentide-0.1.2 | opentide mcp bridge: cwd=/tmp/qa/ws-rc3; OPENTIDE_REPO_ROOT=/tmp/qa/ws-rc3; repository root: /tmp/qa/ws-rc3 | 
+
+$ tools/call info {}
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2024-11-05","2025-03-26","2025-06-18","2025-11-25","2026-07-28"],"capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, 
+{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2025-06-18","capabilities":{"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"opentide","version":"1.0.0-rc.3"},"instructions":"opentide: Spec-driven development for agentic detection engineering. opentide gives every detection an ontology and a taxonomy, so it stays threat-align
+ 10 tools: search, get_chaining, coverage, validate_rule, validation_report, explain, validate_query, run_query, deploy_rule, deployment_status
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"Unknown tool: info"}],"isError":true}}
+   [isError=true]
+stdout lines: 4, invalid/leaked: 0
+stderr (first 400): opentide mcp launcher: running opentidehq.opentide-0.1.2 | opentide mcp bridge: cwd=/tmp/qa/ws-rc3; OPENTIDE_REPO_ROOT=/tmp/qa/ws-rc3; repository root: /tmp/qa/ws-rc3 | 
+
+## modern era (what Kiro sends)
+server/discover  resultType = complete | keys: resultType,supportedVersions,capabilities,instructions,ttlMs,cacheScope,_meta
+tools/list       resultType = complete | tools: 10 | result keys: resultType,ttlMs,cacheScope,tools
+tools/call       resultType = complete | isError = false | {"jsonrpc":"2.0","id":3,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"technique_count\": 0,\n  \"matrix\": {},\n
+stderr first line: opentide mcp launcher: running opentidehq.opentide-0.1.2

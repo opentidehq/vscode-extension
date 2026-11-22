@@ -1,0 +1,5 @@
+C03A54FD-05B3-4145-8676-FEF4E113AEBC.json.opentide/states/deployment | 1
+/tmp/qa/ws-rc3/.opentide/states/deployment/C03A54FD-05B3-4145-8676-FEF4E113AEBC.json is not named <uuid>.json with a lowercase canonical uuid | opentide | deployment_state_uuid_mismatch | [Ln 1, Col 1]
+zz-broken-kql.yamlobjects/rules | 2
+unknown tabular operator 'frobnicate' | opentide | kql_unknown_operator | [Ln 63, Col 9]
+Filename "zz-broken-kql.yaml" does not match slugify(name)="broken-kql-fixture" | opentide | filename_mismatch | [Ln 1, Col 1]
