@@ -62,6 +62,8 @@ const ENTRIES = {
   LICENSE: "EUPL-1.2",
   NOTICE: "notice",
   "licenses/wasi-libc/LICENSE": "wasi",
+  "data/catalogs/cql/NOTICE": "cql notice",
+  "data/catalogs/cql/LICENSE-MIT.txt": "mit",
 };
 
 describe("engine: the pinned WebAssembly build of the language server", () => {
@@ -120,7 +122,15 @@ describe("engine: the pinned WebAssembly build of the language server", () => {
     );
     assert.deepEqual(
       shipped.sort(),
-      [THIRD_PARTY, "LICENSE", "NOTICE", "licenses/wasi-libc/LICENSE", WASM].sort(),
+      [
+        THIRD_PARTY,
+        "LICENSE",
+        "NOTICE",
+        "data/catalogs/cql/LICENSE-MIT.txt",
+        "data/catalogs/cql/NOTICE",
+        "licenses/wasi-libc/LICENSE",
+        WASM,
+      ].sort(),
     );
   });
 
@@ -147,6 +157,15 @@ describe("engine: the pinned WebAssembly build of the language server", () => {
     );
     assert.throws(() => checkEntries(Object.keys(ENTRIES).filter((n) => n !== "LICENSE")), /no LICENSE/);
     assert.throws(() => checkEntries([...Object.keys(ENTRIES), "run-me.sh"]), /unexpected files: run-me\.sh/);
+    // Only the notices and licences of the catalogues are accepted under data/, not any file there.
+    assert.throws(
+      () => checkEntries([...Object.keys(ENTRIES), "data/catalogs/cql/run-me.sh"]),
+      /unexpected files: data\/catalogs\/cql\/run-me\.sh/,
+    );
+    assert.throws(
+      () => checkEntries([...Object.keys(ENTRIES), "data/catalogs/cql/sub/NOTICE", "data/NOTICE"]),
+      /unexpected files/,
+    );
     checkEntries(Object.keys(ENTRIES));
   });
 
@@ -154,6 +173,9 @@ describe("engine: the pinned WebAssembly build of the language server", () => {
     assert.equal(isShipped(WASM), true);
     assert.equal(isShipped("LICENSE"), true);
     assert.equal(isShipped("licenses/wasi-libc/musl-COPYRIGHT"), true);
+    assert.equal(isShipped("data/catalogs/yara/NOTICE"), true);
+    assert.equal(isShipped("data/catalogs/yara/LICENSE-BSD-3-Clause-YARA-X.txt"), true);
+    assert.equal(isShipped("data/catalogs/yara/rules.json"), false);
     assert.equal(isShipped(THIRD_PARTY), true);
     assert.equal(isShipped(GLUE), false);
     assert.equal(isShipped("opentide_wasm.d.ts"), false);
