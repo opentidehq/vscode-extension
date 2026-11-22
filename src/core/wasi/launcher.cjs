@@ -90,6 +90,109 @@ function layout(cwd, env, platform = process.platform) {
   return { preopens, env: { ...mapped, PWD: guest } };
 }
 
+const ESUCCESS = 0;
+const ENOSYS = 52;
+/** WASI `filetype`s of a directory entry. */
+const FILETYPE = { unknown: 0, directory: 3, file: 4, symlink: 7 };
+
+/**
+ * Node's WASI answers `fd_readdir` with ENOSYS on Windows (uvwasi has no directory listing there): the module
+ * cannot read a folder, `.opentide/configurations` or the object folders, and `validate` fails with "Function not
+ * implemented (os error 52)". Where the host says ENOSYS, this lists the folder itself: it follows the paths the
+ * module opens (`path_open` and `fd_close`, from the preopens, which Node numbers from 3 in their order) and
+ * writes the `dirent` records WASI defines. Anything else is Node's own. `memory()` is the instance's memory as a
+ * DataView. Exported for the tests, which run it on POSIX with a host that answers ENOSYS.
+ */
+function withDirectoryListing(imports, hostPreopens, memory, fsImpl = fs) {
+  const ns = imports.wasi_snapshot_preview1;
+  const folders = new Map();
+  hostPreopens.forEach((host, index) => {
+    folders.set(3 + index, host);
+  });
+  const { path_open: pathOpen, fd_close: fdClose, fd_readdir: fdReaddir } = ns;
+  ns.path_open = (
+    dirfd,
+    dirflags,
+    pathPtr,
+    pathLen,
+    oflags,
+    rightsBase,
+    rightsInheriting,
+    fdflags,
+    outPtr,
+  ) => {
+    const result = pathOpen(
+      dirfd,
+      dirflags,
+      pathPtr,
+      pathLen,
+      oflags,
+      rightsBase,
+      rightsInheriting,
+      fdflags,
+      outPtr,
+    );
+    const base = folders.get(dirfd);
+    if (result === ESUCCESS && base !== undefined) {
+      const view = memory();
+      const relative = Buffer.from(view.buffer, view.byteOffset + pathPtr, pathLen).toString("utf8");
+      folders.set(view.getUint32(outPtr, true), path.join(base, relative));
+    }
+    return result;
+  };
+  ns.fd_close = (fd) => {
+    const result = fdClose(fd);
+    if (result === ESUCCESS) folders.delete(fd);
+    return result;
+  };
+  ns.fd_readdir = (fd, bufPtr, bufLen, cookie, usedPtr) => {
+    const result = fdReaddir(fd, bufPtr, bufLen, cookie, usedPtr);
+    const folder = folders.get(fd);
+    if (result !== ENOSYS || folder === undefined) return result;
+    let entries;
+    try {
+      entries = fsImpl.readdirSync(folder, { withFileTypes: true });
+    } catch {
+      return result;
+    }
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    const records = [
+      { name: ".", type: FILETYPE.directory },
+      { name: "..", type: FILETYPE.directory },
+    ].concat(
+      entries.map((entry) => ({
+        name: entry.name,
+        type: entry.isDirectory()
+          ? FILETYPE.directory
+          : entry.isFile()
+            ? FILETYPE.file
+            : entry.isSymbolicLink()
+              ? FILETYPE.symlink
+              : FILETYPE.unknown,
+      })),
+    );
+    const view = memory();
+    const out = Buffer.from(view.buffer, view.byteOffset + bufPtr, bufLen);
+    let used = 0;
+    for (let index = Number(cookie); index < records.length && used < bufLen; index += 1) {
+      const name = Buffer.from(records[index].name, "utf8");
+      const record = Buffer.alloc(24 + name.length);
+      record.writeBigUInt64LE(BigInt(index + 1), 0); // d_next: where to resume
+      record.writeBigUInt64LE(0n, 8); // d_ino
+      record.writeUInt32LE(name.length, 16); // d_namlen
+      record.writeUInt8(records[index].type, 20); // d_type
+      name.copy(record, 24);
+      const taken = Math.min(record.length, bufLen - used);
+      record.copy(out, used, 0, taken);
+      used += taken;
+      if (taken < record.length) break;
+    }
+    view.setUint32(usedPtr, used, true);
+    return ESUCCESS;
+  };
+  return imports;
+}
+
 /** The environment the module gets: this process's, without the variable that makes Electron a Node. */
 function moduleEnv(env) {
   const out = {};
@@ -115,11 +218,17 @@ async function main(argv) {
     returnOnExit: true,
   });
   const module = await WebAssembly.compile(fs.readFileSync(file));
-  const instance = await WebAssembly.instantiate(module, wasi.getImportObject());
+  let instance;
+  const imports = withDirectoryListing(
+    wasi.getImportObject(),
+    Object.values(placed.preopens),
+    () => new DataView(instance.exports.memory.buffer),
+  );
+  instance = await WebAssembly.instantiate(module, imports);
   return wasi.start(instance);
 }
 
-module.exports = { layout, moduleEnv, MOUNTS };
+module.exports = { layout, moduleEnv, withDirectoryListing, MOUNTS };
 
 if (require.main === module) {
   main(process.argv.slice(2)).then(
