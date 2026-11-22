@@ -231,3 +231,59 @@ with `code --uninstall-extension opentidehq.opentide`. Try it **on a machine wit
    CLI`: expected, the module has no network there. **Contact only tenants you own.**
 6. **Switching off.** `opentide.wasi.enabled` off, and **opentide: Restart Server**: the engine (tier 5) runs,
    editor features only. In an untrusted folder (Restricted Mode) the engine runs too.
+
+## Cold start of the language server
+
+What the first document waits for, and what was tried. Two modules were measured, both from opentide's
+`integration/unified-core`, `opentide lsp start` through `dist/wasi/launcher.cjs` under Node 22.23.5 (V8 12.4) on a Linux
+container (`scripts/bench-lsp-cold-start.mjs`, five runs): the 28 MB CLI module of ef3ec6d, and the 18.9 MB one of 9cd8da7,
+which has opentide#1768's and #1771's cold-start work.
+
+| Small workspace (1 rule), open → diagnostics for the first document, 1.5 s after the server started | ef3ec6d, 28 MB | 9cd8da7, 18.9 MB |
+|-|-:|-:|
+| Spawn → `initialize` answered | 147 ms | 136 ms |
+| The first document | 470–520 ms | 133–146 ms |
+| A second document, same process | 22–40 ms | 8–10 ms |
+| The first document after a synthetic warm-up rule | 34–51 ms | 11–16 ms |
+| Peak resident memory of the server | 127 MB | 109 MB |
+
+| 1,200 rules | ef3ec6d | 9cd8da7 |
+|-|-:|-:|
+| Spawn → `initialize` | 183 ms | 150 ms |
+| The first document | 1,100–1,230 ms | 650–817 ms |
+| A second document | 480–590 ms | 398–459 ms |
+| The first document after the warm-up (the warm-up itself 0.8–1.1 s of work at start) | 480–610 ms | 484–724 ms |
+| Peak resident memory | 148 MB | 133 MB |
+
+**The module's compile is not the cost**: `WebAssembly.compile` of the 28 MB module takes 36–68 ms (about 50 of the 105 ms
+that `node` takes to boot, read, compile and run `--version`). V8 flags do not help (`--no-wasm-lazy-compilation`
+`--liftoff-only`, `--no-wasm-dynamic-tiering`, `--no-wasm-tier-up`, `--wasm-lazy-validation`: all within noise or worse than
+the default); lazy compilation is already the default in V8 12.4. No flag is set.
+
+**A warm-up was tried and dropped.** Opening, analysing and closing a synthetic rule once the server has started
+(`opentide.languageServer.warmUp`, PR #98, not merged) moved the first document's wait to the background in the Node harness,
+and took 125 ms off it with the 9cd8da7 module. In VS Code (`test/wasi/perf.test.ts`, the Test VSIX workflow, run 45023695400,
+medians of four rounds with diagnostics) it did not:
+
+| Host | warm-up off | warm-up on |
+|-|-:|-:|
+| `@vscode/wasm-wasi` (`wasm-wasi-core`) | 223 ms | 205 ms |
+| the launcher (VS Code's Node, one process per start) | 183 ms | 219 ms |
+
+No gain of 100 ms on the launcher, the default path; on 1,200 rules it adds 0.8–1.1 s of work at every start. The first
+document of a window starts at about 180 ms without it, because opentide#1768 and #1771 took the cold work out of the first
+request. Restarts under `@vscode/wasm-wasi` reuse the window's compiled module and its tier-up. Not kept.
+
+**Compiling once in the extension host (a worker thread) is not done.** Under `@vscode/wasm-wasi` the module is already
+compiled once per window (`WasiHost.module`). The launcher runs `node:wasi`, whose standard streams are file descriptors: a
+worker thread has no pipe to give it, so it would need its own WASI implementation (file system, `poll_oneoff`, stdin blocking on a
+shared buffer) to save about 50 ms a start. The MCP bridge is started by the editor as its own process and cannot share a compile
+with the extension host. A helper process with a worker per protocol would share one compile between `serve` and the language
+server for the same 50 ms, at the cost of a protocol for the helper and extra inherited descriptors (Windows).
+
+**Not explained: rounds with no diagnostics.** In the same run, 11 of 32 rounds (both hosts, with the warm-up off as well as on)
+got no diagnostics for a fresh rule in 30 s, and two took 9.5 s and 17.7 s; the other rounds took 130–300 ms. The rounds were a
+server restart, 1.5 s of idle, a new file in `detections/rules/`, and opening it. The test now prints `TIMEOUT` for such a round and
+fails only when more than a quarter have none. The workspace-diagnostic pull was being skipped in that run for a mistaken reason
+(`1.0.0-rc.3-dev+9cd8da7` did not parse as a version, so it counted as older than rc.3), fixed in `parseVersion`; whether that
+was involved is for the next run to show.

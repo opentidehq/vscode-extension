@@ -7,6 +7,7 @@ import {
   MIN_OPENTIDE_VERSION,
   parseEngineVersionOutput,
   parseOpentideVersionOutput,
+  parseVersion,
 } from "../../src/core/runtime/version";
 
 describe("version", () => {
@@ -61,5 +62,14 @@ describe("version", () => {
     assert.equal(parseEngineVersionOutput('{"host":null,"engine":"0.9.0","catalog":"bundled"}'), "0.9.0");
     assert.equal(parseEngineVersionOutput('{"engine":{"version":"0.9.1"}}'), "0.9.1");
     assert.equal(parseEngineVersionOutput("opentide-lsp 0.8.0"), "0.8.0");
+  });
+
+  it("reads a build of opentide's own branch after a pre-release: 1.0.0-rc.3-dev+sha is rc.3 (QA, Test VSIX)", () => {
+    assert.equal(compareVersions("1.0.0-rc.3-dev+9cd8da7", "1.0.0rc3"), 0);
+    assert.ok(compareVersions("1.0.0-rc.3-dev+9cd8da7", "1.0.0rc2") > 0);
+    assert.ok(compareVersions("1.0.0-rc.3-dev+9cd8da7", "1.0.0") < 0);
+    assert.ok(parseVersion("1.0.0-rc.3-dev+9cd8da7") !== undefined);
+    assert.ok(parseVersion("1.0.0rc3.dev4") !== undefined);
+    assert.equal(parseVersion("not a version"), undefined);
   });
 });

@@ -176,9 +176,15 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       # The WASI module under @vscode/wasm-wasi in a real VS Code, on this build: the runtime, the language
       # server, `serve` with the module's documents in host paths (the label installs ms-vscode.wasm-wasi-core).
+      # OPENTIDE_PERF turns on test/wasi/perf.test.ts: the first document's wait for diagnostics after a server start. It
+      # prints `WASI-PERF` lines in this log.
       - name: WASI tests in VS Code, under @vscode/wasm-wasi
+        env:
+          OPENTIDE_PERF: "1"
         run: xvfb-run -a npm run test:wasi
       - name: WASI tests in VS Code, through the launcher (nothing else installed)
+        env:
+          OPENTIDE_PERF: "1"
         run: xvfb-run -a npm run test:wasi-launcher
       - name: The extension's logs from the WASI tests
         if: failure()
