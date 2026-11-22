@@ -37,6 +37,7 @@ import { Emitter } from "../util/event";
 import { SerialQueue } from "../util/serial";
 import { startEngineWorker } from "./engine";
 import { RecentFileEvents } from "./fileEventDedupe";
+import { FirstPullGuard } from "./firstPull";
 import { TraceChannel } from "./traceChannel";
 import type { WasiHost, WasiLanguageServer } from "./wasi";
 import { SERVER_WATCH_GLOBS } from "./watchGlobs";
@@ -214,7 +215,26 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private diagnosticsMiddleware(runtime: Runtime): LanguageClientOptions["middleware"] {
     let said = false;
     const recent = new RecentFileEvents();
+    const firstPull = new FirstPullGuard();
     return {
+      // A pull for a document can overtake its didOpen after a restart; the server answers empty and the client keeps it
+      // (firstPull.ts). The guard learns from these two and asks once more after the didOpen.
+      didOpen: async (document, next) => {
+        await next(document);
+        firstPull.opened(document.uri.toString());
+      },
+      didClose: async (document, next) => {
+        await next(document);
+        firstPull.closed(document.uri.toString());
+      },
+      provideDiagnostics: (document, previousResultId, token, next) =>
+        firstPull.provide(
+          ("uri" in document ? document.uri : document).toString(),
+          async () => (await next(document, previousResultId, token)) ?? undefined,
+          (report) => report?.kind === "full" && report.items.length === 0,
+          async () => (await next(document, undefined, token)) ?? undefined,
+          () => token.isCancellationRequested,
+        ),
       // The client's own watchers and any the server registers can cover the same file: one event reaches the server.
       workspace: {
         didChangeWatchedFile: (event, next) =>
