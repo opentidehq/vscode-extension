@@ -426,7 +426,12 @@ describe("the MCP bridge (dist/mcp-wasi.js)", function () {
       const answered = await talking.next();
       assert.equal(answered.id, 1);
       assert.equal(answered.result.content[0].text, "deployed with 201");
-      assert.match(talking.stderr(), /dropped 2 message/);
+      // Two lines that arrive in separate chunks (as they do on Windows) are two log lines of one message each.
+      const dropped = [...talking.stderr().matchAll(/dropped (\d+) message/g)].reduce(
+        (sum, found) => sum + Number(found[1]),
+        0,
+      );
+      assert.equal(dropped, 2);
       talking.end();
       await talking.closed;
     } finally {
