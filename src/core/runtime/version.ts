@@ -15,11 +15,14 @@ interface Parsed {
 
 const PHASES: Record<string, number> = { dev: 0, a: 1, alpha: 1, b: 2, beta: 2, rc: 3, c: 3, "": 4, post: 5 };
 
-/** Parse `0.21.0`, `0.21.0rc1`, `0.21.0.dev3`, `0.21.0-beta.1`, `v0.9.0`. Returns undefined when not a version. */
+/** Parse `0.21.0`, `0.21.0rc1`, `0.21.0.dev3`, `0.21.0-beta.1`, `1.0.0-rc.3-dev+9cd8da7`, `v0.9.0`. Returns undefined when not a version. */
 export function parseVersion(text: string): Parsed | undefined {
-  const match = /^v?(\d+(?:\.\d+)*)(?:[-._]?(dev|alpha|beta|a|b|rc|c|post)[-._]?(\d*))?(?:[+].*)?$/i.exec(
-    text.trim(),
-  );
+  // `1.0.0-rc.3-dev+9cd8da7`: a build of opentide's own branch after rc.3 names itself so; the `-dev` after a pre-release
+  // does not change which release it is (it is rc.3), and without this the whole text was no version at all.
+  const match =
+    /^v?(\d+(?:\.\d+)*)(?:[-._]?(dev|alpha|beta|a|b|rc|c|post)[-._]?(\d*))?(?:[-._]dev\d*)?(?:[+].*)?$/i.exec(
+      text.trim(),
+    );
   if (!match?.[1]) return undefined;
   const phaseName = (match[2] ?? "").toLowerCase();
   return {

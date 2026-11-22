@@ -11,7 +11,14 @@ describe("workspace/diagnostic pulls (E1)", () => {
     assert.equal(FIXED_WORKSPACE_PULL_VERSION, "1.0.0rc3");
     for (const old of ["0.28.1", "1.0.0rc2", "1.0.0-rc.2", "1.0.0rc1", "0.45.0"])
       assert.equal(workspacePullIsSlow(old), true, old);
-    for (const fine of ["1.0.0rc3", "1.0.0-rc.3", "1.0.0", "1.2.0", "0.1.dev3+g8b55d0c"])
+    for (const fine of [
+      "1.0.0rc3",
+      "1.0.0-rc.3",
+      "1.0.0-rc.3-dev+9cd8da7",
+      "1.0.0",
+      "1.2.0",
+      "0.1.dev3+g8b55d0c",
+    ])
       assert.equal(workspacePullIsSlow(fine), false, fine);
   });
 
