@@ -418,6 +418,7 @@ workspace's opentide need a trusted folder.
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
 | `opentide.diagnostics.workspacePull` | `auto` | Whether VS Code asks the language server for the problems of closed files. `auto` skips it for an opentide older than 1.0.0rc3, whose server stalls completion re-analysing them: those problems then leave the Problems panel (open files keep theirs, `opentide validate` still reports the workspace) |
 | `opentide.wasi.enabled` | `true` | Allow the bundled opentide; off: your own opentide if one answers, else the engine's editor features only |
+| `opentide.agents.writeEditorConfig` | `ask` | In Kiro, Devin Desktop and Windsurf (no extension API for MCP servers): `ask` before adding the opentide entry to the editor's user-level MCP file, `always`, or `never` (machine setting) |
 | `opentide.envFile` | | A `.env` file whose variables reach commands that contact a tenant |
 | `opentide.backend.serve` | `auto` | `auto` (one warm `opentide serve`) or `never` (spawn each command) |
 | `opentide.trace.server` | `off` | Language server protocol trace: `off`, `messages` or `verbose` |

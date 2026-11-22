@@ -8,16 +8,29 @@ import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { which } from "../../core/runtime/process";
-import { cliCommand, hasCli } from "../../core/runtime/types";
-import { httpProxy, readRestricted } from "../../core/services/settings";
-import { forkTarget, mergeMcpEntry } from "./forks";
+import { readWasi } from "../../core/services/runtime";
+import { httpProxy, readRestricted, readSetting } from "../../core/services/settings";
+import { cursorMcp, cursorRegistration } from "./cursor";
 import {
+  chooseMcpMechanism,
+  configProblem,
+  type ForkTarget,
+  forkTarget,
+  hasOurEntry,
+  mergeMcpEntry,
+  removeMcpEntry,
+} from "./forks";
+import { launcherEntry, launcherPath, launcherStale } from "./launcher";
+import {
+  bridgeInsteadText,
   decideMcp,
   entryUsable,
   environmentLookup,
   MCP_FILES,
   MCP_PROVIDER_ID,
+  type McpDecision,
   McpDecisionLog,
+  mcpBridge,
   opentideEntryCommand,
   opentideServerCommand,
   provideMode,
@@ -72,18 +85,102 @@ const lm = (vscode.lm ?? {}) as unknown as NewerLm;
 export default defineFeature({
   id: "agents",
   activate(ctx) {
+    const cursor = cursorMcp(vscode);
     const hasProviderApi =
       typeof lm.registerMcpServerDefinitionProvider === "function" &&
       newer.McpStdioServerDefinition !== undefined;
-    const fork = hasProviderApi ? undefined : forkTarget(vscode.env.appName, os.homedir());
-    void vscode.commands.executeCommand("setContext", "opentide.agents.forkMcp", fork?.editor ?? false);
-    if (hasProviderApi) registerMcpProvider(ctx);
+    // By host, not by API presence (#84): Kiro's core has the provider API but its agent never reads it.
+    const mechanism = chooseMcpMechanism({
+      cursor: cursor !== undefined,
+      hasProviderApi,
+      appName: vscode.env.appName,
+      uriScheme: vscode.env.uriScheme,
+      home: os.homedir(),
+    });
+    ctx.log.info(`agents: ${mechanism.description}`);
+    void vscode.commands.executeCommand(
+      "setContext",
+      "opentide.agents.forkMcp",
+      mechanism.fork?.editor ?? false,
+    );
+    if (cursor) registerCursorServer(ctx, cursor);
+    if (mechanism.provider) registerMcpProvider(ctx);
+    if (mechanism.fork) maintainForkEntry(ctx, mechanism.fork);
     ctx.subscriptions.push(
       vscode.commands.registerCommand("opentide.agents.addToEditorMcp", () => addToForkMcp(ctx)),
+      vscode.commands.registerCommand("opentide.agents.removeFromEditorMcp", () => removeFromForkMcp(ctx)),
     );
     registerTools(ctx);
   },
 });
+
+/**
+ * Whether and how the opentide MCP server is provided now (SPEC §12): the one decision the provider, Cursor's
+ * registration and the user-level file all follow. Nothing in Restricted Mode, without reading a setting or a file.
+ */
+async function decideNow(
+  ctx: FeatureContext,
+  log?: McpDecisionLog,
+  options: { readonly forFile?: boolean; readonly explicit?: boolean } = {},
+): Promise<McpDecision> {
+  if (!ctx.trust.isTrusted) return { provide: false, reason: "Restricted Mode" };
+  // A window with no opentide folder gets no server, and does not resolve the runtime for one (#96): Copilot starts
+  // whatever the provider names, and without a repository its tools can only answer `workspace_not_found`. A command the
+  // person ran on purpose (`explicit`) is not held to it.
+  const dormant = options.explicit !== true && ctx.folders.all.length === 0;
+  if (dormant) {
+    const decision = decideMcp({
+      trusted: true,
+      dormant: true,
+      mode: provideMode(readRestricted<string>("opentide.mcp.provide")),
+      runtime: undefined,
+      hasMcpStart: undefined,
+      folder: undefined,
+      workspaceEntries: [],
+    });
+    const line = log?.line(decision);
+    if (line) ctx.log.info(line);
+    return decision;
+  }
+  const runtime = await ctx.runtime.ready();
+  const tree = (await ctx.capabilities.ready()) ?? ctx.capabilities.current;
+  const mode = provideMode(readRestricted<string>("opentide.mcp.provide"));
+  const decision = decideMcp({
+    trusted: ctx.trust.isTrusted,
+    mode,
+    runtime: ctx.runtime.current ?? runtime,
+    // No tree yet for a runtime with commands: capabilities.onDidChange asks again once it loads.
+    hasMcpStart: tree ? tree.hasCommand("mcp start") : undefined,
+    folder: ctx.folders.all[0]?.path ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    workspaceEntries: mode === "never" ? [] : await workspaceEntries(),
+    proxy: httpProxy(),
+    bridge: bundledBridge(ctx),
+    ...(options.forFile ? { forFile: true } : {}),
+  });
+  const line = log?.line(decision);
+  if (line) ctx.log.info(line);
+  return decision;
+}
+
+/** What the decision changes on: the runtime, the command tree, trust, folders and the settings it reads. */
+function onMcpInputsChanged(ctx: FeatureContext, fire: () => void): vscode.Disposable[] {
+  return [
+    ctx.runtime.onDidChange(fire),
+    ctx.capabilities.onDidChange(fire),
+    ctx.trust.onDidGrant(fire),
+    ctx.folders.onDidChange(fire),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (
+        event.affectsConfiguration("opentide.mcp.provide") ||
+        event.affectsConfiguration("opentide.runtime") ||
+        event.affectsConfiguration("opentide.wasi.enabled") ||
+        event.affectsConfiguration("mcp") ||
+        event.affectsConfiguration("chat.mcp.discovery.enabled")
+      )
+        fire();
+    }),
+  ];
+}
 
 /**
  * The `opentide` servers of the workspace MCP files VS Code reads (`.vscode/mcp.json`, `.mcp.json`, and
@@ -145,6 +242,17 @@ async function workspaceEntries(): Promise<WorkspaceEntry[]> {
   return entries;
 }
 
+/** The bundled MCP bridge of this build, when `opentide.wasi.enabled` leaves the module on. */
+function bundledBridge(ctx: FeatureContext) {
+  return mcpBridge(
+    ctx.extension.extensionPath,
+    process.execPath,
+    readWasi(ctx.extension.extensionPath),
+    fs.existsSync,
+    readSetting<boolean>("opentide.wasi.enabled") !== false,
+  );
+}
+
 function registerMcpProvider(ctx: FeatureContext): void {
   const register = lm.registerMcpServerDefinitionProvider;
   const Definition = newer.McpStdioServerDefinition;
@@ -156,23 +264,7 @@ function registerMcpProvider(ctx: FeatureContext): void {
   const provider: McpProvider = {
     onDidChangeMcpServerDefinitions: changed.event,
     async provideMcpServerDefinitions() {
-      // Restricted Mode: nothing, without reading a setting or a file.
-      if (!ctx.trust.isTrusted) return [];
-      const runtime = await ctx.runtime.ready();
-      const tree = (await ctx.capabilities.ready()) ?? ctx.capabilities.current;
-      const mode = provideMode(readRestricted<string>("opentide.mcp.provide"));
-      const decision = decideMcp({
-        trusted: ctx.trust.isTrusted,
-        mode,
-        runtime: ctx.runtime.current ?? runtime,
-        // No tree yet for a runtime with commands: capabilities.onDidChange asks again once it loads.
-        hasMcpStart: tree ? tree.hasCommand("mcp start") : undefined,
-        folder: ctx.folders.all[0]?.path ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-        workspaceEntries: mode === "never" ? [] : await workspaceEntries(),
-        proxy: httpProxy(),
-      });
-      const line = log.line(decision);
-      if (line) ctx.log.info(line);
+      const decision = await decideNow(ctx, log);
       if (!decision.provide) return [];
       const { server } = decision;
       const definition = new Definition(
@@ -195,25 +287,200 @@ function registerMcpProvider(ctx: FeatureContext): void {
       watcher.onDidChange(fire),
       watcher.onDidDelete(fire),
     ]),
-    ctx.runtime.onDidChange(fire),
-    ctx.capabilities.onDidChange(fire),
-    ctx.trust.onDidGrant(fire),
-    ctx.folders.onDidChange(fire),
-    vscode.workspace.onDidChangeConfiguration((event) => {
-      if (
-        event.affectsConfiguration("opentide.mcp.provide") ||
-        event.affectsConfiguration("mcp") ||
-        event.affectsConfiguration("chat.mcp.discovery.enabled")
-      )
-        fire();
-    }),
+    ...onMcpInputsChanged(ctx, fire),
     register(MCP_PROVIDER_ID, provider),
   );
 }
 
-/** Cursor and Windsurf: write `mcpServers.opentide` into the editor's user-level MCP file, after asking. */
+/** Cursor: register the same stdio server with its extension API, and take it back when it no longer applies. */
+function registerCursorServer(ctx: FeatureContext, cursor: NonNullable<ReturnType<typeof cursorMcp>>): void {
+  const log = new McpDecisionLog();
+  let registered: string | undefined;
+  let running = Promise.resolve();
+  const withdraw = () => {
+    if (registered === undefined) return;
+    try {
+      cursor.unregisterServer(registered);
+    } catch (error) {
+      ctx.log.warn(`agents: cursor.mcp.unregisterServer(${registered}): ${String(error)}`);
+    }
+    registered = undefined;
+  };
+  const apply = () => {
+    running = running.then(async () => {
+      const decision = await decideNow(ctx, log);
+      withdraw();
+      if (!decision.provide) return;
+      try {
+        cursor.registerServer(cursorRegistration(decision.server));
+        registered = decision.server.label;
+        ctx.log.info(`agents: registered ${decision.server.label} with Cursor (${decision.server.command})`);
+      } catch (error) {
+        ctx.log.warn(`agents: cursor.mcp.registerServer: ${String(error)}`);
+      }
+    });
+  };
+  ctx.subscriptions.push({ dispose: withdraw }, ...onMcpInputsChanged(ctx, apply));
+  apply();
+}
+
+/** The entry a user-level file gets: the resolved server, without the per-folder variable. */
+function entryOf(decision: McpDecision & { provide: true }) {
+  const { OPENTIDE_REPO_ROOT: _folder, ...env } = decision.server.env;
+  return { command: decision.server.command, args: decision.server.args, env };
+}
+
+/**
+ * The entry for a user-level MCP file. For the bundled bridge it names the stable launcher in the global storage
+ * (written here when it is missing or differs), so an extension update changes nothing in the file; for an
+ * installed opentide it is that opentide's own `mcp start`.
+ */
+async function forkEntryOf(
+  ctx: FeatureContext,
+  target: ForkTarget,
+  decision: McpDecision & { provide: true },
+): Promise<ReturnType<typeof entryOf>> {
+  if (!decision.server.bridge) return entryOf(decision);
+  const storageDir = ctx.extension.globalStorageUri.fsPath;
+  const source = await readFileOrUndefined(path.join(ctx.extension.extensionPath, "dist", "mcp-launcher.js"));
+  if (source !== undefined) {
+    const file = launcherPath(storageDir);
+    if (launcherStale(await readFileOrUndefined(file), source)) {
+      try {
+        await fs.promises.mkdir(storageDir, { recursive: true });
+        await fs.promises.writeFile(file, source, "utf8");
+        ctx.log.info(`agents: wrote the MCP launcher ${file}`);
+      } catch (error) {
+        ctx.log.warn(`agents: could not write the MCP launcher ${file}: ${String(error)}`);
+      }
+    }
+  } else {
+    ctx.log.warn(
+      "agents: this build has no dist/mcp-launcher.js; the entry runs the bridge by its versioned path",
+    );
+    return entryOf(decision);
+  }
+  const proxy = decision.server.env.OPENTIDE_PROXY;
+  return launcherEntry({
+    execPath: decision.server.command,
+    storageDir,
+    extensionPath: ctx.extension.extensionPath,
+    entryFile: target.file,
+    proxy,
+  });
+}
+
+async function readFileOrUndefined(file: string): Promise<string | undefined> {
+  return fs.promises.readFile(file, "utf8").catch(() => undefined);
+}
+
+const DECLINED_KEY = "opentide.agents.writeEditorConfig.declined";
+
+/**
+ * Kiro, Devin Desktop, Windsurf: keep the extension's entry in the editor's user-level MCP file current. An
+ * entry the extension wrote is rewritten when its command or the extension's version changed; a new one is
+ * written only after the user agrees (`opentide.agents.writeEditorConfig`: ask, always or never); the user's own
+ * `opentide` entry and every other server are never touched.
+ */
+function maintainForkEntry(ctx: FeatureContext, target: ForkTarget): void {
+  const log = new McpDecisionLog();
+  let asked = false;
+  const told = new Set<string>();
+  let lastProblem: string | undefined;
+  let running = Promise.resolve();
+  const apply = () => {
+    running = running.then(async () => {
+      const mode = readSetting<string>("opentide.agents.writeEditorConfig") ?? "ask";
+      if (mode === "never") return;
+      const decision = await decideNow(ctx, log, { forFile: true });
+      if (!decision.provide) return;
+      // Once per version: the entry runs the bundled bridge because the installed opentide is too old for this editor.
+      if (decision.bridgeInstead && !told.has(decision.bridgeInstead.nativeVersion)) {
+        told.add(decision.bridgeInstead.nativeVersion);
+        void vscode.window.showInformationMessage(
+          `${target.editor}: ${bridgeInsteadText(decision.bridgeInstead)}.`,
+        );
+      }
+      const existing = await readFileOrUndefined(target.file);
+      // A file the extension cannot read is not offered an entry: say so once, in the log, and leave it.
+      const problem = configProblem(existing);
+      if (problem !== undefined) {
+        if (problem !== lastProblem) ctx.log.warn(`agents: ${target.file} ${problem}: left unchanged`);
+        lastProblem = problem;
+        return;
+      }
+      lastProblem = undefined;
+      const ours = hasOurEntry(existing);
+      if (!ours) {
+        if (mode !== "always") {
+          if (asked || ctx.extension.globalState.get<boolean>(DECLINED_KEY)) return;
+          asked = true;
+          const shown = target.file.replace(os.homedir(), "~");
+          const choice = await vscode.window.showInformationMessage(
+            `${target.editor}'s agent reads MCP servers from ${shown}, not from extensions. Add the opentide MCP server to it?`,
+            "Add",
+            "Not now",
+            "Never",
+          );
+          if (choice === "Never") await ctx.extension.globalState.update(DECLINED_KEY, true);
+          if (choice !== "Add") return;
+        }
+      }
+      await writeForkEntry(ctx, target, await forkEntryOf(ctx, target, decision), ours ? "refresh" : "add");
+    });
+  };
+  ctx.subscriptions.push(...onMcpInputsChanged(ctx, apply));
+  apply();
+}
+
+async function writeForkEntry(
+  ctx: FeatureContext,
+  target: ForkTarget,
+  entry: ReturnType<typeof entryOf>,
+  why: "add" | "refresh",
+): Promise<"written" | "same" | "refused"> {
+  const shown = target.file.replace(os.homedir(), "~");
+  const existing = await readFileOrUndefined(target.file);
+  const merged = mergeMcpEntry(existing, entry);
+  if (merged.kind === "same") return "same";
+  if (merged.kind === "foreign") {
+    ctx.log.info(`agents: ${shown} has an opentide server the extension did not write: left unchanged`);
+    if (why === "add")
+      void vscode.window.showInformationMessage(
+        `${shown} already defines an opentide server of your own: left unchanged. Remove it to let the extension manage one.`,
+      );
+    return "refused";
+  }
+  if (merged.kind === "error") {
+    ctx.log.warn(`agents: ${shown} ${merged.error}: left unchanged`);
+    void vscode.window.showErrorMessage(
+      `${shown} ${merged.error}; left unchanged. Add opentide to it by hand.`,
+    );
+    return "refused";
+  }
+  try {
+    await fs.promises.mkdir(path.dirname(target.file), { recursive: true });
+    await fs.promises.writeFile(target.file, merged.text, "utf8");
+  } catch (error) {
+    ctx.log.warn(`agents: could not write ${target.file}: ${String(error)}`);
+    void vscode.window.showErrorMessage(`Could not write ${shown}: ${String(error)}`);
+    return "refused";
+  }
+  ctx.log.info(
+    `agents: ${why === "add" ? "added" : "refreshed"} opentide (${entry.command}) in ${target.file}`,
+  );
+  return "written";
+}
+
+/** The command: write the entry now, after confirming it, whatever the setting says. */
 async function addToForkMcp(ctx: FeatureContext): Promise<void> {
-  const target = forkTarget(vscode.env.appName, os.homedir());
+  const target = forkTarget(
+    vscode.env.appName,
+    os.homedir(),
+    process.platform,
+    undefined,
+    vscode.env.uriScheme,
+  );
   if (!target) {
     void vscode.window.showInformationMessage(
       "This editor gets the opentide MCP server from the extension itself; there is nothing to add.",
@@ -226,41 +493,59 @@ async function addToForkMcp(ctx: FeatureContext): Promise<void> {
     );
     return;
   }
-  const runtime = await ctx.runtime.ready();
-  if (!hasCli(runtime)) {
-    void vscode.window
-      .showWarningMessage("No opentide runtime to run the MCP server with.", "Switch Runtime…")
-      .then((picked) => picked && vscode.commands.executeCommand("opentide.switchRuntime"));
+  const decision = await decideNow(ctx, undefined, { forFile: true, explicit: true });
+  if (!decision.provide) {
+    void vscode.window.showWarningMessage(`The opentide MCP server is not available: ${decision.reason}.`);
     return;
   }
-  const { command, args } = cliCommand(runtime, ["mcp", "start"]);
-  const env: Record<string, string> = { ...runtime.env };
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the editor expands it, not JavaScript
-  if (target.workspaceVariable) env.OPENTIDE_REPO_ROOT = "${workspaceFolder}";
-  const existing = await fs.promises.readFile(target.file, "utf8").catch(() => undefined);
-  const merged = mergeMcpEntry(existing, { command, args, env });
+  const entry = await forkEntryOf(ctx, target, decision);
   const shown = target.file.replace(os.homedir(), "~");
-  if ("error" in merged) {
-    void vscode.window.showErrorMessage(
-      `${shown} ${merged.error}; left unchanged. Add opentide to it by hand.`,
-    );
-    return;
-  }
   const picked = await vscode.window.showInformationMessage(
-    `Add opentide to ${target.editor}'s MCP settings (${shown})? It runs ${path.basename(command)} from ${path.dirname(command)}.`,
+    `Add opentide to ${target.editor}'s MCP settings (${shown})? It runs ${path.basename(entry.command)} with the extension's bridge.`,
     "Add",
   );
   if (picked !== "Add") return;
+  if ((await writeForkEntry(ctx, target, entry, "add")) === "refused") return;
+  await ctx.extension.globalState.update(DECLINED_KEY, undefined);
+  const open = await vscode.window.showInformationMessage(`Added opentide to ${shown}.`, "Open File");
+  if (open) await vscode.window.showTextDocument(vscode.Uri.file(target.file));
+}
+
+/** The command: remove the extension's entry, and only that. */
+async function removeFromForkMcp(ctx: FeatureContext): Promise<void> {
+  const target = forkTarget(
+    vscode.env.appName,
+    os.homedir(),
+    process.platform,
+    undefined,
+    vscode.env.uriScheme,
+  );
+  if (!target) return;
+  const shown = target.file.replace(os.homedir(), "~");
+  const existing = await readFileOrUndefined(target.file);
+  const removal = removeMcpEntry(existing);
+  if (removal.kind === "error") {
+    ctx.log.warn(`agents: ${shown} ${removal.error}: left unchanged`);
+    void vscode.window.showErrorMessage(
+      `${shown} ${removal.error}; left unchanged. Remove opentide from it by hand.`,
+    );
+    return;
+  }
+  if (removal.kind === "none") {
+    void vscode.window.showInformationMessage(`${shown} has no opentide entry the extension wrote.`);
+    return;
+  }
   try {
-    await fs.promises.mkdir(path.dirname(target.file), { recursive: true });
-    await fs.promises.writeFile(target.file, merged.text, "utf8");
+    await fs.promises.writeFile(target.file, removal.text, "utf8");
   } catch (error) {
+    ctx.log.warn(`agents: could not write ${target.file}: ${String(error)}`);
     void vscode.window.showErrorMessage(`Could not write ${shown}: ${String(error)}`);
     return;
   }
-  ctx.log.info(`added opentide (${command}) to ${target.file}`);
-  const open = await vscode.window.showInformationMessage(`Added opentide to ${shown}.`, "Open File");
-  if (open) await vscode.window.showTextDocument(vscode.Uri.file(target.file));
+  // So the extension does not write it again unasked.
+  await ctx.extension.globalState.update(DECLINED_KEY, true);
+  ctx.log.info(`agents: removed the extension's opentide entry from ${target.file}`);
+  void vscode.window.showInformationMessage(`Removed the extension's opentide entry from ${shown}.`);
 }
 
 function plain(diagnostic: vscode.Diagnostic): PlainDiagnostic {

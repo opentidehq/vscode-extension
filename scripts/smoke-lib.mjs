@@ -51,6 +51,39 @@ export function checkEngineInitialize(response, version, exitCode) {
   return errors;
 }
 
+/**
+ * The MCP bridge (dist/mcp-wasi.js) answers a client as the module's `mcp start` does: `initialize` as opentide,
+ * `tools/list` with its tools, and not one line on stdout that is no JSON-RPC message of the server's
+ * (`lines`, as written; the private link's `opentide/fetch` never reaches the editor).
+ */
+export function checkMcpBridge(lines, exitCode) {
+  const errors = [];
+  const messages = [];
+  for (const line of lines) {
+    try {
+      messages.push(JSON.parse(line));
+    } catch {
+      errors.push(`the MCP bridge wrote a line that is no JSON: ${line.slice(0, 120)}`);
+    }
+  }
+  for (const message of messages) {
+    if (message?.jsonrpc !== "2.0" || String(message?.method ?? "").startsWith("opentide/"))
+      errors.push(
+        `the MCP bridge wrote ${JSON.stringify(message).slice(0, 120)}, no message of an MCP server`,
+      );
+  }
+  const initialize = messages.find((message) => message?.id === 1);
+  if (initialize?.result?.serverInfo?.name !== "opentide")
+    errors.push(
+      `MCP initialize did not answer as opentide: ${String(JSON.stringify(initialize)).slice(0, 200)}`,
+    );
+  const tools = messages.find((message) => message?.id === 2)?.result?.tools;
+  if (!Array.isArray(tools) || !tools.some((tool) => tool?.name === "search"))
+    errors.push("MCP tools/list has no `search` tool");
+  if (exitCode !== 0) errors.push(`the MCP bridge exited with ${exitCode} after its input ended`);
+  return errors;
+}
+
 /** The WASI module's files in an unpacked package (`exists` takes a path relative to the extension folder). */
 export function checkWasiPackage(exists) {
   // The licence set ships with the module it belongs to (pins.json wasi.licences).
@@ -63,6 +96,8 @@ export function checkWasiPackage(exists) {
     "dist/wasi/LICENSE",
     "dist/wasi/NOTICE",
     "dist/wasi/THIRD-PARTY-DATA-LICENSES.txt",
+    "dist/mcp-wasi.js",
+    "dist/mcp-launcher.js",
   ]
     .filter((file) => !exists(file))
     .map((file) => `the package has no ${file}`);

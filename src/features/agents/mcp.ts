@@ -1,7 +1,9 @@
 // The opentide MCP server VS Code's agents get from the extension (SPEC §12): when to provide it, and the
 // stdio definition. vscode-free; index.ts makes the vscode.McpStdioServerDefinition.
+import * as path from "node:path";
 import type { Runtime } from "../../core/runtime/types";
-import { cliCommand, hasCli } from "../../core/runtime/types";
+import { cliCommand, hasCli, isWasi } from "../../core/runtime/types";
+import { atLeast, isUntaggedDevBuild } from "../../core/runtime/version";
 import { parseJsonc } from "./jsonc";
 
 /**
@@ -264,6 +266,8 @@ export interface McpServerPlan {
   readonly env: Readonly<Record<string, string>>;
   /** The opentide version: a new one makes VS Code read the server's tools again. */
   readonly version: string;
+  /** It runs the extension's bundled bridge (`dist/mcp-wasi.js`), not an installed opentide's `mcp start`. */
+  readonly bridge: boolean;
 }
 
 export type McpDecision =
@@ -272,6 +276,8 @@ export type McpDecision =
       readonly server: McpServerPlan;
       /** Why the server has {@link MCP_SEPARATE_LABEL}: the workspace entry VS Code would keep cannot start. */
       readonly note?: string;
+      /** The bridge runs instead of an installed opentide too old for a user-level MCP file (#97). */
+      readonly bridgeInstead?: { readonly nativeVersion: string; readonly minimum: string };
     }
   /** `pending`: the answer is not known yet (the runtime's command tree is still loading). */
   | { readonly provide: false; readonly reason: string; readonly pending?: true };
@@ -288,8 +294,55 @@ export interface WorkspaceEntry {
   readonly order: number;
 }
 
+/**
+ * The bundled MCP bridge (dist/mcp-wasi.js, SPEC §12): the editor's own Node running the script that runs the
+ * WASI module's `mcp start` and makes its tenant requests. Undefined where the build carries no module or
+ * bridge, or `opentide.wasi.enabled` is off.
+ */
+export interface McpBridge {
+  /** `process.execPath`, run with `ELECTRON_RUN_AS_NODE=1`. */
+  readonly command: string;
+  /** `[<extension>/dist/mcp-wasi.js]`. */
+  readonly args: readonly string[];
+  readonly env: Readonly<Record<string, string>>;
+  /** The module's version: a new one makes the editor read the server's tools again. */
+  readonly version: string;
+}
+
+/** The bridge for an extension folder: its script and module must be there. */
+export function mcpBridge(
+  extensionPath: string,
+  execPath: string,
+  wasi: { readonly version: string } | undefined,
+  exists: (file: string) => boolean,
+  enabled: boolean,
+): McpBridge | undefined {
+  if (!wasi || !enabled) return undefined;
+  const script = path.join(extensionPath, "dist", "mcp-wasi.js");
+  if (!exists(script)) return undefined;
+  return { command: execPath, args: [script], env: { ELECTRON_RUN_AS_NODE: "1" }, version: wasi.version };
+}
+
+/**
+ * The first opentide whose MCP `tools/list` carries `resultType`: Kiro rejects the list of an older one (1.0.0rc2), so
+ * a user-level MCP file (Kiro, Devin Desktop, Windsurf) gets the bundled bridge, which runs the pinned module, instead
+ * of an installed opentide older than this (#97).
+ */
+export const MIN_NATIVE_MCP_FOR_FILES = "1.0.0rc3";
+
+/** Whether an installed opentide's own `mcp start` is too old for the editors that read a user-level MCP file. */
+export function nativeMcpTooOldForFiles(version: string): boolean {
+  // An untagged dev build says nothing about its age: it is not second-guessed.
+  return !isUntaggedDevBuild(version) && !atLeast(version, MIN_NATIVE_MCP_FOR_FILES);
+}
+
 export interface McpInputs {
   readonly trusted: boolean;
+  /**
+   * The window has no opentide folder (and no opentide file open): nothing is provided, so no agent starts a server
+   * that could only answer `workspace_not_found`, and the runtime is not resolved for it (#96). The caller sets it.
+   */
+  readonly dormant?: boolean;
   readonly mode: ProvideMode;
   readonly runtime: Runtime | undefined;
   /** The active opentide has `mcp start`; undefined while its command tree has not loaded yet. */
@@ -306,16 +359,38 @@ export interface McpInputs {
   readonly workspaceEntries: readonly WorkspaceEntry[];
   /** VS Code's `http.proxy`. */
   readonly proxy?: string;
+  /** The bundled bridge, when this build and settings have one. */
+  readonly bridge?: McpBridge | undefined;
+  /**
+   * The decision is for a user-level MCP file (Kiro, Devin Desktop, Windsurf), not for an editor API: an installed
+   * opentide older than {@link MIN_NATIVE_MCP_FOR_FILES} is replaced by the bridge when there is one.
+   */
+  readonly forFile?: boolean;
 }
 
 /** Whether to provide the server, how it starts and its label. Nothing in Restricted Mode (SPEC §12, §13). */
 export function decideMcp(inputs: McpInputs): McpDecision {
   if (!inputs.trusted) return { provide: false, reason: "Restricted Mode" };
   if (inputs.mode === "never") return { provide: false, reason: "opentide.mcp.provide is never" };
-  if (!hasCli(inputs.runtime)) return { provide: false, reason: "no opentide runtime with commands" };
-  if (inputs.hasMcpStart === undefined)
-    return { provide: false, reason: "the command tree is loading", pending: true };
-  if (!inputs.hasMcpStart) return { provide: false, reason: "the active opentide has no `mcp start`" };
+  if (inputs.dormant) return { provide: false, reason: "no opentide folder in this window" };
+  // The runtime says which: with `opentide.runtime` bundled (the default) the module is the runtime and every
+  // editor gets the bridge; with `installed` a native opentide is the runtime and runs its own `mcp start`.
+  const native = hasCli(inputs.runtime) && !isWasi(inputs.runtime);
+  const tooOld =
+    inputs.forFile === true && native && inputs.runtime !== undefined
+      ? nativeMcpTooOldForFiles(inputs.runtime.version)
+      : false;
+  const bridge = inputs.bridge && (!native || tooOld) ? inputs.bridge : undefined;
+  const bridgeInstead =
+    bridge && tooOld && inputs.runtime
+      ? { nativeVersion: inputs.runtime.version, minimum: MIN_NATIVE_MCP_FOR_FILES }
+      : undefined;
+  if (!bridge) {
+    if (!hasCli(inputs.runtime)) return { provide: false, reason: "no opentide runtime with commands" };
+    if (inputs.hasMcpStart === undefined)
+      return { provide: false, reason: "the command tree is loading", pending: true };
+    if (!inputs.hasMcpStart) return { provide: false, reason: "the active opentide has no `mcp start`" };
+  }
   if (!inputs.folder) return { provide: false, reason: "no workspace folder" };
   // The entries VS Code may keep of every `opentide` (MCP_LABEL): deferring to one that cannot start
   // would leave the agents a server that fails with ENOENT, and sharing its label would get ours disabled.
@@ -327,21 +402,30 @@ export function decideMcp(inputs: McpInputs): McpDecision {
     return { provide: false, reason: `${kept.file} already defines opentide` };
   const separate = broken !== undefined;
   const runtime = inputs.runtime;
-  const { command, args } = cliCommand(runtime, ["mcp", "start"]);
+  const started = bridge
+    ? { command: bridge.command, args: [...bridge.args], env: bridge.env, version: bridge.version }
+    : runtime && {
+        ...cliCommand(runtime, ["mcp", "start"]),
+        env: runtime.env,
+        version: runtime.version,
+      };
+  if (!started) return { provide: false, reason: "no opentide runtime with commands" };
   return {
     provide: true,
     server: {
       label: separate ? MCP_SEPARATE_LABEL : MCP_LABEL,
-      command,
-      args,
+      command: started.command,
+      args: started.args,
       cwd: inputs.folder,
       env: {
-        ...runtime.env,
+        ...started.env,
         OPENTIDE_REPO_ROOT: inputs.folder,
         ...(inputs.proxy ? { OPENTIDE_PROXY: inputs.proxy } : {}),
       },
-      version: runtime.version,
+      version: started.version,
+      bridge: bridge !== undefined,
     },
+    ...(bridgeInstead ? { bridgeInstead } : {}),
     ...(broken
       ? {
           note: `${broken.file}'s opentide server runs \`${broken.command}\`, which is not found, and VS Code keeps one server named opentide`,
@@ -361,14 +445,25 @@ export class McpDecisionLog {
 
   line(decision: McpDecision): string | undefined {
     if (!decision.provide && decision.pending) return undefined;
-    const key = decision.provide ? `provided ${decision.note ?? ""}` : decision.reason;
+    const key = decision.provide
+      ? `provided ${decision.note ?? ""} ${decision.bridgeInstead?.nativeVersion ?? ""}`
+      : decision.reason;
     if (key === this.last) return undefined;
     const said = this.last;
     this.last = key;
+    if (decision.provide && decision.bridgeInstead) return bridgeInsteadText(decision.bridgeInstead);
     if (decision.provide && decision.note)
       return `MCP server provided as "${decision.server.label}": ${decision.note}`;
     if (decision.provide)
       return said === undefined ? undefined : `MCP server provided: ${decision.server.command}`;
     return `MCP server not provided: ${decision.reason}`;
   }
+}
+
+/** The log line, and the notice, for the bridge standing in for an installed opentide too old for a user-level file. */
+export function bridgeInsteadText(because: { nativeVersion: string; minimum: string }): string {
+  return (
+    `MCP: the user-level MCP file gets the bundled bridge, not the installed opentide ${because.nativeVersion}: ` +
+    `its tool list lacks resultType, which Kiro rejects. Upgrade opentide to ${because.minimum} or later to use it there`
+  );
 }
