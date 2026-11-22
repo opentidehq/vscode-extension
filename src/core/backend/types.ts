@@ -73,13 +73,45 @@ export class BackendError extends Error {
   }
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Why `value` is not a usable `--json` envelope, or undefined when it is: the first field that has the wrong shape. */
+export function envelopeProblem(value: unknown): string | undefined {
+  if (!isRecord(value)) return "is not a JSON object";
+  if (typeof value.exit_code !== "number" || !Number.isFinite(value.exit_code))
+    return "has no numeric exit_code";
+  const typed: [string, (v: unknown) => boolean, string][] = [
+    ["ok", (v) => typeof v === "boolean", "a boolean"],
+    ["status", (v) => typeof v === "string", "a string"],
+    ["message", (v) => typeof v === "string", "a string"],
+    ["command", (v) => typeof v === "string", "a string"],
+    ["schema_version", (v) => typeof v === "number", "a number"],
+    ["duration_ms", (v) => typeof v === "number", "a number"],
+    ["summary", isRecord, "an object"],
+    ["next_actions", Array.isArray, "an array"],
+  ];
+  for (const [key, check, what] of typed)
+    if (value[key] !== undefined && !check(value[key])) return `has a ${key} that is not ${what}`;
+  const failure = value.failure;
+  if (failure !== undefined && failure !== null) {
+    if (!isRecord(failure)) return "has a failure that is neither null nor an object";
+    if (typeof failure.code !== "string") return "has a failure with no string code";
+    if (typeof failure.message !== "string") return "has a failure with no string message";
+    for (const key of ["argument", "suggestion", "crash_log"])
+      if (failure[key] !== undefined && failure[key] !== null && typeof failure[key] !== "string")
+        return `has a failure whose ${key} is not a string`;
+  }
+  return undefined;
+}
+
+/**
+ * An envelope with its shape checked in full: `exit_code` is a number and every field the callers read (`failure.code`,
+ * `message`, `summary`, …) has the type it is declared with when it is present. A document that fails this is not
+ * used: see `envelopeProblem` for why.
+ */
 export function isEnvelope(value: unknown): value is Envelope {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    typeof (value as { exit_code?: unknown }).exit_code === "number"
-  );
+  return envelopeProblem(value) === undefined;
 }
 
 /** The document a cancelled run gets when the process printed none. */

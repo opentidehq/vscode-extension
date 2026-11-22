@@ -11,8 +11,11 @@ and others through Open VSX).
 
 It runs the opentide you install (`pip install opentide`): the repository's `.venv`, the Python
 extension's interpreter, `opentide` on `PATH`, or `opentide.path`, so the editor checks what CI checks.
-Where the `opentide` command cannot run, it runs `python -m opentide`. With no opentide at all, the
-opentide engine (WASM) it carries still gives the editor features.
+Where the `opentide` command cannot run, it runs `python -m opentide`. With no opentide at all, it runs
+the opentide module it carries (opentide's own command line, compiled to WebAssembly), so the commands, the
+language server and MCP run with nothing installed. Tenant requests are the one thing it cannot make itself
+(WebAssembly has no network): the extension makes them for the editor and for MCP, and a terminal or task has
+none ([what runs where](#the-bundled-opentide-what-runs-where)).
 
 ![The Relations view following an objective: what it covers, its signals and technique, and the rules that implement it](docs/images/relations.png)
 
@@ -47,8 +50,12 @@ Then install opentide (Python 3.10 or later) where the repository's checks run:
 pip install opentide
 ```
 
-`uv tool install opentide`, or a `.venv` with opentide in it, works too. One package serves every
-platform: the extension carries no Python and no opentide of its own.
+`uv tool install opentide`, or a `.venv` with opentide in it, works too. With no opentide installed, the
+extension runs the opentide it carries (about 7 MiB, one for every platform), with nothing else to install:
+VS Code's own Node runs it, or the
+[WASM WASI Core](https://marketplace.visualstudio.com/items?itemName=ms-vscode.wasm-wasi-core) extension
+when you have it. The module has no network of its own: the extension makes its tenant
+requests (query, deploy, `validate --live`), through VS Code's proxy settings and certificate store.
 
 ## Features
 
@@ -344,20 +351,48 @@ are not checked.
 
 ## Runtime
 
-The first that answers wins:
+The bundled opentide runs by default (`opentide.runtime`: **bundled**): opentide's own command line compiled to
+WebAssembly, which the package carries. The language server, the catalogue, the commands and MCP work with
+nothing installed, everyone on the same version, and an opentide on `PATH` or in the workspace's environment
+is not used. Tenant requests are made by the extension ([what runs where](#the-bundled-opentide-what-runs-where)).
+
+To run your own opentide, set `opentide.runtime` to **installed**, or set `opentide.path` (which selects
+**installed** unless `opentide.runtime` is set). The first that answers wins:
 
 1. `opentide.path`: an `opentide` executable, or `opentide-lsp` for editor features only.
 2. The workspace's environment: `opentide.interpreter`, the Python Environments or Python extension's
    interpreter, `.venv`, `opentide` on `PATH`, then `python` on `PATH` (`python3`, or `python` and
    `py -3` on Windows). For an interpreter, the `opentide` command beside it, else `python -m opentide`.
 3. With `opentide.uv.usePin`: `uv tool run --from opentide==<pin>` (tried before tier 2).
-4. The opentide engine (WASM): the language server built for WebAssembly, which the package carries.
+
+If none answers, the bundled opentide runs and the output channel says so (once, also as a notification): nothing
+falls through silently. The last resort is the opentide engine (tier 5): the language server built for
+WebAssembly, for the editor features, where the bundled module is turned off (`opentide.wasi.enabled`) or cannot
+run, and in Restricted Mode.
+
+The output channel's line `runtime: opentide <version> (tier N · <source>) … [<why>]` says which runtime runs and
+why: `opentide.runtime` set, `opentide.path` set, or the default.
+
+#### The bundled opentide: what runs where
+
+The module has no network of its own, so a command that contacts a tenant needs the extension to make the HTTP
+request (through VS Code's proxy settings and certificate store). Which surface can:
+
+| | The editor (palette, sidebar, panels, CodeLens) | MCP (an agent) | A terminal or a task |
+|-|-|-|-|
+| Search, validate, lint, new, the catalogue, a query's check, a deploy's **dry run** | yes | yes | yes |
+| Tenant commands: `query`, `deploy` without `--dry-run`, `validate query --live`; MCP's `run_query`, `validate_query` with `live`, `deploy_rule` without `dry_run` | yes: the extension makes each request | yes, through the extension's MCP bridge (`dist/mcp-wasi.js`), **with a module that supports it: opentide 1.0.0-rc.3 or later**; with an older module they fail with `network_unavailable` | no: `network_unavailable`; install opentide to run them there |
+
+An opentide you install (`opentide.runtime`: installed) has the network and does all of it everywhere, and runs the terminal UI (`opentide tui`), which the bundled one does not.
 
 The opentide output channel lists each tier's answer: an `opentide` a policy blocks shows as failed,
 then `python -m opentide` as used. To choose the interpreter yourself, set `opentide.interpreter`.
 
-The engine is what runs where nothing else does: no opentide installed, or one that does not start.
-It gives the editor features with nothing installed: diagnostics, hover, completion, semantic
+The bundled module has no network of its own, so a tenant command run as a task or in a terminal fails there, and
+`opentide tui` does not run: the extension says so and offers **Switch Runtime…** (**My installed opentide**).
+
+The engine (tier 5) is what runs where nothing else does: Restricted Mode, the module turned off or
+unable to run (the WASM WASI Core extension missing). It gives the editor features: diagnostics, hover, completion, semantic
 tokens, quick fixes, go to definition, references, the outline, and, from its index of the workspace,
 the Catalogue, Relations, the graph and Find Detection. The status bar then reads **opentide engine
 (WASM): editor features only**. Everything that runs opentide (validate and lint, new objects, deploy
@@ -368,18 +403,21 @@ it never blocks the editor, and reads the workspace's object files through VS Co
 
 ## Restricted Mode
 
-In an untrusted folder only the opentide engine (WASM) runs, for the editor features: no process
-starts, and no setting that names an executable is read. Commands, tasks, panels, MCP and the
+In an untrusted folder only the opentide engine (WASM) runs, for the editor features: no opentide runs
+(the bundled module included), and no setting that names an executable is read. Commands, tasks, panels, MCP and the
 workspace's opentide need a trusted folder.
 
 ## Settings
 
 | Setting | Default | |
 |---------|---------|-|
-| `opentide.path` | | An `opentide` or `opentide-lsp` executable, used before any other runtime (machine-overridable, not synced) |
+| `opentide.runtime` | `bundled` | `bundled`: the opentide the extension carries. `installed`: your own (`opentide.path`, the workspace's environment, `uv`, `PATH`), the bundled one if none answers. A set `opentide.path` selects `installed` (machine-overridable, not synced; a workspace value applies in a trusted folder only) |
+| `opentide.path` | | An `opentide` or `opentide-lsp` executable; setting it selects the installed opentide, and it is tried before the other installed runtimes (machine-overridable, not synced) |
 | `opentide.interpreter` | | A Python interpreter with opentide installed, run as its `opentide` command or `python -m opentide`, in place of the environment lookup (machine-overridable, not synced) |
 | `opentide.uv.usePin` | `false` | Run the repository's pinned opentide with `uv tool run`, before the workspace's environment |
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
+| `opentide.diagnostics.workspacePull` | `auto` | Whether VS Code asks the language server for the problems of closed files. `auto` skips it for an opentide older than 1.0.0rc3, whose server stalls completion re-analysing them: those problems then leave the Problems panel (open files keep theirs, `opentide validate` still reports the workspace) |
+| `opentide.wasi.enabled` | `true` | Allow the bundled opentide; off: your own opentide if one answers, else the engine's editor features only |
 | `opentide.envFile` | | A `.env` file whose variables reach commands that contact a tenant |
 | `opentide.backend.serve` | `auto` | `auto` (one warm `opentide serve`) or `never` (spawn each command) |
 | `opentide.trace.server` | `off` | Language server protocol trace: `off`, `messages` or `verbose` |

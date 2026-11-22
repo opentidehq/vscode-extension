@@ -7,7 +7,7 @@
 #   prepare      the version is CHANGELOG.md's newest dated section (scripts/release.mjs); the notes PR
 #                merged ([Unreleased] is empty, package.json has the version) and its tag does not exist
 #   universal    the one package, for every platform and the web: the extension runs the user's own
-#                opentide and carries no runtime
+#                opentide, else the WASI module it carries, and carries no Python runtime
 #   attest       the VSIX is this version and channel; SHA256SUMS; build provenance
 #                (public repository, or the repository variable ATTEST=true on GitHub Enterprise Cloud;
 #                otherwise a warning, and the release goes out with SHA256SUMS only)

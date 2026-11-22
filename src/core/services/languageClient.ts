@@ -1,8 +1,10 @@
 // One language client per window (#5): `opentide lsp start` (or `opentide-lsp --stdio`) from the runtime,
-// or the engine built for WebAssembly in a worker thread, fed the workspace through VS Code (tier 4).
+// the same command in the WASI module under @vscode/wasm-wasi (tier 4), or the engine built for WebAssembly
+// in a worker thread, fed the workspace through VS Code (tier 5).
 // Pulled diagnostics stay on and nothing handles `publishDiagnostics`, so each finding shows once; the
 // server's refresh requests (diagnostics, semantic tokens, inlay hints, code lenses) are honoured by
 // vscode-languageclient itself.
+import * as fs from "node:fs";
 import * as vscode from "vscode";
 import {
   type Executable,
@@ -14,6 +16,7 @@ import {
 } from "vscode-languageclient/node";
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
+import { directThenHost } from "../../engine/reader";
 import { EngineSync, initializationOptions, type SyncAction } from "../../engine/sync";
 import { type EnginePort, engineTransports } from "../../engine/transport";
 import type { WorkspaceDelta } from "../../engine/workspace";
@@ -26,12 +29,18 @@ import {
   forwardNotification,
   readServerInfo,
 } from "../lsp";
+import { skipWorkspacePull, workspacePullSetting } from "../runtime/diagnostics";
 import { processEnv } from "../runtime/env";
 import { type Fallback, type ServerStart, startWithFallback } from "../runtime/fallback";
 import { languageServerCommand, type Runtime } from "../runtime/types";
 import { Emitter } from "../util/event";
 import { SerialQueue } from "../util/serial";
 import { startEngineWorker } from "./engine";
+import { RecentFileEvents } from "./fileEventDedupe";
+import { FirstPullGuard } from "./firstPull";
+import { TraceChannel } from "./traceChannel";
+import type { WasiHost, WasiLanguageServer } from "./wasi";
+import { SERVER_WATCH_GLOBS } from "./watchGlobs";
 
 /** How long after the last file change the engine is restarted with the new workspace. */
 const ENGINE_RESTART_MS = 1000;
@@ -61,16 +70,15 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private readonly outputChannel = vscode.window.createOutputChannel("opentide Language Server", {
     log: true,
   });
-  private readonly traceChannel = vscode.window.createOutputChannel("opentide Language Server Trace", {
-    log: true,
-  });
+  // Its level follows `opentide.trace.server` (traceChannel.ts): a plain log channel left the trace empty.
+  private readonly traceChannel = new TraceChannel("opentide Language Server Trace");
   private readonly disposables: vscode.Disposable[] = [];
   /**
    * One watcher for every client this manager starts: vscode-languageclient disposes only the listeners
    * it hooks on `synchronize.fileEvents`, never the watcher, so one per start leaked a recursive watcher
    * on each restart.
    */
-  private fileEvents: vscode.FileSystemWatcher | undefined;
+  private fileEvents: vscode.FileSystemWatcher[] | undefined;
 
   readonly onDidChange = this.emitter.event;
   private readonly catalogChanged = new Emitter<CatalogChanged>();
@@ -92,14 +100,26 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private readonly staleWhileOpen = new Set<string>();
 
   private lastFallback: Fallback | undefined;
+  /** The WASI module's language server, while it runs. */
+  private wasiServer: WasiLanguageServer | undefined;
 
   constructor(
     private readonly log: Logger,
     engineFolders: () => readonly FeedFolder[] = () => [],
     /** The engine's runtime, when the extension carries one: the fallback for a server that does not start. */
     private readonly engineRuntime: (restricted: boolean) => Runtime | undefined = () => undefined,
+    /** Runs `opentide lsp start` for a WASI runtime, in the extension host. */
+    private readonly wasi: WasiHost | undefined = undefined,
   ) {
-    this.feed = new WorkspaceFeed(engineFolders, (message) => this.log.warn(message));
+    this.feed = new WorkspaceFeed(
+      engineFolders,
+      (message) => this.log.warn(message),
+      // Desktop: a `file:` folder is read from the disk directly, not through the host's per-file round trip.
+      directThenHost(
+        (fsPath) => fs.promises.readFile(fsPath),
+        (uri) => vscode.workspace.fs.readFile(uri),
+      ),
+    );
     this.disposables.push(
       vscode.commands.registerCommand("opentide.showReferences", (...args: unknown[]) =>
         this.showReferences(args),
@@ -111,10 +131,14 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     );
   }
 
-  private watcher(): vscode.FileSystemWatcher {
+  /**
+   * What the server reads from disk: the object files, `.opentide/configurations` and the deployment state shards
+   * (watchGlobs.ts). Not the rest of `.opentide/`, which the extension's own runs write by the thousand.
+   */
+  private watcher(): vscode.FileSystemWatcher[] {
     if (!this.fileEvents) {
-      this.fileEvents = vscode.workspace.createFileSystemWatcher("**/{objects,.opentide}/**");
-      this.disposables.push(this.fileEvents);
+      this.fileEvents = SERVER_WATCH_GLOBS.map((glob) => vscode.workspace.createFileSystemWatcher(glob));
+      this.disposables.push(...this.fileEvents);
     }
     return this.fileEvents;
   }
@@ -184,6 +208,59 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     return this.client;
   }
 
+  /**
+   * `workspace/diagnostic` answered with nothing, for a server older than the fix (diagnostics.ts) or when
+   * `opentide.diagnostics.workspacePull` says never. Read at each pull, so the setting needs no restart.
+   */
+  private diagnosticsMiddleware(runtime: Runtime): LanguageClientOptions["middleware"] {
+    let said = false;
+    const recent = new RecentFileEvents();
+    const firstPull = new FirstPullGuard();
+    return {
+      // A pull for a document can overtake its didOpen after a restart; the server answers empty and the client keeps it
+      // (firstPull.ts). The guard learns from these two and asks once more after the didOpen.
+      didOpen: async (document, next) => {
+        await next(document);
+        firstPull.opened(document.uri.toString());
+      },
+      didClose: async (document, next) => {
+        await next(document);
+        firstPull.closed(document.uri.toString());
+      },
+      provideDiagnostics: (document, previousResultId, token, next) =>
+        firstPull.provide(
+          ("uri" in document ? document.uri : document).toString(),
+          async () => (await next(document, previousResultId, token)) ?? undefined,
+          (report) => report?.kind === "full" && report.items.length === 0,
+          async () => (await next(document, undefined, token)) ?? undefined,
+          () => token.isCancellationRequested,
+        ),
+      // The client's own watchers and any the server registers can cover the same file: one event reaches the server.
+      workspace: {
+        didChangeWatchedFile: (event, next) =>
+          recent.isDuplicate(event.uri, event.type) ? Promise.resolve() : next(event),
+      },
+      provideWorkspaceDiagnostics: (resultIds, token, reporter, next) => {
+        const setting = workspacePullSetting(
+          vscode.workspace.getConfiguration("opentide.diagnostics").get<string>("workspacePull"),
+        );
+        if (!skipWorkspacePull(setting, runtime.version)) return next(resultIds, token, reporter);
+        if (!said) {
+          said = true;
+          this.log.info(
+            `language server: not pulling the diagnostics of closed files (opentide ${runtime.version}, ` +
+              `opentide.diagnostics.workspacePull ${setting}): ${
+                setting === "never"
+                  ? "the setting is never"
+                  : "that version re-analyses every closed file on each pull; fixed in 1.0.0rc3"
+              }`,
+          );
+        }
+        return { items: [] };
+      },
+    };
+  }
+
   /** Start one runtime's language server: the process's, or the engine's in a worker thread. */
   private async startServer(
     runtime: Runtime,
@@ -196,12 +273,15 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       traceOutputChannel: this.traceChannel,
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       synchronize: { fileEvents: this.watcher() },
+      middleware: this.diagnosticsMiddleware(runtime),
     };
     const began = Date.now();
     const client =
       runtime.kind === "engine"
         ? await this.engineClient(runtime, clientOptions, reuseWorkspace)
-        : this.processClient(runtime, cwd, clientOptions);
+        : runtime.wasi && this.wasi
+          ? this.wasiClient(this.wasi, runtime, clientOptions)
+          : this.processClient(runtime, cwd, clientOptions);
     try {
       await client.start();
     } catch (error) {
@@ -209,6 +289,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       this.log.error(`language server failed to start: ${message}`);
       await client.dispose().then(undefined, () => undefined);
       this.endEngine();
+      this.endWasi();
       return { ok: false, error: message };
     }
     this.client = client;
@@ -273,6 +354,29 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   }
 
   /**
+   * `opentide lsp start` in the WASI module, in the extension host: the workspace is the module's file
+   * system, so the watcher's events go to the server as they do to a native one, and the transports map
+   * the folders' URIs to guest URIs and back (src/core/wasi/paths.ts).
+   */
+  private wasiClient(wasi: WasiHost, runtime: Runtime, clientOptions: LanguageClientOptions): LanguageClient {
+    this.log.info(`language server: opentide lsp start in the WASI module (${runtime.version})`);
+    const transports = async (): Promise<MessageTransports> => {
+      this.endWasi();
+      const server = await wasi.startLanguageServer((text) => {
+        for (const line of text.split(/\r?\n/)) if (line) this.outputChannel.debug(line);
+      });
+      this.wasiServer = server;
+      return server.transports;
+    };
+    return new LanguageClient("opentide", "opentide Language Server", transports, clientOptions);
+  }
+
+  private endWasi(): void {
+    this.wasiServer?.terminate();
+    this.wasiServer = undefined;
+  }
+
+  /**
    * The engine (WASM) in a worker thread, given the workspace on `initialize`: it has no filesystem. The
    * watcher's events go to the feed, not the server, which could only read them from a disk it has not.
    */
@@ -301,7 +405,10 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       synchronize: {},
       // Read at each initialize, the client's own restarts included: the workspace as it stands then.
       initializationOptions: initializationOptions(() => this.feed.snapshot(), this.sync),
-      middleware: { workspace: { didChangeWatchedFile: () => Promise.resolve() } },
+      middleware: {
+        ...clientOptions.middleware,
+        workspace: { didChangeWatchedFile: () => Promise.resolve() },
+      },
     });
   }
 
@@ -363,6 +470,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     this.info = undefined;
     if (!client) {
       this.endEngine();
+      this.endWasi();
       return;
     }
     this.emitter.fire(undefined);
@@ -373,6 +481,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     }
     await client.dispose().then(undefined, () => undefined);
     this.endEngine();
+    this.endWasi();
   }
 
   private async showReferences(args: unknown[]): Promise<void> {

@@ -1,5 +1,5 @@
 // The workspace the engine (WASM) indexes. It has no filesystem, so the client supplies the object files
-// and `visibility.toml` on `initialize` (`initializationOptions.workspace`, language-server docs/EDITORS.md)
+// and the configuration files on `initialize` (`initializationOptions.workspace`, language-server docs/EDITORS.md)
 // and keeps them current. vscode-free and free of Node built-ins: the desktop and the web extension share
 // it.
 
@@ -26,6 +26,18 @@ export interface WorkspaceDelta {
 
 export const VISIBILITY = ".opentide/configurations/visibility.toml";
 
+/**
+ * A folder's configuration files, which the engine reads as `validate` does in the browser (docs/EDITORS.md):
+ * `paths.toml`, whose object folders say which YAML files are objects, `visibility.toml`, the platforms'.
+ */
+export const CONFIGURATION_GLOB = ".opentide/configurations/*.toml";
+
+/** Whether a folder-relative path (forward slashes) is one of the folder's configuration files. */
+export function isConfigurationPath(relative: string): boolean {
+  const prefix = ".opentide/configurations/";
+  return relative.startsWith(prefix) && /^[^/]+\.toml$/i.test(relative.slice(prefix.length));
+}
+
 /** The folders a workspace folder's object files live in: `objects/` and each paths.toml object folder. */
 export function objectRoots(objectFolders: Readonly<Record<string, string>>): string[] {
   const roots = new Set<string>(["objects/"]);
@@ -46,8 +58,9 @@ export function objectGlob(objectFolders: Readonly<Record<string, string>>): str
   return `${base}/**/*.{yaml,yml}`;
 }
 
-/** Whether a folder-relative path (forward slashes) is an object file the engine is given. */
+/** Whether a folder-relative path (forward slashes) is an object or configuration file the engine is given. */
 export function isSuppliedPath(relative: string, objectFolders: Readonly<Record<string, string>>): boolean {
+  if (isConfigurationPath(relative)) return true;
   if (!/\.ya?ml$/i.test(relative)) return false;
   return objectRoots(objectFolders).some((root) => relative.startsWith(root));
 }

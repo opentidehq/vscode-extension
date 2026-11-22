@@ -4,7 +4,9 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { FeatureContext } from "../../core/context";
+import { bundledTerminalLimit } from "../../core/runtime/limits";
 import { cliCommand, hasCli } from "../../core/runtime/types";
+import { explainUnavailable } from "../../core/services/unavailable";
 import {
   docsFolders,
   docsIndex,
@@ -231,6 +233,11 @@ export class Palette {
     const folder = await this.prepare("tui", "Open the TUI for which folder?");
     const runtime = this.ctx.runtime.current;
     if (!folder || !hasCli(runtime)) return;
+    const limit = bundledTerminalLimit(runtime, "tui", false);
+    if (limit) {
+      void explainUnavailable("bundled-limit", limit);
+      return;
+    }
     const { command, args } = cliCommand(runtime, ["tui"]);
     const terminal = vscode.window.createTerminal({
       name: "opentide tui",

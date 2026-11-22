@@ -17,6 +17,10 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
     await vscode.workspace
       .getConfiguration("opentide")
       .update("path", path.join(ROOT, "no-such-dir", "opentide"), vscode.ConfigurationTarget.Global);
+    // The WASI module (tier 4) would run when no opentide does: this is the tier below it.
+    await vscode.workspace
+      .getConfiguration("opentide")
+      .update("wasi.enabled", false, vscode.ConfigurationTarget.Global);
     const api = await activated();
     await api.ctx.runtime.restart("engine test");
   });
@@ -24,13 +28,16 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
     await vscode.workspace
       .getConfiguration("opentide")
       .update("path", undefined, vscode.ConfigurationTarget.Global);
+    await vscode.workspace
+      .getConfiguration("opentide")
+      .update("wasi.enabled", undefined, vscode.ConfigurationTarget.Global);
   });
 
-  it("resolves tier 4 once opentide.path and the environment fail", async () => {
+  it("resolves tier 5 once opentide.path, the environment and the WASI module are out", async () => {
     const api = await activated();
     const runtime = api.ctx.runtime.current;
     assert.equal(runtime?.kind, "engine", JSON.stringify(api.ctx.runtime.attempts));
-    assert.equal(runtime?.tier, 4);
+    assert.equal(runtime?.tier, 5);
     assert.equal(runtime?.version, pins.engine.version);
     const outcome = (tier: number) =>
       api.ctx.runtime.attempts.filter((a) => a.tier === tier).map((a) => a.outcome);
@@ -40,21 +47,30 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
     const client = await api.ctx.client.ready();
     assert.ok(client, "the engine's language client runs");
     assert.equal(api.ctx.client.serverInfo?.host, null);
-    assert.equal(api.ctx.client.serverInfo?.engine, pins.engine.version);
+    // rc.3's browser build reports the release's version; rc.2's reported the crate's, without the suffix.
+    const reported = api.ctx.client.serverInfo?.engine;
+    assert.ok(
+      reported === pins.engine.version || reported === pins.engine.version.replace(/[-+].*$/, ""),
+      `the engine says ${reported}, pins.json says ${pins.engine.version}`,
+    );
   });
 
   it("reports diagnostics on a broken object, with references resolved from the fed workspace", async () => {
     const uri = fixture("detections", "rules", "misspelled-tlp.yaml");
     await vscode.window.showTextDocument(uri);
+    // The engine's own: the WASI module ran `opentide validate` before this test turned it off, and its
+    // findings stay in the `opentide validate` collection.
     const diagnostics = await waitFor(() => {
       const found = vscode.languages.getDiagnostics(uri);
       return found.some(
-        (d) => d.code === "vocab_unknown" || (d.code as { value?: unknown })?.value === "vocab_unknown",
+        (d) =>
+          d.source === "opentide" &&
+          (d.code === "vocab_unknown" || (d.code as { value?: unknown })?.value === "vocab_unknown"),
       )
         ? found
         : undefined;
     }, 30_000);
-    const tlp = diagnostics.find((d) => /ambr/.test(d.message));
+    const tlp = diagnostics.find((d) => d.source === "opentide" && /ambr/.test(d.message));
     assert.ok(tlp, diagnostics.map((d) => d.message).join("; "));
     assert.equal(tlp.source, "opentide");
     assert.equal(tlp.range.start.line, 4);

@@ -2,8 +2,11 @@
 // desktop worker and, on vscode.dev and github.dev, the Web Worker: the object files of each folder
 // (`objects/` and the paths.toml object folders) and the primary folder's `visibility.toml`, kept as a
 // mirror so file changes become a delta. No Node built-ins.
+
 import * as vscode from "vscode";
+import type { ReadBytes } from "./reader";
 import {
+  CONFIGURATION_GLOB,
   type Collected,
   collectDocuments,
   isFolderEvent,
@@ -62,9 +65,9 @@ async function isDirectory(uri: vscode.Uri): Promise<boolean> {
   }
 }
 
-async function readText(uri: vscode.Uri): Promise<string | undefined> {
+async function readText(uri: vscode.Uri, read: ReadBytes<vscode.Uri>): Promise<string | undefined> {
   try {
-    return new TextDecoder("utf-8").decode(await vscode.workspace.fs.readFile(uri));
+    return new TextDecoder("utf-8").decode(await read(uri));
   } catch {
     return undefined;
   }
@@ -99,6 +102,8 @@ export class WorkspaceFeed {
   constructor(
     private readonly folders: () => readonly FeedFolder[],
     private readonly log: (message: string) => void,
+    /** How a file is read: the host's file system by default; the desktop reads `file:` straight from the disk. */
+    private readonly read: ReadBytes<vscode.Uri> = (uri) => vscode.workspace.fs.readFile(uri),
   ) {}
 
   /** The folder that holds `uri`, with its relative path. */
@@ -112,7 +117,29 @@ export class WorkspaceFeed {
     return best;
   }
 
-  /** Every object file and `visibility.toml`, read now: what a new server is given on `initialize`. */
+  /** A folder's `.opentide/configurations/*.toml`: found by search, else by reading the folder. */
+  private async configurationFiles(folder: FeedFolder): Promise<vscode.Uri[]> {
+    try {
+      const found = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(folder.uri, CONFIGURATION_GLOB),
+        undefined,
+        100,
+      );
+      if (found.length > 0) return found;
+    } catch (error) {
+      this.log(`engine: findFiles in ${folder.uri.toString()}: ${String(error)}`);
+    }
+    try {
+      const dir = vscode.Uri.joinPath(folder.uri, ".opentide", "configurations");
+      return (await vscode.workspace.fs.readDirectory(dir))
+        .filter(([name, type]) => /\.toml$/i.test(name) && !(type & vscode.FileType.Directory))
+        .map(([name]) => vscode.Uri.joinPath(dir, name));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Every object and configuration file, read now: what a new server is given on `initialize`. */
   async collect(): Promise<{ workspace: SuppliedWorkspace; report: FeedReport }> {
     const started = Date.now();
     const folders = this.folders();
@@ -130,16 +157,18 @@ export class WorkspaceFeed {
       }
       // A file system with no search provider (some virtual ones) finds nothing: walk the folders.
       if (found.length === 0) found = await walkObjectFiles(folder);
-      uris.push(...found);
+      uris.push(...found, ...(await this.configurationFiles(folder)));
     }
     const byString = new Map(uris.map((uri) => [uri.toString(), uri]));
     const collected = await collectDocuments(
       [...byString.keys()],
-      async (key) => vscode.workspace.fs.readFile(byString.get(key) ?? vscode.Uri.parse(key)),
+      async (key) => this.read(byString.get(key) ?? vscode.Uri.parse(key)),
       { concurrency: CONCURRENCY, maxFiles: MAX_FILES },
     );
     const primary = folders[0];
-    const visibility = primary ? await readText(vscode.Uri.joinPath(primary.uri, VISIBILITY)) : undefined;
+    const visibility = primary
+      ? await readText(vscode.Uri.joinPath(primary.uri, VISIBILITY), this.read)
+      : undefined;
     const workspace: SuppliedWorkspace = {
       documents: collected.documents,
       ...(visibility !== undefined ? { visibility } : {}),
@@ -182,9 +211,9 @@ export class WorkspaceFeed {
       const where = this.locate(uri);
       if (!where) continue;
       if (where.relative === VISIBILITY && where.folder === primary) {
-        visibility = { text: await readText(uri) };
+        visibility = { text: await readText(uri, this.read) };
       } else if (isSuppliedPath(where.relative, where.folder.objectFolders)) {
-        files.push({ uri: uri.toString(), text: await readText(uri) });
+        files.push({ uri: uri.toString(), text: await readText(uri, this.read) });
       } else if (isFolderEvent(uri.toString(), mirror, await isDirectory(uri))) {
         // A folder created, deleted or moved: one event for all its files.
         rescan = true;

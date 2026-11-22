@@ -2,6 +2,7 @@
 // the release assets and their SHA256SUMS. No process exits and no writes; release.mjs does the IO.
 import { createHash } from "node:crypto";
 import { readZip } from "./grammars-lib.mjs";
+import { unpinnedLicences } from "./wasi-lib.mjs";
 
 /** The tree does not say what to release, or the assets are not what it says. */
 export class ReleaseError extends Error {}
@@ -68,8 +69,22 @@ export function isPreRelease(version) {
  * What keeps `tag` from being released from this tree; empty when nothing does. Reads CHANGELOG.md and
  * package.json's version; whether the tag already exists is the workflow's check (it needs git).
  */
-export function problems({ changelog, packageVersion, tag }) {
+export function problems({ changelog, packageVersion, tag, pins }) {
   const found = [];
+  // The WASI module's digest is a placeholder until opentide releases it: a package built from it would
+  // fail `npm run build`, and one built from a local module (OPENTIDE_WASI_MODULE) is a test build.
+  if (pins?.wasi && !/^[0-9a-f]{64}$/.test(String(pins.wasi.sha256))) {
+    found.push(
+      `pins.json wasi.sha256 is a placeholder: set it from the v${pins.wasi.version} release's SHA256SUMS first (docs/PACKAGING.md)`,
+    );
+  }
+  if (pins?.wasi) {
+    const unpinned = unpinnedLicences(pins.wasi);
+    if (unpinned.length > 0)
+      found.push(
+        `pins.json wasi.licences has no digest for ${unpinned.join(", ")}: set them from the v${pins.wasi.version} release's SHA256SUMS first (docs/PACKAGING.md)`,
+      );
+  }
   let version;
   try {
     version = releasedVersion(changelog);

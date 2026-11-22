@@ -71,7 +71,7 @@ export class TerminalIntegration implements vscode.Disposable {
     const collection = this.ctx.extension.environmentVariableCollection;
     const runtime = this.ctx.runtime.current;
     const add = shouldAddToPath({
-      module: runsAsModule(runtime?.args),
+      module: runsAsModule(runtime?.args) || runtime?.wasi !== undefined,
       restricted: !this.ctx.trust.isTrusted || runtime?.restricted === true,
       setting: readRestricted<boolean>("opentide.terminal.addToPath"),
       opentideOnPath: which("opentide", process.env.PATH, process.platform) !== undefined,
@@ -83,7 +83,7 @@ export class TerminalIntegration implements vscode.Disposable {
     const dir = await this.launcher();
     if (!dir || this.ctx.runtime.current !== runtime) return;
     collection.clear();
-    collection.description = `Adds opentide ${runtime?.version ?? ""} (python -m opentide) to PATH`;
+    collection.description = `Adds opentide ${runtime?.version ?? ""} (${runtime?.wasi ? "the bundled WASI module" : "python -m opentide"}) to PATH`;
     collection.prepend("PATH", `${dir}${path.delimiter}`);
   }
 

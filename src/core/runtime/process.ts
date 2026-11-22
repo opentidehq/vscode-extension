@@ -69,7 +69,14 @@ export function probe(
       child = cp.execFile(
         command,
         [...args],
-        { env, timeout: options.timeoutMs, windowsHide: true, maxBuffer: 4 * 1024 * 1024, encoding: "utf8" },
+        {
+          env,
+          timeout: options.timeoutMs,
+          windowsHide: true,
+          maxBuffer: 4 * 1024 * 1024,
+          encoding: "utf8",
+          ...(options.signal ? { signal: options.signal } : {}),
+        },
         (error, stdout, stderr) => {
           const code =
             error && typeof (error as { code?: unknown }).code === "number"

@@ -4,25 +4,59 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Logger, RuntimeService } from "../context";
+import { engineNotice } from "../runtime/notice";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
 import { isFile, probe, which } from "../runtime/process";
-import { type EngineLayout, readEngineManifest, resolveRuntime } from "../runtime/resolve";
+import {
+  type EngineLayout,
+  parseEngineManifest,
+  parseWasiManifest,
+  resolveRuntime,
+  type WasiLayout,
+} from "../runtime/resolve";
+import { ResolutionSlot } from "../runtime/slot";
 import type { ResolveAttempt, Runtime } from "../runtime/types";
 import { describeRuntime, ENGINE_LABEL } from "../runtime/types";
 import { Emitter } from "../util/event";
 import { pythonEnvironmentsInterpreter, pythonExtensionInterpreter } from "./python";
 import { httpProxy, runtimeSettings } from "./settings";
 
-/** The engine (WASM) the extension carries (`dist/engine/engine.json`), if it has one. */
-export function readEngine(extensionPath: string): EngineLayout | undefined {
-  const dir = path.join(extensionPath, "dist", "engine");
-  let text: string | undefined;
+/** A manifest the extension carries, as text; undefined when there is none (a build without that tier). */
+function readManifestText(file: string): string | undefined {
   try {
-    text = fs.readFileSync(path.join(dir, "engine.json"), "utf8");
+    return fs.readFileSync(file, "utf8");
   } catch {
     return undefined;
   }
-  return readEngineManifest(text, dir);
+}
+
+/** The engine (WASM) the extension carries (`dist/engine/engine.json`), if it has one; `report` hears why a manifest is unusable. */
+export function readEngine(
+  extensionPath: string,
+  report?: (problem: string) => void,
+): EngineLayout | undefined {
+  const dir = path.join(extensionPath, "dist", "engine");
+  const text = readManifestText(path.join(dir, "engine.json"));
+  if (text === undefined) return undefined;
+  const result = parseEngineManifest(text, dir);
+  if ("problem" in result) {
+    report?.(`${result.problem}; the engine is not available`);
+    return undefined;
+  }
+  return result.layout;
+}
+
+/** The WASI module the extension carries (`dist/wasi/wasi.json`), if it has one; `report` hears why a manifest is unusable. */
+export function readWasi(extensionPath: string, report?: (problem: string) => void): WasiLayout | undefined {
+  const dir = path.join(extensionPath, "dist", "wasi");
+  const text = readManifestText(path.join(dir, "wasi.json"));
+  if (text === undefined) return undefined;
+  const result = parseWasiManifest(text, dir, process.execPath);
+  if ("problem" in result) {
+    report?.(`${result.problem}; the bundled WASI runtime is not available`);
+    return undefined;
+  }
+  return result.layout;
 }
 
 /** Read the pin files at the top of a folder. */
@@ -52,7 +86,12 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   private readonly emitter = new Emitter<Runtime | undefined>();
   private first: Promise<Runtime | undefined> | undefined;
   private resolving: Promise<Runtime | undefined> | undefined;
+  /** The resolution in flight: a new one cancels it, so a restart never waits for a stale probe. */
+  private readonly slot = new ResolutionSlot<Runtime | undefined>();
   private readonly warned = new Set<string>();
+  /** Fallback notices already shown (once each, not on every restart). */
+  private readonly noticed = new Set<string>();
+  private readonly said = new Set<string>();
   restartHandler: ((reason: string) => Promise<void>) | undefined;
 
   readonly onDidChange = this.emitter.event;
@@ -93,24 +132,44 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     else await this.resolve();
   }
 
-  /** Resolve again from scratch: after the resolution in progress, if any, which may predate a change. */
-  async resolveAgain(): Promise<Runtime | undefined> {
-    if (this.resolving) await this.resolving.catch(() => undefined);
-    return this.resolve();
+  /**
+   * Resolve again from scratch, now: the resolution in progress, if any, may predate the change that asks for this,
+   * so it is cancelled (its probes end) rather than waited for. Whoever awaited it gets this one's result.
+   */
+  resolveAgain(): Promise<Runtime | undefined> {
+    return this.begin();
   }
 
   /** Resolve the runtime again. Concurrent calls share one resolution. */
   resolve(): Promise<Runtime | undefined> {
-    if (this.resolving) return this.resolving;
-    const run = this.doResolve().finally(() => {
-      if (this.resolving === run) this.resolving = undefined;
-    });
+    return this.resolving ?? this.begin();
+  }
+
+  /** Cancel the resolution in flight, if any (shutdown). */
+  cancelResolution(): void {
+    this.slot.cancel();
+  }
+
+  private begin(): Promise<Runtime | undefined> {
+    const started = this.slot.start((signal) => this.doResolve(signal));
+    const run: Promise<Runtime | undefined> = started.result
+      .then((result) =>
+        // Cancelled and replaced: follow the resolution that replaced it.
+        started.signal.aborted
+          ? this.resolving !== run
+            ? (this.resolving ?? this.runtime)
+            : this.runtime
+          : result,
+      )
+      .finally(() => {
+        if (this.resolving === run) this.resolving = undefined;
+      });
     this.resolving = run;
     this.first ??= run;
     return run;
   }
 
-  private async doResolve(): Promise<Runtime | undefined> {
+  private async doResolve(signal: AbortSignal): Promise<Runtime | undefined> {
     const folder = this.primaryFolder();
     const folderPath = folder?.uri.fsPath;
     const trusted = vscode.workspace.isTrusted;
@@ -128,13 +187,26 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       probe: (command, args, options) => probe(command, args, options),
       pythonEnvironments: () => pythonEnvironmentsInterpreter(folder?.uri),
       pythonExtension: () => pythonExtensionInterpreter(folder?.uri),
-      engine: readEngine(this.context.extensionPath),
+      wasi: readWasi(this.context.extensionPath, (problem) => this.log.warn(`runtime: ${problem}`)),
+      engine: readEngine(this.context.extensionPath, (problem) => this.log.warn(`runtime: ${problem}`)),
+      signal,
     });
+    // Stale (a restart came while this resolved): leave the state to the resolution that replaced it.
+    if (signal.aborted) return this.runtime;
     this.lastAttempts = result.attempts;
     for (const attempt of result.attempts) {
       if (attempt.outcome !== "skipped")
         this.log.debug(
           `runtime tier ${attempt.tier} (${attempt.source}): ${attempt.outcome}: ${attempt.detail}`,
+        );
+    }
+    for (const text of result.warnings ?? []) this.logOnce("warn", `runtime: ${text}`);
+    // A tier-1 runtime that did not answer is said in the log with its path and why, not only in a notification.
+    for (const attempt of result.attempts) {
+      if (attempt.tier === 1 && (attempt.outcome === "failed" || attempt.outcome === "too-old"))
+        this.logOnce(
+          "warn",
+          `runtime: opentide.path ${attempt.path ?? ""}: ${attempt.detail}; the next runtime runs instead`,
         );
     }
     for (const attempt of result.attempts) {
@@ -143,24 +215,41 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       if (attempt.note) this.log.info(`runtime: ${attempt.note}`);
     }
     this.runtime = result.runtime;
+    // The line the QA harness reads: `runtime: opentide <version> (tier N · <source>) …`, then why that runtime.
+    const why = result.reason ? ` [${result.reason}]` : "";
+    if (result.notice && !this.noticed.has(result.notice)) {
+      this.noticed.add(result.notice);
+      this.log.warn(`runtime: ${result.notice}`);
+      void vscode.window.showInformationMessage(`opentide: ${result.notice}.`);
+    }
     if (result.runtime?.kind === "engine") {
-      this.log.warn(
-        `runtime: ${ENGINE_LABEL} ${result.runtime.version}: editor features only. No opentide answered ` +
-          "(opentide.path, the workspace's environment, python -m opentide): install opentide for commands, validate, deploy and query.",
+      this.log.warn(engineNotice(ENGINE_LABEL, result.runtime.version, trusted, result.attempts) + why);
+    } else if (result.runtime?.wasi) {
+      this.log.info(
+        `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}): the module the extension carries${why}. ` +
+          "The editor's tenant requests are made by the extension host; a terminal or task has no network (opentide.runtime: installed runs your own opentide there).",
       );
     } else if (result.runtime) {
       this.log.info(
         `runtime: opentide ${result.runtime.version} (${describeRuntime(result.runtime)}) ${result.runtime.command}` +
-          `${result.runtime.restricted ? " [Restricted Mode: language server only]" : ""}`,
+          `${result.runtime.restricted ? " [Restricted Mode: language server only]" : ""}${why}`,
       );
     } else {
       this.log.warn(
-        "runtime: none. Install opentide (pip install opentide) in the workspace's environment or set opentide.path.",
+        "runtime: none. Install opentide (pip install opentide) in the workspace's environment or set opentide.path." +
+          why,
       );
     }
     await this.setContextKeys();
     this.emitter.fire(result.runtime);
     return result.runtime;
+  }
+
+  /** A line said once per text: the same problem on every restart is one line. */
+  private logOnce(level: "warn" | "info", line: string): void {
+    if (this.said.has(line)) return;
+    this.said.add(line);
+    this.log[level](line);
   }
 
   private warn(attempt: ResolveAttempt): void {
@@ -209,6 +298,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   }
 
   dispose(): void {
+    this.slot.cancel();
     this.emitter.dispose();
   }
 }

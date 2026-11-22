@@ -11,6 +11,9 @@
 //                            wasm-bindgen glue of the pinned opentide-wasm-web zip bundled in)
 //   the zip's opentide_wasm_bg.wasm and licence files, THIRD-PARTY-LICENSES.html -> dist/engine/, with
 //                            engine.json (version and checksums, read by the runtime resolver)
+//   the pinned WASI module (opentide's CLI on wasm32-wasip1, pins.json `wasi`; OPENTIDE_WASI_MODULE builds with a
+//                            module made from opentide's source instead) and src/core/wasi/launcher.cjs -> dist/wasi/,
+//                            with wasi.json (version and checksum, read by the runtime resolver) and the licences
 //   the npm packages bundled in any of them -> dist/THIRD-PARTY-NOTICES.txt
 // Flags: --production (minify, no source maps), --watch.
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -29,6 +32,7 @@ import {
   webviewEntries,
 } from "./build-lib.mjs";
 import { engineManifest, GLUE, prepareEngine, shippedFiles, WASM } from "./engine-lib.mjs";
+import { prepareWasi, WASI_LAUNCHER, WASI_MODULE } from "./wasi-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const production = process.argv.includes("--production");
@@ -53,6 +57,8 @@ const web = webExtensionOptions(root, common);
 // The engine (WASM): unpacked from the pinned zip into .cache/ (downloaded once), checked by SHA-256.
 const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
 const engineDir = await prepareEngine(root, pins.engine);
+// The WASI module: the pinned release asset, checked by SHA-256 (refused while pins.json holds a placeholder).
+const wasi = await prepareWasi(root, pins.wasi);
 const engineWorker = {
   ...common,
   entryPoints: { worker: join(root, "src", "core", "engine", "worker.ts") },
@@ -90,6 +96,15 @@ writeFileSync(
   join(root, "dist", "engine", "engine.json"),
   `${JSON.stringify(engineManifest(pins.engine, readFileSync(join(engineDir, WASM))), null, 2)}\n`,
 );
+
+// dist/wasi/: the module, its launcher (MCP, terminals and tasks run through it) and the project's licences.
+const wasiOut = join(root, "dist", "wasi");
+mkdirSync(wasiOut, { recursive: true });
+writeFileSync(join(wasiOut, WASI_MODULE), wasi.wasm);
+copyFileSync(join(root, "src", "core", "wasi", "launcher.cjs"), join(wasiOut, WASI_LAUNCHER));
+// The module's own licence set (pins.json wasi.licences), not the engine's: it belongs to another build.
+for (const [name, text] of wasi.licences) writeFileSync(join(wasiOut, name), text);
+writeFileSync(join(wasiOut, "wasi.json"), `${JSON.stringify(wasi.manifest, null, 2)}\n`);
 
 const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), common);
 const configs = [

@@ -2,8 +2,9 @@
 import type * as cp from "node:child_process";
 import type { CancellationToken } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
+import { fromChildProcess, isServeProcess, type ServeProcess } from "./process";
 import { lineSplitter } from "./spawn";
-import { BackendError, type Envelope, isEnvelope, type ProgressEvent } from "./types";
+import { BackendError, type Envelope, envelopeProblem, isEnvelope, type ProgressEvent } from "./types";
 
 export const SERVE_PROTOCOL = 1;
 
@@ -31,8 +32,13 @@ interface Pending {
 }
 
 export interface ServeClientOptions {
-  /** Start the `opentide serve` process (stdin, stdout and stderr piped). */
-  readonly start: () => cp.ChildProcess;
+  /**
+   * Start the `opentide serve` process: a child process (stdin, stdout and stderr piped), or a
+   * `ServeProcess` such as the WASI module in the extension host, which starts asynchronously.
+   */
+  readonly start: () => cp.ChildProcess | ServeProcess | Promise<cp.ChildProcess | ServeProcess>;
+  /** The params of `initialize` (default `{}`): `{capabilities: {fetch: true}}` asks for `opentide/fetch`. */
+  readonly initializeParams?: object;
   readonly log?: (level: "debug" | "info" | "warn", message: string) => void;
   readonly initializeTimeoutMs?: number;
   readonly shutdownTimeoutMs?: number;
@@ -40,7 +46,7 @@ export interface ServeClientOptions {
 
 /** One `opentide serve` process. Create a new client after it exits. */
 export class ServeClient {
-  private child: cp.ChildProcess | undefined;
+  private proc: ServeProcess | undefined;
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
   private exited = false;
@@ -59,12 +65,13 @@ export class ServeClient {
 
   constructor(private readonly options: ServeClientOptions) {}
 
+  /** Started (the process may still be coming up) and not ended. */
   get isRunning(): boolean {
-    return this.child !== undefined && !this.exited;
+    return this.initialized !== undefined && !this.exited;
   }
 
   get pid(): number | undefined {
-    return this.child?.pid;
+    return this.proc?.pid;
   }
 
   /** Start the process and send `initialize`. Idempotent. */
@@ -75,34 +82,30 @@ export class ServeClient {
   }
 
   private async doStart(): Promise<InitializeResult> {
-    let child: cp.ChildProcess;
+    let proc: ServeProcess;
     try {
-      child = this.options.start();
+      const started = await this.options.start();
+      proc = isServeProcess(started) ? started : fromChildProcess(started);
     } catch (error) {
       this.exited = true;
       throw new BackendError("spawn-failed", `could not start opentide serve: ${String(error)}`);
     }
-    this.child = child;
+    this.proc = proc;
     const stdout = lineSplitter((line) => this.onLine(line));
     const stderr = lineSplitter((line) => {
       this.stderrTail.push(line);
       if (this.stderrTail.length > 40) this.stderrTail.shift();
       this.options.log?.("debug", `serve: ${line}`);
     });
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => stdout.push(chunk));
-    child.stderr?.on("data", (chunk: string) => stderr.push(chunk));
-    child.stdin?.on("error", () => {
-      // EPIPE after the process died; the exit handler rejects what is pending.
-    });
+    proc.onStdout((chunk) => stdout.push(chunk));
+    proc.onStderr((chunk) => stderr.push(chunk));
     const startError = new Promise<never>((_, reject) => {
-      child.on("error", (error) => {
+      proc.onError((error) => {
         this.handleExit(null, null);
         reject(new BackendError("spawn-failed", `could not start opentide serve: ${error.message}`));
       });
     });
-    child.on("close", (code, signal) => this.handleExit(code, signal));
+    proc.onClose((code, signal) => this.handleExit(code, signal));
 
     const timeoutMs = this.options.initializeTimeoutMs ?? 30_000;
     let timer: NodeJS.Timeout | undefined;
@@ -115,7 +118,7 @@ export class ServeClient {
     });
     try {
       const result = (await Promise.race([
-        this.request("initialize", {}),
+        this.request("initialize", this.options.initializeParams ?? {}),
         startError,
         timeout,
       ])) as InitializeResult;
@@ -146,9 +149,20 @@ export class ServeClient {
     const { id, promise } = this.send("run", params, options.onProgress);
     const subscription = options.token?.onCancellationRequested(() => this.notify("$/cancelRequest", { id }));
     try {
-      const result = (await promise) as { document?: unknown; exit_code?: unknown };
-      if (!result || !isEnvelope(result.document) || typeof result.exit_code !== "number") {
-        throw new BackendError("protocol", "opentide serve answered run without a document and exit_code");
+      const result = (await promise) as { document?: unknown; exit_code?: unknown } | null;
+      const problem = envelopeProblem(result?.document);
+      if (
+        !result ||
+        problem !== undefined ||
+        !isEnvelope(result.document) ||
+        typeof result.exit_code !== "number"
+      ) {
+        throw new BackendError(
+          "protocol",
+          problem !== undefined
+            ? `opentide serve answered run with a document that ${problem}`
+            : "opentide serve answered run without a document and exit_code",
+        );
       }
       return { document: result.document, exit_code: result.exit_code };
     } finally {
@@ -162,7 +176,7 @@ export class ServeClient {
 
   /** `shutdown`, then `exit`; kills the process when it does not exit in time. */
   async stop(): Promise<void> {
-    if (!this.child || this.exited) return;
+    if (!this.proc || this.exited) return;
     this.stopping = true;
     const exited = new Promise<void>((resolve) => this.onDidExit(() => resolve()));
     const timeoutMs = this.options.shutdownTimeoutMs ?? 2000;
@@ -181,7 +195,7 @@ export class ServeClient {
   }
 
   kill(): void {
-    if (this.child && !this.exited) this.child.kill("SIGKILL");
+    if (this.proc && !this.exited) this.proc.kill();
   }
 
   private request(method: string, params: unknown): Promise<unknown> {
@@ -195,7 +209,7 @@ export class ServeClient {
   ): { id: number; promise: Promise<unknown> } {
     const id = this.nextId++;
     const promise = new Promise<unknown>((resolve, reject) => {
-      if (this.exited || !this.child?.stdin) {
+      if (this.exited || !this.proc) {
         reject(new BackendError("crashed", "opentide serve is not running", this.stderrTail.join("\n")));
         return;
       }
@@ -211,27 +225,27 @@ export class ServeClient {
   }
 
   private write(message: object): void {
-    this.child?.stdin?.write(`${JSON.stringify(message)}\n`);
+    this.proc?.write(`${JSON.stringify(message)}\n`);
   }
 
   private onLine(line: string): void {
     if (!line.trim()) return;
-    let message: {
-      id?: number | string | null;
-      method?: string;
-      params?: unknown;
-      result?: unknown;
-      error?: { code: number; message: string };
-    };
+    let parsed: unknown;
     try {
-      message = JSON.parse(line);
+      parsed = JSON.parse(line);
     } catch {
       this.options.log?.("warn", `serve: not JSON on stdout: ${line.slice(0, 200)}`);
       return;
     }
+    const checked = serveMessage(parsed);
+    if ("problem" in checked) {
+      this.options.log?.("warn", `serve: ${checked.problem}: ${line.slice(0, 200)}`);
+      return;
+    }
+    const message = checked.message;
     if (message.method !== undefined) {
       if (message.method === "progress") {
-        const params = message.params as { id?: number; event?: ProgressEvent } | undefined;
+        const params = progressParams(message.params);
         const target = params?.id !== undefined ? this.pending.get(Number(params.id)) : undefined;
         if (params?.event) target?.onProgress?.(params.event);
       } else if (message.id !== undefined && message.id !== null) {
@@ -275,4 +289,62 @@ export class ServeClient {
  */
 export function isShutDown(error: { code: number; message: string }): boolean {
   return error.code === -32600 && /shut ?down/i.test(error.message);
+}
+
+/** A line of `opentide serve`'s stdout, once its JSON-RPC shape is checked. */
+export interface ServeMessage {
+  readonly id?: number | string | null;
+  readonly method?: string;
+  readonly params?: unknown;
+  readonly result?: unknown;
+  readonly error?: { readonly code: number; readonly message: string };
+}
+
+/**
+ * Check a parsed line before it is used: an object whose `id` is a number, a string or null, whose `method` is a
+ * string and whose `error` has a numeric code and a message. Anything else is a `problem`, never a crash.
+ */
+export function serveMessage(
+  value: unknown,
+): { readonly message: ServeMessage } | { readonly problem: string } {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return { problem: "a line that is not a JSON-RPC message" };
+  const m = value as Record<string, unknown>;
+  const id = m.id;
+  if (id !== undefined && id !== null && typeof id !== "number" && typeof id !== "string")
+    return { problem: "a message whose id is neither a number, a string nor null" };
+  if (m.method !== undefined && typeof m.method !== "string")
+    return { problem: "a message whose method is not a string" };
+  let error: ServeMessage["error"];
+  if (m.error !== undefined && m.error !== null) {
+    const e = m.error as Record<string, unknown> | string | number;
+    if (typeof e !== "object" || typeof e.code !== "number" || typeof e.message !== "string")
+      return { problem: "an error with no numeric code and string message" };
+    error = { code: e.code, message: e.message };
+  }
+  return {
+    message: {
+      ...(id !== undefined ? { id } : {}),
+      ...(m.method !== undefined ? { method: m.method as string } : {}),
+      ...(m.params !== undefined ? { params: m.params } : {}),
+      ...(m.result !== undefined ? { result: m.result } : {}),
+      ...(error ? { error } : {}),
+    },
+  };
+}
+
+/** `progress`'s params: the run's id and the event, when they have that shape. */
+function progressParams(params: unknown): { id?: number; event?: ProgressEvent } | undefined {
+  if (typeof params !== "object" || params === null) return undefined;
+  const p = params as { id?: unknown; event?: unknown };
+  const event =
+    typeof p.event === "object" &&
+    p.event !== null &&
+    typeof (p.event as { event?: unknown }).event === "string"
+      ? (p.event as ProgressEvent)
+      : undefined;
+  return {
+    ...(typeof p.id === "number" || typeof p.id === "string" ? { id: Number(p.id) } : {}),
+    ...(event ? { event } : {}),
+  };
 }

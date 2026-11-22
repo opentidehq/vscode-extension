@@ -1,6 +1,6 @@
 // When the language server of a runtime that answered `--version` does not start (an opentide
-// whose engine module fails to load or whose `lsp start` crashes), the engine (WASM) serves
-// the editor features instead, and says why (SPEC §4). The runtime stays what it is for commands.
+// whose engine module fails to load or whose `lsp start` crashes, the WASI module under a host that cannot
+// run it), the engine (WASM) serves the editor features instead, and says why (SPEC §4). The runtime stays what it is for commands.
 // vscode-free.
 import type { Runtime } from "./types";
 
