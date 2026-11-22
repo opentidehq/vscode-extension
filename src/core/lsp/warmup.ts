@@ -54,20 +54,24 @@ export function isWarmupUri(uri: string): boolean {
   return uri.endsWith(`/${WARMUP_FILE}`);
 }
 
-/** The settling of one warm-up: done when its diagnostics arrive, or after `timeoutMs`. */
+/** How a warm-up ended. */
+export type WarmupEnd = "analysed" | "timeout" | "cancelled";
+
+/** The settling of one warm-up: done when its diagnostics arrive, a real document opens, or after `timeoutMs`. */
 export interface Warmup {
   /** Called with the diagnostics of the synthetic rule (any document: only its own counts). */
   seen(uri: string): void;
+  /** A real document opened: stop waiting (the synthetic rule is closed at once). */
+  cancelled(): void;
   /** Resolves with how it ended. */
-  readonly done: Promise<"analysed" | "timeout">;
+  readonly done: Promise<WarmupEnd>;
+  /** Drop the timer (the warm-up failed to start). */
+  cancel(): void;
 }
 
-export function warmupWatch(
-  timeoutMs: number,
-  setTimer: typeof setTimeout = setTimeout,
-): Warmup & { cancel(): void } {
-  let finish: (how: "analysed" | "timeout") => void = () => undefined;
-  const done = new Promise<"analysed" | "timeout">((resolve) => {
+export function warmupWatch(timeoutMs: number, setTimer: typeof setTimeout = setTimeout): Warmup {
+  let finish: (how: WarmupEnd) => void = () => undefined;
+  const done = new Promise<WarmupEnd>((resolve) => {
     finish = resolve;
   });
   const timer = setTimer(() => finish("timeout"), timeoutMs);
@@ -79,6 +83,22 @@ export function warmupWatch(
         finish("analysed");
       }
     },
+    cancelled: () => {
+      clearTimeout(timer);
+      finish("cancelled");
+    },
     cancel: () => clearTimeout(timer),
   };
+}
+
+/** Whether a document counts as a real opentide document the person is waiting for. */
+export function isRealRule(document: {
+  readonly languageId: string;
+  readonly uri: { readonly scheme: string; readonly path: string };
+}): boolean {
+  return (
+    document.languageId === "opentide-yaml" &&
+    document.uri.scheme === "file" &&
+    !isWarmupUri(document.uri.path)
+  );
 }

@@ -32,6 +32,7 @@ import {
   readServerInfo,
 } from "../lsp";
 import {
+  isRealRule,
   isWarmupUri,
   WARMUP_RULE,
   type Warmup,
@@ -268,12 +269,24 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
    */
   private async warmUp(client: LanguageClient, runtime: Runtime): Promise<void> {
     if (!warmUpEnabled(vscode.workspace.getConfiguration("opentide.languageServer").get("warmUp"))) return;
+    // Restricted Mode runs no opentide process (only the engine, which is not warmed); belt and braces.
+    if (!vscode.workspace.isTrusted) return;
     const folder = this.engineFolders()[0];
     if (!folder) return;
+    // A rule is already open (VS Code restored the editors): it is the server's first analysis, and is waited for.
+    if (vscode.workspace.textDocuments.some(isRealRule)) {
+      this.log.debug("language server: no warm-up, a rule is already open");
+      return;
+    }
     const uri = warmupUri(folder.uri.toString(), folder.objectFolders);
     const began = Date.now();
     const watch = warmupWatch(10_000);
     this.warming = watch;
+    // A rule opened meanwhile is not held behind the warm-up's wait: the synthetic rule is closed at once. (The server
+    // handles one message at a time, so an analysis already running finishes; the real rule then finds the server warm.)
+    const opened = vscode.workspace.onDidOpenTextDocument((document) => {
+      if (isRealRule(document)) watch.cancelled();
+    });
     try {
       await client.sendNotification(DidOpenTextDocumentNotification.type, {
         textDocument: { uri, languageId: "opentide-yaml", version: 1, text: WARMUP_RULE },
@@ -281,12 +294,13 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       const how = await watch.done;
       await client.sendNotification(DidCloseTextDocumentNotification.type, { textDocument: { uri } });
       this.log.info(
-        `language server: warmed up (${how}) in ${Date.now() - began} ms, before the first document (opentide ${runtime.version})`,
+        `language server: warm-up ${how} after ${Date.now() - began} ms (opentide ${runtime.version})`,
       );
     } catch (error) {
       watch.cancel();
       this.log.debug(`language server: warm-up skipped: ${String(error)}`);
     } finally {
+      opened.dispose();
       if (this.warming === watch) this.warming = undefined;
     }
   }

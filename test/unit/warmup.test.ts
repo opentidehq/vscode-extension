@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import {
+  isRealRule,
   isWarmupUri,
   ruleFolderOf,
   WARMUP_RULE,
@@ -64,5 +65,23 @@ describe("warming the language server before the first document", () => {
     fired[0]?.();
     assert.equal(await watch.done, "timeout");
     watch.cancel();
+  });
+
+  it("stops waiting when a real rule opens, and counts only a real rule", async () => {
+    const watch = warmupWatch(60_000);
+    watch.cancelled();
+    assert.equal(await watch.done, "cancelled");
+    const doc = (languageId: string, scheme: string, path: string) => ({ languageId, uri: { scheme, path } });
+    assert.equal(isRealRule(doc("opentide-yaml", "file", "/w/detections/rules/a.yaml")), true);
+    assert.equal(isRealRule(doc("opentide-yaml", "file", "/w/objects/rules/.opentide-warmup.yaml")), false);
+    assert.equal(isRealRule(doc("opentide-yaml", "untitled", "Untitled-1")), false);
+    assert.equal(isRealRule(doc("kql", "file", "/w/q.kql")), false);
+  });
+
+  it("the first end wins: a late diagnostics or timeout does not change it", async () => {
+    const watch = warmupWatch(60_000);
+    watch.cancelled();
+    watch.seen(warmupUri("file:///w"));
+    assert.equal(await watch.done, "cancelled");
   });
 });
