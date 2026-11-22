@@ -71,7 +71,8 @@ describe("language server cold start, with and without the warm-up", function ()
           // The first document is opened a little after the server started, as when a person opens a rule.
           await new Promise((resolve) => setTimeout(resolve, IDLE_MS));
           n += 1;
-          const uri = fixture("objects", "rules", `perf-${n}.yaml`);
+          // The fixture's paths.toml puts rules in detections/rules/, which is where the server analyses them as rules.
+          const uri = fixture("detections", "rules", `perf-${n}.yaml`);
           writeFileSync(uri.fsPath, rule(n));
           try {
             const diagnostics = firstDiagnostics(uri);

@@ -270,7 +270,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     if (!warmUpEnabled(vscode.workspace.getConfiguration("opentide.languageServer").get("warmUp"))) return;
     const folder = this.engineFolders()[0];
     if (!folder) return;
-    const uri = warmupUri(folder.uri.toString());
+    const uri = warmupUri(folder.uri.toString(), folder.objectFolders);
     const began = Date.now();
     const watch = warmupWatch(10_000);
     this.warming = watch;

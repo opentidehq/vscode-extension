@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import {
   isWarmupUri,
+  ruleFolderOf,
   WARMUP_RULE,
   warmsUp,
   warmUpEnabled,
@@ -28,6 +29,16 @@ describe("warming the language server before the first document", () => {
     assert.equal(isWarmupUri(uri), true);
     assert.equal(isWarmupUri("file:///work/detections/objects/rules/real.yaml"), false);
     assert.equal(isWarmupUri("file:///work/detections/objects/rules/x.opentide-warmup.yaml"), false);
+  });
+
+  it("follows paths.toml's rule folder, and falls back to objects/rules for anything unsafe or missing", () => {
+    const at = (rule: string | undefined) => warmupUri("file:///w", rule === undefined ? {} : { rule });
+    assert.equal(at("detections/rules/"), "file:///w/detections/rules/.opentide-warmup.yaml");
+    assert.equal(at("./detections/rules"), "file:///w/detections/rules/.opentide-warmup.yaml");
+    assert.equal(at("detections\\rules"), "file:///w/detections/rules/.opentide-warmup.yaml");
+    for (const bad of [undefined, "", "/etc", "../x", "a/../../b", "C:\\x"])
+      assert.equal(at(bad), "file:///w/objects/rules/.opentide-warmup.yaml", String(bad));
+    assert.equal(ruleFolderOf(undefined), "objects/rules");
   });
 
   it("is a rule with a name, a schema, a uuid and a query, and a uuid no real rule has", () => {

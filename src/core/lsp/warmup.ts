@@ -32,9 +32,21 @@ configurations:
 
 const WARMUP_FILE = ".opentide-warmup.yaml";
 
-/** Where the synthetic rule lives: where a rule does, in the first opentide folder (`objects/rules/`). */
-export function warmupUri(folderUri: string): string {
-  return `${folderUri.replace(/\/+$/, "")}/objects/rules/${WARMUP_FILE}`;
+/**
+ * The folder rules live in, relative to the opentide folder: `paths.toml`'s `rule` object folder when it names a safe
+ * relative one (`detections/rules/`), else the default `objects/rules`. A document outside the object folders is not
+ * analysed as a rule, so the warm-up would warm nothing.
+ */
+export function ruleFolderOf(objectFolders: Readonly<Record<string, string>> | undefined): string {
+  const named = objectFolders?.rule?.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  if (!named || named.startsWith("/") || /^[A-Za-z]:/.test(named) || named.split("/").includes(".."))
+    return "objects/rules";
+  return named;
+}
+
+/** Where the synthetic rule lives: in the first opentide folder's rule folder. */
+export function warmupUri(folderUri: string, objectFolders?: Readonly<Record<string, string>>): string {
+  return `${folderUri.replace(/\/+$/, "")}/${ruleFolderOf(objectFolders)}/${WARMUP_FILE}`;
 }
 
 /** Whether `uri` is the synthetic rule's: its diagnostics are not for the Problems panel. */
