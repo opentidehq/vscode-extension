@@ -73,9 +73,12 @@ describe("the engine (WASM), for real", function () {
     const pins = JSON.parse(readFileSync(path.join(ROOT, "pins.json"), "utf8")) as {
       engine: { version: string };
     };
-    // The browser build reports the crate's version, without the release candidate's suffix:
-    // `1.0.0` for opentide 1.0.0-rc.2.
-    assert.equal(module.version(), pins.engine.version.replace(/[-+].*$/, ""));
+    // rc.3's browser build reports the release's version (`1.0.0-rc.3`); rc.2's reported the crate's, without the
+    // release candidate's suffix (`1.0.0`). Either is the pinned build.
+    assert.ok(
+      [pins.engine.version, pins.engine.version.replace(/[-+].*$/, "")].includes(module.version()),
+      `the engine says ${module.version()}, pins.json says ${pins.engine.version}`,
+    );
   });
 
   it("answers diagnostics, hover and opentide/catalog from the workspace it is given", async () => {

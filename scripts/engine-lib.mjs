@@ -11,6 +11,12 @@ import { GrammarError, readZip, verifySha256 } from "./grammars-lib.mjs";
 export const GLUE = "opentide_wasm.js";
 export const WASM = "opentide_wasm_bg.wasm";
 
+/**
+ * The notices and licences of the data catalogues compiled into the module (rc.3 on): `data/catalogs/<name>/NOTICE` and
+ * `data/catalogs/<name>/LICENSE*`. Only those files of `data/`: anything else there is not a licence and is refused.
+ */
+const CATALOG_NOTICE = /^data\/catalogs\/[^/]+\/(NOTICE|LICENSE[^/]*)$/;
+
 /** What dist/engine/ carries besides the worker: the module and every licence file of the zip. */
 export function isShipped(name) {
   return (
@@ -18,7 +24,8 @@ export function isShipped(name) {
     name === "LICENSE" ||
     name === "NOTICE" ||
     name === THIRD_PARTY ||
-    name.startsWith("licenses/")
+    name.startsWith("licenses/") ||
+    CATALOG_NOTICE.test(name)
   );
 }
 
