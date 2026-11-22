@@ -79,60 +79,72 @@ describe("language server cold start: the first document after a start", functio
   });
   this.timeout(10 * 60_000);
 
-  it("gets its diagnostics, and how soon is printed", async () => {
-    const api = await activated();
-    // The protocol trace (every message, both ways, timestamped) goes to the "opentide Language Server Trace" output, which
-    // the workflow uploads with the OPENTIDE_LSP_TIMING stderr; the markers below say which round a message belongs to.
-    const trace = vscode.workspace.getConfiguration("opentide");
-    const traceBefore = trace.inspect<string>("trace.server")?.globalValue;
-    await trace.update("trace.server", "verbose", vscode.ConfigurationTarget.Global);
-    const host = vscode.extensions.getExtension("ms-vscode.wasm-wasi-core") ? "wasm-wasi-core" : "launcher";
-    const ready: number[] = [];
-    const first: number[] = [];
-    let timeouts = 0;
-    for (let n = 1; n <= ROUNDS; n += 1) {
-      const t0 = Date.now();
-      api.ctx.log.info(`PERF-ROUND host=${host} round=${n} restart ${new Date(t0).toISOString()}`);
-      await api.ctx.runtime.restart("perf");
-      await api.ctx.client.ready();
-      const started = Date.now() - t0;
-      // The first document is opened a little after the server started, as when a person opens a rule.
-      await new Promise((resolve) => setTimeout(resolve, IDLE_MS));
-      // The fixture's paths.toml puts rules in detections/rules/, where the server analyses them as rules.
-      const uri = fixture("detections", "rules", `perf-${n}.yaml`);
-      writeFileSync(uri.fsPath, rule(n));
-      try {
-        const diagnostics = firstDiagnostics(uri);
-        const t1 = Date.now();
+  // `auto` is what a person gets; `never` is the old behaviour on a server whose version did not parse (the workspace pull
+  // answered with nothing), kept to show whether the closed files' pull has anything to do with a round's diagnostics.
+  for (const pull of ["auto", "never"] as const)
+    it(`gets its diagnostics, and how soon is printed (workspacePull ${pull})`, async () => {
+      const api = await activated();
+      const pullSetting = vscode.workspace.getConfiguration("opentide");
+      const pullBefore = pullSetting.inspect<string>("diagnostics.workspacePull")?.globalValue;
+      await pullSetting.update("diagnostics.workspacePull", pull, vscode.ConfigurationTarget.Global);
+      // The protocol trace (every message, both ways, timestamped) goes to the "opentide Language Server Trace" output, which
+      // the workflow uploads with the OPENTIDE_LSP_TIMING stderr; the markers below say which round a message belongs to.
+      const trace = vscode.workspace.getConfiguration("opentide");
+      const traceBefore = trace.inspect<string>("trace.server")?.globalValue;
+      await trace.update("trace.server", "verbose", vscode.ConfigurationTarget.Global);
+      const host = vscode.extensions.getExtension("ms-vscode.wasm-wasi-core") ? "wasm-wasi-core" : "launcher";
+      const ready: number[] = [];
+      const first: number[] = [];
+      let timeouts = 0;
+      for (let n = 1; n <= ROUNDS; n += 1) {
+        const t0 = Date.now();
         api.ctx.log.info(
-          `PERF-ROUND host=${host} round=${n} open ${new Date(t1).toISOString()} ${uri.toString()}`,
+          `PERF-ROUND host=${host} pull=${pull} round=${n} restart ${new Date(t0).toISOString()}`,
         );
-        await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
+        await api.ctx.runtime.restart("perf");
+        await api.ctx.client.ready();
+        const started = Date.now() - t0;
+        // The first document is opened a little after the server started, as when a person opens a rule.
+        await new Promise((resolve) => setTimeout(resolve, IDLE_MS));
+        // The fixture's paths.toml puts rules in detections/rules/, where the server analyses them as rules.
+        const uri = fixture("detections", "rules", `perf-${n}.yaml`);
+        writeFileSync(uri.fsPath, rule(n));
         try {
-          await diagnostics;
-          const waited = Date.now() - t1;
-          api.ctx.log.info(`PERF-ROUND host=${host} round=${n} diagnostics after ${waited}ms`);
-          ready.push(started);
-          first.push(waited);
-          say(`WASI-PERF host=${host} round=${n} restart->ready=${started}ms open->diagnostics=${waited}ms`);
-        } catch (error) {
-          timeouts += 1;
-          const shape = await probe(api, uri);
-          api.ctx.log.warn(`PERF-ROUND host=${host} round=${n} TIMEOUT ${shape}`);
-          say(
-            `WASI-PERF host=${host} round=${n} restart->ready=${started}ms TIMEOUT ${String(error)}; ${shape}`,
+          const diagnostics = firstDiagnostics(uri);
+          const t1 = Date.now();
+          api.ctx.log.info(
+            `PERF-ROUND host=${host} pull=${pull} round=${n} open ${new Date(t1).toISOString()} ${uri.toString()}`,
           );
+          await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
+          try {
+            await diagnostics;
+            const waited = Date.now() - t1;
+            api.ctx.log.info(`PERF-ROUND host=${host} pull=${pull} round=${n} diagnostics after ${waited}ms`);
+            ready.push(started);
+            first.push(waited);
+            say(
+              `WASI-PERF host=${host} pull=${pull} round=${n} restart->ready=${started}ms open->diagnostics=${waited}ms`,
+            );
+          } catch (error) {
+            timeouts += 1;
+            const shape = await probe(api, uri);
+            api.ctx.log.warn(`PERF-ROUND host=${host} pull=${pull} round=${n} TIMEOUT ${shape}`);
+            say(
+              `WASI-PERF host=${host} pull=${pull} round=${n} restart->ready=${started}ms TIMEOUT ${String(error)}; ${shape}`,
+            );
+          }
+        } finally {
+          await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+          rmSync(uri.fsPath, { force: true });
         }
-      } finally {
-        await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-        rmSync(uri.fsPath, { force: true });
       }
-    }
-    await trace.update("trace.server", traceBefore, vscode.ConfigurationTarget.Global);
-    say(
-      `WASI-PERF host=${host} median open->diagnostics ${median(first)}ms, restart->ready ${median(ready)}ms, ` +
-        `${timeouts} of ${ROUNDS} rounds with no diagnostics in 30 s`,
-    );
-    assert.ok(timeouts <= ROUNDS / 4, `${timeouts} of ${ROUNDS} rounds got no diagnostics`);
-  });
+      await trace.update("trace.server", traceBefore, vscode.ConfigurationTarget.Global);
+      await pullSetting.update("diagnostics.workspacePull", pullBefore, vscode.ConfigurationTarget.Global);
+      say(
+        `WASI-PERF host=${host} pull=${pull} median open->diagnostics ${median(first)}ms, restart->ready ${median(ready)}ms, ` +
+          `${timeouts} of ${ROUNDS} rounds with no diagnostics in 30 s`,
+      );
+      if (pull === "auto")
+        assert.ok(timeouts <= ROUNDS / 4, `${timeouts} of ${ROUNDS} rounds got no diagnostics`);
+    });
 });
