@@ -87,7 +87,7 @@ It exits non-zero on any failure.
 | `skills` | The opentide skills (opentidehq/skills, EUPL-1.2): a commit (the archive URL names it) and `contentSha256`, a digest of the files of `skills/` and `LICENSE` that `scripts/skills-lib.mjs` computes (GitHub does not promise its archive bytes stay the same; the files of a commit do). `npm run skills` copies them into `skills/` and writes `contrib/skills.json` (`contributes.chatSkills`); `npm run manifest`, then `skills:check` in CI. The latest upstream tag is v2.1.0 and `plugin.json` is 2.2.2 at the pinned commit: ask upstream to tag it |
 | `engine` | opentide's `opentide-wasm-web` zip (version, URL, SHA-256) and the release's `THIRD-PARTY-LICENSES.html` (URL, SHA-256): the engine (WASM). Same release as `highlights` |
 | `tomlGrammar` | The TOML grammar from Even Better TOML (URL, SHA-256) |
-| `vsix.budgetBytes`, `vsix.targetBytes` | The size gate (20 MiB) and the target (15 MiB), as opentide's plan §11 and ADR 0007 say |
+| `vsix.budgetBytes`, `vsix.targetBytes` | The size gate (20 MiB) and the target (16 MiB). The gate is opentide's plan §11 and ADR 0007; the target was 15 MiB until rc.3's WASI module, built at opt-level `s` for a faster language-server start in large workspaces (opentide#1774), grew to about 22 MB (see "The gates") |
 | `vsix.budgetOverrideBytes` | Optional `{ opentide, bytes, reason }`: a temporary larger gate while `opentide.version` is that version, ignored (with a warning) after a bump |
 
 ## The gates
@@ -107,7 +107,8 @@ Measured on 2026-11-21 with opentide 1.0.0-rc.2's `opentide-wasm-web` and a WASI
 opentide's `integration/unified-core` (`1.0.0-rc.3-dev+8b55d0c`): the package is 13.3 MiB (52.4 MiB
 installed). Its largest directories are `dist/wasi` at 7.3 MiB compressed (26.9 MiB installed: the 26.8 MiB
 module, the launcher and licences) and `dist/engine` at 5.3 MiB (23.0 MiB installed). The budget is 20 MiB
-and the target 15 MiB: the module is opentide's own size gate (`build-wasm.sh cli` fails it above 15 MiB
+and the target 16 MiB (15 MiB until the rc.3 module, which is larger because it is built at opt-level `s` for a faster
+language-server start, opentide#1774; the package is expected at 15-16 MiB and is measured when rc.3 is pinned): the module is opentide's own size gate (`build-wasm.sh cli` fails it above 15 MiB
 gzipped). It carries the production build (`vscode:prepublish`: minified, no source maps):
 `dist/extension.js` and `dist/webview/graph.js` (Cytoscape) are each under 1 MiB; the other webviews are
 14–70 KiB each.

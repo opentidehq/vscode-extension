@@ -102,12 +102,12 @@ describe("package: the size gate", () => {
     assert.throws(() => budgetFor({ opentide: pins.opentide }), PackageError);
   });
 
-  it("the committed budget and target are PACKAGING.md's 20 MiB and 15 MiB: the WASI module, no runtime", () => {
+  it("the committed budget and target are PACKAGING.md's 20 MiB and 16 MiB: the WASI module, no runtime", () => {
     const committed = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
     assert.equal(committed.vsix.budgetBytes, 20 * 1024 * 1024);
-    assert.equal(committed.vsix.targetBytes, 15 * 1024 * 1024);
+    assert.equal(committed.vsix.targetBytes, 16 * 1024 * 1024);
     const packaging = readFileSync(join(root, "docs", "PACKAGING.md"), "utf8");
-    assert.match(packaging, /The size gate \(20 MiB\) and the target \(15 MiB\)/);
+    assert.match(packaging, /The size gate \(20 MiB\) and the target \(16 MiB\)/);
   });
 
   it("counts bytes per distribution under site-packages, else per folder", () => {
