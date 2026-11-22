@@ -231,3 +231,39 @@ with `code --uninstall-extension opentidehq.opentide`. Try it **on a machine wit
    CLI`: expected, the module has no network there. **Contact only tenants you own.**
 6. **Switching off.** `opentide.wasi.enabled` off, and **opentide: Restart Server**: the engine (tier 5) runs,
    editor features only. In an untrusted folder (Restricted Mode) the engine runs too.
+
+## Cold start of the language server
+
+What the first document waits for, measured with the module built from opentide's `integration/unified-core` (ef3ec6d,
+28 MB) under Node 22.23.5 (V8 12.4) on a Linux container, `opentide lsp start` run through `dist/wasi/launcher.cjs` as the
+extension runs it; five runs each (three for 1,200 objects), medians. The harness is the Node script described in the
+pull request; `test/wasi/perf.test.ts` measures the same in VS Code (`OPENTIDE_PERF=1`, the Test VSIX workflow).
+
+| | Small workspace (1 rule) | 1,200 rules |
+|-|-:|-:|
+| `node` boots, reads and compiles the 28 MB module, runs `--version` | 105 ms (of which `WebAssembly.compile` about 50, node itself 26) | |
+| Spawn to `initialize` answered | 147 ms | 183 ms |
+| First document opened right after: spawn to its diagnostics | 689 ms | 2,779 ms |
+| First document opened 1.5-3 s after the server started: open to diagnostics | about 470-520 ms | 1,100-1,230 ms |
+| A second document in the same process | 22-40 ms | 480-590 ms |
+| After the warm-up (a synthetic rule opened, analysed, closed once at start): the first real document | 34-51 ms | 480-610 ms |
+| The warm-up itself, in the background | 630-910 ms | 1,040-1,160 ms |
+| Peak resident memory of the server process | 127 MB | 148 MB |
+
+So the module's compile is a small part, and the cost is the server's **first analysis in a cold process**, paid by whichever
+document comes first, however long after the start it opens. The warm-up (`opentide.languageServer.warmUp`) moves it off the
+first document.
+
+**V8 flags do not help** (small workspace, five runs each, the first-diagnostics median, against 689 ms by default):
+`--no-wasm-lazy-compilation` 658 (initialize 245 instead of 147), `--liftoff-only` 988, `--no-wasm-dynamic-tiering` 814,
+`--no-wasm-tier-up` 690, `--wasm-lazy-validation` 752. Lazy compilation is already V8 12.4's default
+(`node --v8-options`: `--wasm-lazy-compilation` default true), and the module compiles in 36-68 ms with or without it. No flag
+is set.
+
+**Compiling once in the extension host (a worker thread) is not done.** Under `@vscode/wasm-wasi` the module is already
+compiled once per window and shared (`WasiHost.module`). The launcher path runs `node:wasi`, whose standard streams are file
+descriptors: a worker thread of the extension host has no pipe to give it, so it would need its own WASI implementation (the
+file system, `poll_oneoff`, stdin blocking on a shared buffer) in place of Node's, to save about 50 ms a start. The MCP bridge
+is started by the editor as its own process and cannot share a compile with the extension host at all. A single helper
+process with a worker per protocol would share one compile between `serve` and the language server for the same 50 ms,
+at the cost of a protocol for the helper and extra inherited descriptors (Windows).

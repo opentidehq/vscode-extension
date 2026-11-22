@@ -7,6 +7,8 @@
 import * as fs from "node:fs";
 import * as vscode from "vscode";
 import {
+  DidCloseTextDocumentNotification,
+  DidOpenTextDocumentNotification,
   type Executable,
   LanguageClient,
   type LanguageClientOptions,
@@ -29,6 +31,15 @@ import {
   forwardNotification,
   readServerInfo,
 } from "../lsp";
+import {
+  isWarmupUri,
+  WARMUP_RULE,
+  type Warmup,
+  warmsUp,
+  warmUpEnabled,
+  warmupUri,
+  warmupWatch,
+} from "../lsp/warmup";
 import { skipWorkspacePull, workspacePullSetting } from "../runtime/diagnostics";
 import { processEnv } from "../runtime/env";
 import { type Fallback, type ServerStart, startWithFallback } from "../runtime/fallback";
@@ -99,12 +110,14 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private readonly staleWhileOpen = new Set<string>();
 
   private lastFallback: Fallback | undefined;
+  /** The warm-up in progress, told of the synthetic rule's diagnostics. */
+  private warming: Warmup | undefined;
   /** The WASI module's language server, while it runs. */
   private wasiServer: WasiLanguageServer | undefined;
 
   constructor(
     private readonly log: Logger,
-    engineFolders: () => readonly FeedFolder[] = () => [],
+    private readonly engineFolders: () => readonly FeedFolder[] = () => [],
     /** The engine's runtime, when the extension carries one: the fallback for a server that does not start. */
     private readonly engineRuntime: (restricted: boolean) => Runtime | undefined = () => undefined,
     /** Runs `opentide lsp start` for a WASI runtime, in the extension host. */
@@ -215,6 +228,14 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     let said = false;
     const recent = new RecentFileEvents();
     return {
+      // The synthetic warm-up rule's diagnostics end the warm-up and never reach the Problems panel.
+      handleDiagnostics: (uri, diagnostics, next) => {
+        if (isWarmupUri(uri.toString())) {
+          this.warming?.seen(uri.toString());
+          return;
+        }
+        next(uri, diagnostics);
+      },
       // The client's own watchers and any the server registers can cover the same file: one event reaches the server.
       workspace: {
         didChangeWatchedFile: (event, next) =>
@@ -239,6 +260,35 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
         return { items: [] };
       },
     };
+  }
+
+  /**
+   * Open, analyse and close a synthetic rule so the server's first analysis is not the first document the person opens
+   * (warmup.ts). Its diagnostics are held back from the Problems panel; any failure is logged and costs nothing.
+   */
+  private async warmUp(client: LanguageClient, runtime: Runtime): Promise<void> {
+    if (!warmUpEnabled(vscode.workspace.getConfiguration("opentide.languageServer").get("warmUp"))) return;
+    const folder = this.engineFolders()[0];
+    if (!folder) return;
+    const uri = warmupUri(folder.uri.toString());
+    const began = Date.now();
+    const watch = warmupWatch(10_000);
+    this.warming = watch;
+    try {
+      await client.sendNotification(DidOpenTextDocumentNotification.type, {
+        textDocument: { uri, languageId: "opentide-yaml", version: 1, text: WARMUP_RULE },
+      });
+      const how = await watch.done;
+      await client.sendNotification(DidCloseTextDocumentNotification.type, { textDocument: { uri } });
+      this.log.info(
+        `language server: warmed up (${how}) in ${Date.now() - began} ms, before the first document (opentide ${runtime.version})`,
+      );
+    } catch (error) {
+      watch.cancel();
+      this.log.debug(`language server: warm-up skipped: ${String(error)}`);
+    } finally {
+      if (this.warming === watch) this.warming = undefined;
+    }
   }
 
   /** Start one runtime's language server: the process's, or the engine's in a worker thread. */
@@ -289,6 +339,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       }
     });
     this.running = true;
+    if (warmsUp(runtime)) void this.warmUp(client, runtime);
     if (this.engine) {
       this.engine.updates = takesWorkspaceUpdates(client.initializeResult?.capabilities.experimental);
       this.log.info(

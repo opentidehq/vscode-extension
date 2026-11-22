@@ -245,6 +245,13 @@
             ],
             "markdownDescription": "Whether VS Code asks the language server for the diagnostics of the workspace's closed files (`workspace/diagnostic`). It does so again 2 seconds after each answer, and an opentide older than 1.0.0rc3 re-analyses every closed file each time, on the thread that answers completions: stalls of seconds at a thousand objects. With `auto` those servers are not asked, **so the problems of closed files leave the Problems panel for them**; the files you have open keep theirs, and `opentide validate` (on save, on startup, from the palette) still reports the workspace."
           },
+          "opentide.languageServer.warmUp": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "order": 9,
+            "markdownDescription": "Analyse a small rule of the extension's own, once, as soon as the opentide language server has started, so the first document you open does not pay for the server's first analysis (about 0.5 s in a small workspace, 1.1 s at a thousand objects). The rule is never written to disk or shown, and its diagnostics stay out of the Problems panel."
+          },
           "opentide.trace.server": {
             "type": "string",
             "enum": ["off", "messages", "verbose"],

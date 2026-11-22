@@ -27,6 +27,10 @@ pre-releases odd ones.
   seconds at a thousand objects. With `auto` (the default) those servers are not asked, so **the problems of
   closed files leave the Problems panel for them**; your open files keep theirs and `opentide validate` still
   reports the workspace. `always` and `never` decide it by hand.
+- **The first rule you open gets its diagnostics sooner.** Once the opentide language server has started, the extension
+  has it analyse a small rule of its own (never written to disk or shown, and kept out of the Problems panel), so the
+  first document you open is not the server's first analysis: about 0.5 s sooner in a small workspace and 0.6 s at a
+  thousand objects, measured with the bundled module. `opentide.languageServer.warmUp` turns it off.
 - **`opentide.wasi.enabled` turns the bundled opentide off.** With it off, and no opentide installed, only
   the engine's editor features run.
 - **Grammars for CQL, Exabeam, YARA and YARA-L.** They come with opentide 1.0.0-rc.2's highlights and

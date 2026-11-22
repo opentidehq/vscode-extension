@@ -416,6 +416,7 @@ workspace's opentide need a trusted folder.
 | `opentide.interpreter` | | A Python interpreter with opentide installed, run as its `opentide` command or `python -m opentide`, in place of the environment lookup (machine-overridable, not synced) |
 | `opentide.uv.usePin` | `false` | Run the repository's pinned opentide with `uv tool run`, before the workspace's environment |
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
+| `opentide.languageServer.warmUp` | `true` | Analyse a small rule of the extension's own once the language server has started, so the first document you open is not the server's first analysis (never written to disk or shown) |
 | `opentide.diagnostics.workspacePull` | `auto` | Whether VS Code asks the language server for the problems of closed files. `auto` skips it for an opentide older than 1.0.0rc3, whose server stalls completion re-analysing them: those problems then leave the Problems panel (open files keep theirs, `opentide validate` still reports the workspace) |
 | `opentide.wasi.enabled` | `true` | Allow the bundled opentide; off: your own opentide if one answers, else the engine's editor features only |
 | `opentide.envFile` | | A `.env` file whose variables reach commands that contact a tenant |
