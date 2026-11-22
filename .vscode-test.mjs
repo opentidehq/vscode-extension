@@ -12,6 +12,9 @@ const installExtensions = ["ms-vscode.wasm-wasi-core"];
 // The tests use mocha's describe/it (as npm test does); test-cli's runner defaults to the tdd UI.
 const mocha = { ui: "bdd" };
 
+/** `--log opentidehq.opentide=trace` for a perf run (OPENTIDE_PERF=1): the server's stderr (OPENTIDE_LSP_TIMING) is debug-level. */
+const perfLog = process.env.OPENTIDE_PERF === "1" ? ["--log", "opentidehq.opentide=trace"] : [];
+
 /** PATH without the folders that hold an opentide executable: the engine (WASM) tests run with none. */
 function pathWithoutOpentide() {
   const key = Object.keys(process.env).find((name) => name.toUpperCase() === "PATH") ?? "PATH";
@@ -42,7 +45,7 @@ export default defineConfig([
     label: "wasi",
     files: "out/test/wasi/**/*.test.js",
     workspaceFolder,
-    launchArgs: ["--disable-workspace-trust"],
+    launchArgs: ["--disable-workspace-trust", ...perfLog],
     installExtensions,
     mocha: { ...mocha, timeout: 120000 },
     env: pathWithoutOpentide(),
@@ -54,7 +57,12 @@ export default defineConfig([
     files: "out/test/wasi/**/*.test.js",
     workspaceFolder,
     // Its own extensions folder: the `wasi` label's holds the core extension.
-    launchArgs: ["--disable-workspace-trust", "--extensions-dir", ".vscode-test/extensions-launcher"],
+    launchArgs: [
+      "--disable-workspace-trust",
+      "--extensions-dir",
+      ".vscode-test/extensions-launcher",
+      ...perfLog,
+    ],
     mocha: { ...mocha, timeout: 120000 },
     env: pathWithoutOpentide(),
   },

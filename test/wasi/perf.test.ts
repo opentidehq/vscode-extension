@@ -5,6 +5,7 @@
 import * as assert from "node:assert/strict";
 import { rmSync, writeFileSync } from "node:fs";
 import * as vscode from "vscode";
+import type { ExtensionApi } from "../../src/extension";
 import { activated, fixture } from "../integration/helpers";
 
 const ROUNDS = 8;
@@ -28,6 +29,32 @@ configurations:
       DeviceProcessEvents
       | where FileName =~ "perf-${n}.exe"
 `;
+
+/** What a round that got nothing looks like from the client: the shape that tells a silent server from a silent client. */
+async function probe(api: Required<ExtensionApi>, uri: vscode.Uri): Promise<string> {
+  const client = api.ctx.client.current;
+  const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+  const parts = [
+    `client=${client ? String(client.state) : "none"}`,
+    `document=${document ? `open v${document.version} ${document.languageId}` : "not open"}`,
+    `diagnostics=${vscode.languages.getDiagnostics(uri).length}`,
+  ];
+  if (client) {
+    const started = Date.now();
+    try {
+      const reply = await Promise.race([
+        client.sendRequest("textDocument/documentSymbol", { textDocument: { uri: uri.toString() } }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("no answer in 5 s")), 5000)),
+      ]);
+      parts.push(
+        `documentSymbol=answered in ${Date.now() - started}ms (${Array.isArray(reply) ? reply.length : "?"} items)`,
+      );
+    } catch (error) {
+      parts.push(`documentSymbol=${String(error)}`);
+    }
+  }
+  return parts.join(" ");
+}
 
 /** Until the document has a diagnostic (an event, so the resolution is not a poll interval's). */
 function firstDiagnostics(uri: vscode.Uri): Promise<void> {
@@ -54,12 +81,18 @@ describe("language server cold start: the first document after a start", functio
 
   it("gets its diagnostics, and how soon is printed", async () => {
     const api = await activated();
+    // The protocol trace (every message, both ways, timestamped) goes to the "opentide Language Server Trace" output, which
+    // the workflow uploads with the OPENTIDE_LSP_TIMING stderr; the markers below say which round a message belongs to.
+    const trace = vscode.workspace.getConfiguration("opentide");
+    const traceBefore = trace.inspect<string>("trace.server")?.globalValue;
+    await trace.update("trace.server", "verbose", vscode.ConfigurationTarget.Global);
     const host = vscode.extensions.getExtension("ms-vscode.wasm-wasi-core") ? "wasm-wasi-core" : "launcher";
     const ready: number[] = [];
     const first: number[] = [];
     let timeouts = 0;
     for (let n = 1; n <= ROUNDS; n += 1) {
       const t0 = Date.now();
+      api.ctx.log.info(`PERF-ROUND host=${host} round=${n} restart ${new Date(t0).toISOString()}`);
       await api.ctx.runtime.restart("perf");
       await api.ctx.client.ready();
       const started = Date.now() - t0;
@@ -71,22 +104,31 @@ describe("language server cold start: the first document after a start", functio
       try {
         const diagnostics = firstDiagnostics(uri);
         const t1 = Date.now();
+        api.ctx.log.info(
+          `PERF-ROUND host=${host} round=${n} open ${new Date(t1).toISOString()} ${uri.toString()}`,
+        );
         await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
         try {
           await diagnostics;
           const waited = Date.now() - t1;
+          api.ctx.log.info(`PERF-ROUND host=${host} round=${n} diagnostics after ${waited}ms`);
           ready.push(started);
           first.push(waited);
           say(`WASI-PERF host=${host} round=${n} restart->ready=${started}ms open->diagnostics=${waited}ms`);
         } catch (error) {
           timeouts += 1;
-          say(`WASI-PERF host=${host} round=${n} restart->ready=${started}ms TIMEOUT ${String(error)}`);
+          const shape = await probe(api, uri);
+          api.ctx.log.warn(`PERF-ROUND host=${host} round=${n} TIMEOUT ${shape}`);
+          say(
+            `WASI-PERF host=${host} round=${n} restart->ready=${started}ms TIMEOUT ${String(error)}; ${shape}`,
+          );
         }
       } finally {
         await vscode.commands.executeCommand("workbench.action.closeAllEditors");
         rmSync(uri.fsPath, { force: true });
       }
     }
+    await trace.update("trace.server", traceBefore, vscode.ConfigurationTarget.Global);
     say(
       `WASI-PERF host=${host} median open->diagnostics ${median(first)}ms, restart->ready ${median(ready)}ms, ` +
         `${timeouts} of ${ROUNDS} rounds with no diagnostics in 30 s`,
