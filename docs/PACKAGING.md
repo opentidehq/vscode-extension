@@ -236,8 +236,7 @@ with `code --uninstall-extension opentidehq.opentide`. Try it **on a machine wit
 
 What the first document waits for, measured with the module built from opentide's `integration/unified-core` (ef3ec6d,
 28 MB) under Node 22.23.5 (V8 12.4) on a Linux container, `opentide lsp start` run through `dist/wasi/launcher.cjs` as the
-extension runs it; five runs each (three for 1,200 objects), medians. The harness is the Node script described in the
-pull request; `test/wasi/perf.test.ts` measures the same in VS Code (`OPENTIDE_PERF=1`, the Test VSIX workflow).
+extension runs it; five runs each (three for 1,200 objects), medians. The harness is `scripts/bench-lsp-cold-start.mjs`; `test/wasi/perf.test.ts` measures the same in VS Code (`OPENTIDE_PERF=1`, the Test VSIX workflow).
 
 | | Small workspace (1 rule) | 1,200 rules |
 |-|-:|-:|
