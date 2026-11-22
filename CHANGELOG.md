@@ -76,6 +76,9 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **A rule you open right after the language server restarts gets its problems.** The server could be asked
+  for a file's problems before it had been told the file was open, answer that there were none, and VS Code
+  kept that answer. The extension now asks once more after the file is open.
 - **Validate Query on Tenants works from the Command Palette** while the language server is restarting (a
   setting changed, the folder trusted): the command waits for the server instead of saying the rule has no
   query.
