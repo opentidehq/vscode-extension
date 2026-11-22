@@ -9,7 +9,7 @@
 #   - @opentide/wasi-host, with `npm pack` in packages/wasi-host (its prepack builds it), installed from that
 #     tarball in place of the pinned 1.0.0-rc.3 (in this run's checkout only: nothing is committed);
 #   - the module's licence set (OPENTIDE_WASI_LICENCES): cargo-about over the workspace, the wasi-libc texts,
-#     LICENSE and NOTICE, as opentide's release workflow makes them;
+#     LICENSE, NOTICE and the data notices (release.py legal-bundle), as opentide's release workflow makes them;
 # then packages the extension with them (OPENTIDE_WASI_MODULE, scripts/wasi-lib.mjs: pins.json wasi is not
 # consulted), smoke-tests the .vsix, and runs the WASI tests of test/wasi/ in VS Code on it.
 #
@@ -94,7 +94,8 @@ jobs:
           echo "OPENTIDE_WASI_MODULE=${module}" >> "$GITHUB_ENV"
           echo "OPENTIDE_WASI_VERSION=${OPENTIDE_BUILD_VERSION}" >> "$GITHUB_ENV"
       # The module's licence set, made as opentide's release workflow makes it (engine-release-build.yml, "licences"):
-      # cargo-about over the workspace (every crate the CLI module links), the wasi-libc texts, LICENSE and NOTICE.
+      # cargo-about over the workspace (every crate the CLI module links), the wasi-libc texts, LICENSE, NOTICE and the licence
+      # files NOTICE cites for the embedded data (THIRD-PARTY-DATA-LICENSES.txt).
       - name: The licence set of the module, made from opentide's source
         working-directory: opentide
         run: |
@@ -107,7 +108,8 @@ jobs:
           for f in licenses/wasi-libc/*; do
             printf '==> %s <==\n\n' "$f"; cat "$f"; printf '\n'
           done > "${licences}/WASI-LIBC-LICENSES.txt"
-          for f in THIRD-PARTY-LICENSES.html WASI-LIBC-LICENSES.txt LICENSE NOTICE; do test -s "${licences}/${f}"; done
+          python3 scripts/engine/release.py legal-bundle "${licences}/THIRD-PARTY-DATA-LICENSES.txt"
+          for f in THIRD-PARTY-LICENSES.html WASI-LIBC-LICENSES.txt LICENSE NOTICE THIRD-PARTY-DATA-LICENSES.txt; do test -s "${licences}/${f}"; done
           echo "OPENTIDE_WASI_LICENCES=${licences}" >> "$GITHUB_ENV"
       - name: "@opentide/wasi-host, packed from opentide's source"
         working-directory: opentide/packages/wasi-host

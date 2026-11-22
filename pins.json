@@ -25,6 +25,10 @@
       "NOTICE": {
         "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/NOTICE",
         "sha256": "f838e8d903e9df7ee0d47fa18ec472edd150ffc583dbec329bcccc0bbef544ac"
+      },
+      "THIRD-PARTY-DATA-LICENSES.txt": {
+        "url": "https://github.com/opentidehq/opentide/releases/download/v1.0.0-rc.3/THIRD-PARTY-DATA-LICENSES.txt",
+        "sha256": "d398c91d5cce7529035f37cf55a9198359ee5f8c022f293e7343b16112d830b0"
       }
     }
   },

@@ -21,11 +21,12 @@ that `pins.json` `wasi` pins (URL and SHA-256, the asset's line in the opentide 
 downloaded once into `.cache/` and checked again on every build), and writes it as `opentide.wasm` with
 `launcher.cjs` (`src/core/wasi/launcher.cjs`: MCP, tasks and terminals run the module through it, under
 VS Code's Node), `wasi.json` (version and checksums, which the resolver reads) and the module's own
-licence set, four more assets of the same release pinned beside it (`pins.json` `wasi.licences`, each by URL and
+licence set, five more assets of the same release pinned beside it (`pins.json` `wasi.licences`, each by URL and
 SHA-256, verified like the module): `THIRD-PARTY-LICENSES.html` (every Rust crate the CLI module links,
-`cargo about` with `wasm32-wasip1`; opentide#1741), `WASI-LIBC-LICENSES.txt`, `LICENSE` and `NOTICE`. They are
+`cargo about` with `wasm32-wasip1`; opentide#1741), `WASI-LIBC-LICENSES.txt`, `LICENSE`, `NOTICE` and `THIRD-PARTY-DATA-LICENSES.txt` (the licence files `NOTICE`
+cites for the datasets compiled into the module). They are
 not the engine's copies in `dist/engine/`, which belong to another build and would go stale when the module is
-bumped. `npm run wasi` downloads and verifies the module and the four files without building. The module needs the
+bumped. `npm run wasi` downloads and verifies the module and the five files without building. The module needs the
 `ms-vscode.wasm-wasi-core` extension when it is installed (`@vscode/wasm-wasi`), and otherwise runs through
 the launcher as child processes: nothing to install. It is no `extensionDependencies` entry: the core
 extension declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode, and an
@@ -82,7 +83,7 @@ It exits non-zero on any failure.
 | Key | |
 |-----|-|
 | `opentide.version` | The opentide CI tests the extension against (`pip install opentide==<version>` in the real-opentide and integration jobs): a user's own opentide, tiers 1–3. The extension bundles no Python |
-| `wasi` | The WASI module: opentide's `opentide-wasm32-wasip1.wasm` release asset (version, URL, SHA-256) and, in `licences`, its licence set: `THIRD-PARTY-LICENSES.html`, `WASI-LIBC-LICENSES.txt`, `LICENSE`, `NOTICE` (each URL, SHA-256). **While opentide has not released them, every `sha256` is a marked placeholder** (`PLACEHOLDER-…`): `npm run wasi`, `npm run build` and the release check refuse them and say how to set them |
+| `wasi` | The WASI module: opentide's `opentide-wasm32-wasip1.wasm` release asset (version, URL, SHA-256) and, in `licences`, its licence set: `THIRD-PARTY-LICENSES.html`, `WASI-LIBC-LICENSES.txt`, `LICENSE`, `NOTICE`, `THIRD-PARTY-DATA-LICENSES.txt` (each URL, SHA-256). A `sha256` that is a marked placeholder (`PLACEHOLDER-…`) is refused by `npm run wasi`, `npm run build` and the release check, which say how to set it |
 | `highlights` | opentide's highlights zip (version, URL, SHA-256) the grammars come from |
 | `skills` | The opentide skills (opentidehq/skills, EUPL-1.2): a commit (the archive URL names it) and `contentSha256`, a digest of the files of `skills/` and `LICENSE` that `scripts/skills-lib.mjs` computes (GitHub does not promise its archive bytes stay the same; the files of a commit do). `npm run skills` copies them into `skills/` and writes `contrib/skills.json` (`contributes.chatSkills`); `npm run manifest`, then `skills:check` in CI. The latest upstream tag is v2.1.0 and `plugin.json` is 2.2.2 at the pinned commit: ask upstream to tag it |
 | `engine` | opentide's `opentide-wasm-web` zip (version, URL, SHA-256) and the release's `THIRD-PARTY-LICENSES.html` (URL, SHA-256): the engine (WASM). Same release as `highlights` |
@@ -136,8 +137,8 @@ is for what VS Code starts itself.
 **The opentide the extension carries** (`wasi`, `highlights`, `engine`, one opentide release `v<version>`):
 
 1. From that release's `SHA256SUMS`, set each pin's `version`, `url` and `sha256`: `wasi` (the
-   `opentide-wasm32-wasip1.wasm` line, and the lines of its four `licences`: `THIRD-PARTY-LICENSES.html`,
-   `WASI-LIBC-LICENSES.txt`, `LICENSE`, `NOTICE`), `highlights` (`highlights-v<version>.zip`), `engine`
+   `opentide-wasm32-wasip1.wasm` line, and the lines of its five `licences`: `THIRD-PARTY-LICENSES.html`,
+   `WASI-LIBC-LICENSES.txt`, `LICENSE`, `NOTICE`, `THIRD-PARTY-DATA-LICENSES.txt`), `highlights` (`highlights-v<version>.zip`), `engine`
    (`opentide-wasm-web-v<version>.zip`) and its `thirdPartyLicenses` (`THIRD-PARTY-LICENSES.html`). A
    digest of a download that `SHA256SUMS` does not list is no digest: `npm run wasi -- --print-sha256` prints
    the one of what the URL serves, to compare with it.
@@ -155,15 +156,15 @@ interfaces.
 
 opentide 1.0.0-rc.3 is released (its release workflow's `verify-assets` job checked every asset's attestation
 before any registry published). `pins.json` names its assets by the digests of the release's `SHA256SUMS`
-(the `opentide-wasm32-wasip1.wasm` module, its four licence files, `highlights-v1.0.0-rc.3.zip`,
+(the `opentide-wasm32-wasip1.wasm` module, its five licence files, `highlights-v1.0.0-rc.3.zip`,
 `opentide-wasm-web-v1.0.0-rc.3.zip` and the engine's `THIRD-PARTY-LICENSES.html`, which is the same asset as the
 module's), `package.json` and `package-lock.json` name `@opentide/wasi-host` 1.0.0-rc.3 with the registry's
 integrity, and `opentide.version` (the opentide CI's real-opentide tests install) is `1.0.0rc3`. The module is
 22.1 MB (opt-level `s`, for a faster language-server start in large workspaces: opentide#1774) and the package
 15.2 MiB. The engine zip carries the notices and licences of the data catalogues compiled into it
 (`data/catalogs/<name>/NOTICE`, `LICENSE*`); `scripts/engine-lib.mjs` ships exactly those files under
-`dist/engine/data/` and refuses any other file there. The release also lists `THIRD-PARTY-DATA-LICENSES.txt`, the
-same notices in one file, which `wasi.licences` does not pin.
+`dist/engine/data/` and refuses any other file there. The module's own `THIRD-PARTY-DATA-LICENSES.txt` (the same
+notices in one file) is pinned in `wasi.licences` and ships in `dist/wasi/`.
 
 A later release candidate is the procedure above (the opentide the extension carries), with
 `npm install --save-exact @opentide/wasi-host@<version>` for step 2: a plain `npm install` keeps a lock entry
@@ -184,7 +185,8 @@ It checks out opentide at the ref and builds:
 - `@opentide/wasi-host`, with `npm pack` in `packages/wasi-host` (its `prepack` builds it), installed from
   the tarball in place of the pinned `1.0.0-rc.3`, in that run's checkout only;
 - the module's licence set, as opentide's release workflow makes it (`cargo about generate --workspace`, the
-  wasi-libc texts, `LICENSE`, `NOTICE`), which the build takes from `OPENTIDE_WASI_LICENCES`.
+  wasi-libc texts, `LICENSE`, `NOTICE`, and `release.py legal-bundle` for `THIRD-PARTY-DATA-LICENSES.txt`), which the
+  build takes from `OPENTIDE_WASI_LICENCES`.
 
 Then it packages the extension with `OPENTIDE_WASI_MODULE` and `OPENTIDE_WASI_LICENCES` (which `npm run build` takes instead of the
 pinned asset: `pins.json` is not consulted, and `wasi.json` records the build as `local`), smoke-tests the
@@ -200,7 +202,7 @@ OPENTIDE_BUILD_VERSION=1.0.0-rc.3-dev+$(git rev-parse --short=7 HEAD) scripts/en
 npm pkg set "dependencies.@opentide/wasi-host=file:<path to opentide-wasi-host-*.tgz>"
 npm install
 # a folder with THIRD-PARTY-LICENSES.html (cargo about generate --workspace about.hbs), WASI-LIBC-LICENSES.txt,
-# LICENSE and NOTICE, as the workflow makes it
+# LICENSE, NOTICE and THIRD-PARTY-DATA-LICENSES.txt (scripts/engine/release.py legal-bundle), as the workflow makes it
 OPENTIDE_WASI_LICENCES=<folder> OPENTIDE_WASI_MODULE=<opentide>/target/wasm32-wasip1/wasi/opentide.wasm npm run package
 npm run smoke -- dist-vsix/opentide-universal-*.vsix
 ```
