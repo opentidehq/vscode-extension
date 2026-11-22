@@ -291,9 +291,22 @@ shared buffer) to save about 50 ms a start. The MCP bridge is started by the edi
 with the extension host. A helper process with a worker per protocol would share one compile between `serve` and the language
 server for the same 50 ms, at the cost of a protocol for the helper and extra inherited descriptors (Windows).
 
-**Not explained: rounds with no diagnostics.** In the same run, 8 of 32 rounds (both hosts, with the warm-up off as well as on)
-got no diagnostics for a fresh rule in 30 s, and two took 9.5 s and 17.7 s; the other rounds took 130–300 ms. The rounds were a
-server restart, 1.5 s of idle, a new file in `detections/rules/`, and opening it. The test now prints `TIMEOUT` for such a round and
-fails only when more than a quarter have none. The workspace-diagnostic pull was being skipped in that run for a mistaken reason
-(`1.0.0-rc.3-dev+9cd8da7` did not parse as a version, so it counted as older than rc.3), fixed in `parseVersion`; whether that
-was involved is for the next run to show.
+**Rounds with no diagnostics (a pull that overtook its `didOpen`).** In the run with the warm-up code, 8 of 32 rounds (both hosts,
+the warm-up off as well as on) got no diagnostics for a fresh rule in 30 s, and two took 9.5 s and 17.7 s; the other rounds took
+130-300 ms. A rerun of that code with the whole protocol trace (`opentide.trace.server` verbose, `OPENTIDE_LSP_TIMING=1`, the
+extension's log at trace; the Test VSIX run uploads them as `perf-lsp-logs-*`) reproduced it: 6 of 16 rounds on `wasm-wasi-core`,
+and one slow one. Every one of them has the same shape. The client is running, the document is open, and the server answers a
+`documentSymbol` in 1-2 ms, so it is neither a client that never sent anything nor a server that never answered. In the failing
+server sessions the client's first `textDocument/diagnostic` for the new file went out **before the `didOpen` of that file**, in the
+middle of the replay of the already-open documents that follows a restart; the server did not know the document and answered
+`{"items": [], "kind": "full", "resultId": ...}` in 1-2 ms, and the client kept it. A pull is not repeated until the document
+changes, so the file stays empty. Sessions where the pull came after the file's own `didOpen` always got a full answer
+(150-350 ms). Two sessions where the pull came first still got one (285 ms, 305 ms): the order on the wire is a race, not a rule.
+
+It is not the version-parse bug (which skipped the workspace pull on that run): 0 of 32 rounds failed with the fix and the pull on
+`auto`, and 0 of 32 with the pull answered empty (`opentide.diagnostics.workspacePull` `never`), on `wasm-wasi-core` and the
+launcher, on the code without the warm-up (`test/wasi/perf.test.ts` runs both). What differs between the failing and the passing
+runs is the warm-up code; why it reorders the replay is not established. The warm-up is dropped (above), and the remaining facts for
+the engine side are that a `textDocument/diagnostic` for a document the server was never told about is answered as an empty full
+report instead of being analysed from disk or answered `ServerCancelled` with `retriggerRequest: true`, and that the server does not
+send `workspace/diagnostic/refresh` when the `didOpen` arrives afterwards.
