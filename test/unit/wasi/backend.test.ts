@@ -7,6 +7,7 @@ import { Backend, type BackendDeps } from "../../../src/core/backend/backend";
 import { fromChildProcess, type ServeProcess } from "../../../src/core/backend/process";
 import type { Classification } from "../../../src/core/capabilities/classification";
 import { CommandTree } from "../../../src/core/capabilities/tree";
+import { shellQuote } from "../../../src/core/runtime/env";
 import { GuestPaths } from "../../../src/core/wasi/paths";
 import { type FetchHandler, wasiServeWire } from "../../../src/core/wasi/wire";
 import { COMMANDS_FIXTURE, FAKE_OPENTIDE, fakeRuntime } from "../helpers";
@@ -98,7 +99,11 @@ describe("the backend on the WASI runtime", () => {
     const result = await instance.run(REPO, ["echo", "--file", path.join(REPO, "objects", "a.yaml")]);
     assert.equal(result.via, "serve");
     assert.equal(result.exitCode, 0);
-    assert.equal(result.argvDisplay, `opentide --json echo --file ${path.join(REPO, "objects", "a.yaml")}`);
+    // The display is POSIX-quoted: a Windows path with backslashes is shown in quotes.
+    assert.equal(
+      result.argvDisplay,
+      `opentide --json echo --file ${shellQuote(path.join(REPO, "objects", "a.yaml"))}`,
+    );
     assert.equal(result.document.cwd, REPO);
     assert.equal((result.document.env as Record<string, string>).OPENTIDE_REPO_ROOT, REPO);
     assert.equal(instance.serveRunning, true);
