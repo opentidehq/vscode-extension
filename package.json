@@ -2371,7 +2371,7 @@
     "@vscode/wasm-wasi": "1.0.1",
     "cytoscape": "3.34.4",
     "vscode-jsonrpc": "9.0.3",
-    "vscode-languageclient": "10.1.2"
+    "vscode-languageclient": "11.0.0"
   },
   "overrides": {
     "playwright": "1.63.0",
