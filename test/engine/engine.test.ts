@@ -47,8 +47,12 @@ describe("the engine (WASM) tier, with no opentide anywhere", () => {
     const client = await api.ctx.client.ready();
     assert.ok(client, "the engine's language client runs");
     assert.equal(api.ctx.client.serverInfo?.host, null);
-    // The browser build reports the crate's version, without the release candidate's suffix.
-    assert.equal(api.ctx.client.serverInfo?.engine, pins.engine.version.replace(/[-+].*$/, ""));
+    // rc.3's browser build reports the release's version; rc.2's reported the crate's, without the suffix.
+    const reported = api.ctx.client.serverInfo?.engine;
+    assert.ok(
+      reported === pins.engine.version || reported === pins.engine.version.replace(/[-+].*$/, ""),
+      `the engine says ${reported}, pins.json says ${pins.engine.version}`,
+    );
   });
 
   it("reports diagnostics on a broken object, with references resolved from the fed workspace", async () => {
