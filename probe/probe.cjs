@@ -35,7 +35,7 @@ async function run(label, preopens, env, argv) {
   const instance = await WebAssembly.instantiate(module, imports);
   const code = wasi.start(instance);
   console.log(`exit code ${code}`);
-  for (const [key, { count, first }] of seen) console.log(`  ${key} x${count} first args ${JSON.stringify(first)}`);
+  for (const [key, { count, first }] of seen) console.log(`  ${key} x${count} first args ${JSON.stringify(first, (k, v) => (typeof v === "bigint" ? `${v}n` : v))}`);
 }
 
 (async () => {
