@@ -156,10 +156,13 @@ describe("release: check", () => {
     // A real digest for the WASI module is fine; the marked placeholder keeps the release from going out.
     const sha256 = "a".repeat(64);
     const licences = Object.fromEntries(
-      ["THIRD-PARTY-LICENSES.html", "WASI-LIBC-LICENSES.txt", "LICENSE", "NOTICE"].map((name) => [
-        name,
-        { url: `https://example.invalid/${name}`, sha256 },
-      ]),
+      [
+        "THIRD-PARTY-LICENSES.html",
+        "WASI-LIBC-LICENSES.txt",
+        "LICENSE",
+        "NOTICE",
+        "THIRD-PARTY-DATA-LICENSES.txt",
+      ].map((name) => [name, { url: `https://example.invalid/${name}`, sha256 }]),
     );
     assert.deepEqual(
       problems({

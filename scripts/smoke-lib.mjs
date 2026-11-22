@@ -95,6 +95,7 @@ export function checkWasiPackage(exists) {
     "dist/wasi/WASI-LIBC-LICENSES.txt",
     "dist/wasi/LICENSE",
     "dist/wasi/NOTICE",
+    "dist/wasi/THIRD-PARTY-DATA-LICENSES.txt",
     "dist/mcp-wasi.js",
     "dist/mcp-launcher.js",
   ]

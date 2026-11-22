@@ -263,6 +263,7 @@ describe("smoke: checks", () => {
         "the package has no dist/wasi/WASI-LIBC-LICENSES.txt",
         "the package has no dist/wasi/LICENSE",
         "the package has no dist/wasi/NOTICE",
+        "the package has no dist/wasi/THIRD-PARTY-DATA-LICENSES.txt",
         "the package has no dist/mcp-wasi.js",
         "the package has no dist/mcp-launcher.js",
       ],
