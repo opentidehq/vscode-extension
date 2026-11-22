@@ -187,11 +187,13 @@ describe("wasi: the pinned WASI module", () => {
           `${name}: ${entry.sha256}`,
         );
       }
-      // Not the engine's copies: those are another build's.
-      assert.notEqual(
-        pins.wasi.licences["THIRD-PARTY-LICENSES.html"].url,
-        pins.engine.thirdPartyLicenses.url,
-      );
+      // The engine's copy is the same asset when both come from one release, another build's when they do not.
+      const wasiCopy = pins.wasi.licences["THIRD-PARTY-LICENSES.html"];
+      if (pins.engine.version === pins.wasi.version) {
+        assert.deepEqual(wasiCopy, pins.engine.thirdPartyLicenses);
+      } else {
+        assert.notEqual(wasiCopy.url, pins.engine.thirdPartyLicenses.url);
+      }
     });
 
     it("refuses a pin whose licence digests are placeholders, naming them", () => {
