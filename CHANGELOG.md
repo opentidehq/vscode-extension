@@ -7,6 +7,15 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **The bundled opentide (WASI) and the opentide engine (WASM) are 1.0.0-rc.4.** Editor features with no
+  opentide installed, and in Restricted Mode, come from this release
+  ([opentide 1.0.0-rc.4](https://github.com/opentidehq/opentide/releases/tag/v1.0.0-rc.4)).
+- **Hover and highlighting answer while a large workspace is still being validated for the first time.**
+  They no longer wait for the first validation to finish.
+- **A misspelt table name in a KQL query is an error.** The problem is reported as `kql_table_misspelt`.
+
 ## [0.3.3] - 2026-11-23
 
 The first release on the Visual Studio Marketplace: "opentide for VS Code", id `opentide.opentide-vscode`.
