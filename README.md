@@ -28,12 +28,13 @@ none ([what runs where](#the-bundled-opentide-what-runs-where)).
 
 ## Install
 
-Releases are on two stores, under a different id in each (the same build; only the publisher differs):
+Releases are on two stores, under a different id and name in each (the same build; only the publisher and
+the display name differ):
 
-| Editor | Store | Id |
-|--------|-------|----|
-| VS Code | [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentide.opentide) | `opentide.opentide` |
-| Cursor, Kiro, Windsurf, VSCodium and other forks | [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) | `opentidehq.opentide` |
+| Editor | Store | Name | Id |
+|--------|-------|------|----|
+| VS Code | [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentide.opentide) | opentide for VS Code | `opentide.opentide` |
+| Cursor, Kiro, Windsurf, VSCodium and other forks | [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) | opentide | `opentidehq.opentide` |
 
 Settings, commands and the MCP server have the same names under either id.
 

@@ -6,7 +6,7 @@ import { deflateRawSync } from "node:zlib";
 import { commonOptions } from "../../scripts/build-lib.mjs";
 import {
   budgetFor,
-  committedPublisherProblem,
+  committedManifestProblem,
   EXTENSION_NAME,
   formatReport,
   isPreReleaseVersion,
@@ -16,8 +16,8 @@ import {
   sizeReport,
   sizeUnit,
   storeExtensionId,
+  storeManifest,
   vsixName,
-  withPublisher,
   zipEntries,
   zipRead,
 } from "../../scripts/package-lib.mjs";
@@ -79,30 +79,42 @@ describe("package: names, ignore file and pre-release", () => {
     assert.throws(() => vsixName(undefined, "0.3.1"), /no store/);
   });
 
-  it("refuses a package.json an interrupted run left with the Marketplace publisher", () => {
-    assert.equal(committedPublisherProblem({ publisher: "opentidehq" }), undefined);
+  it("refuses a package.json an interrupted run left with the Marketplace publisher or display name", () => {
+    assert.equal(committedManifestProblem({ publisher: "opentidehq", displayName: "opentide" }), undefined);
     assert.match(
-      committedPublisherProblem({ publisher: "opentide" }),
-      /"opentide", not "opentidehq".*git checkout package\.json/,
+      committedManifestProblem({ publisher: "opentide", displayName: "opentide" }),
+      /publisher is "opentide", not "opentidehq".*git checkout package\.json/,
+    );
+    assert.match(
+      committedManifestProblem({ publisher: "opentidehq", displayName: "opentide for VS Code" }),
+      /displayName is "opentide for VS Code", not "opentide".*git checkout package\.json/,
     );
   });
 
-  it("gives each store its publisher, the Open VSX one being package.json's", () => {
+  it("gives each store its publisher and display name, the Open VSX ones being package.json's", () => {
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
     assert.deepEqual(
-      STORES.map((store) => [store.store, storeExtensionId(store)]),
+      STORES.map((store) => [store.store, storeExtensionId(store), store.displayName]),
       [
-        ["marketplace", "opentide.opentide"],
-        ["openvsx", "opentidehq.opentide"],
+        ["marketplace", "opentide.opentide", "opentide for VS Code"],
+        ["openvsx", "opentidehq.opentide", "opentide"],
       ],
     );
     assert.equal(pkg.name, EXTENSION_NAME);
-    assert.equal(STORES.find((store) => store.store === "openvsx")?.publisher, pkg.publisher);
+    const openvsx = STORES.find((store) => store.store === "openvsx");
+    assert.equal(openvsx?.publisher, pkg.publisher);
+    assert.equal(openvsx?.displayName, pkg.displayName);
     const text = readFileSync(join(root, "package.json"), "utf8");
     for (const store of STORES) {
-      const manifest = JSON.parse(withPublisher(text, store.publisher));
+      const manifest = JSON.parse(storeManifest(text, store));
       assert.equal(manifest.publisher, store.publisher);
-      assert.deepEqual({ ...manifest, publisher: pkg.publisher }, pkg, "only the publisher changes");
+      assert.equal(manifest.displayName, store.displayName);
+      assert.equal(manifest.name, "opentide", "the name, and so the id's second half, is the same in both");
+      assert.deepEqual(
+        { ...manifest, publisher: pkg.publisher, displayName: pkg.displayName },
+        pkg,
+        "only the publisher and display name change",
+      );
     }
   });
 

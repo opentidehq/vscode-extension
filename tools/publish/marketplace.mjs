@@ -21,6 +21,9 @@ import { fileURLToPath } from "node:url";
 const GALLERY = "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery";
 const UNIVERSAL = "universal";
 
+/** vsce refused a publish: the job stops on it rather than polling and publishing again. */
+export class PublishRefused extends Error {}
+
 /** One line on stdout (the job log). */
 const say = (line) => process.stdout.write(`${line}\n`);
 
@@ -78,7 +81,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Poll until the gallery lists every expected package, republishing the missing ones between rounds.
- * Returns the targets still missing (empty when the release is complete).
+ * Returns the targets still missing (empty when the release is complete). A `publish` that throws (vsce
+ * refused) ends it at once with that error: a refusal is never retried.
  */
 export async function ensurePublished({
   id,
@@ -142,18 +146,30 @@ function main() {
     const { target } = pkg;
     const args = ["publish", "--oidc", "--skip-duplicate", ...rest, "--packagePath", join(dir, pkg.file)];
     say(`marketplace: vsce ${args.join(" ")} (${target})`);
+    // vsce's own output, its refusal included, goes to the job log as it is. A refusal stops the job here: no
+    // further rounds, which would bury it (0.3.1: "The extension 'opentide' already exists in the Marketplace").
     const done = spawnSync(vsce, args, { stdio: "inherit" });
-    if (done.status !== 0) say(`marketplace: vsce exited ${done.status} for ${target}`);
+    if (done.status !== 0)
+      throw new PublishRefused(`vsce publish exited ${done.status} for ${target} (its error is above)`);
   };
-  ensurePublished({ id, version, expected, publish }).then((missing) => {
-    if (missing.length > 0) {
+  ensurePublished({ id, version, expected, publish })
+    .catch((error) => {
+      if (!(error instanceof PublishRefused)) throw error;
       console.error(
-        `::error::The Marketplace does not list ${id} ${version} for: ${missing.map((p) => p.target).join(", ")}. ` +
-          "Check the publisher hub (https://marketplace.visualstudio.com/manage/publishers), then Re-run failed jobs.",
+        `::error::marketplace: ${error.message}. Not retried: fix the cause, then Re-run failed jobs.`,
       );
       process.exit(1);
-    }
-  });
+    })
+    .then((missing) => {
+      if (missing === undefined) return;
+      if (missing.length > 0) {
+        console.error(
+          `::error::The Marketplace does not list ${id} ${version} for: ${missing.map((p) => p.target).join(", ")}. ` +
+            "Check the publisher hub (https://marketplace.visualstudio.com/manage/publishers), then Re-run failed jobs.",
+        );
+        process.exit(1);
+      }
+    });
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();

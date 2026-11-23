@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateRawSync } from "node:zlib";
-import { STORES, sizeReport, vsixName, withPublisher } from "../../scripts/package-lib.mjs";
+import { STORES, sizeReport, storeManifest, vsixName } from "../../scripts/package-lib.mjs";
 import {
   absoluteLinks,
   assetProblems,
@@ -64,6 +64,7 @@ function vsix({
   target,
   preRelease = true,
   publisher = "opentidehq",
+  displayName = "opentide",
   id = "opentide",
   main = "./dist/extension.js",
 }) {
@@ -75,23 +76,23 @@ function vsix({
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
   <Metadata>
     <Identity Language="en-US" Id="${id}" Version="${version}" Publisher="${publisher}"${platform}/>
-    <DisplayName>opentide</DisplayName>
+    <DisplayName>${displayName}</DisplayName>
     <Properties>
       <Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.91.0" />
       ${pre}
     </Properties>
   </Metadata>
 </PackageManifest>`,
-    "extension/package.json": `{\n  "name": "${id}",\n  "publisher": "${publisher}",\n  "main": "${main}"\n}\n`,
+    "extension/package.json": `{\n  "name": "${id}",\n  "displayName": ${JSON.stringify(displayName)},\n  "publisher": "${publisher}",\n  "main": "${main}"\n}\n`,
     "extension/dist/extension.js": "module.exports = {};\n",
   });
 }
 
 /** The two stores' packages of `version`, as `npm run package` names them. */
 function storePackages(version, overrides = {}) {
-  return STORES.map(({ store, publisher }) => ({
+  return STORES.map(({ store, publisher, displayName }) => ({
     name: vsixName(store, version),
-    buffer: vsix({ version, preRelease: isPreRelease(version), publisher, ...overrides[store] }),
+    buffer: vsix({ version, preRelease: isPreRelease(version), publisher, displayName, ...overrides[store] }),
   }));
 }
 
@@ -334,12 +335,41 @@ describe("release: assets", () => {
       version: "0.1.0",
       target: "linux-x64",
       preRelease: true,
+      displayName: "opentide",
     });
     assert.equal(vsixIdentity(vsix({ preRelease: false })).target, "universal");
     assert.throws(() => vsixIdentity(zip({ "a.txt": "x" })), /not a VSIX/);
   });
 
-  it("accepts one package per store, the same but for the publisher", () => {
+  it("names each store's package: the Marketplace's 'opentide for VS Code', Open VSX's 'opentide'", () => {
+    // 0.3.1's Marketplace publish was refused: the banned opentidehq extension still holds "opentide".
+    assert.deepEqual(
+      STORES.map(({ store, publisher, displayName }) => [store, publisher, displayName]),
+      [
+        ["marketplace", "opentide", "opentide for VS Code"],
+        ["openvsx", "opentidehq", "opentide"],
+      ],
+    );
+    const [marketplace, openvsx] = storePackages("0.3.2");
+    assert.equal(vsixIdentity(marketplace.buffer).displayName, "opentide for VS Code");
+    assert.equal(vsixIdentity(openvsx.buffer).displayName, "opentide");
+  });
+
+  it("refuses a Marketplace package named 'opentide' (0.3.1's), and an Open VSX one renamed", () => {
+    const found = assetProblems(
+      storePackages("0.3.1", {
+        marketplace: { displayName: "opentide" },
+        openvsx: { displayName: "opentide for VS Code" },
+      }),
+      { version: "0.3.1" },
+    );
+    assert.deepEqual(found, [
+      'opentide-marketplace-0.3.1.vsix is named "opentide", not "opentide for VS Code" (the Visual Studio Marketplace package)',
+      'opentide-openvsx-0.3.1.vsix is named "opentide for VS Code", not "opentide" (the Open VSX package)',
+    ]);
+  });
+
+  it("accepts one package per store, the same but for the publisher and display name", () => {
     assert.deepEqual(assetProblems(storePackages("0.3.1"), { version: "0.3.1" }), []);
     assert.deepEqual(assetProblems(storePackages("0.4.0"), { version: "0.4.0" }), []);
   });
@@ -353,12 +383,12 @@ describe("release: assets", () => {
     ]);
   });
 
-  it("refuses packages that differ beyond the publisher", () => {
+  it("refuses packages that differ beyond the publisher and display name", () => {
     const found = assetProblems(storePackages("0.3.1", { openvsx: { main: "./dist/other.js" } }), {
       version: "0.3.1",
     });
     assert.deepEqual(found, [
-      "extension/package.json differs between opentide-marketplace-0.3.1.vsix and opentide-openvsx-0.3.1.vsix, beyond the publisher",
+      "extension/package.json differs between opentide-marketplace-0.3.1.vsix and opentide-openvsx-0.3.1.vsix, beyond the publisher and display name",
     ]);
   });
 
@@ -393,15 +423,26 @@ describe("release: assets", () => {
     ]);
   });
 
-  it("package.json's publisher is replaced alone, keeping the text as it is", () => {
+  it("package.json's publisher and display name are replaced alone, keeping the text as it is", () => {
     const text =
-      '{\n  "name": "opentide",\n  "publisher": "opentidehq",\n  "x": {\n    "publisher": "keep"\n  }\n}\n';
-    assert.equal(withPublisher(text, "opentide"), text.replace('"opentidehq"', '"opentide"'));
+      '{\n  "name": "opentide",\n  "displayName": "opentide",\n  "publisher": "opentidehq",\n  "x": {\n    "publisher": "keep",\n    "displayName": "keep"\n  }\n}\n';
+    const [marketplace, openvsx] = STORES;
+    assert.equal(
+      storeManifest(text, marketplace),
+      text
+        .replace('"opentidehq"', '"opentide"')
+        .replace('"displayName": "opentide"', '"displayName": "opentide for VS Code"'),
+    );
+    assert.equal(storeManifest(text, openvsx), text);
     assert.throws(
-      () => withPublisher('{\n  "name": "opentide"\n}\n', "opentide"),
+      () => storeManifest('{\n  "name": "opentide",\n  "displayName": "opentide"\n}\n', marketplace),
       /0 top-level "publisher" lines/,
     );
-    assert.throws(() => withPublisher(text, "Bad Id"), /not a publisher id/);
+    assert.throws(
+      () => storeManifest('{\n  "name": "opentide",\n  "publisher": "opentidehq"\n}\n', marketplace),
+      /0 top-level "displayName" lines/,
+    );
+    assert.throws(() => storeManifest(text, { ...marketplace, publisher: "Bad Id" }), /not a publisher id/);
   });
 });
 

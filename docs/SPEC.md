@@ -178,7 +178,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Store listing
 
-- **Identity:** display name `opentide`; publisher `opentide` on the Marketplace (`opentide.opentide`: the publisher `opentidehq` is banned there) and the verified namespace `opentidehq` on Open VSX (`opentidehq.opentide`). The code takes the id from `context.extension.id`, never a literal ([RELEASING.md](RELEASING.md#two-publishers-and-why)).
+- **Identity:** publisher `opentide` and display name "opentide for VS Code" on the Marketplace (`opentide.opentide`: the publisher `opentidehq` is banned there, and its hidden extension still holds the display name "opentide") and the verified namespace `opentidehq` and display name "opentide" on Open VSX (`opentidehq.opentide`). The code takes the id from `context.extension.id`, never a literal ([RELEASING.md](RELEASING.md#two-publishers-and-why)).
 - **Categories:** Programming Languages, Linters, Snippets, AI.
 - **Keywords:** detection engineering, detection as code, KQL, SPL, ES|QL, Sentinel, Defender, Splunk, Elastic, Falco, MITRE ATT&CK.
 - **README:** short GIFs of the five moments in [§8](#8-setup-wizard-and-onboarding).

@@ -229,22 +229,43 @@ export function vsixIdentity(buffer) {
     version: attribute("Version"),
     target: attribute("TargetPlatform") ?? "universal",
     preRelease: /<Property\s+Id="Microsoft\.VisualStudio\.Code\.PreRelease"\s+Value="true"/.test(xml),
+    displayName: unescapeXml(/<DisplayName>([^<]*)<\/DisplayName>/.exec(xml)?.[1] ?? ""),
   };
 }
 
-/** An entry's text with the store's publisher replaced by a placeholder, to compare two stores' packages. */
-function withoutPublisher(name, buffer, publisher) {
+const unescapeXml = (text) =>
+  text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+const escapeXml = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * An entry's text with the store's publisher and display name replaced by placeholders, to compare two stores'
+ * packages; undefined for an entry that may not differ at all.
+ */
+function withoutStoreFields(name, buffer, store) {
   const text = buffer.toString("utf8");
   if (name === "extension/package.json")
-    return text.replace(`"publisher": ${JSON.stringify(publisher)}`, '"publisher": "<publisher>"');
+    return text
+      .replace(`"publisher": ${JSON.stringify(store.publisher)}`, '"publisher": "<publisher>"')
+      .replace(`"displayName": ${JSON.stringify(store.displayName)}`, '"displayName": "<displayName>"');
   if (name === "extension.vsixmanifest")
-    return text.replace(`Publisher="${publisher}"`, 'Publisher="<publisher>"');
+    return text
+      .replace(`Publisher="${store.publisher}"`, 'Publisher="<publisher>"')
+      .replace(
+        `<DisplayName>${escapeXml(store.displayName)}</DisplayName>`,
+        "<DisplayName>&lt;displayName&gt;</DisplayName>",
+      );
   return undefined;
 }
 
 /**
- * What differs between two stores' packages other than their publisher: every entry is the same bytes, except
- * `extension/package.json` and `extension.vsixmanifest`, which are the same once the publisher is set aside.
+ * What differs between two stores' packages other than their publisher and display name: every entry is the
+ * same bytes, except `extension/package.json` and `extension.vsixmanifest`, which are the same once those two
+ * are set aside. `a` and `b` are `{ name, buffer, store }`.
  */
 export function storeDifferences(a, b) {
   const found = [];
@@ -258,9 +279,9 @@ export function storeDifferences(a, b) {
       continue;
     }
     if (left.equals(right)) continue;
-    const plainLeft = withoutPublisher(name, left, a.publisher);
-    if (plainLeft === undefined || plainLeft !== withoutPublisher(name, right, b.publisher))
-      found.push(`${name} differs between ${a.name} and ${b.name}, beyond the publisher`);
+    const plainLeft = withoutStoreFields(name, left, a.store);
+    if (plainLeft === undefined || plainLeft !== withoutStoreFields(name, right, b.store))
+      found.push(`${name} differs between ${a.name} and ${b.name}, beyond the publisher and display name`);
   }
   return found;
 }
@@ -268,8 +289,8 @@ export function storeDifferences(a, b) {
 /**
  * What is wrong with a release's VSIX files (`[{ name, buffer }]`): exactly one universal package per store
  * (package-lib STORES), each named `opentide-<store>-<version>.vsix`, with that store's publisher, at
- * `version`, with the pre-release flag the version's minor gives; and the packages differ only in their
- * publisher. Empty when they are right.
+ * `version`, with the pre-release flag the version's minor gives, and that store's display name; and the
+ * packages differ only in their publisher and display name. Empty when they are right.
  */
 export function assetProblems(files, { version }) {
   const found = [];
@@ -291,6 +312,10 @@ export function assetProblems(files, { version }) {
     }
     const id = storeExtensionId(target);
     if (identity.id !== id) found.push(`${name} is ${identity.id}, not ${id} (the ${target.label} package)`);
+    if (identity.displayName !== target.displayName)
+      found.push(
+        `${name} is named ${JSON.stringify(identity.displayName)}, not ${JSON.stringify(target.displayName)} (the ${target.label} package)`,
+      );
     if (identity.version !== version) found.push(`${name} is version ${identity.version}, not ${version}`);
     if (identity.preRelease !== preRelease) {
       found.push(
@@ -299,7 +324,7 @@ export function assetProblems(files, { version }) {
     }
     if (identity.target !== "universal")
       found.push(`${name} is ${identity.target}: the release has universal packages only`);
-    checked.push({ name, buffer, publisher: target.publisher });
+    checked.push({ name, buffer, store: target });
   }
   for (const name of expected.keys()) if (!files.some((file) => file.name === name)) found.push(`no ${name}`);
   if (found.length === 0) {

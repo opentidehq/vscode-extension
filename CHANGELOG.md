@@ -7,6 +7,12 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Visual Studio Marketplace lists the extension as "opentide for VS Code".** Its id is still
+  `opentide.opentide`; the name "opentide" was taken there. Open VSX keeps "opentide"
+  ([#107](https://github.com/opentidehq/vscode-extension/pull/107)).
+
 ## [0.3.1] - 2026-11-23
 
 The extension is on the Visual Studio Marketplace as `opentide.opentide`. A rule's colours match the language
