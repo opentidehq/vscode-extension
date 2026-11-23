@@ -8,8 +8,8 @@
 #                merged ([Unreleased] is empty, package.json has the version) and its tag does not exist
 #   universal    one universal package per store, for every platform and the web: the extension runs the
 #                user's own opentide, else the WASI module it carries, and carries no Python runtime. The
-#                Marketplace's is opentide.opentide, Open VSX's opentidehq.opentide: the same build, differing
-#                only in package.json's publisher (docs/RELEASING.md, "One-time setup")
+#                Marketplace's is opentide.opentide-vscode, Open VSX's opentidehq.opentide: the same build,
+#                differing only in package.json's name, publisher and display name (docs/RELEASING.md)
 #   av-gate      the antivirus gate (av-gate.yml): no native executable at any depth, the recorded size,
 #                YARA, ClamAV and Microsoft Defender, each proven on a canary. Nothing is attested, tagged or
 #                released, and no store gets anything, unless both packages pass
@@ -123,7 +123,7 @@ jobs:
           flags=(--universal)
           if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
           npm run package -- "${flags[@]}"
-      - name: Smoke test, the Marketplace package (opentide.opentide)
+      - name: Smoke test, the Marketplace package (opentide.opentide-vscode)
         run: npm run smoke -- dist-vsix/opentide-marketplace-*.vsix
       - name: Smoke test, the Open VSX package (opentidehq.opentide)
         run: npm run smoke -- dist-vsix/opentide-openvsx-*.vsix
@@ -287,7 +287,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://marketplace.visualstudio.com/items?itemName=opentide.opentide
+      url: https://marketplace.visualstudio.com/items?itemName=opentide.opentide-vscode
     # id-token: write for the Marketplace's OIDC trusted publishing (no PAT).
     permissions:
       contents: read
@@ -317,11 +317,11 @@ jobs:
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
           (cd release && sha256sum --check --strict SHA256SUMS)
       # Only this release's own Marketplace package, never an older version (no backfill to `opentide`).
-      - name: This release's Marketplace package, 0.3.1 or later
+      - name: This release's Marketplace package, 0.3.3 or later
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
-        run: node tools/publish/marketplace.mjs --check opentide.opentide "${VERSION}" "${VSIX}"
-      # The Marketplace package only (opentide.opentide); a re-run is safe with --skip-duplicate.
+        run: node tools/publish/marketplace.mjs --check opentide.opentide-vscode "${VERSION}" "${VSIX}"
+      # The Marketplace package only (opentide.opentide-vscode); a re-run is safe with --skip-duplicate.
       - name: vsce publish --oidc
         run: |
           set -euo pipefail
@@ -338,7 +338,7 @@ jobs:
           set -euo pipefail
           flags=()
           if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
-          node tools/publish/marketplace.mjs opentide.opentide "${VERSION}" "${VSIX}" "${flags[@]}"
+          node tools/publish/marketplace.mjs opentide.opentide-vscode "${VERSION}" "${VSIX}" "${flags[@]}"
 
   publish-openvsx:
     name: Publish to Open VSX

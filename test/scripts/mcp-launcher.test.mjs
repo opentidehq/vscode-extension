@@ -93,10 +93,10 @@ describe("the MCP launcher (dist/mcp-launcher.js)", function () {
 
   it("runs the copies of the id the entry names: each store has its own publisher", async () => {
     const dir = extensions("stores", {
-      "opentide.opentide-0.3.1": "marketplace",
+      "opentide.opentide-vscode-0.3.3": "marketplace",
       "opentidehq.opentide-0.3.0": "openvsx",
     });
-    assert.match((await run(dir, "x\n", { id: "opentide.opentide" })).stderr, /bridge marketplace/);
+    assert.match((await run(dir, "x\n", { id: "opentide.opentide-vscode" })).stderr, /bridge marketplace/);
     assert.match((await run(dir, "x\n", { id: "opentidehq.opentide" })).stderr, /bridge openvsx/);
     // An entry written before OPENTIDE_EXTENSION_ID: the id of the global storage folder the launcher is in.
     assert.match((await run(dir, "x\n")).stderr, /bridge openvsx/);

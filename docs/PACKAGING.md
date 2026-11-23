@@ -8,7 +8,7 @@ How the VSIX is built: the package, the pins, the gates, and how to bump what it
 
 | Package | Built with | Contents |
 |---------|------------|----------|
-| Universal, one per store | `npm run package` (`--universal` is accepted) | The extension, its webviews, the grammars, `dist/wasi/` (the WASI module) and `dist/engine/`. No `runtime/`: the extension runs the user's own opentide, else the WASI module. The Marketplace's (`opentide.opentide`) and Open VSX's (`opentidehq.opentide`) are one build and differ only in package.json's `publisher` ([RELEASING.md](RELEASING.md#two-publishers-and-why)) |
+| Universal, one per store | `npm run package` (`--universal` is accepted) | The extension, its webviews, the grammars, `dist/wasi/` (the WASI module) and `dist/engine/`. No `runtime/`: the extension runs the user's own opentide, else the WASI module. The Marketplace's (`opentide.opentide-vscode`) and Open VSX's (`opentidehq.opentide`) are one build and differ only in package.json's `name`, `publisher` and `displayName` ([RELEASING.md](RELEASING.md#two-publishers-and-why)) |
 
 There are no per-platform packages. 0.1.0 and 0.1.1 shipped eight, each with a bundled CPython runtime
 and opentide closure; 0.1.2 dropped them (SPEC D1). VS Code and Open VSX serve a newer universal version
@@ -195,7 +195,7 @@ It checks out opentide at the ref and builds:
 Then it packages the extension with `OPENTIDE_WASI_MODULE` and `OPENTIDE_WASI_LICENCES` (which `npm run build` takes instead of the
 pinned asset: `pins.json` is not consulted, and `wasi.json` records the build as `local`), smoke-tests the
 `.vsix`, runs `npm test` and `npm run test:wasi` on it, and uploads
-`opentide-marketplace-<version>-wasi-<sha>.vsix` (the Marketplace package, `opentide.opentide`) as the artifact `opentide-vsix-wasi-<sha>`. To make one by
+`opentide-marketplace-<version>-wasi-<sha>.vsix` (the Marketplace package, `opentide.opentide-vscode`) as the artifact `opentide-vsix-wasi-<sha>`. To make one by
 hand:
 
 ```bash
@@ -219,7 +219,7 @@ code --install-extension opentide-marketplace-<version>-wasi-<sha>.vsix
 ```
 
 Nothing else to install: the module runs through VS Code's Node, which the output channel says (`WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node`, or `... is installed and not used: ...` with the WASM WASI Core extension); set `opentide.wasi.host` to `wasm-wasi` and **opentide: Restart Server** to try the other host. Uninstall
-with `code --uninstall-extension opentide.opentide`. Try it **on a machine with no opentide installed**
+with `code --uninstall-extension opentide.opentide-vscode`. Try it **on a machine with no opentide installed**
 (or set `opentide.path` to a path that is nothing, and keep `opentide` off `PATH`):
 
 1. **Open a workspace.** Open a folder with `.opentide/` and `objects/` (`opentide setup` makes one). The

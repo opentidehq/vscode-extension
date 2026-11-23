@@ -1,11 +1,27 @@
 # Changelog
 
-All notable changes to the opentide extension (`opentide.opentide` on the Visual Studio Marketplace,
+All notable changes to the opentide extension (`opentide.opentide-vscode` on the Visual Studio Marketplace,
 `opentidehq.opentide` on Open VSX). The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Stable releases use even minor versions and
 pre-releases odd ones.
 
 ## [Unreleased]
+
+## [0.3.3] - 2026-11-23
+
+The first release on the Visual Studio Marketplace: "opentide for VS Code", id `opentide.opentide-vscode`.
+
+### Upgrade
+
+1. If you use VS Code, install `opentide.opentide-vscode` from the Visual Studio Marketplace:
+   `code --install-extension opentide.opentide-vscode --pre-release`.
+
+### Changed
+
+- **On the Visual Studio Marketplace the extension is `opentide.opentide-vscode`.** The Marketplace keeps the
+  name `opentide` for the extension it banned, so 0.3.1 and 0.3.2 never reached it. Open VSX keeps
+  `opentidehq.opentide`, and nothing else changed since 0.3.2
+  ([#109](https://github.com/opentidehq/vscode-extension/pull/109)).
 
 ## [0.3.2] - 2026-11-23
 

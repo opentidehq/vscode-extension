@@ -2,7 +2,7 @@
 
 These are the interfaces the extension depends on. Each section names the issue that implements it. When an implementation must deviate, change this file in the same change.
 
-The extension's identifier depends on the store: **`opentide.opentide`** on the Visual Studio Marketplace
+The extension's identifier depends on the store: **`opentide.opentide-vscode`** on the Visual Studio Marketplace
 (publisher `opentide`) and **`opentidehq.opentide`** on Open VSX (namespace `opentidehq`), name `opentide`
 in both ([RELEASING.md](RELEASING.md#two-publishers-and-why)). The code takes it from `context.extension.id`.
 

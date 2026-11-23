@@ -51,6 +51,22 @@ describe("the MCP launcher's choice of an installed extension", () => {
     assert.equal(newestInstalled(DIR, tree, "opentide.opentide")?.folder, "opentide.opentide-2.0.0");
   });
 
+  it("keeps the Marketplace's opentide.opentide-vscode and Open VSX's opentidehq.opentide apart", () => {
+    const marketplace = "opentide.opentide-vscode";
+    assert.deepEqual(folderVersion("opentide.opentide-vscode-0.3.3", marketplace), [0, 3, 3]);
+    assert.equal(folderVersion("opentide.opentide-vscode-0.3.3", ID), undefined);
+    assert.equal(folderVersion("opentidehq.opentide-0.3.3", marketplace), undefined);
+    // `<name>-<version>`: a name that merely starts with the other's is not taken for it.
+    assert.equal(folderVersion("opentidehq.opentide-vscode-0.3.3", ID), undefined);
+    const tree = fake({ "opentide.opentide-vscode-0.3.3": BRIDGE, "opentidehq.opentide-0.3.2": BRIDGE });
+    assert.equal(newestInstalled(DIR, tree, marketplace)?.folder, "opentide.opentide-vscode-0.3.3");
+    assert.equal(newestInstalled(DIR, tree, ID)?.folder, "opentidehq.opentide-0.3.2");
+    assert.equal(
+      extensionIdOf(undefined, "/home/me/.config/Code/User/globalStorage/opentide.opentide-vscode"),
+      marketplace,
+    );
+  });
+
   it("takes the id from the entry, else from the global storage folder it runs from", () => {
     const storage = "/home/me/.config/Kiro/User/globalStorage/opentidehq.opentide";
     assert.equal(extensionIdOf("opentide.opentide", storage), "opentide.opentide");

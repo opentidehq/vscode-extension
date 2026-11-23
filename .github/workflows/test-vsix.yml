@@ -149,7 +149,7 @@ jobs:
           SHA: ${{ steps.build.outputs.sha }}
         run: |
           set -euo pipefail
-          # The Marketplace package (opentide.opentide): the one VS Code installs.
+          # The Marketplace package (opentide.opentide-vscode): the one VS Code installs.
           source="$(find dist-vsix -maxdepth 1 -name 'opentide-marketplace-*.vsix' | head -n 1)"
           base="$(basename "${source}" .vsix)"
           mkdir -p test-vsix

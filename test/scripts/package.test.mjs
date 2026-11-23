@@ -12,6 +12,7 @@ import {
   isPreReleaseVersion,
   largestDirectories,
   PackageError,
+  STORE_FIELDS,
   STORES,
   sizeReport,
   sizeUnit,
@@ -79,43 +80,83 @@ describe("package: names, ignore file and pre-release", () => {
     assert.throws(() => vsixName(undefined, "0.3.1"), /no store/);
   });
 
-  it("refuses a package.json an interrupted run left with the Marketplace publisher or display name", () => {
-    assert.equal(committedManifestProblem({ publisher: "opentidehq", displayName: "opentide" }), undefined);
+  it("refuses a package.json an interrupted run left with the Marketplace name, publisher or display name", () => {
+    const committed = { name: "opentide", publisher: "opentidehq", displayName: "opentide" };
+    assert.equal(committedManifestProblem(committed), undefined);
     assert.match(
-      committedManifestProblem({ publisher: "opentide", displayName: "opentide" }),
+      committedManifestProblem({ ...committed, name: "opentide-vscode" }),
+      /name is "opentide-vscode", not "opentide".*git checkout package\.json/,
+    );
+    assert.match(
+      committedManifestProblem({ ...committed, publisher: "opentide" }),
       /publisher is "opentide", not "opentidehq".*git checkout package\.json/,
     );
     assert.match(
-      committedManifestProblem({ publisher: "opentidehq", displayName: "opentide for VS Code" }),
+      committedManifestProblem({ ...committed, displayName: "opentide for VS Code" }),
       /displayName is "opentide for VS Code", not "opentide".*git checkout package\.json/,
     );
   });
 
-  it("gives each store its publisher and display name, the Open VSX ones being package.json's", () => {
+  it("gives each store its id and display name, the Open VSX ones being package.json's", () => {
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
     assert.deepEqual(
       STORES.map((store) => [store.store, storeExtensionId(store), store.displayName]),
       [
-        ["marketplace", "opentide.opentide", "opentide for VS Code"],
+        ["marketplace", "opentide.opentide-vscode", "opentide for VS Code"],
         ["openvsx", "opentidehq.opentide", "opentide"],
       ],
     );
     assert.equal(pkg.name, EXTENSION_NAME);
     const openvsx = STORES.find((store) => store.store === "openvsx");
-    assert.equal(openvsx?.publisher, pkg.publisher);
-    assert.equal(openvsx?.displayName, pkg.displayName);
+    for (const field of STORE_FIELDS) assert.equal(openvsx?.[field], pkg[field], field);
     const text = readFileSync(join(root, "package.json"), "utf8");
     for (const store of STORES) {
       const manifest = JSON.parse(storeManifest(text, store));
-      assert.equal(manifest.publisher, store.publisher);
-      assert.equal(manifest.displayName, store.displayName);
-      assert.equal(manifest.name, "opentide", "the name, and so the id's second half, is the same in both");
+      for (const field of STORE_FIELDS)
+        assert.equal(manifest[field], store[field], `${store.store} ${field}`);
       assert.deepEqual(
-        { ...manifest, publisher: pkg.publisher, displayName: pkg.displayName },
+        { ...manifest, name: pkg.name, publisher: pkg.publisher, displayName: pkg.displayName },
         pkg,
-        "only the publisher and display name change",
+        "only the name, publisher and display name change",
       );
     }
+  });
+
+  it("the Marketplace manifest contributes exactly what package.json does: no id depends on the name", () => {
+    const text = readFileSync(join(root, "package.json"), "utf8");
+    const pkg = JSON.parse(text);
+    const marketplace = JSON.parse(
+      storeManifest(
+        text,
+        STORES.find((store) => store.store === "marketplace"),
+      ),
+    );
+    assert.equal(marketplace.name, "opentide-vscode");
+    // Everything VS Code registers from the manifest, the same in both packages.
+    for (const key of ["contributes", "activationEvents", "main", "browser", "extensionKind", "capabilities"])
+      assert.deepEqual(marketplace[key], pkg[key], key);
+    const c = marketplace.contributes;
+    const ids = {
+      commands: (c.commands ?? []).map((command) => command.command),
+      settings: [c.configuration].flat().flatMap((section) => Object.keys(section?.properties ?? {})),
+      views: Object.values(c.views ?? {}).flatMap((views) => views.map((view) => view.id)),
+      viewsContainers: Object.values(c.viewsContainers ?? {}).flatMap((list) => list.map((item) => item.id)),
+      languages: (c.languages ?? []).map((language) => language.id),
+      mcpProviders: (c.mcpServerDefinitionProviders ?? []).map((provider) => provider.id),
+      walkthroughs: (c.walkthroughs ?? []).map((walkthrough) => walkthrough.id),
+    };
+    for (const [kind, list] of Object.entries(ids)) {
+      assert.ok(list.length > 0, `${kind}: some`);
+      for (const id of list) {
+        assert.ok(!id.includes("opentide-vscode") && !id.includes("opentidehq"), `${kind}: ${id}`);
+        assert.ok(id.startsWith("opentide") || kind === "languages", `${kind}: ${id}`);
+      }
+    }
+    assert.deepEqual(ids.mcpProviders, ["opentide"]);
+    // Nothing in the contributions names either id or the store-specific name.
+    for (const store of STORES)
+      assert.ok(!JSON.stringify(c).includes(storeExtensionId(store)), storeExtensionId(store));
+    assert.ok(!JSON.stringify(c).includes("opentide-vscode"));
   });
 
   it("packages an odd minor version as a pre-release", () => {

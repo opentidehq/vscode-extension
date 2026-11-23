@@ -256,7 +256,7 @@ jobs:
       - name: Universal packages
         run: npm run package -- --universal
       # The engine (WASM) answers from each, and each carries the web extension.
-      - name: Smoke test, the Marketplace package (opentide.opentide)
+      - name: Smoke test, the Marketplace package (opentide.opentide-vscode)
         run: npm run smoke -- dist-vsix/opentide-marketplace-*.vsix
       - name: Smoke test, the Open VSX package (opentidehq.opentide)
         run: npm run smoke -- dist-vsix/opentide-openvsx-*.vsix

@@ -1,6 +1,7 @@
 // The extension's id differs between the stores (scripts/package-lib.mjs STORES, docs/RELEASING.md): the
-// Visual Studio Marketplace's is opentide.opentide, Open VSX's opentidehq.opentide. The code takes it from
-// `context.extension.id` and never names it; settings and command ids are `opentide.*`, whatever the publisher.
+// Visual Studio Marketplace's is opentide.opentide-vscode, Open VSX's opentidehq.opentide. The code takes it
+// from `context.extension.id` and never names it, nor the store's `name`; settings and command ids are
+// `opentide.*`, whatever the publisher and name.
 import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -15,9 +16,18 @@ function filesUnder(dir, accept) {
     .map((entry) => join(entry.parentPath, entry.name));
 }
 
-/** `<any publisher>.opentide` used as an id: a literal (or a folder `<id>-<version>`), not `opentide.opentide.*`. */
+const escapeRegExp = (text) => text.replace(/[.-]/g, (c) => `\\${c}`);
+/**
+ * `<any store's publisher>.<any store's name>` used as an id: a literal, or a folder `<id>-<version>`; not a
+ * setting such as `opentide.opentide.trace`.
+ */
 const PUBLISHER_QUALIFIED = new RegExp(
-  `\\b(?:${STORES.map((store) => store.publisher).join("|")})\\.${EXTENSION_NAME}\\b(?![.\\w])`,
+  `\\b(?:${STORES.map((store) => escapeRegExp(store.publisher)).join("|")})\\.(?:${[
+    ...new Set(STORES.map((store) => store.name)),
+  ]
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp)
+    .join("|")})\\b(?![.\\w])`,
   "g",
 );
 
@@ -29,6 +39,7 @@ describe("the extension id is never a literal in the code", () => {
         assert.match(text, new RegExp(PUBLISHER_QUALIFIED.source), text);
     }
     assert.doesNotMatch("opentide.opentide.trace", new RegExp(PUBLISHER_QUALIFIED.source));
+    assert.match("opentidehq.opentide-vscode", new RegExp(PUBLISHER_QUALIFIED.source), "every pairing");
     assert.doesNotMatch("github.com/opentidehq/opentide", new RegExp(PUBLISHER_QUALIFIED.source));
   });
 
@@ -44,9 +55,23 @@ describe("the extension id is never a literal in the code", () => {
     assert.deepEqual(found, []);
   });
 
+  it("src/ never names a store's own name (opentide-vscode): the name is the store's, not the code's", () => {
+    const names = STORES.map((store) => store.name).filter((name) => name !== EXTENSION_NAME);
+    assert.ok(names.length > 0);
+    const found = filesUnder("src", (name) => /\.(ts|tsx|js|mjs|cjs|json)$/.test(name)).filter((file) => {
+      const text = readFileSync(file, "utf8");
+      return names.some((name) => text.includes(name));
+    });
+    assert.deepEqual(
+      found.map((file) => relative(root, file)),
+      [],
+    );
+  });
+
   it("contrib/ names neither store's id", () => {
+    // A fresh RegExp per file: a /g one's lastIndex would carry over from one file to the next.
     const found = filesUnder("contrib", (name) => name.endsWith(".json")).filter((file) =>
-      PUBLISHER_QUALIFIED.test(readFileSync(file, "utf8")),
+      new RegExp(PUBLISHER_QUALIFIED.source).test(readFileSync(file, "utf8")),
     );
     assert.deepEqual(
       found.map((file) => relative(root, file)),

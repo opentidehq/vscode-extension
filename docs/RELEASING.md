@@ -20,38 +20,46 @@ Do these once, in this order, before the first release. Each names where the set
 
 ### Two publishers, and why
 
-The extension has a different id, and a different display name, in each store:
+The extension has a different id (publisher and name), and a different display name, in each store:
 
 | Store | Publisher | Extension id | Display name | Package |
 |-------|-----------|--------------|--------------|---------|
-| Visual Studio Marketplace | `opentide` | `opentide.opentide` | opentide for VS Code | `opentide-marketplace-<version>.vsix` |
+| Visual Studio Marketplace | `opentide` | `opentide.opentide-vscode` | opentide for VS Code | `opentide-marketplace-<version>.vsix` |
 | Open VSX | `opentidehq` (verified namespace) | `opentidehq.opentide` | opentide | `opentide-openvsx-<version>.vsix` |
 
 - The Marketplace publisher `opentidehq` was banned and cannot be registered again: 0.3.0's publish
   failed on every attempt with `RequestBlockedException … Concurrency … VSID`, and the Marketplace has
   never listed `opentidehq.opentide`. The Marketplace publisher is `opentide`.
-- **The Marketplace display name is "opentide for VS Code".** Display names are unique across the
-  Marketplace, and the banned `opentidehq` extension, hidden from the gallery, still holds "opentide":
-  0.3.1's publish (run 45187038205) passed the OIDC login, then vsce was refused with "The extension
-  'opentide' already exists in the Marketplace. Please use a different 'name'". The `name` (`opentide`),
-  and so the id `opentide.opentide`, did not change. Never re-run that run's Marketplace job: its package
-  carries the old display name. If a publish is refused again, the job fails on vsce's own error, which
-  stays in the log; nothing retries a refusal (`tools/publish/marketplace.mjs` stops on it).
-- Open VSX keeps its verified namespace `opentidehq` and the display name "opentide", where 0.3.0 and 0.3.1
-  are `opentidehq.opentide`, so its users keep their updates. The namespace `opentide` cannot be verified
-  there.
+- **The Marketplace package is `opentide.opentide-vscode`, "opentide for VS Code".** The Marketplace holds
+  the extension name `opentide` across publishers (the banned `opentidehq` extension, hidden from the
+  gallery, still has it). 0.3.1 (run 45187038205) passed the OIDC login and was refused with "The extension
+  'opentide' already exists in the Marketplace. Please use a different 'name'"; 0.3.2 (run 45196460839),
+  with the display name changed to "opentide for VS Code", was refused the same way. So the `name` itself
+  changed: `opentide-vscode`. Neither 0.3.1 nor 0.3.2 ever reached the Marketplace; the first version
+  there is 0.3.3, and the job refuses anything older. Never re-run either run's Marketplace job. If a
+  publish is refused again, the job fails on vsce's own error, which stays in the log; nothing retries a
+  refusal (`tools/publish/marketplace.mjs` stops on it).
+- **The Marketplace trusted-publishing policy must name the extension `opentide-vscode`**, if the policy is
+  scoped to an extension: a policy created for `opentide` would refuse the OIDC exchange for the new name.
+- Open VSX keeps its verified namespace `opentidehq`, the name `opentide` and the display name "opentide":
+  0.3.0, 0.3.1 and 0.3.2 are `opentidehq.opentide` there, so its users keep their updates. The namespace
+  `opentide` cannot be verified there.
+- **Settings, commands, views, languages and the MCP provider do not depend on the name or the publisher**:
+  they are `opentide*` ids of their own, the same in both packages (`test/scripts/package.test.mjs` builds the
+  Marketplace manifest and checks its contributions are unchanged). The code takes the id from
+  `context.extension.id`.
 - Both packages come from one commit. `npm run package` packages it twice (vsce builds it each time): the
-  Marketplace package with `package.json`'s `publisher` and `displayName` lines set to `opentide` and
-  "opentide for VS Code" while vsce runs, then the Open VSX package from `package.json` as committed
-  (`"publisher": "opentidehq"`, `"displayName": "opentide"`). It checks that every other entry of the two
-  is byte-identical
+  Marketplace package with `package.json`'s `name`, `publisher` and `displayName` lines set to
+  `opentide-vscode`, `opentide` and "opentide for VS Code" while vsce runs, then the Open VSX package from
+  `package.json` as committed (`"name": "opentide"`, `"publisher": "opentidehq"`, `"displayName": "opentide"`).
+  It checks that every other entry of the two is byte-identical
   (`scripts/package-lib.mjs` `STORES`; `node scripts/release.mjs assets` checks it again before the
   release).
-- **Only new versions go to the Marketplace.** The publisher `opentide` starts at 0.3.1. Never publish,
-  backfill or re-run anything older there: 0.3.0 and earlier were built for `opentidehq`. The
-  `publish-marketplace` job refuses a version before 0.3.1, or any file but this release's
-  `opentide-marketplace-<version>.vsix` (`tools/publish/marketplace.mjs --check`). Never use
-  **Re-run failed jobs** on a run of 0.3.0 or earlier.
+- **Only new versions go to the Marketplace.** `opentide.opentide-vscode` starts at 0.3.3. Never publish,
+  backfill or re-run anything older there: 0.3.2 and earlier were built as `opentidehq.opentide` or
+  `opentide.opentide`. The `publish-marketplace` job refuses a version before 0.3.3, or any file but this
+  release's `opentide-marketplace-<version>.vsix` (`tools/publish/marketplace.mjs --check`). Never use
+  **Re-run failed jobs** on a run of 0.3.2 or earlier.
 - The code never names the id: it takes `context.extension.id` (the MCP entry's marker and the launcher's
   folder match). Settings, commands, views and the MCP provider are `opentide.*` in both.
 
@@ -104,7 +112,8 @@ The publisher is `opentide` (not `opentidehq`: see [Two publishers](#two-publish
 trusted-publishing policy: provider GitHub Actions, owner `opentidehq`, repository `vscode-extension`,
 workflow `publish.yml`, environment `production`. Nothing else is needed: `vsce publish --oidc`
 exchanges the job's OIDC token for a Marketplace token, and `publish-marketplace` publishes only
-`opentide-marketplace-<version>.vsix`, whose publisher is `opentide`.
+`opentide-marketplace-<version>.vsix`, the extension `opentide-vscode` of the publisher `opentide`. If the
+policy names an extension, it must be `opentide-vscode` (a policy for `opentide` would refuse the exchange).
 
 > **A policy that is not used in time expires.** A publish through it activates it. If the first
 > release under `opentide` cannot run before the policy's deadline, create it again, with the same
@@ -130,7 +139,7 @@ script runs there. To bump them, change `tools/publish/package.json` and run `np
 - [ ] Marketplace: the publisher `opentide` exists with its trusted-publishing policy (step 4).
 - [ ] The notes PR for the first version has merged (below); its minor is odd, so it is a pre-release.
 - [ ] Run **Publish** on `main` before the Marketplace policy's deadline.
-- [ ] Both stores list the version: `opentide.opentide` on the Marketplace, `opentidehq.opentide` on
+- [ ] Both stores list the version: `opentide.opentide-vscode` on the Marketplace, `opentidehq.opentide` on
       Open VSX; install the first in VS Code and the second in VSCodium or Cursor.
 - [ ] Open VSX trusted publisher registered; `OVSX_PAT` deleted and revoked.
 
@@ -218,8 +227,8 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
   (`opentide-marketplace-<version>.vsix`, `opentide-openvsx-<version>.vsix`) and `SHA256SUMS`;
   `gh attestation verify <file>.vsix --repo opentidehq/vscode-extension` passes for each (unless the run
   warned "No build provenance": a private repository).
-- The [Marketplace](https://marketplace.visualstudio.com/items?itemName=opentide.opentide) lists
-  `opentide.opentide` and [Open VSX](https://open-vsx.org/extension/opentidehq/opentide)
+- The [Marketplace](https://marketplace.visualstudio.com/items?itemName=opentide.opentide-vscode) lists
+  `opentide.opentide-vscode` and [Open VSX](https://open-vsx.org/extension/opentidehq/opentide)
   `opentidehq.opentide` at the version.
 
 ## Pre-release and stable
@@ -254,9 +263,9 @@ check` refuses a release while `pins.json` `wasi.sha256` is still a placeholder.
 | `prepare` | ubuntu | Refuses unless run on `main`, `CHANGELOG.md`'s newest version matches `package.json`, `[Unreleased]` is empty and `v<version>` is not tagged; computes the channel |
 | `universal` | ubuntu | CI's checks, then `npm run package -- --universal` (one universal package per store, every platform and the web) and a smoke test of each |
 | `av-gate` | ubuntu, windows | [The antivirus gate](#the-antivirus-gate) on both packages: no native executables, the size, YARA, ClamAV, Microsoft Defender |
-| `attest` | ubuntu | `opentide-marketplace-<version>.vsix` is `opentide.opentide` and `opentide-openvsx-<version>.vsix` is `opentidehq.opentide`, both at the version and channel, universal, and otherwise identical; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
+| `attest` | ubuntu | `opentide-marketplace-<version>.vsix` is `opentide.opentide-vscode` and `opentide-openvsx-<version>.vsix` is `opentidehq.opentide`, both at the version and channel, universal, and otherwise identical; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
 | `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and, when attested, their attestations |
-| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath opentide-marketplace-<version>.vsix`. Then `tools/publish/marketplace.mjs opentide.opentide` waits until the Marketplace gallery lists it, publishes it again if missing, and fails naming it: vsce's "Published" is not the listing (0.1.0, the first publish, kept one package of eight) |
+| `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath opentide-marketplace-<version>.vsix`. Then `tools/publish/marketplace.mjs opentide.opentide-vscode` waits until the Marketplace gallery lists it, publishes it again if missing, and fails naming it: vsce's "Published" is not the listing (0.1.0, the first publish, kept one package of eight) |
 | `publish-openvsx` | ubuntu, `production` | `ovsx publish --trusted-publishing --skip-duplicate --packagePath opentide-openvsx-<version>.vsix`, or with `OVSX_PAT` when the secret is set |
 
 The stores get nothing until the GitHub Release exists, and nothing is tagged until the package has
@@ -272,10 +281,10 @@ built and passed its smoke test.
 | `av-gate`: a native executable, a detection or the size | Nothing was tagged. Find what the package carries (the job names the file); a growth that is meant records its size in `pins.json`; a detection that is a false positive is reported to the vendor, never waved through. Fix in a PR and run again |
 | `av-gate`: a canary was not detected, or signatures could not be updated | The scanner, not the package: **Re-run failed jobs** once; if it fails again, fix the gate in a PR |
 | `release` (GitHub Release) | **Re-run failed jobs**. When an earlier attempt already made the Release (for example the verify step failed), the job finds it, checks that its tag is on the run's commit, uploads the assets again with `--clobber` and goes on; a Release on another commit stops it. The stores get nothing until it succeeds |
-| `publish-marketplace` or `publish-openvsx` | **Re-run failed jobs** on the run (never on a run of 0.3.0 or earlier for the Marketplace). The other store is unaffected; `--skip-duplicate` skips what a store already has |
+| `publish-marketplace` or `publish-openvsx` | **Re-run failed jobs** on the run (never on a run of 0.3.2 or earlier for the Marketplace). The other store is unaffected; `--skip-duplicate` skips what a store already has |
 | Open VSX `401`/`403` with trusted publishing | The trusted publisher's repository, workflow (`publish.yml`) or environment (`production`) differs from the run's; fix the registration and re-run the job |
 | Marketplace OIDC exchange refused | The policy expired or names something else (it is the publisher `opentide`'s); recreate it (step 4) and re-run the job |
-| `attest`: `… is opentidehq.opentide, not opentide.opentide`, `… is named "opentide", not "opentide for VS Code"` or `… differs … beyond the publisher and display name` | The packages differ beyond the publisher and display name, or carry the wrong ones: fix `npm run package` (`scripts/package.mjs`) in a PR; nothing was tagged |
+| `attest`: `… is opentide.opentide, not opentide.opentide-vscode`, `… is named "opentide", not "opentide for VS Code"` or `… differs … beyond the name, publisher and display name` | The packages differ beyond the name, publisher and display name, or carry the wrong ones: fix `npm run package` (`scripts/package.mjs`) in a PR; nothing was tagged |
 | Marketplace: vsce refused the package (its error is in the log, e.g. "already exists in the Marketplace") | Read vsce's error: the job stops on it and nothing retries it. A taken display name or `name` needs a new one in `scripts/package-lib.mjs` `STORES` (a PR, then the next version) |
 
 A re-run uses the run's own commit and the GitHub Release's assets, so it publishes exactly what was

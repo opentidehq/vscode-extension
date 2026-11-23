@@ -6,32 +6,44 @@ export class PackageError extends Error {}
 
 export const OUT_DIR = "dist-vsix";
 
-/** The extension's name: the part of its id after the publisher, the same in every store. */
+/** The extension's `name` in package.json as committed: the Open VSX package's (`opentidehq.opentide`). */
 export const EXTENSION_NAME = "opentide";
 
 /**
- * The stores, each with its own publisher and display name (docs/RELEASING.md, "Two publishers, and why").
- * The Visual Studio Marketplace publisher `opentidehq` was banned and cannot be registered again, so the
- * Marketplace package is `opentide.opentide`; Open VSX keeps its verified namespace, `opentidehq.opentide`.
- * The banned extension, hidden from the gallery, still holds the display name "opentide", and Marketplace
- * display names are unique (0.3.1's publish was refused: "The extension 'opentide' already exists in the
- * Marketplace"), so the Marketplace package is "opentide for VS Code"; Open VSX keeps "opentide". Both
- * packages come from one commit and differ only in package.json's `publisher` and `displayName` (and the
- * manifest vsce derives from them). package.json in the repository is the Open VSX one: every other package
- * is that one with those two fields replaced.
+ * The stores, each with its own publisher, name and display name (docs/RELEASING.md, "Two publishers, and
+ * why"). The Visual Studio Marketplace publisher `opentidehq` was banned and cannot be registered again, so
+ * the Marketplace package is published by `opentide`. The Marketplace also holds the extension name
+ * "opentide" across publishers: 0.3.1 (as "opentide for VS Code") and 0.3.2 were both refused with "The
+ * extension 'opentide' already exists in the Marketplace. Please use a different 'name'". So the Marketplace
+ * package is `opentide.opentide-vscode`, "opentide for VS Code"; Open VSX keeps its verified namespace and
+ * its extension, `opentidehq.opentide`, "opentide". Both packages come from one commit and differ only in
+ * package.json's `name`, `publisher` and `displayName` (and the manifest vsce derives from them).
+ * package.json in the repository is the Open VSX one: every other package is that one with those fields
+ * replaced. Settings, commands, views, languages and the MCP provider are `opentide*` ids of their own and
+ * do not depend on any of the three.
  */
 export const STORES = Object.freeze([
   Object.freeze({
     store: "marketplace",
     label: "Visual Studio Marketplace",
     publisher: "opentide",
+    name: "opentide-vscode",
     displayName: "opentide for VS Code",
   }),
-  Object.freeze({ store: "openvsx", label: "Open VSX", publisher: "opentidehq", displayName: "opentide" }),
+  Object.freeze({
+    store: "openvsx",
+    label: "Open VSX",
+    publisher: "opentidehq",
+    name: EXTENSION_NAME,
+    displayName: "opentide",
+  }),
 ]);
 
-/** A store's extension id, `<publisher>.opentide`. */
-export const storeExtensionId = (store) => `${store.publisher}.${EXTENSION_NAME}`;
+/** The fields a store's package sets in package.json: the only differences between the stores' packages. */
+export const STORE_FIELDS = Object.freeze(["name", "publisher", "displayName"]);
+
+/** A store's extension id, `<publisher>.<name>`: `opentide.opentide-vscode`, `opentidehq.opentide`. */
+export const storeExtensionId = (store) => `${store.publisher}.${store.name}`;
 
 /** `opentide-marketplace-<version>.vsix`, `opentide-openvsx-<version>.vsix`: one universal package per store. */
 export function vsixName(store, version) {
@@ -42,12 +54,12 @@ export function vsixName(store, version) {
 
 /**
  * Why package.json, as found, is not the committed one, or undefined. The committed package.json is the Open
- * VSX one; another publisher or display name is an interrupted `npm run package` (vsce killed before the file
- * was put back), and building both stores from it would carry the wrong one on silently.
+ * VSX one; another name, publisher or display name is an interrupted `npm run package` (vsce killed before the
+ * file was put back), and building both stores from it would carry the wrong one on silently.
  */
 export function committedManifestProblem(pkg) {
   const committed = STORES.find((store) => store.store === "openvsx");
-  for (const field of ["publisher", "displayName"]) {
+  for (const field of STORE_FIELDS) {
     if (pkg?.[field] === committed?.[field]) continue;
     return (
       `package.json's ${field} is ${JSON.stringify(pkg?.[field])}, not ${JSON.stringify(committed?.[field])}: an ` +
@@ -69,19 +81,17 @@ function replaceTopLevel(text, field, value) {
 }
 
 /**
- * package.json's text as `store` packages it: its `publisher` and `displayName`, and nothing else changed (not
- * even the formatting). Those two fields are the only difference between the stores' packages.
+ * package.json's text as `store` packages it: its `name`, `publisher` and `displayName`, and nothing else
+ * changed (not even the formatting). Those fields are the only differences between the stores' packages.
  */
 export function storeManifest(text, store) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(store.publisher))
     throw new PackageError(`${JSON.stringify(store.publisher)} is not a publisher id`);
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(store.name))
+    throw new PackageError(`${JSON.stringify(store.name)} is not an extension name`);
   if (typeof store.displayName !== "string" || store.displayName.trim() === "")
     throw new PackageError(`${store.store} has no display name`);
-  return replaceTopLevel(
-    replaceTopLevel(text, "publisher", store.publisher),
-    "displayName",
-    store.displayName,
-  );
+  return STORE_FIELDS.reduce((manifest, field) => replaceTopLevel(manifest, field, store[field]), text);
 }
 
 /**

@@ -28,12 +28,12 @@ none ([what runs where](#the-bundled-opentide-what-runs-where)).
 
 ## Install
 
-Releases are on two stores, under a different id and name in each (the same build; only the publisher and
-the display name differ):
+Releases are on two stores, under a different id and name in each (the same build; only the publisher, the
+extension name and the display name differ):
 
 | Editor | Store | Name | Id |
 |--------|-------|------|----|
-| VS Code | [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentide.opentide) | opentide for VS Code | `opentide.opentide` |
+| VS Code | [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentide.opentide-vscode) | opentide for VS Code | `opentide.opentide-vscode` |
 | Cursor, Kiro, Windsurf, VSCodium and other forks | [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) | opentide | `opentidehq.opentide` |
 
 Settings, commands and the MCP server have the same names under either id.
@@ -42,11 +42,11 @@ Versions with an odd minor (0.1.x, 0.3.x) are pre-releases. In the Extensions vi
 choose **Switch to Pre-Release Version**, or from a terminal:
 
 ```bash
-code --install-extension opentide.opentide --pre-release     # VS Code
+code --install-extension opentide.opentide-vscode --pre-release     # VS Code
 cursor --install-extension opentidehq.opentide --pre-release  # an editor that uses Open VSX
 ```
 
-A pinned version installs whatever its channel: `code --install-extension opentide.opentide@0.3.1`.
+A pinned version installs whatever its channel: `code --install-extension opentide.opentide-vscode@0.3.3`.
 Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries both
 packages as `.vsix` files (**Extensions: Install from VSIX…**): `opentide-marketplace-<version>.vsix`
 for VS Code and `opentide-openvsx-<version>.vsix` for the other editors, with `SHA256SUMS` and build

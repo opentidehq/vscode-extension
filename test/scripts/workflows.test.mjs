@@ -65,10 +65,10 @@ describe("publish.yml: each store publishes its own package", () => {
     });
   }
 
-  it("the environment URLs are the stores' ids: opentide.opentide and opentidehq/opentide", () => {
+  it("the environment URLs are the stores' ids: opentide.opentide-vscode and opentidehq/opentide", () => {
     assert.match(
       publish.get("publish-marketplace") ?? "",
-      /url: https:\/\/marketplace\.visualstudio\.com\/items\?itemName=opentide\.opentide\n/,
+      /url: https:\/\/marketplace\.visualstudio\.com\/items\?itemName=opentide\.opentide-vscode\n/,
     );
     assert.match(
       publish.get("publish-openvsx") ?? "",

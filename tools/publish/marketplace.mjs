@@ -2,15 +2,15 @@
 // again if it does not. 0.1.0 was the extension's first publish: vsce reported all eight packages published,
 // but the Marketplace kept only the first (alpine-arm64), so VS Code on every other platform said the
 // extension was not available. A brand-new extension is validated asynchronously, and the later uploads in
-// that window were lost without an error. The Marketplace package is the extension `opentide.opentide`,
+// that window were lost without an error. The Marketplace package is the extension `opentide.opentide-vscode`,
 // one universal VSIX (docs/RELEASING.md); the Open VSX one is not published here.
 //
 //   node tools/publish/marketplace.mjs <publisher.name> <version> <file.vsix> [--pre-release]
 //   node tools/publish/marketplace.mjs --check <publisher.name> <version> <file.vsix>
-//       before `vsce publish`: the package is the Marketplace one of this release, at 0.3.1 or later
+//       before `vsce publish`: the package is the Marketplace one of this release, at 0.3.3 or later
 //
-// Only the release's own version goes to the Marketplace publisher `opentide`: never an older one. 0.3.0 and
-// earlier were built for the banned publisher `opentidehq` and are never published or backfilled there.
+// Only the release's own version goes to the Marketplace: never an older one. 0.3.2 and earlier were built under
+// the name `opentide`, which the Marketplace refused, and are never published or backfilled there.
 //
 // Dependency-free (Node 22 fetch); the publish job runs it from tools/publish's sparse checkout.
 import { spawnSync } from "node:child_process";
@@ -28,9 +28,12 @@ export class PublishRefused extends Error {}
 const say = (line) => process.stdout.write(`${line}\n`);
 
 /** The Marketplace's id of the extension (scripts/package-lib.mjs STORES, docs/RELEASING.md). */
-export const MARKETPLACE_ID = "opentide.opentide";
-/** The first version on the Marketplace publisher `opentide`; nothing older is ever published there. */
-export const FIRST_MARKETPLACE_VERSION = "0.3.1";
+export const MARKETPLACE_ID = "opentide.opentide-vscode";
+/**
+ * The first version of `opentide.opentide-vscode` on the Marketplace; nothing older is ever published there.
+ * 0.3.1 and 0.3.2 were refused (the name `opentide` is taken) and never reached it.
+ */
+export const FIRST_MARKETPLACE_VERSION = "0.3.3";
 
 const parts = (version) => version.split(".").map(Number);
 
