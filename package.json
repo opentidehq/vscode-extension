@@ -357,6 +357,23 @@
             "order": 2,
             "markdownDescription": "Allow the opentide module the extension carries (`opentide.runtime`: bundled) and the engine's fallback to it. It has no network of its own: the extension host makes the tenant requests (query, deploy, validate --live) for the editor and, with opentide 1.0.0-rc.3 or later, for MCP; a terminal or task has none, so use `opentide.runtime: installed` for tenant commands there. Off: your own opentide if one answers, else the editor features of the opentide engine (WASM) only. Ignored in Restricted Mode, where only the engine runs."
           },
+          "opentide.wasi.host": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "launcher",
+              "wasm-wasi"
+            ],
+            "default": "auto",
+            "scope": "window",
+            "order": 9,
+            "enumDescriptions": [
+              "Run the bundled opentide through VS Code's Node (the launcher) wherever that can run, even with the WASM WASI Core extension installed; use WASM WASI Core only where the launcher cannot run.",
+              "Always run the bundled opentide through VS Code's Node.",
+              "Run the bundled opentide under the WASM WASI Core extension (`ms-vscode.wasm-wasi-core`) when it is installed, else through VS Code's Node."
+            ],
+            "markdownDescription": "What runs the bundled opentide (`opentide.runtime`: bundled) in the extension's desktop host. `auto` uses VS Code's own Node, which starts faster on a large workspace (first problems on 1,000 rules: 4.5 s, against 10.6 s under WASM WASI Core) and needs nothing installed. Takes effect at the next **opentide: Restart Server**."
+          },
           "opentide.envFile": {
             "type": "string",
             "default": "",

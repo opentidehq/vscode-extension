@@ -36,7 +36,7 @@ opentide's CLI compiled to `wasm32-wasip1` is the release asset `opentide-wasm32
 
 | Process | Started with | Where |
 |---------|--------------|-------|
-| `opentide serve` | `args: ["serve"]` | Under `@vscode/wasm-wasi` in the extension host when `ms-vscode.wasm-wasi-core` is installed, else a child process running the launcher with `OPENTIDE_WASI_MOUNTS`; `opentide/fetch` answered by `FetchHost` either way |
+| `opentide serve` | `args: ["serve"]` | A child process running the launcher with `OPENTIDE_WASI_MOUNTS` (the default, `opentide.wasi.host`), or under `@vscode/wasm-wasi` in the extension host where the launcher cannot run or the setting asks for `ms-vscode.wasm-wasi-core`; `opentide/fetch` answered by `FetchHost` either way |
 | `opentide lsp start` | `args: ["lsp", "start"]` | As `serve`; `vscode-languageclient` over the process's pipes (`ReadableStreamMessageReader` and `WriteableStreamMessageWriter` under `@vscode/wasm-wasi`, stream readers on the child's stdio). The custom `opentide/*` requests are the native server's |
 | `opentide mcp start`, `opentide <command>` where VS Code starts a process (MCP, tasks, terminals, the command tree) | VS Code's own Node (`process.execPath`, `ELECTRON_RUN_AS_NODE=1`) running `dist/wasi/launcher.cjs <module> <args>` under `node:wasi` | A process of VS Code's. It exits with the module's exit code and speaks stdio as `opentide` does. A tenant command there has no network and fails with `network_unavailable`, naming the native CLI |
 

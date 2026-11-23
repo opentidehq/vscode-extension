@@ -178,12 +178,14 @@ way to `installed`.
   `runtime.env`) running `dist/wasi/launcher.cjs <module> <argv>` under `node:wasi`. A feature that starts
   opentide yourself, as below, needs no change. A tenant command run this way has no network.
 
-**Two hosts run the module, with the same path mapping, wire and environment.** With the WASM WASI Core
-extension (`ms-vscode.wasm-wasi-core`) installed, `@vscode/wasm-wasi` runs `serve` and `lsp start` in the
-extension host (compiled once per window, also on vscode.dev). Without it, `WasiHost` starts the launcher as
-a child process of the window for each (VS Code's Node, `OPENTIDE_WASI_MODULE` mounts: `OPENTIDE_WASI_MOUNTS`
-names every folder of the window and its guest path, the folder itself on POSIX), speaks the same stdio to it
-and answers `opentide/fetch` the same way: nothing to install. The core extension is no manifest dependency: it
+**Two hosts run the module, with the same path mapping, wire and environment.** `WasiHost` starts the launcher
+as a child process of the window for each protocol (VS Code's Node, `OPENTIDE_WASI_MODULE` mounts:
+`OPENTIDE_WASI_MOUNTS` names every folder of the window and its guest path, the folder itself on POSIX), speaks
+the same stdio to it and answers `opentide/fetch`: nothing to install, and the faster start (first problems on
+1,000 rules: 4.5 s, against 10.6 s under `@vscode/wasm-wasi`, QA rc.3, #100). That is the default wherever it can
+run, even with the WASM WASI Core extension (`ms-vscode.wasm-wasi-core`) installed. `@vscode/wasm-wasi` runs
+`serve` and `lsp start` in the extension host (compiled once per window) where the launcher cannot run, and when
+`opentide.wasi.host` is `wasm-wasi` (`src/core/wasi/hostChoice.ts` has the rule). The core extension is no manifest dependency: it
 declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode and an extension that
 depended on it would not activate there. "Restart Server" asks which host is there again. A host that
 cannot start the language server falls back to the engine (tier 5) for the editor features, and one that
@@ -428,7 +430,7 @@ through the host.
 | `npm run test:integration` | @vscode/test-cli label (downloads VS Code) |
 | `npm run test:restricted` | `scripts/test-restricted.mjs`: VS Code without `--disable-workspace-trust`, so the fixture folder is untrusted (downloads VS Code) |
 | `npm run test:engine` | @vscode/test-cli label `engine`: no opentide anywhere and `opentide.wasi.enabled` off, the engine (WASM) tier |
-| `npm run test:wasi` / `npm run test:wasi-launcher` | @vscode/test-cli labels `wasi` and `wasi-launcher`: no opentide anywhere, the WASI module under `@vscode/wasm-wasi` (the label installs `ms-vscode.wasm-wasi-core` into the test VS Code), and the same tests without it, through the launcher |
+| `npm run test:wasi` / `npm run test:wasi-launcher` | @vscode/test-cli labels `wasi` and `wasi-launcher`: no opentide anywhere, the WASI module through the launcher by default and under `@vscode/wasm-wasi` when `opentide.wasi.host` asks for it (the `wasi` label installs `ms-vscode.wasm-wasi-core` into the test VS Code), and the same tests without it, where the setting falls back to the launcher |
 | `npm run wasi [-- --module <file>]` | download and check the pinned WASI module (`pins.json` `wasi`), or a local one |
 | `npm run package` | dist-vsix/opentide-universal-<version>.vsix (+ `.size.json`), size gate, no `runtime/` |
 | `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the WASI module answers `serve` through its launcher, the web entry is there, no `runtime/` |
