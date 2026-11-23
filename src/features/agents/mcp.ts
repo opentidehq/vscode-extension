@@ -1,5 +1,6 @@
 // The opentide MCP server VS Code's agents get from the extension (SPEC §12): when to provide it, and the
 // stdio definition. vscode-free; index.ts makes the vscode.McpStdioServerDefinition.
+import { createHash } from "node:crypto";
 import * as path from "node:path";
 import type { Runtime } from "../../core/runtime/types";
 import { cliCommand, hasCli, isWasi } from "../../core/runtime/types";
@@ -362,10 +363,25 @@ export interface McpInputs {
   /** The bundled bridge, when this build and settings have one. */
   readonly bridge?: McpBridge | undefined;
   /**
+   * A folder the bridge may keep what the module said at start-up in (`mcp-cache/` of the extension's global storage),
+   * so that the module starts at the first tool call and not with the window (#96). Not for a user-level file, whose
+   * entry has no repository of its own.
+   */
+  readonly cacheDir?: string;
+  /**
    * The decision is for a user-level MCP file (Kiro, Devin Desktop, Windsurf), not for an editor API: an installed
    * opentide older than {@link MIN_NATIVE_MCP_FOR_FILES} is replaced by the bridge when there is one.
    */
   readonly forFile?: boolean;
+}
+
+/** The cache file of the bridge for a folder: one per folder, so windows on other folders do not overwrite it. */
+export function bridgeCacheFile(cacheDir: string, folder: string | undefined): string {
+  const key = createHash("sha256")
+    .update(folder ?? "")
+    .digest("hex")
+    .slice(0, 16);
+  return path.join(cacheDir, `${key}.json`);
 }
 
 /** Whether to provide the server, how it starts and its label. Nothing in Restricted Mode (SPEC §12, §13). */
@@ -421,6 +437,9 @@ export function decideMcp(inputs: McpInputs): McpDecision {
         ...started.env,
         OPENTIDE_REPO_ROOT: inputs.folder,
         ...(inputs.proxy ? { OPENTIDE_PROXY: inputs.proxy } : {}),
+        ...(bridge && inputs.cacheDir && !inputs.forFile
+          ? { OPENTIDE_MCP_CACHE: bridgeCacheFile(inputs.cacheDir, inputs.folder) }
+          : {}),
       },
       version: started.version,
       bridge: bridge !== undefined,

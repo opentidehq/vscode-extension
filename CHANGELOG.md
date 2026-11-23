@@ -6,6 +6,13 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **The opentide MCP server starts its module at the first tool call.** VS Code starts the server with the window, and
+  the module took about a second and 100 MB in every window with an opentide folder, used or not. After the first
+  run in a folder, the extension answers the editor's start-up questions itself and starts the module when an agent
+  calls a tool ([#96](https://github.com/opentidehq/vscode-extension/issues/96)).
+
 ## [0.3.0] - 2026-11-23
 
 opentide runs with nothing installed: the extension bundles opentide 1.0.0-rc.3 as WebAssembly, with no Python.
