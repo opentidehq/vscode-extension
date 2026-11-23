@@ -9,7 +9,7 @@ changed and no issue was filed. Branch `test/wasi-e2e-2026-11-21`.
 
 On this machine (Xvfb, software rendering, shared VM, Dark+) the colours come in two steps, and the second one is the slow one:
 
-| Step | Small workspace (8 objects) | 1,000-rule workspace | Who |
+| Step | Small workspace (7 objects) | 1,000-rule workspace | Who |
 |---|---|---|---|
 | File text on screen (plain) | 1.5 s | 1.6 s | VS Code |
 | **Grammar colours** (TextMate) | **2.5 s** | **2.7 s** | VS Code. The same 2.5 s with no extension installed and for a built-in YAML file |
@@ -32,7 +32,7 @@ dates and booleans).
   final state (see the control).
 - Control: `"[opentide-yaml]": { "editor.semanticHighlighting.enabled": false }`, same runs, same recorder.
 - Rules: `hl-kql.yaml` (Sentinel KQL) and `hl-esql.yaml` (Elastic `type: esql`), both valid under `opentide validate`.
-  Workspaces: `ws-hl-small` (7 objects + the two rules) and `ws-hl-big` (1,007 objects, 500 KQL + 500 SPL variants).
+  Workspaces: `ws-hl-small` (7 objects, the two rules included) and `ws-hl-big` (1,007 objects, 500 KQL + 500 SPL variants).
 - Step 3 opens the *other* kind with the server already running; step 4 types `x` at the end of query line 27, waits 2.5 s,
   Backspace, three times (6 samples per run).
 - Kiro: **skipped**, its editor is behind the sign-in page.
