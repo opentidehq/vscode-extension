@@ -7,11 +7,21 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-23
+
+The first release on the Visual Studio Marketplace: "opentide for VS Code", id `opentide.opentide-vscode`.
+
+### Upgrade
+
+1. If you use VS Code, install `opentide.opentide-vscode` from the Visual Studio Marketplace:
+   `code --install-extension opentide.opentide-vscode --pre-release`.
+
 ### Changed
 
 - **On the Visual Studio Marketplace the extension is `opentide.opentide-vscode`.** The Marketplace keeps the
   name `opentide` for the extension it banned, so 0.3.1 and 0.3.2 never reached it. Open VSX keeps
-  `opentidehq.opentide` ([#109](https://github.com/opentidehq/vscode-extension/pull/109)).
+  `opentidehq.opentide`, and nothing else changed since 0.3.2
+  ([#109](https://github.com/opentidehq/vscode-extension/pull/109)).
 
 ## [0.3.2] - 2026-11-23
 
