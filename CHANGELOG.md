@@ -58,7 +58,7 @@ Agents get its MCP tools and skills.
   reports the workspace. `always` and `never` decide it by hand.
 - **`opentide.wasi.enabled` turns the bundled opentide off.** With it off, and no opentide installed, only
   the engine's editor features run.
-- **Grammars for CQL, Exabeam, YARA and YARA-L.** They come with opentide 1.0.0-rc.2's highlights and
+- **Grammars for CQL, Exabeam, YARA and YARA-L.** They come with opentide 1.0.0-rc.3's highlights and
   highlight those queries inside rules. They are available through **Change Language Mode** and have no
   file association yet.
 - **Agents get opentide's MCP tools with no opentide installed.** The extension gives VS Code's agent mode
@@ -89,7 +89,7 @@ Agents get its MCP tools and skills.
   asking the editor for each file, which was most of its start-up at a thousand objects.
 - **The opentide engine is runtime tier 5, after the bundled opentide.** Restricted Mode still runs the
   engine only: no opentide runs in an untrusted folder, the bundled one included.
-- **The engine and the grammars are opentide 1.0.0-rc.2's.** The engine now reads a folder's
+- **The engine and the grammars are opentide 1.0.0-rc.3's.** The engine now reads a folder's
   `.opentide/configurations/*.toml`, which it needs to check rules in the object folders `paths.toml`
   names.
 - **The `opentide` command in terminals also covers the bundled opentide**, where none is installed.
