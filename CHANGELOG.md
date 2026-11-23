@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-23
+
+The extension is on the Visual Studio Marketplace as `opentide.opentide`. A rule's colours match the language
+server's from the first paint.
+
 ### Upgrade
 
 1. If you installed `opentidehq.opentide` in VS Code from a `.vsix`, uninstall it:
@@ -18,25 +23,29 @@ pre-releases odd ones.
 
 - **Elastic queries are coloured at once.** In an Elastic rule, the editor colours an ES|QL, EQL, Kuery or Lucene
   query as soon as the file opens, when `type:` (esql, eql) or `language:` (kuery, lucene) is written before
-  `query:`. ES|QL keywords had no colour until the language server's came, a few seconds later.
+  `query:`. ES|QL keywords had no colour until the language server's came, a few seconds later
+  ([#104](https://github.com/opentidehq/vscode-extension/pull/104)).
 
 ### Changed
 
-- **The Visual Studio Marketplace has the extension as `opentide.opentide`.** The Marketplace refuses
+- **VS Code users: install `opentide.opentide` from the Visual Studio Marketplace.** The Marketplace refuses
   the publisher `opentidehq`, so the extension never appeared there. Kiro, Cursor, Windsurf and VSCodium
   users of `opentidehq.opentide` on Open VSX need do nothing: updates arrive as before. Settings,
-  commands and the MCP server keep their names.
+  commands and the MCP server keep their names ([#105](https://github.com/opentidehq/vscode-extension/pull/105)).
 - **The opentide MCP server starts its module at the first tool call.** VS Code starts the server with the window, and
   the module took about a second and 100 MB in every window with an opentide folder, used or not. After the first
   run in a folder, the extension answers the editor's start-up questions itself and starts the module when an agent
-  calls a tool ([#96](https://github.com/opentidehq/vscode-extension/issues/96)).
+  calls a tool ([#103](https://github.com/opentidehq/vscode-extension/pull/103)).
+- **Every release is scanned before it reaches a store.** Microsoft Defender, ClamAV and YARA check both packages,
+  which hold no native executables ([#105](https://github.com/opentidehq/vscode-extension/pull/105)).
 
 ### Fixed
 
 - **A rule's colours no longer change when the language server's arrive.** The keys, colons, values, dates, UUIDs and
   `true` and `false` of a rule were painted one way by the editor and another, seconds later, by the server, and most
   of what changed colour was outside the query. They now start with the colours they end with. Colours the server
-  alone knows still arrive later: a query's columns, functions and tables, and the values of other enumerated fields.
+  alone knows still arrive later: a query's columns, functions and tables, and the values of other enumerated fields
+  ([#104](https://github.com/opentidehq/vscode-extension/pull/104)).
 
 ## [0.3.0] - 2026-11-23
 
