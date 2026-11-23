@@ -45,6 +45,12 @@ describe("which host runs the bundled module (#100)", () => {
     );
   });
 
+  it("says why the launcher is chosen where it may not run and nothing else is there", () => {
+    const choice = chooseWasiHost({ setting: "launcher", wasmWasiInstalled: false, launcherUsable: false });
+    assert.equal(choice.host, "launcher");
+    assert.match(choice.note, /may not run here/);
+  });
+
   it("reads the setting: anything but launcher and wasm-wasi is auto", () => {
     assert.equal(wasiHostSetting("launcher"), "launcher");
     assert.equal(wasiHostSetting("wasm-wasi"), "wasm-wasi");

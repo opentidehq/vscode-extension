@@ -48,6 +48,11 @@ export const WASI_INITIALIZE_PARAMS: object = { capabilities: { fetch: true } };
 /** The language server's transports, and how to end its process. */
 export interface WasiLanguageServer {
   readonly transports: MessageTransports;
+  /**
+   * The extension is about to stop the server (`shutdown` and `exit`, then `terminate`): its exit is no failure, whatever
+   * code the host reports for it (#99). Called before the client stops, so the exit is expected when it comes.
+   */
+  expectExit(): void;
   /** End the process: the client's `exit` normally has, so this is for one that did not. */
   terminate(): void;
 }
@@ -81,6 +86,8 @@ function mapped(inner: MessageReader, writable: MessageWriter, paths: GuestPaths
 export class WasiHost implements vscode.Disposable {
   private api: Promise<Wasm | undefined> | undefined;
   private hostKind: WasiHostKind | undefined;
+  /** Counts `reset()`s: a host decision that was in flight when it happened is not recorded. */
+  private generation = 0;
   private compiled: Promise<WebAssembly.Module> | undefined;
   private readonly live = new Set<WasmProcess>();
   /** Processes the extension ended itself (a restart, a shutdown): they report a code of their own, not a failure (#99). */
@@ -113,26 +120,33 @@ export class WasiHost implements vscode.Disposable {
    * launcher runs the module. Decided once per window (a restart asks again).
    */
   private wasmWasi(): Promise<Wasm | undefined> {
+    // Nothing to choose for before the runtime resolves (the processes below throw "no WASI runtime"): not remembered, so
+    // the first real start decides, not a restart's gap (reset() comes before the next resolution).
+    if (!this.runtime()?.wasi) return Promise.resolve(undefined);
+    const generation = this.generation;
     this.api ??= (async () => {
       const choice = chooseWasiHost({
         setting: wasiHostSetting(vscode.workspace.getConfiguration("opentide.wasi").get("host")),
         wasmWasiInstalled: vscode.extensions.getExtension(WASM_WASI_CORE) !== undefined,
         launcherUsable: this.launcherUsable(),
       });
+      const record = (kind: WasiHostKind): void => {
+        if (generation === this.generation) this.hostKind = kind;
+      };
       if (choice.host === "launcher") {
-        this.hostKind = "launcher";
+        record("launcher");
         this.log.info(`WASI: ${choice.note}`);
         return undefined;
       }
       try {
         const wasm = await WasmApi.load();
-        this.hostKind = "wasm-wasi";
+        record("wasm-wasi");
         this.log.info(
           `WASI: running under @vscode/wasm-wasi (${WASM_WASI_CORE} ${wasm.versions.extension}): ${choice.note}`,
         );
         return wasm;
       } catch (error) {
-        this.hostKind = "launcher";
+        record("launcher");
         this.log.warn(
           `WASI: ${WASM_WASI_CORE} did not load (${error instanceof Error ? error.message : String(error)}): the module runs through VS Code's Node (the launcher)`,
         );
@@ -144,6 +158,7 @@ export class WasiHost implements vscode.Disposable {
 
   /** Forget which host runs the module: the next process asks again (the runtime restarted). */
   reset(): void {
+    this.generation += 1;
     this.api = undefined;
     this.hostKind = undefined;
   }
@@ -276,6 +291,7 @@ export class WasiHost implements vscode.Disposable {
           new StreamMessageWriter(child.stdin),
           paths,
         ),
+        expectExit: () => undefined,
         terminate: () => {
           void terminateChild(child);
         },
@@ -321,6 +337,7 @@ export class WasiHost implements vscode.Disposable {
     });
     return {
       transports: mapped(inner, writable, paths),
+      expectExit: () => this.endedByUs.add(proc),
       terminate: () => {
         this.endedByUs.add(proc);
         this.live.delete(proc);

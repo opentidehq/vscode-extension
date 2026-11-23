@@ -56,7 +56,10 @@ export function chooseWasiHost({
           host: "wasm-wasi",
           note: `opentide.wasi.host is launcher, but the launcher cannot run here: the module runs under @vscode/wasm-wasi`,
         }
-      : { host: "launcher", note: `opentide.wasi.host is launcher` };
+      : {
+          host: "launcher",
+          note: `opentide.wasi.host is launcher, but the launcher may not run here (no folder on disk, or it is missing) and ${CORE} is not installed`,
+        };
   }
   if (launcherUsable) {
     return {

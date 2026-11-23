@@ -6,7 +6,7 @@ import { delimiter, join } from "node:path";
 import { defineConfig } from "@vscode/test-cli";
 
 const workspaceFolder = "./test/fixtures/workspace";
-// The WASM WASI Core extension, the host of the WASI module in the extension host when it is installed (it is no
+// The WASM WASI Core extension, the host `opentide.wasi.host: wasm-wasi` runs the WASI module under (it is no
 // manifest dependency: Restricted Mode disables it). The `wasi` label installs it; `wasi-launcher` does not.
 const installExtensions = ["ms-vscode.wasm-wasi-core"];
 // The tests use mocha's describe/it (as npm test does); test-cli's runner defaults to the tdd UI.
@@ -52,7 +52,7 @@ export default defineConfig([
   },
   {
     // The same without ms-vscode.wasm-wasi-core installed: `serve` and the language server run as child
-    // processes of VS Code's Node, through the launcher (test/wasi/).
+    // processes of VS Code's Node, through the launcher (test/wasi/); the launcher is also the `wasi` label's default.
     label: "wasi-launcher",
     files: "out/test/wasi/**/*.test.js",
     workspaceFolder,

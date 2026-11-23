@@ -1,5 +1,6 @@
-// How long the first document opened after a language server start waits for its diagnostics, in a real VS Code, under
-// whichever WASI host the label has (`wasm-wasi-core` for `wasi`, the launcher for `wasi-launcher`). It prints one
+// How long the first document opened after a language server start waits for its diagnostics, in a real VS Code, on each
+// WASI host the label has (the launcher, the default, and `wasm-wasi` where the `wasi` label installs
+// ms-vscode.wasm-wasi-core; `opentide.wasi.host` selects one). It prints one
 // `WASI-PERF` line per round and fails only when more than a quarter of the rounds get no diagnostics at all. Runs only with
 // OPENTIDE_PERF=1 (the Test VSIX workflow sets it). docs/PACKAGING.md, "Cold start of the language server", has the numbers.
 import * as assert from "node:assert/strict";
@@ -89,6 +90,17 @@ describe("language server cold start: the first document after a start", functio
   ];
   if (vscode.extensions.getExtension("ms-vscode.wasm-wasi-core"))
     cases.push({ requested: "wasm-wasi", pull: "auto" }, { requested: "wasm-wasi", pull: "never" });
+  // A failed round leaves the settings it set: the next test starts from the defaults.
+  afterEach(async () => {
+    for (const [section, key] of [
+      ["opentide.wasi", "host"],
+      ["opentide.diagnostics", "workspacePull"],
+      ["opentide", "trace.server"],
+    ] as const)
+      await vscode.workspace
+        .getConfiguration(section)
+        .update(key, undefined, vscode.ConfigurationTarget.Global);
+  });
   for (const { requested, pull } of cases)
     it(`gets its diagnostics, and how soon is printed (${requested}, workspacePull ${pull})`, async () => {
       const api = await activated();

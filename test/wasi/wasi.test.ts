@@ -85,11 +85,17 @@ describe("which host runs the bundled module (#100)", () => {
   });
 });
 
+// The `wasi` label has ms-vscode.wasm-wasi-core and this suite runs under it (opentide.wasi.host: wasm-wasi), where the
+// default would be the launcher; the `wasi-launcher` label has no such extension and runs it through the launcher.
 describe("the WASI module (tier 4), with no opentide anywhere", () => {
+  const expectedHost = vscode.extensions.getExtension("ms-vscode.wasm-wasi-core") ? "wasm-wasi" : "launcher";
   before(async () => {
     await vscode.workspace
       .getConfiguration("opentide")
       .update("path", path.join(ROOT, "no-such-dir", "opentide"), vscode.ConfigurationTarget.Global);
+    await vscode.workspace
+      .getConfiguration("opentide.wasi")
+      .update("host", expectedHost, vscode.ConfigurationTarget.Global);
     const api = await activated();
     await api.ctx.runtime.restart("wasi test");
   });
@@ -97,6 +103,9 @@ describe("the WASI module (tier 4), with no opentide anywhere", () => {
     await vscode.workspace
       .getConfiguration("opentide")
       .update("path", undefined, vscode.ConfigurationTarget.Global);
+    await vscode.workspace
+      .getConfiguration("opentide.wasi")
+      .update("host", undefined, vscode.ConfigurationTarget.Global);
   });
 
   it("is the runtime when opentide.path (which selects the installed opentide) names nothing", async () => {
@@ -113,6 +122,7 @@ describe("the WASI module (tier 4), with no opentide anywhere", () => {
     const api = await activated();
     const client = await api.ctx.client.ready();
     assert.ok(client, "the WASI language client runs");
+    assert.equal(api.wasiHost(), expectedHost);
     assert.equal(api.ctx.client.serverInfo?.host?.name, "opentide");
     assert.equal(api.ctx.runtime.current?.source, "wasi");
     const uri = fixture("detections", "rules", "misspelled-tlp.yaml");
