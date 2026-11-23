@@ -245,6 +245,8 @@ jobs:
           if ($code -ne 2 -and -not $seen) { throw "AV gate: Defender did not detect the EICAR canary (MpCmdRun exit $code)" }
           Write-Host "Defender detected the canary (MpCmdRun exit $code)"
           Remove-Item -Recurse -Force $canary -ErrorAction SilentlyContinue
+          # MpCmdRun's 2 (a detection, expected here) is the step's exit code unless the step sets its own.
+          exit 0
       - name: Custom scan of each extracted package and each .vsix
         run: |
           $ErrorActionPreference = 'Stop'
@@ -264,3 +266,4 @@ jobs:
           if ($found) { $found | Format-List; $failed += 'detections on the packages (above)' }
           if ($failed.Count -gt 0) { throw "AV gate: Defender: $($failed -join '; ')" }
           Write-Host "Defender: no detection in $($targets.Count) targets"
+          exit 0

@@ -204,6 +204,8 @@ describe("AV gate: the workflows", () => {
     assert.match(defender, /Get-ChildItem -Directory extracted/);
     assert.match(defender, /Get-ChildItem vsix -Filter \*\.vsix/);
     assert.match(defender, /Get-MpThreatDetection/);
+    // pwsh steps exit with the last native exit code: the canary's expected 2 must not fail the step.
+    assert.match(defender, /Defender detected the canary[^\n]*\n[^\n]*\n[^\n]*\n {10}exit 0\n/);
   });
 
   it("ClamAV: fresh signatures, archive scanning, canaries plain and zipped, limits that report rather than skip", () => {
