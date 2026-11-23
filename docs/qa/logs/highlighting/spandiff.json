@@ -1,0 +1,412 @@
+{
+ "kql-dark": {
+  "lines": 40,
+  "queryLines": [
+   24,
+   30
+  ],
+  "changedChars": 363,
+  "inQuery": 135,
+  "outQuery": 228,
+  "groups": [
+   [
+    "yaml | #9CDCFE variable -> #D4D4D4 default text",
+    27,
+    [
+     ":"
+    ]
+   ],
+   [
+    "yaml | #D4D4D4 default text -> #CE9178 string",
+    12,
+    [
+     "HL KQL",
+     "-",
+     "qa",
+     "Acme",
+     "Processes opening a handle to lsass.exe.",
+     "DESIGN",
+     "1h",
+     "SingleAlert"
+    ]
+   ],
+   [
+    "yaml | #D4D4D4 default text -> #B5CEA8 number",
+    2,
+    [
+     "6bd65871-e768-4bb7-875b-570909c287a5",
+     "e0f35e6f-6ecb-41f8-a18b-30c081954be8"
+    ]
+   ],
+   [
+    "yaml | #B5CEA8 number -> #CE9178 string",
+    6,
+    [
+     "2026",
+     "11",
+     "22"
+    ]
+   ],
+   [
+    "yaml | #D4D4D4 default text -> rgb(79,193,255)",
+    2,
+    [
+     "amber",
+     "Informational"
+    ]
+   ],
+   [
+    "yaml | #569CD6 keyword -> rgb(79,193,255)",
+    4,
+    [
+     "true",
+     "false"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #4EC9B0 type",
+    1,
+    [
+     "SecurityEvent"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #9CDCFE variable",
+    10,
+    [
+     "TimeGenerated",
+     "EventID",
+     "NewProcessName",
+     "Account",
+     "Computer"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #DCDCAA function",
+    5,
+    [
+     "ago",
+     "Count",
+     "count",
+     "bin"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #B5CEA8 number",
+    2,
+    [
+     "1d",
+     "1h"
+    ]
+   ]
+  ]
+ },
+ "kql-light": {
+  "lines": 40,
+  "queryLines": [
+   24,
+   30
+  ],
+  "changedChars": 363,
+  "inQuery": 135,
+  "outQuery": 228,
+  "groups": [
+   [
+    "yaml | #001080 variable -> #000000 default text",
+    27,
+    [
+     ":"
+    ]
+   ],
+   [
+    "yaml | #000000 default text -> #A31515 string",
+    12,
+    [
+     "HL KQL",
+     "-",
+     "qa",
+     "Acme",
+     "Processes opening a handle to lsass.exe.",
+     "DESIGN",
+     "1h",
+     "SingleAlert"
+    ]
+   ],
+   [
+    "yaml | #000000 default text -> #098658 number",
+    2,
+    [
+     "6bd65871-e768-4bb7-875b-570909c287a5",
+     "e0f35e6f-6ecb-41f8-a18b-30c081954be8"
+    ]
+   ],
+   [
+    "yaml | #098658 number -> #A31515 string",
+    6,
+    [
+     "2026",
+     "11",
+     "22"
+    ]
+   ],
+   [
+    "yaml | #000000 default text -> rgb(0,112,193)",
+    2,
+    [
+     "amber",
+     "Informational"
+    ]
+   ],
+   [
+    "yaml | #0000FF keyword -> rgb(0,112,193)",
+    4,
+    [
+     "true",
+     "false"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #267F99 type",
+    1,
+    [
+     "SecurityEvent"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #001080 variable",
+    10,
+    [
+     "TimeGenerated",
+     "EventID",
+     "NewProcessName",
+     "Account",
+     "Computer"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #795E26 function",
+    5,
+    [
+     "ago",
+     "Count",
+     "count",
+     "bin"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #098658 number",
+    2,
+    [
+     "1d",
+     "1h"
+    ]
+   ]
+  ]
+ },
+ "esql-dark": {
+  "lines": 31,
+  "queryLines": [
+   24,
+   30
+  ],
+  "changedChars": 317,
+  "inQuery": 129,
+  "outQuery": 188,
+  "groups": [
+   [
+    "yaml | #9CDCFE variable -> #D4D4D4 default text",
+    19,
+    [
+     ":"
+    ]
+   ],
+   [
+    "yaml | #D4D4D4 default text -> #CE9178 string",
+    9,
+    [
+     "HL ESQL",
+     "-",
+     "Acme",
+     "Encoded PowerShell command lines.",
+     "STAGING",
+     "esql"
+    ]
+   ],
+   [
+    "yaml | #D4D4D4 default text -> #B5CEA8 number",
+    2,
+    [
+     "73a0d31e-be92-422d-8c27-83023775f019",
+     "bf7a5240-59e5-4222-84a6-ba2857f5e98d"
+    ]
+   ],
+   [
+    "yaml | #B5CEA8 number -> #CE9178 string",
+    6,
+    [
+     "2026",
+     "11",
+     "21"
+    ]
+   ],
+   [
+    "yaml | #D4D4D4 default text -> rgb(79,193,255)",
+    2,
+    [
+     "amber",
+     "Informational"
+    ]
+   ],
+   [
+    "yaml | #569CD6 keyword -> rgb(79,193,255)",
+    1,
+    [
+     "true"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #C586C0 keyword (control)",
+    10,
+    [
+     "FROM",
+     "WHERE",
+     "AND",
+     "LIKE",
+     "STATS",
+     "BY",
+     "SORT",
+     "DESC"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #4EC9B0 type",
+    1,
+    [
+     "logs-endpoint.events.process-*"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #9CDCFE variable",
+    11,
+    [
+     "process",
+     "name",
+     "args",
+     "count",
+     "host",
+     "user"
+    ]
+   ],
+   [
+    "query | #D4D4D4 default text -> #DCDCAA function",
+    1,
+    [
+     "COUNT"
+    ]
+   ]
+  ]
+ },
+ "esql-light": {
+  "lines": 31,
+  "queryLines": [
+   24,
+   30
+  ],
+  "changedChars": 317,
+  "inQuery": 129,
+  "outQuery": 188,
+  "groups": [
+   [
+    "yaml | #001080 variable -> #000000 default text",
+    19,
+    [
+     ":"
+    ]
+   ],
+   [
+    "yaml | #000000 default text -> #A31515 string",
+    9,
+    [
+     "HL ESQL",
+     "-",
+     "Acme",
+     "Encoded PowerShell command lines.",
+     "STAGING",
+     "esql"
+    ]
+   ],
+   [
+    "yaml | #000000 default text -> #098658 number",
+    2,
+    [
+     "73a0d31e-be92-422d-8c27-83023775f019",
+     "bf7a5240-59e5-4222-84a6-ba2857f5e98d"
+    ]
+   ],
+   [
+    "yaml | #098658 number -> #A31515 string",
+    6,
+    [
+     "2026",
+     "11",
+     "21"
+    ]
+   ],
+   [
+    "yaml | #000000 default text -> rgb(0,112,193)",
+    2,
+    [
+     "amber",
+     "Informational"
+    ]
+   ],
+   [
+    "yaml | #0000FF keyword -> rgb(0,112,193)",
+    1,
+    [
+     "true"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #AF00DB keyword (control)",
+    10,
+    [
+     "FROM",
+     "WHERE",
+     "AND",
+     "LIKE",
+     "STATS",
+     "BY",
+     "SORT",
+     "DESC"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #267F99 type",
+    1,
+    [
+     "logs-endpoint.events.process-*"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #001080 variable",
+    11,
+    [
+     "process",
+     "name",
+     "args",
+     "count",
+     "host",
+     "user"
+    ]
+   ],
+   [
+    "query | #000000 default text -> #795E26 function",
+    1,
+    [
+     "COUNT"
+    ]
+   ]
+  ]
+ }
+}

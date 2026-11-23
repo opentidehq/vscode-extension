@@ -1,0 +1,2 @@
+#!/bin/sh
+exec xvfb-run -a -s "-screen 0 1600x1000x24" sh -c 'openbox >/dev/null 2>&1 & sleep 1; node /tmp/qa/hl/hl.js "$@"' sh "$@"

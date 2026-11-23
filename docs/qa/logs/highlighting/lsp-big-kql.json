@@ -1,0 +1,255 @@
+{
+ "label": "big-kql",
+ "ws": "/tmp/qa/ws-hl-big",
+ "rel": "objects/rules/hl-kql.yaml",
+ "median": {
+  "initialize_ms": 218,
+  "first_sem_total_ms": 375,
+  "first_sem_server_ms": 375,
+  "warm_sem_ms": 59,
+  "after_change_sem_ms": 64,
+  "tokens": 133
+ },
+ "runs": [
+  {
+   "initialize_ms": 226,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     375,
+     133
+    ],
+    [
+     675,
+     58,
+     133
+    ],
+    [
+     1034,
+     55,
+     133
+    ],
+    [
+     1390,
+     47,
+     133
+    ],
+    [
+     1437,
+     52,
+     133
+    ],
+    [
+     1489,
+     47,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 375,
+   "first_sem_server_ms": 375,
+   "warm_sem_ms": 50,
+   "tokens": 133,
+   "after_change_sem_ms": 58,
+   "events": [
+    [
+     811,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 186,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     340,
+     133
+    ],
+    [
+     640,
+     61,
+     133
+    ],
+    [
+     1002,
+     56,
+     133
+    ],
+    [
+     1359,
+     70,
+     133
+    ],
+    [
+     1429,
+     60,
+     133
+    ],
+    [
+     1489,
+     57,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 340,
+   "first_sem_server_ms": 340,
+   "warm_sem_ms": 59,
+   "tokens": 133,
+   "after_change_sem_ms": 56,
+   "events": [
+    [
+     751,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 219,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     421,
+     133
+    ],
+    [
+     722,
+     66,
+     133
+    ],
+    [
+     1088,
+     65,
+     133
+    ],
+    [
+     1454,
+     48,
+     133
+    ],
+    [
+     1502,
+     87,
+     133
+    ],
+    [
+     1589,
+     70,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 421,
+   "first_sem_server_ms": 421,
+   "warm_sem_ms": 68,
+   "tokens": 133,
+   "after_change_sem_ms": 68,
+   "events": [
+    [
+     878,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 204,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     401,
+     133
+    ],
+    [
+     701,
+     66,
+     133
+    ],
+    [
+     1067,
+     76,
+     133
+    ],
+    [
+     1443,
+     67,
+     133
+    ],
+    [
+     1510,
+     72,
+     133
+    ],
+    [
+     1582,
+     65,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 401,
+   "first_sem_server_ms": 401,
+   "warm_sem_ms": 70,
+   "tokens": 133,
+   "after_change_sem_ms": 64,
+   "events": [
+    [
+     822,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 218,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     360,
+     133
+    ],
+    [
+     660,
+     68,
+     133
+    ],
+    [
+     1028,
+     59,
+     133
+    ],
+    [
+     1387,
+     49,
+     133
+    ],
+    [
+     1436,
+     50,
+     133
+    ],
+    [
+     1486,
+     70,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 360,
+   "first_sem_server_ms": 360,
+   "warm_sem_ms": 55,
+   "tokens": 133,
+   "after_change_sem_ms": 67,
+   "events": [
+    [
+     808,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  }
+ ]
+}

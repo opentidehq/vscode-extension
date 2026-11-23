@@ -1,0 +1,260 @@
+{
+ "label": "small-kql",
+ "ws": "/tmp/qa/ws-hl-small",
+ "rel": "objects/rules/hl-kql.yaml",
+ "median": {
+  "initialize_ms": 200,
+  "first_sem_total_ms": 168,
+  "first_sem_server_ms": 168,
+  "warm_sem_ms": 6,
+  "after_change_sem_ms": 9,
+  "tokens": 133
+ },
+ "runs": [
+  {
+   "initialize_ms": 200,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     152,
+     133
+    ],
+    [
+     451,
+     6,
+     133
+    ],
+    [
+     758,
+     8,
+     133
+    ],
+    [
+     1067,
+     5,
+     133
+    ],
+    [
+     1072,
+     4,
+     133
+    ],
+    [
+     1076,
+     6,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 152,
+   "first_sem_server_ms": 152,
+   "warm_sem_ms": 6,
+   "tokens": 133,
+   "after_change_sem_ms": 9,
+   "events": [
+    [
+     545,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 192,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     172,
+     133
+    ],
+    [
+     472,
+     8,
+     133
+    ],
+    [
+     781,
+     9,
+     133
+    ],
+    [
+     1090,
+     6,
+     133
+    ],
+    [
+     1096,
+     6,
+     133
+    ],
+    [
+     1102,
+     6,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 172,
+   "first_sem_server_ms": 172,
+   "warm_sem_ms": 6,
+   "tokens": 133,
+   "after_change_sem_ms": 8,
+   "events": [
+    [
+     637,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 215,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     170,
+     133
+    ],
+    [
+     470,
+     7,
+     133
+    ],
+    [
+     778,
+     7,
+     133
+    ],
+    [
+     1085,
+     6,
+     133
+    ],
+    [
+     1091,
+     7,
+     133
+    ],
+    [
+     1098,
+     6,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 170,
+   "first_sem_server_ms": 170,
+   "warm_sem_ms": 7,
+   "tokens": 133,
+   "after_change_sem_ms": 8,
+   "events": [
+    [
+     616,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 204,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     158,
+     133
+    ],
+    [
+     457,
+     6,
+     133
+    ],
+    [
+     763,
+     10,
+     133
+    ],
+    [
+     1074,
+     7,
+     133
+    ],
+    [
+     1081,
+     4,
+     133
+    ],
+    [
+     1085,
+     5,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 158,
+   "first_sem_server_ms": 158,
+   "warm_sem_ms": 6,
+   "tokens": 133,
+   "after_change_sem_ms": 9,
+   "events": [
+    [
+     573,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 194,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     168,
+     133
+    ],
+    [
+     468,
+     7,
+     133
+    ],
+    [
+     776,
+     7,
+     133
+    ],
+    [
+     1083,
+     5,
+     133
+    ],
+    [
+     1088,
+     4,
+     133
+    ],
+    [
+     1092,
+     5,
+     133
+    ]
+   ],
+   "first_sem_total_ms": 168,
+   "first_sem_server_ms": 168,
+   "warm_sem_ms": 5,
+   "tokens": 133,
+   "after_change_sem_ms": 17,
+   "events": [
+    [
+     565,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ],
+    [
+     1301,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  }
+ ]
+}

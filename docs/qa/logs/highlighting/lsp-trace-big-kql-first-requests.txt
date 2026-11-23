@@ -1,0 +1,60 @@
+Sending request 'initialize - (0)'.
+Received response 'initialize - (0)' in 401ms.
+Sending request 'textDocument/diagnostic - (1)'.
+Sending request 'workspace/diagnostic - (2)'.
+Sending request 'textDocument/documentSymbol - (3)'.
+Sending request 'textDocument/codeAction - (4)'.
+Sending request 'textDocument/documentLink - (5)'.
+Sending request 'textDocument/inlayHint - (6)'.
+Sending request 'textDocument/foldingRange - (7)'.
+Sending request 'textDocument/documentSymbol - (8)'.
+Sending request 'textDocument/semanticTokens/full - (9)'.
+Received response 'textDocument/diagnostic - (1)' in 463ms.
+Sending request 'textDocument/diagnostic - (10)'.
+Sending request 'textDocument/codeAction - (11)'.
+Sending request 'textDocument/codeLens - (12)'.
+Sending request 'textDocument/documentSymbol - (13)'.
+Sending request 'textDocument/codeAction - (14)'.
+Sending request 'textDocument/codeAction - (15)'.
+Sending request 'textDocument/codeAction - (16)'.
+Sending request 'textDocument/codeAction - (17)'.
+Sending request 'textDocument/codeAction - (18)'.
+Sending request 'textDocument/codeAction - (19)'.
+Sending request 'textDocument/codeAction - (20)'.
+Sending request 'textDocument/codeAction - (21)'.
+Sending request 'textDocument/codeAction - (22)'.
+Sending request 'textDocument/documentLink - (23)'.
+Received response 'workspace/diagnostic - (2)' in 2214ms.
+Sending request 'textDocument/inlayHint - (24)'.
+Received response 'textDocument/documentSymbol - (3)' in 2224ms. Request failed: the request was cancelled (-32800).
+Sending request 'textDocument/documentSymbol - (25)'.
+Received response 'textDocument/codeAction - (4)' in 2206ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/documentLink - (5)' in 2068ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/inlayHint - (6)' in 2067ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/foldingRange - (7)' in 1971ms.
+Received response 'textDocument/documentSymbol - (8)' in 1923ms.
+Received response 'textDocument/semanticTokens/full - (9)' in 1924ms.
+Received response 'textDocument/codeAction - (11)' in 1640ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeLens - (12)' in 1608ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/documentSymbol - (13)' in 1607ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (14)' in 1394ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (15)' in 1259ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (16)' in 1254ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (17)' in 1102ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (18)' in 684ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (19)' in 527ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (20)' in 310ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (21)' in 110ms. Request failed: the request was cancelled (-32800).
+Received response 'textDocument/codeAction - (22)' in 103ms.
+Received response 'textDocument/documentLink - (23)' in 103ms.
+Received response 'textDocument/diagnostic - (10)' in 1832ms.
+Received response 'textDocument/inlayHint - (24)' in 15ms.
+Received response 'textDocument/documentSymbol - (25)' in 14ms.
+Sending request 'textDocument/semanticTokens/full - (26)'.
+Received response 'textDocument/semanticTokens/full - (26)' in 2ms.
+Sending request 'textDocument/codeLens - (27)'.
+Sending request 'textDocument/documentSymbol - (28)'.
+Received response 'textDocument/codeLens - (27)' in 4ms.
+Received response 'textDocument/documentSymbol - (28)' in 2ms.
+Sending request 'textDocument/inlayHint - (29)'.
+Received response 'textDocument/inlayHint - (29)' in 2ms.

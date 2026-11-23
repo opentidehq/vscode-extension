@@ -1,0 +1,260 @@
+{
+ "label": "big-esql",
+ "ws": "/tmp/qa/ws-hl-big",
+ "rel": "objects/rules/hl-esql.yaml",
+ "median": {
+  "initialize_ms": 191,
+  "first_sem_total_ms": 318,
+  "first_sem_server_ms": 318,
+  "warm_sem_ms": 70,
+  "after_change_sem_ms": 55,
+  "tokens": 97
+ },
+ "runs": [
+  {
+   "initialize_ms": 191,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     320,
+     97
+    ],
+    [
+     620,
+     60,
+     97
+    ],
+    [
+     981,
+     73,
+     97
+    ],
+    [
+     1354,
+     55,
+     97
+    ],
+    [
+     1409,
+     63,
+     97
+    ],
+    [
+     1472,
+     46,
+     97
+    ]
+   ],
+   "first_sem_total_ms": 320,
+   "first_sem_server_ms": 320,
+   "warm_sem_ms": 59,
+   "tokens": 97,
+   "after_change_sem_ms": 55,
+   "events": [
+    [
+     748,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 166,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     298,
+     97
+    ],
+    [
+     599,
+     81,
+     97
+    ],
+    [
+     980,
+     69,
+     97
+    ],
+    [
+     1350,
+     80,
+     97
+    ],
+    [
+     1430,
+     74,
+     97
+    ],
+    [
+     1504,
+     63,
+     97
+    ]
+   ],
+   "first_sem_total_ms": 298,
+   "first_sem_server_ms": 298,
+   "warm_sem_ms": 72,
+   "tokens": 97,
+   "after_change_sem_ms": 50,
+   "events": [
+    [
+     682,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 200,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     307,
+     97
+    ],
+    [
+     607,
+     63,
+     97
+    ],
+    [
+     970,
+     73,
+     97
+    ],
+    [
+     1344,
+     74,
+     97
+    ],
+    [
+     1418,
+     79,
+     97
+    ],
+    [
+     1497,
+     83,
+     97
+    ]
+   ],
+   "first_sem_total_ms": 307,
+   "first_sem_server_ms": 307,
+   "warm_sem_ms": 77,
+   "tokens": 97,
+   "after_change_sem_ms": 68,
+   "events": [
+    [
+     737,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 183,
+   "legend": true,
+   "sem_requests": [
+    [
+     0,
+     318,
+     97
+    ],
+    [
+     618,
+     59,
+     97
+    ],
+    [
+     978,
+     56,
+     97
+    ],
+    [
+     1334,
+     73,
+     97
+    ],
+    [
+     1407,
+     75,
+     97
+    ],
+    [
+     1482,
+     66,
+     97
+    ]
+   ],
+   "first_sem_total_ms": 318,
+   "first_sem_server_ms": 318,
+   "warm_sem_ms": 70,
+   "tokens": 97,
+   "after_change_sem_ms": 69,
+   "events": [
+    [
+     728,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  },
+  {
+   "initialize_ms": 208,
+   "legend": true,
+   "sem_requests": [
+    [
+     1,
+     381,
+     97
+    ],
+    [
+     682,
+     82,
+     97
+    ],
+    [
+     1063,
+     70,
+     97
+    ],
+    [
+     1433,
+     50,
+     97
+    ],
+    [
+     1483,
+     56,
+     97
+    ],
+    [
+     1539,
+     48,
+     97
+    ]
+   ],
+   "first_sem_total_ms": 382,
+   "first_sem_server_ms": 381,
+   "warm_sem_ms": 53,
+   "tokens": 97,
+   "after_change_sem_ms": 52,
+   "events": [
+    [
+     872,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ],
+    [
+     1847,
+     "notif",
+     "textDocument/publishDiagnostics"
+    ]
+   ]
+  }
+ ]
+}
