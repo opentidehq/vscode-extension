@@ -20,7 +20,7 @@
     {
       "comment": "capture:keyword",
       "match": "(?i)(?<![A-Za-z0-9_])(?:and|at|base64|base64wide|condition|contains|defined|endswith|for|icontains|iendswith|iequals|import|in|include|istartswith|matches|meta|not|of|or|rule|startswith|strings|xor)(?![A-Za-z0-9_])",
-      "name": "keyword.control.opentide"
+      "name": "keyword.control.opentide keyword.other.opentide"
     },
     {
       "comment": "capture:operator",

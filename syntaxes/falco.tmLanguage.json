@@ -15,7 +15,7 @@
     {
       "comment": "capture:keyword",
       "match": "(?i)(?<![A-Za-z0-9_])(?:and|not|or)(?![A-Za-z0-9_])",
-      "name": "keyword.control.opentide"
+      "name": "keyword.control.opentide keyword.other.opentide"
     },
     {
       "comment": "capture:punctuation.bracket",

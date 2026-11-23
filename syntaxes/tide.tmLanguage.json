@@ -3,30 +3,39 @@
   "opentideHighlightSpec": "0.3.0",
   "patterns": [
     {
-      "begin": "^(configurations)\\s*:\\s*(?:#.*)?$",
+      "begin": "^(configurations)\\s*(:)\\s*(?:#.*)?$",
       "beginCaptures": {
         "1": {
           "name": "variable.other.property.tide"
+        },
+        "2": {
+          "name": "keyword.operator.key-value.tide"
         }
       },
       "comment": "configurations: the queries whose path fixes their language are embedded regions (#171); Elastic queries are left to semantic tokens",
       "end": "^(?=\\S)",
       "patterns": [
         {
-          "begin": "^(\\s+)(sentinel|defender_for_endpoint)\\s*:\\s*(?:#.*)?$",
+          "begin": "^(\\s+)(sentinel|defender_for_endpoint)\\s*(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
               "name": "variable.other.property.tide"
+            },
+            "3": {
+              "name": "keyword.operator.key-value.tide"
             }
           },
           "comment": "configurations.{sentinel,defender_for_endpoint}: kql queries (#171)",
           "end": "^(?!\\1\\s+\\S|\\s*$)",
           "patterns": [
             {
-              "begin": "^(\\s+)(query)\\s*:\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+              "begin": "^(\\s+)(query)\\s*(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
                   "name": "variable.other.property.tide"
+                },
+                "3": {
+                  "name": "keyword.operator.key-value.tide"
                 }
               },
               "contentName": "meta.embedded.block.kql",
@@ -43,6 +52,9 @@
                   "name": "variable.other.property.tide"
                 },
                 "3": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "4": {
                   "name": "meta.embedded.block.kql",
                   "patterns": [
                     {
@@ -51,7 +63,7 @@
                   ]
                 }
               },
-              "match": "^(\\s+)(query)\\s*:\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(.+)$"
             },
             {
               "include": "$self"
@@ -59,20 +71,26 @@
           ]
         },
         {
-          "begin": "^(\\s+)(splunk)\\s*:\\s*(?:#.*)?$",
+          "begin": "^(\\s+)(splunk)\\s*(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
               "name": "variable.other.property.tide"
+            },
+            "3": {
+              "name": "keyword.operator.key-value.tide"
             }
           },
           "comment": "configurations.{splunk}: spl queries (#171)",
           "end": "^(?!\\1\\s+\\S|\\s*$)",
           "patterns": [
             {
-              "begin": "^(\\s+)(query|search)\\s*:\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+              "begin": "^(\\s+)(query|search)\\s*(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
                   "name": "variable.other.property.tide"
+                },
+                "3": {
+                  "name": "keyword.operator.key-value.tide"
                 }
               },
               "contentName": "meta.embedded.block.spl",
@@ -89,6 +107,9 @@
                   "name": "variable.other.property.tide"
                 },
                 "3": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "4": {
                   "name": "meta.embedded.block.spl",
                   "patterns": [
                     {
@@ -97,7 +118,7 @@
                   ]
                 }
               },
-              "match": "^(\\s+)(query|search)\\s*:\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query|search)\\s*(:)\\s+(?![|>])(.+)$"
             },
             {
               "include": "$self"
@@ -105,20 +126,26 @@
           ]
         },
         {
-          "begin": "^(\\s+)(carbon_black_cloud|graylog)\\s*:\\s*(?:#.*)?$",
+          "begin": "^(\\s+)(carbon_black_cloud|graylog)\\s*(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
               "name": "variable.other.property.tide"
+            },
+            "3": {
+              "name": "keyword.operator.key-value.tide"
             }
           },
           "comment": "configurations.{carbon_black_cloud,graylog}: lucene queries (#171)",
           "end": "^(?!\\1\\s+\\S|\\s*$)",
           "patterns": [
             {
-              "begin": "^(\\s+)(query)\\s*:\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+              "begin": "^(\\s+)(query)\\s*(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
                   "name": "variable.other.property.tide"
+                },
+                "3": {
+                  "name": "keyword.operator.key-value.tide"
                 }
               },
               "contentName": "meta.embedded.block.lucene",
@@ -135,6 +162,9 @@
                   "name": "variable.other.property.tide"
                 },
                 "3": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "4": {
                   "name": "meta.embedded.block.lucene",
                   "patterns": [
                     {
@@ -143,7 +173,7 @@
                   ]
                 }
               },
-              "match": "^(\\s+)(query)\\s*:\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(.+)$"
             },
             {
               "include": "$self"
@@ -151,20 +181,26 @@
           ]
         },
         {
-          "begin": "^(\\s+)(sysdig)\\s*:\\s*(?:#.*)?$",
+          "begin": "^(\\s+)(sysdig)\\s*(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
               "name": "variable.other.property.tide"
+            },
+            "3": {
+              "name": "keyword.operator.key-value.tide"
             }
           },
           "comment": "configurations.{sysdig}: falco queries (#171)",
           "end": "^(?!\\1\\s+\\S|\\s*$)",
           "patterns": [
             {
-              "begin": "^(\\s+)(condition)\\s*:\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+              "begin": "^(\\s+)(condition)\\s*(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
                   "name": "variable.other.property.tide"
+                },
+                "3": {
+                  "name": "keyword.operator.key-value.tide"
                 }
               },
               "contentName": "meta.embedded.block.falco",
@@ -181,6 +217,9 @@
                   "name": "variable.other.property.tide"
                 },
                 "3": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "4": {
                   "name": "meta.embedded.block.falco",
                   "patterns": [
                     {
@@ -189,7 +228,7 @@
                   ]
                 }
               },
-              "match": "^(\\s+)(condition)\\s*:\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(condition)\\s*(:)\\s+(?![|>])(.+)$"
             },
             {
               "include": "$self"
@@ -197,20 +236,26 @@
           ]
         },
         {
-          "begin": "^(\\s+)(crowdstrike)\\s*:\\s*(?:#.*)?$",
+          "begin": "^(\\s+)(crowdstrike)\\s*(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
               "name": "variable.other.property.tide"
+            },
+            "3": {
+              "name": "keyword.operator.key-value.tide"
             }
           },
           "comment": "configurations.{crowdstrike}: cql queries (#171)",
           "end": "^(?!\\1\\s+\\S|\\s*$)",
           "patterns": [
             {
-              "begin": "^(\\s+)(query)\\s*:\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+              "begin": "^(\\s+)(query)\\s*(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
                   "name": "variable.other.property.tide"
+                },
+                "3": {
+                  "name": "keyword.operator.key-value.tide"
                 }
               },
               "contentName": "meta.embedded.block.cql",
@@ -227,6 +272,9 @@
                   "name": "variable.other.property.tide"
                 },
                 "3": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "4": {
                   "name": "meta.embedded.block.cql",
                   "patterns": [
                     {
@@ -235,7 +283,7 @@
                   ]
                 }
               },
-              "match": "^(\\s+)(query)\\s*:\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(.+)$"
             },
             {
               "include": "$self"
@@ -243,20 +291,26 @@
           ]
         },
         {
-          "begin": "^(\\s+)(google_secops)\\s*:\\s*(?:#.*)?$",
+          "begin": "^(\\s+)(google_secops)\\s*(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
               "name": "variable.other.property.tide"
+            },
+            "3": {
+              "name": "keyword.operator.key-value.tide"
             }
           },
           "comment": "configurations.{google_secops}: yaral queries (#171)",
           "end": "^(?!\\1\\s+\\S|\\s*$)",
           "patterns": [
             {
-              "begin": "^(\\s+)(setup|events|outcome|condition|export)\\s*:\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+              "begin": "^(\\s+)(setup|events|outcome|condition|export)\\s*(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
                   "name": "variable.other.property.tide"
+                },
+                "3": {
+                  "name": "keyword.operator.key-value.tide"
                 }
               },
               "contentName": "meta.embedded.block.yaral",
@@ -273,6 +327,9 @@
                   "name": "variable.other.property.tide"
                 },
                 "3": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "4": {
                   "name": "meta.embedded.block.yaral",
                   "patterns": [
                     {
@@ -281,7 +338,280 @@
                   ]
                 }
               },
-              "match": "^(\\s+)(setup|events|outcome|condition|export)\\s*:\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(setup|events|outcome|condition|export)\\s*(:)\\s+(?![|>])(.+)$"
+            },
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "comment": "configurations.elastic: the query's language follows `type:` (esql, eql) or `language:` (kuery, lucene) when that line is first",
+          "begin": "^(\\s+)(elastic)(\\s*)(:)\\s*(?:#.*)?$",
+          "beginCaptures": {
+            "2": {
+              "name": "variable.other.property.tide"
+            },
+            "4": {
+              "name": "keyword.operator.key-value.tide"
+            }
+          },
+          "end": "^(?!\\1\\s+\\S|\\s*$)",
+          "patterns": [
+            {
+              "comment": "configurations.elastic type: esql: the query is esql (written after it)",
+              "begin": "^(\\s+)(type)(\\s*)(:)(\\s*)(esql)(\\s*)(?:#.*)?$",
+              "beginCaptures": {
+                "2": {
+                  "name": "variable.other.property.tide"
+                },
+                "4": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "6": {
+                  "name": "variable.other.enummember.tide"
+                }
+              },
+              "end": "^(?!\\1|\\s*$)",
+              "patterns": [
+                {
+                  "comment": "elastic type: esql query (block)",
+                  "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+                  "beginCaptures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    }
+                  },
+                  "contentName": "meta.embedded.block.esql",
+                  "end": "^(?!\\1\\s+\\S|\\s*$)",
+                  "patterns": [
+                    {
+                      "include": "source.opentide.esql"
+                    }
+                  ]
+                },
+                {
+                  "comment": "elastic type: esql query (inline)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "captures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    },
+                    "5": {
+                      "name": "meta.embedded.block.esql",
+                      "patterns": [
+                        {
+                          "include": "source.opentide.esql"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "include": "$self"
+                }
+              ]
+            },
+            {
+              "comment": "configurations.elastic type: eql: the query is eql (written after it)",
+              "begin": "^(\\s+)(type)(\\s*)(:)(\\s*)(eql)(\\s*)(?:#.*)?$",
+              "beginCaptures": {
+                "2": {
+                  "name": "variable.other.property.tide"
+                },
+                "4": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "6": {
+                  "name": "variable.other.enummember.tide"
+                }
+              },
+              "end": "^(?!\\1|\\s*$)",
+              "patterns": [
+                {
+                  "comment": "elastic type: eql query (block)",
+                  "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+                  "beginCaptures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    }
+                  },
+                  "contentName": "meta.embedded.block.eql",
+                  "end": "^(?!\\1\\s+\\S|\\s*$)",
+                  "patterns": [
+                    {
+                      "include": "source.eql"
+                    }
+                  ]
+                },
+                {
+                  "comment": "elastic type: eql query (inline)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "captures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    },
+                    "5": {
+                      "name": "meta.embedded.block.eql",
+                      "patterns": [
+                        {
+                          "include": "source.eql"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "include": "$self"
+                }
+              ]
+            },
+            {
+              "comment": "configurations.elastic language: kuery: the query is kuery (written after it)",
+              "begin": "^(\\s+)(language)(\\s*)(:)(\\s*)(kuery)(\\s*)(?:#.*)?$",
+              "beginCaptures": {
+                "2": {
+                  "name": "variable.other.property.tide"
+                },
+                "4": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "6": {
+                  "name": "variable.other.enummember.tide"
+                }
+              },
+              "end": "^(?!\\1|\\s*$)",
+              "patterns": [
+                {
+                  "comment": "elastic language: kuery query (block)",
+                  "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+                  "beginCaptures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    }
+                  },
+                  "contentName": "meta.embedded.block.kuery",
+                  "end": "^(?!\\1\\s+\\S|\\s*$)",
+                  "patterns": [
+                    {
+                      "include": "source.kuery"
+                    }
+                  ]
+                },
+                {
+                  "comment": "elastic language: kuery query (inline)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "captures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    },
+                    "5": {
+                      "name": "meta.embedded.block.kuery",
+                      "patterns": [
+                        {
+                          "include": "source.kuery"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "include": "$self"
+                }
+              ]
+            },
+            {
+              "comment": "configurations.elastic language: lucene: the query is lucene (written after it)",
+              "begin": "^(\\s+)(language)(\\s*)(:)(\\s*)(lucene)(\\s*)(?:#.*)?$",
+              "beginCaptures": {
+                "2": {
+                  "name": "variable.other.property.tide"
+                },
+                "4": {
+                  "name": "keyword.operator.key-value.tide"
+                },
+                "6": {
+                  "name": "variable.other.enummember.tide"
+                }
+              },
+              "end": "^(?!\\1|\\s*$)",
+              "patterns": [
+                {
+                  "comment": "elastic language: lucene query (block)",
+                  "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
+                  "beginCaptures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    }
+                  },
+                  "contentName": "meta.embedded.block.lucene",
+                  "end": "^(?!\\1\\s+\\S|\\s*$)",
+                  "patterns": [
+                    {
+                      "include": "source.lucene"
+                    }
+                  ]
+                },
+                {
+                  "comment": "elastic language: lucene query (inline)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "captures": {
+                    "2": {
+                      "name": "variable.other.property.tide"
+                    },
+                    "4": {
+                      "name": "keyword.operator.key-value.tide"
+                    },
+                    "5": {
+                      "name": "meta.embedded.block.lucene",
+                      "patterns": [
+                        {
+                          "include": "source.lucene"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "include": "$self"
+                }
+              ]
+            },
+            {
+              "comment": "configurations.elastic: a query with no language written before it is left to the server",
+              "match": "^(\\s*)(?:(-)(\\s+))?(query)(\\s*)(:)",
+              "captures": {
+                "2": {
+                  "name": "keyword.operator.list.markdown.tide"
+                },
+                "4": {
+                  "name": "variable.other.property.tide"
+                },
+                "6": {
+                  "name": "keyword.operator.key-value.tide"
+                }
+              }
             },
             {
               "include": "$self"
@@ -299,9 +629,195 @@
       "name": "comment.line.opentide"
     },
     {
+      "comment": "handoff:block-scalar:text",
+      "begin": "^(\\s*)(?:(-)(\\s+))?(description|analysis|investigation|setup)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "variable.other.property.tide"
+        },
+        "6": {
+          "name": "keyword.operator.key-value.tide"
+        }
+      },
+      "contentName": "string.unquoted.block.tide",
+      "end": "^(?!\\1\\s+\\S|\\s*$)",
+      "patterns": [
+        {
+          "comment": "capture:markdown.heading",
+          "match": "(?m)^\\s*#{1,6}\\s+.*$",
+          "name": "markup.heading.markdown.tide entity.name.type.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.code",
+          "match": "`[^`]+`",
+          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.list",
+          "match": "(?m)^\\s*(?:[-*+]|\\d+\\.)\\s+",
+          "name": "punctuation.definition.list.markdown.tide keyword.operator.list.markdown.tide"
+        }
+      ]
+    },
+    {
+      "comment": "handoff:block-scalar",
+      "begin": "^(\\s*)(?:(-)(\\s+))?([A-Za-z0-9_][A-Za-z0-9_.-]*)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "variable.other.property.tide"
+        },
+        "6": {
+          "name": "keyword.operator.key-value.tide"
+        }
+      },
+      "end": "^(?!\\1\\s+\\S|\\s*$)",
+      "patterns": [
+        {
+          "comment": "capture:comment",
+          "match": "(?m)^\\s*#.*$",
+          "name": "comment.line.opentide"
+        },
+        {
+          "comment": "capture:string",
+          "match": "\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'",
+          "name": "string.quoted.opentide"
+        },
+        {
+          "comment": "capture:tide.uuid",
+          "match": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+          "name": "constant.other.uuid.tide constant.numeric.uuid.tide"
+        },
+        {
+          "comment": "capture:number",
+          "match": "\\b[0-9]+(\\.[0-9]+)?\\b",
+          "name": "constant.numeric.opentide"
+        },
+        {
+          "comment": "capture:markdown.heading",
+          "match": "(?m)^\\s*#{1,6}\\s+.*$",
+          "name": "markup.heading.markdown.tide entity.name.type.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.code",
+          "match": "`[^`]+`",
+          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.list",
+          "match": "(?m)^\\s*(?:[-*+]|\\d+\\.)\\s+",
+          "name": "punctuation.definition.list.markdown.tide keyword.operator.list.markdown.tide"
+        },
+        {
+          "comment": "capture:tide.schema",
+          "match": "\\b[A-Za-z][A-Za-z0-9_]*::[0-9.]+",
+          "name": "entity.name.type.schema.tide"
+        },
+        {
+          "comment": "capture:boolean",
+          "match": "(?<![A-Za-z0-9_])(?:true|false)(?![A-Za-z0-9_])",
+          "name": "constant.language.boolean.opentide variable.other.enummember.tide"
+        }
+      ]
+    },
+    {
+      "comment": "handoff:enum:tlp",
+      "match": "^(\\s*)(?:(-)(\\s+))?(tlp)(\\s*)(:)([ \\t]+)(clear|white|green|amber\\+strict|amber|red)(?=[ \\t]*(?:#.*)?$)",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "variable.other.property.tide"
+        },
+        "6": {
+          "name": "keyword.operator.key-value.tide"
+        },
+        "8": {
+          "name": "variable.other.enummember.tide"
+        }
+      }
+    },
+    {
+      "comment": "handoff:enum:alert_severity",
+      "match": "^(\\s*)(?:(-)(\\s+))?(alert_severity)(\\s*)(:)([ \\t]+)(Informational|Low|Medium|High|Critical)(?=[ \\t]*(?:#.*)?$)",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "variable.other.property.tide"
+        },
+        "6": {
+          "name": "keyword.operator.key-value.tide"
+        },
+        "8": {
+          "name": "variable.other.enummember.tide"
+        }
+      }
+    },
+    {
+      "comment": "handoff:enum:language",
+      "match": "^(\\s*)(?:(-)(\\s+))?(language)(\\s*)(:)([ \\t]+)(kuery|lucene)(?=[ \\t]*(?:#.*)?$)",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "variable.other.property.tide"
+        },
+        "6": {
+          "name": "keyword.operator.key-value.tide"
+        },
+        "8": {
+          "name": "variable.other.enummember.tide"
+        }
+      }
+    },
+    {
+      "comment": "handoff:key-value",
+      "match": "^(\\s*)(?:(-)(\\s+))?([A-Za-z0-9_][A-Za-z0-9_.-]*)(\\s*)(:)(?=\\s|$)(?:([ \\t]+)(?![\"'|>&*!%@`#])(?!(?:true|false|null|~)[ \\t]*(?:#.*)?$)(?![0-9]+(?:\\.[0-9]+)?[ \\t]*(?:#.*)?$)(?![0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}[ \\t]*(?:#.*)?$)(?![A-Za-z][A-Za-z0-9_]*::[0-9.]+[ \\t]*(?:#.*)?$)(\\S.*?)(?=[ \\t]+#|[ \\t]*$))?",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "variable.other.property.tide"
+        },
+        "6": {
+          "name": "keyword.operator.key-value.tide"
+        },
+        "8": {
+          "name": "string.unquoted.plain.tide"
+        }
+      }
+    },
+    {
+      "comment": "handoff:sequence-item",
+      "match": "^(\\s*)(-)(\\s+)(?![A-Za-z0-9_][A-Za-z0-9_.-]*[ \\t]*:(?:\\s|$))(?![\"'|>&*!%@`#])(?!(?:true|false|null|~)[ \\t]*(?:#.*)?$)(?![0-9]+(?:\\.[0-9]+)?[ \\t]*(?:#.*)?$)(?![0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}[ \\t]*(?:#.*)?$)(?![A-Za-z][A-Za-z0-9_]*::[0-9.]+[ \\t]*(?:#.*)?$)(\\S.*?)(?=[ \\t]+#|[ \\t]*$)",
+      "captures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "string.unquoted.plain.tide"
+        }
+      }
+    },
+    {
       "comment": "capture:string",
       "match": "\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'",
       "name": "string.quoted.opentide"
+    },
+    {
+      "comment": "capture:tide.uuid",
+      "match": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+      "name": "constant.other.uuid.tide constant.numeric.uuid.tide"
     },
     {
       "comment": "capture:number",
@@ -310,28 +826,30 @@
     },
     {
       "comment": "capture:tide.property",
-      "match": "(?m)^\\s*(?:action|actions|actors|advanced|aggregation|alert|alert_severity|alerting|allow_block|allow_zero_values|analysis|anomaly_threshold|antimalware_scan|any|append_to_rule|arch|attach_csv|author|availability|backlog|bcc|bitdefender|building_block|carbon_black_cloud|cardinality|category|cc|chaining|classification|collect_investigation_package|column|companies|comparator|composition|comps|condition|confidence|configurations|containment|contains|content_type|context|contributors|cool_off|correlation|correlation_search|create_incident|created|criteria|criticality|cron|crowdstrike|custom_condition|custom_details|custom_time|cve|data|data_view_id|days|default|defender_for_endpoint|delay|description|details|detection|detection_model|detectors|device|device_groups|devices|direction|disable_fallback|disable_user|drilldown|duration|dynamic_properties|earliest|effort|elastic|email|enabled|end|endpoint|endpoint_tags|ensure_enrichment_completeness|entities|entity|entries|eql|event|event_category_override|event_fields|event_key|event_limit|events|every|exabeam|examples|exceptions|exclusions|expiration|expires|export|false_positives|field|fields|file|files|filters|first|flags|for|force_password_reset|frequency|from|function|google_secops|grace_period|graylog|group_by|group_by_alert_details|group_by_custom_details|group_by_entities|group_name|grouping|grouping_lookback|groups|guide|harfanglab|highlighted_fields|history_window_start|id|identifier|impact|impacted_entities|imports|include|include_children|include_parent|index|indicator_path|initiate_investigation|inline_results|integration|internal|interval|investigation|investment|is|isolate|isolate_device|items|job_id|key|kill_process|killchain|language|last|last_day|late_arriving_data_adjustment|latest|let|leverage|link|list_id|lists|logsource|logsources|lookback|machine_learning|macros|mailbox|mapping|mappings|mark_as_compromised|match|match_in_order|matches_required|matching|maturity|max_alerts|message|meta|metadata|methodology|minimum_engine_version|missing_fields_strategy|mitre_attack|modified|modifiers|name|namespace_type|negate|network_quarantine|new_terms|notable|notifications|notify|nrt|objective|on_access|operator|options|organisation|organizations|os|outcome|output|overrides|package|parent|pivot|platforms|playbook|policies|priority|procedure|product|property|public|purpose|quarantine|quarantine_file|query|reason|recipients|recommendation|references|remediation|reopen_closed_incidents|report|reports|required_fields|requirements|respond|responders|response|restrict_app_execution|results_link|reviewed|risk|risk_objects|risk_scan|run_antivirus_scan|run_frequency|sandbox|schedule|scheduling|schema|scope|score|search|search_string|searches|security_domain|selection|selections|send_csv|send_pdf|sentinel|sentinel_one|sequences|setup|severity|sighting|sigma|signals|signature|single_event|source|splunk|start|status|strategy|stream_categories|streams|strings|sub_queries|subject|summary|suppression|suppression_window|surface|sysdig|system|tactic|tactics|tags|target|targets|technique|techniques|technology|template|tenant|tenants|terrain|test_mode|threat|threat_objects|threats|threshold|throttling|tiebreaker_field|time_window|timeline|timerange|timestamp|timestamp_field|timezone|title|tlp|to|treat_as_threat|trigger|trigger_condition|trigger_time|type|user|users|uuid|value|values|version|viability|watchlist|window|within|yara)\\s*:",
-      "name": "variable.other.property.tide"
+      "match": "(?m)^\\s*((?:action|actions|actors|advanced|aggregation|alert|alert_severity|alerting|allow_block|allow_zero_values|analysis|anomaly_threshold|antimalware_scan|any|append_to_rule|arch|attach_csv|author|availability|backlog|bcc|bitdefender|building_block|carbon_black_cloud|cardinality|category|cc|chaining|classification|collect_investigation_package|column|companies|comparator|composition|comps|condition|confidence|configurations|containment|contains|content_type|context|contributors|cool_off|correlation|correlation_search|create_incident|created|criteria|criticality|cron|crowdstrike|custom_condition|custom_details|custom_time|cve|data|data_view_id|days|default|defender_for_endpoint|delay|description|details|detection|detection_model|detectors|device|device_groups|devices|direction|disable_fallback|disable_user|drilldown|duration|dynamic_properties|earliest|effort|elastic|email|enabled|end|endpoint|endpoint_tags|ensure_enrichment_completeness|entities|entity|entries|eql|event|event_category_override|event_fields|event_key|event_limit|events|every|exabeam|examples|exceptions|exclusions|expiration|expires|export|false_positives|field|fields|file|files|filters|first|flags|for|force_password_reset|frequency|from|function|google_secops|grace_period|graylog|group_by|group_by_alert_details|group_by_custom_details|group_by_entities|group_name|grouping|grouping_lookback|groups|guide|harfanglab|highlighted_fields|history_window_start|id|identifier|impact|impacted_entities|imports|include|include_children|include_parent|index|indicator_path|initiate_investigation|inline_results|integration|internal|interval|investigation|investment|is|isolate|isolate_device|items|job_id|key|kill_process|killchain|language|last|last_day|late_arriving_data_adjustment|latest|let|leverage|link|list_id|lists|logsource|logsources|lookback|machine_learning|macros|mailbox|mapping|mappings|mark_as_compromised|match|match_in_order|matches_required|matching|maturity|max_alerts|message|meta|metadata|methodology|minimum_engine_version|missing_fields_strategy|mitre_attack|modified|modifiers|name|namespace_type|negate|network_quarantine|new_terms|notable|notifications|notify|nrt|objective|on_access|operator|options|organisation|organizations|os|outcome|output|overrides|package|parent|pivot|platforms|playbook|policies|priority|procedure|product|property|public|purpose|quarantine|quarantine_file|query|reason|recipients|recommendation|references|remediation|reopen_closed_incidents|report|reports|required_fields|requirements|respond|responders|response|restrict_app_execution|results_link|reviewed|risk|risk_objects|risk_scan|run_antivirus_scan|run_frequency|sandbox|schedule|scheduling|schema|scope|score|search|search_string|searches|security_domain|selection|selections|send_csv|send_pdf|sentinel|sentinel_one|sequences|setup|severity|sighting|sigma|signals|signature|single_event|source|splunk|start|status|strategy|stream_categories|streams|strings|sub_queries|subject|summary|suppression|suppression_window|surface|sysdig|system|tactic|tactics|tags|target|targets|technique|techniques|technology|template|tenant|tenants|terrain|test_mode|threat|threat_objects|threats|threshold|throttling|tiebreaker_field|time_window|timeline|timerange|timestamp|timestamp_field|timezone|title|tlp|to|treat_as_threat|trigger|trigger_condition|trigger_time|type|user|users|uuid|value|values|version|viability|watchlist|window|within|yara))\\s*(:)",
+      "captures": {
+        "1": {
+          "name": "variable.other.property.tide"
+        },
+        "2": {
+          "name": "keyword.operator.key-value.tide"
+        }
+      }
     },
     {
       "comment": "capture:markdown.heading",
       "match": "(?m)^\\s*#{1,6}\\s+.*$",
-      "name": "markup.heading.markdown.tide"
+      "name": "markup.heading.markdown.tide entity.name.type.markdown.tide"
     },
     {
       "comment": "capture:markdown.code",
       "match": "`[^`]+`",
-      "name": "markup.inline.raw.markdown.tide"
+      "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
     },
     {
       "comment": "capture:markdown.list",
       "match": "(?m)^\\s*(?:[-*+]|\\d+\\.)\\s+",
-      "name": "punctuation.definition.list.markdown.tide"
-    },
-    {
-      "comment": "capture:tide.uuid",
-      "match": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
-      "name": "constant.other.uuid.tide"
+      "name": "punctuation.definition.list.markdown.tide keyword.operator.list.markdown.tide"
     },
     {
       "comment": "capture:tide.schema",
@@ -341,8 +859,9 @@
     {
       "comment": "capture:boolean",
       "match": "(?<![A-Za-z0-9_])(?:true|false)(?![A-Za-z0-9_])",
-      "name": "constant.language.boolean.opentide"
+      "name": "constant.language.boolean.opentide variable.other.enummember.tide"
     }
   ],
-  "scopeName": "source.opentide-yaml"
+  "scopeName": "source.opentide-yaml",
+  "opentideHandoff": "keys, colons and values as the server's semantic tokens colour them"
 }

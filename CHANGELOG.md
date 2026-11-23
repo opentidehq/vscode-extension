@@ -6,12 +6,25 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Added
+
+- **Elastic queries are coloured at once.** In an Elastic rule, the editor colours an ES|QL, EQL, Kuery or Lucene
+  query as soon as the file opens, when `type:` (esql, eql) or `language:` (kuery, lucene) is written before
+  `query:`. ES|QL keywords had no colour until the language server's came, a few seconds later.
+
 ### Changed
 
 - **The opentide MCP server starts its module at the first tool call.** VS Code starts the server with the window, and
   the module took about a second and 100 MB in every window with an opentide folder, used or not. After the first
   run in a folder, the extension answers the editor's start-up questions itself and starts the module when an agent
   calls a tool ([#96](https://github.com/opentidehq/vscode-extension/issues/96)).
+
+### Fixed
+
+- **A rule's colours no longer change when the language server's arrive.** The keys, colons, values, dates, UUIDs and
+  `true` and `false` of a rule were painted one way by the editor and another, seconds later, by the server, and most
+  of what changed colour was outside the query. They now start with the colours they end with. Colours the server
+  alone knows still arrive later: a query's columns, functions and tables, and the values of other enumerated fields.
 
 ## [0.3.0] - 2026-11-23
 

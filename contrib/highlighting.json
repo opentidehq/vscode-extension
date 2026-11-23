@@ -1,0 +1,35 @@
+{
+  "$comment": "How the language server's semantic token types map to TextMate scopes in opentide-yaml, for themes with no rule of their own for a type. Every type of the server's legend (LSP_TOKEN_TYPES in opentide's crates/opentide-highlight) is listed, and the grammar (scripts/tide-align.mjs) gives each construct a last scope that falls under one of its type's scopes, so the server's tokens do not recolour the grammar's. test/scripts/highlighting.test.mjs checks both.",
+  "contributes": {
+    "semanticTokenScopes": [
+      {
+        "language": "opentide-yaml",
+        "scopes": {
+          "namespace": ["entity.name.namespace"],
+          "type": ["entity.name.type.schema.tide", "entity.name.type", "support.type"],
+          "class": ["entity.name.type.class"],
+          "enum": ["entity.name.type.enum"],
+          "interface": ["entity.name.type.interface"],
+          "struct": ["entity.name.type.struct"],
+          "typeParameter": ["entity.name.type.parameter"],
+          "parameter": ["variable.parameter"],
+          "variable": ["variable.other.readwrite", "entity.name.variable"],
+          "property": ["variable.other.property.tide", "variable.other.property"],
+          "enumMember": ["variable.other.enummember.tide", "variable.other.enummember"],
+          "event": ["variable.other.event"],
+          "function": ["entity.name.function", "support.function"],
+          "method": ["entity.name.function.member"],
+          "macro": ["entity.name.function.preprocessor"],
+          "keyword": ["keyword.other.opentide", "keyword"],
+          "modifier": ["storage.modifier"],
+          "comment": ["comment"],
+          "string": ["string.unquoted.plain.tide", "string"],
+          "number": ["constant.numeric"],
+          "regexp": ["constant.regexp"],
+          "operator": ["keyword.operator.key-value.tide", "keyword.operator"],
+          "decorator": ["entity.name.decorator", "entity.name.function"]
+        }
+      }
+    ]
+  }
+}

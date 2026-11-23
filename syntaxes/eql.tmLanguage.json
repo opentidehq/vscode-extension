@@ -20,7 +20,7 @@
     {
       "comment": "capture:keyword",
       "match": "(?i)(?<![A-Za-z0-9_])(?:and|by|join|maxspan|not|of|or|sample|sequence|until|where|with)(?![A-Za-z0-9_])",
-      "name": "keyword.control.opentide"
+      "name": "keyword.control.opentide keyword.other.opentide"
     },
     {
       "comment": "capture:operator",
