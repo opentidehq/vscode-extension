@@ -395,7 +395,7 @@
                 },
                 {
                   "comment": "elastic type: esql query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -455,7 +455,7 @@
                 },
                 {
                   "comment": "elastic type: eql query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -515,7 +515,7 @@
                 },
                 {
                   "comment": "elastic language: kuery query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -575,7 +575,7 @@
                 },
                 {
                   "comment": "elastic language: lucene query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -600,7 +600,7 @@
             },
             {
               "comment": "configurations.elastic: a query with no language written before it is left to the server",
-              "match": "^(\\s*)(?:(-)(\\s+))?(query)(\\s*)(:)",
+              "match": "^(\\s*)(?:(-)(\\s+))?(query)(\\s*)(:)(?!\\s*[|>][-+0-9]*\\s*(?:#.*)?$)",
               "captures": {
                 "2": {
                   "name": "keyword.operator.list.markdown.tide"
@@ -630,15 +630,12 @@
     },
     {
       "comment": "handoff:block-scalar:text",
-      "begin": "^(\\s*)(?:(-)(\\s+))?(description|analysis|investigation|setup)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
+      "begin": "^(\\s*)(description|analysis|investigation|setup)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
       "beginCaptures": {
         "2": {
-          "name": "keyword.operator.list.markdown.tide"
-        },
-        "4": {
           "name": "variable.other.property.tide"
         },
-        "6": {
+        "4": {
           "name": "keyword.operator.key-value.tide"
         }
       },
@@ -664,7 +661,67 @@
     },
     {
       "comment": "handoff:block-scalar",
-      "begin": "^(\\s*)(?:(-)(\\s+))?([A-Za-z0-9_][A-Za-z0-9_.-]*)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
+      "begin": "^(\\s*)([A-Za-z0-9_][A-Za-z0-9_.-]*)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
+      "beginCaptures": {
+        "2": {
+          "name": "variable.other.property.tide"
+        },
+        "4": {
+          "name": "keyword.operator.key-value.tide"
+        }
+      },
+      "end": "^(?!\\1\\s+\\S|\\s*$)",
+      "patterns": [
+        {
+          "comment": "capture:comment",
+          "match": "(?m)^\\s*#.*$",
+          "name": "comment.line.opentide"
+        },
+        {
+          "comment": "capture:string",
+          "match": "\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'",
+          "name": "string.quoted.opentide"
+        },
+        {
+          "comment": "capture:tide.uuid",
+          "match": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+          "name": "constant.other.uuid.tide constant.numeric.uuid.tide"
+        },
+        {
+          "comment": "capture:number",
+          "match": "\\b[0-9]+(\\.[0-9]+)?\\b",
+          "name": "constant.numeric.opentide"
+        },
+        {
+          "comment": "capture:markdown.heading",
+          "match": "(?m)^\\s*#{1,6}\\s+.*$",
+          "name": "markup.heading.markdown.tide entity.name.type.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.code",
+          "match": "`[^`]+`",
+          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.list",
+          "match": "(?m)^\\s*(?:[-*+]|\\d+\\.)\\s+",
+          "name": "punctuation.definition.list.markdown.tide keyword.operator.list.markdown.tide"
+        },
+        {
+          "comment": "capture:tide.schema",
+          "match": "\\b[A-Za-z][A-Za-z0-9_]*::[0-9.]+",
+          "name": "entity.name.type.schema.tide"
+        },
+        {
+          "comment": "capture:boolean",
+          "match": "(?<![A-Za-z0-9_])(?:true|false)(?![A-Za-z0-9_])",
+          "name": "constant.language.boolean.opentide variable.other.enummember.tide"
+        }
+      ]
+    },
+    {
+      "comment": "handoff:block-scalar:text:item",
+      "begin": "^(\\s*)(-)(\\s)(description|analysis|investigation|setup)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
       "beginCaptures": {
         "2": {
           "name": "keyword.operator.list.markdown.tide"
@@ -676,7 +733,41 @@
           "name": "keyword.operator.key-value.tide"
         }
       },
-      "end": "^(?!\\1\\s+\\S|\\s*$)",
+      "contentName": "string.unquoted.block.tide",
+      "end": "^(?!\\1\\s\\s\\s+\\S|\\s*$)",
+      "patterns": [
+        {
+          "comment": "capture:markdown.heading",
+          "match": "(?m)^\\s*#{1,6}\\s+.*$",
+          "name": "markup.heading.markdown.tide entity.name.type.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.code",
+          "match": "`[^`]+`",
+          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+        },
+        {
+          "comment": "capture:markdown.list",
+          "match": "(?m)^\\s*(?:[-*+]|\\d+\\.)\\s+",
+          "name": "punctuation.definition.list.markdown.tide keyword.operator.list.markdown.tide"
+        }
+      ]
+    },
+    {
+      "comment": "handoff:block-scalar:item",
+      "begin": "^(\\s*)(-)(\\s)([A-Za-z0-9_][A-Za-z0-9_.-]*)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
+      "beginCaptures": {
+        "2": {
+          "name": "keyword.operator.list.markdown.tide"
+        },
+        "4": {
+          "name": "variable.other.property.tide"
+        },
+        "6": {
+          "name": "keyword.operator.key-value.tide"
+        }
+      },
+      "end": "^(?!\\1\\s\\s\\s+\\S|\\s*$)",
       "patterns": [
         {
           "comment": "capture:comment",

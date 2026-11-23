@@ -1,5 +1,6 @@
-// The handoff from the TextMate grammar to the language server's semantic tokens (docs/qa/highlighting-v0.3.0.md on
-// test/wasi-e2e-2026-11-21): the YAML structure must have the colours before the server's tokens that it has after.
+// The handoff from the TextMate grammar to the language server's semantic tokens (the QA report
+// docs/qa/highlighting-v0.3.0.md, on the branch test/wasi-e2e-2026-11-21 only): the YAML structure must have the
+// colours before the server's tokens that it has after.
 // The grammar (syntaxes/tide.tmLanguage.json, from scripts/tide-align.mjs) is run here with vscode-textmate, the
 // tokenizer VS Code uses, and every token of representative rules is checked against the semantic token type the
 // server gives the same text (taken from a run of the server on these rules).
@@ -300,6 +301,48 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
               `${JSON.stringify(text)}: ${JSON.stringify(token)}`,
             );
       }
+    });
+
+    it("does not read a query of unknown language as YAML: its block is text, not keys and values", async () => {
+      for (const text of [
+        'configurations:\n  elastic:\n    type: query\n    query: |\n      process.name: "x" and\n      user.name: bob\n    language: kuery\n',
+        'configurations:\n  elastic:\n    query: |\n      process.name: "x" and\n      user.name: bob\n',
+      ]) {
+        const lines = await tokenize(text);
+        for (const row of ["process.name:", "user.name:"]) {
+          const scopes = lines.find((line) => line.line.includes(row)).flatMap((token) => token.scopes);
+          assert.equal(
+            scopes.includes("variable.other.property.tide"),
+            false,
+            `${row} in ${JSON.stringify(text)}`,
+          );
+          assert.equal(
+            scopes.includes("string.unquoted.plain.tide"),
+            false,
+            `${row} in ${JSON.stringify(text)}`,
+          );
+        }
+      }
+    });
+
+    it("ends a block scalar of a list item with the item's next key", async () => {
+      const lines = await tokenize(
+        "references:\n  - description: |\n      hello\n    url: https://x.y\n  - name: z\n",
+      );
+      assert.ok(underType(lastScope(lines, "url:", "url"), "property"), lastScope(lines, "url:", "url"));
+      assert.equal(lastScope(lines, "url:", "https://x.y"), "string.unquoted.plain.tide");
+      assert.equal(lastScope(lines, "hello", "hello"), "string.unquoted.block.tide");
+    });
+
+    it("leaves a comment after an inline query out of the embedded language", async () => {
+      const lines = await tokenize(
+        'configurations:\n  elastic:\n    language: kuery\n    query: process.name: "x" # why\n',
+      );
+      assert.equal(
+        scopesOf(lines, "query:", "# why").some((scope) => scope.startsWith("meta.embedded.")),
+        false,
+      );
+      assert.equal(embeddedAt(lines, "query:", "process"), "meta.embedded.block.kuery");
     });
 
     it("keeps the language to the Elastic block: another platform's `type: esql` embeds nothing esql", async () => {

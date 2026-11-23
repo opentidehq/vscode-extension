@@ -1,6 +1,6 @@
 // Aligns the opentide-yaml TextMate grammar of the highlights zip with the colours the language server's semantic
-// tokens give the same text, so that when the server's tokens land (seconds after the grammar's, see
-// docs/qa/highlighting-v0.3.0.md on test/wasi-e2e-2026-11-21) the YAML structure does not change colour. Run by
+// tokens give the same text, so that when the server's tokens land (seconds after the grammar's; measured in VS Code 1.147 by
+// the QA report docs/qa/highlighting-v0.3.0.md, on the branch test/wasi-e2e-2026-11-21 only) the YAML structure does not change colour. Run by
 // scripts/grammars-lib.mjs on `tide.tmLanguage.json`, so `npm run grammars --check` still tells a stale copy.
 //
 // The rule it keeps: for each construct, the grammar's last scope is one VS Code's theme resolves like the default
@@ -197,26 +197,37 @@ function enumRules() {
  * server: only the old rules for numbers, strings and the rest apply in it.
  */
 function blockScalarRules(otherText, markdown) {
-  const begin = (key) => `^(\\s*)(?:(-)(\\s+))?(${key})(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$`;
-  const captures = { 2: CAPTURE(OPERATOR_LIST), 4: CAPTURE(PROPERTY), 6: CAPTURE(OPERATOR) };
-  const end = "^(?!\\1\\s+\\S|\\s*$)";
-  return [
-    {
-      comment: "handoff:block-scalar:text",
-      begin: begin(TEXT_KEYS),
-      beginCaptures: captures,
-      contentName: STRING_BLOCK,
-      end,
-      patterns: markdown,
-    },
-    {
-      comment: "handoff:block-scalar",
-      begin: begin(KEY),
-      beginCaptures: captures,
-      end,
-      patterns: otherText,
-    },
-  ];
+  // `- key: |`: the text is deeper than the key, which is two columns past the dash.
+  const begin = (key, dash) =>
+    dash
+      ? `^(\\s*)(-)(\\s)(${key})(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$`
+      : `^(\\s*)(${key})(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$`;
+  const captures = (dash) =>
+    dash
+      ? { 2: CAPTURE(OPERATOR_LIST), 4: CAPTURE(PROPERTY), 6: CAPTURE(OPERATOR) }
+      : { 2: CAPTURE(PROPERTY), 4: CAPTURE(OPERATOR) };
+  const end = (dash) => (dash ? "^(?!\\1\\s\\s\\s+\\S|\\s*$)" : "^(?!\\1\\s+\\S|\\s*$)");
+  const rules = [];
+  for (const dash of [false, true]) {
+    rules.push(
+      {
+        comment: `handoff:block-scalar:text${dash ? ":item" : ""}`,
+        begin: begin(TEXT_KEYS, dash),
+        beginCaptures: captures(dash),
+        contentName: STRING_BLOCK,
+        end: end(dash),
+        patterns: markdown,
+      },
+      {
+        comment: `handoff:block-scalar${dash ? ":item" : ""}`,
+        begin: begin(KEY, dash),
+        beginCaptures: captures(dash),
+        end: end(dash),
+        patterns: otherText,
+      },
+    );
+  }
+  return rules;
 }
 
 /** An Elastic rule's query, embedded once `type:` or `language:` has said which language it is. */
@@ -232,7 +243,7 @@ function languageRule({ key, value, scope, embedded }) {
           patterns: [{ include: scope }],
         }
       : {
-          match: "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
+          match: "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
           captures: {
             2: CAPTURE(PROPERTY),
             4: CAPTURE(OPERATOR),
@@ -258,7 +269,8 @@ function languageRule({ key, value, scope, embedded }) {
 function elasticQueryRule() {
   return {
     comment: "configurations.elastic: a query with no language written before it is left to the server",
-    match: "^(\\s*)(?:(-)(\\s+))?(query)(\\s*)(:)",
+    // not a block scalar: `query: |` is the generic block rule's, so its text is not read as YAML
+    match: "^(\\s*)(?:(-)(\\s+))?(query)(\\s*)(:)(?!\\s*[|>][-+0-9]*\\s*(?:#.*)?$)",
     captures: { 2: CAPTURE(OPERATOR_LIST), 4: CAPTURE(PROPERTY), 6: CAPTURE(OPERATOR) },
   };
 }
@@ -301,8 +313,6 @@ export function alignTide(grammar, Failure = Error) {
   if (!keys) fail(Failure, "the known-keys rule is not `(?m)^\\s*(?:keys)\\s*:`");
   known.match = `(?m)^\\s*((?:${keys[1]}))\\s*(:)`;
   known.captures = { 1: CAPTURE(PROPERTY), 2: CAPTURE(OPERATOR) };
-  known.name = undefined;
-  // Keep the rule's own fields in order: name is gone, captures follow match.
   delete known.name;
   addScope(ruleOf(grammar, "capture:tide.uuid", Failure), "constant.other.uuid.tide", UUID_NUMBER, Failure);
   addScope(
