@@ -2,13 +2,18 @@
 // the release assets and their SHA256SUMS. No process exits and no writes; release.mjs does the IO.
 import { createHash } from "node:crypto";
 import { readZip } from "./grammars-lib.mjs";
+import { STORES, storeExtensionId, vsixName } from "./package-lib.mjs";
 import { unpinnedLicences } from "./wasi-lib.mjs";
 
 /** The tree does not say what to release, or the assets are not what it says. */
 export class ReleaseError extends Error {}
 
 export const REPOSITORY = "https://github.com/opentidehq/vscode-extension";
-export const EXTENSION_ID = "opentidehq.opentide";
+const store = (name) => STORES.find((candidate) => candidate.store === name);
+/** The Visual Studio Marketplace's id of the extension, `opentide.opentide`. */
+export const MARKETPLACE_ID = storeExtensionId(store("marketplace"));
+/** Open VSX's id of the extension, `opentidehq.opentide`. */
+export const OPENVSX_ID = storeExtensionId(store("openvsx"));
 export const SUMS = "SHA256SUMS";
 
 /** `## [0.2.0] - 2026-11-20` (a hyphen, en dash or em dash); `## [Unreleased]` does not match. */
@@ -186,12 +191,15 @@ export function releaseNotes(changelog, version, { attested = true } = {}) {
     );
   }
   lines.push(absoluteLinks(unwrap(section.body), tag), "");
+  const marketplace = vsixName("marketplace", version);
+  const openvsx = vsixName("openvsx", version);
+  const [publisher, name] = OPENVSX_ID.split(".");
   lines.push(
     "### Install",
     "",
-    `- **VS Code:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=${EXTENSION_ID}), or \`code --install-extension ${EXTENSION_ID}${pre ? " --pre-release" : ""}\`.`,
-    `- **Cursor, Windsurf, VSCodium and other editors:** [Open VSX](https://open-vsx.org/extension/opentidehq/opentide).`,
-    `- **Offline or a private gallery:** download \`opentide-universal-${version}.vsix\` below and run \`code --install-extension <file>\`.`,
+    `- **VS Code:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=${MARKETPLACE_ID}), or \`code --install-extension ${MARKETPLACE_ID}${pre ? " --pre-release" : ""}\`.`,
+    `- **Cursor, Kiro, Windsurf, VSCodium and other editors:** [Open VSX](https://open-vsx.org/extension/${publisher}/${name}) (\`${OPENVSX_ID}\`).`,
+    `- **Offline or a private gallery:** download \`${marketplace}\` (VS Code, \`${MARKETPLACE_ID}\`) or \`${openvsx}\` (other editors, \`${OPENVSX_ID}\`) below and run \`code --install-extension <file>\`. The two are the same build; only the publisher in their manifest differs.`,
     "- **opentide itself:** `pip install opentide` (or `uv tool install opentide`) in the workspace's environment. The extension runs that opentide, or `python -m opentide` where the `opentide` command cannot run; without one it gives the editor features only.",
     "",
     "### Verify",
@@ -199,7 +207,9 @@ export function releaseNotes(changelog, version, { attested = true } = {}) {
     "```bash",
     `sha256sum --check --ignore-missing ${SUMS}`,
     ...(attested
-      ? [`gh attestation verify opentide-universal-${version}.vsix --repo opentidehq/vscode-extension`]
+      ? [marketplace, openvsx].map(
+          (file) => `gh attestation verify ${file} --repo opentidehq/vscode-extension`,
+        )
       : []),
     "```",
     "",
@@ -222,17 +232,56 @@ export function vsixIdentity(buffer) {
   };
 }
 
+/** An entry's text with the store's publisher replaced by a placeholder, to compare two stores' packages. */
+function withoutPublisher(name, buffer, publisher) {
+  const text = buffer.toString("utf8");
+  if (name === "extension/package.json")
+    return text.replace(`"publisher": ${JSON.stringify(publisher)}`, '"publisher": "<publisher>"');
+  if (name === "extension.vsixmanifest")
+    return text.replace(`Publisher="${publisher}"`, 'Publisher="<publisher>"');
+  return undefined;
+}
+
 /**
- * What is wrong with a release's VSIX files (`[{ name, buffer }]`): each is this extension at
- * `version`, with the pre-release flag the version's minor gives, and together they are exactly one
- * universal package (the extension carries no runtime, so there is no per-platform one). Empty when
- * they are right.
+ * What differs between two stores' packages other than their publisher: every entry is the same bytes, except
+ * `extension/package.json` and `extension.vsixmanifest`, which are the same once the publisher is set aside.
+ */
+export function storeDifferences(a, b) {
+  const found = [];
+  const entriesA = readZip(a.buffer);
+  const entriesB = readZip(b.buffer);
+  for (const name of new Set([...entriesA.keys(), ...entriesB.keys()])) {
+    const left = entriesA.get(name);
+    const right = entriesB.get(name);
+    if (!left || !right) {
+      found.push(`${name} is in ${left ? a.name : b.name} but not in ${left ? b.name : a.name}`);
+      continue;
+    }
+    if (left.equals(right)) continue;
+    const plainLeft = withoutPublisher(name, left, a.publisher);
+    if (plainLeft === undefined || plainLeft !== withoutPublisher(name, right, b.publisher))
+      found.push(`${name} differs between ${a.name} and ${b.name}, beyond the publisher`);
+  }
+  return found;
+}
+
+/**
+ * What is wrong with a release's VSIX files (`[{ name, buffer }]`): exactly one universal package per store
+ * (package-lib STORES), each named `opentide-<store>-<version>.vsix`, with that store's publisher, at
+ * `version`, with the pre-release flag the version's minor gives; and the packages differ only in their
+ * publisher. Empty when they are right.
  */
 export function assetProblems(files, { version }) {
   const found = [];
   const preRelease = isPreRelease(version);
-  const byTarget = new Map();
+  const checked = [];
+  const expected = new Map(STORES.map((candidate) => [vsixName(candidate.store, version), candidate]));
   for (const { name, buffer } of files) {
+    const target = expected.get(name);
+    if (!target) {
+      found.push(`${name} is not a release package: they are ${[...expected.keys()].join(" and ")}`);
+      continue;
+    }
     let identity;
     try {
       identity = vsixIdentity(buffer);
@@ -240,22 +289,27 @@ export function assetProblems(files, { version }) {
       found.push(`${name}: ${error.message}`);
       continue;
     }
-    if (identity.id !== EXTENSION_ID) found.push(`${name} is ${identity.id}, not ${EXTENSION_ID}`);
+    const id = storeExtensionId(target);
+    if (identity.id !== id) found.push(`${name} is ${identity.id}, not ${id} (the ${target.label} package)`);
     if (identity.version !== version) found.push(`${name} is version ${identity.version}, not ${version}`);
     if (identity.preRelease !== preRelease) {
       found.push(
         `${name} is ${identity.preRelease ? "" : "not "}packaged as a pre-release, but ${version} is ${preRelease ? "a pre-release (odd minor)" : "stable (even minor)"}`,
       );
     }
-    if (byTarget.has(identity.target)) {
-      found.push(`${name} and ${byTarget.get(identity.target)} are both ${identity.target}`);
-    }
-    byTarget.set(identity.target, name);
+    if (identity.target !== "universal")
+      found.push(`${name} is ${identity.target}: the release has universal packages only`);
+    checked.push({ name, buffer, publisher: target.publisher });
   }
-  if (!byTarget.has("universal")) found.push("no universal package");
-  for (const [target, name] of byTarget) {
-    if (target !== "universal")
-      found.push(`${name} is ${target}: the release has the universal package only`);
+  for (const name of expected.keys()) if (!files.some((file) => file.name === name)) found.push(`no ${name}`);
+  if (found.length === 0) {
+    for (const other of checked.slice(1)) {
+      try {
+        found.push(...storeDifferences(checked[0], other));
+      } catch (error) {
+        found.push(`${checked[0].name} or ${other.name}: ${error.message}`);
+      }
+    }
   }
   return found;
 }

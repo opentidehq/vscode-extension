@@ -1,10 +1,13 @@
 #!/usr/bin/env node
-// Packages the VSIX (SPEC §3 "Packages") and enforces the size gate. There is one package, for every
-// platform and the web: the extension runs the user's own opentide and carries no runtime.
+// Packages the VSIXs (SPEC §3 "Packages") and enforces the size gate. There is one universal package per
+// store, for every platform and the web: the extension runs the user's own opentide and carries no runtime.
+// The stores' packages differ only in package.json's `publisher` (package-lib STORES: the Marketplace's
+// `opentide`, Open VSX's `opentidehq`); this checks that they do, entry by entry.
 //   node scripts/package.mjs [--universal] [--pre-release]
 //   --pre-release is passed to vsce; it is on by itself for an odd minor version (SPEC §3).
-// vsce runs `vscode:prepublish` (npm run build:production) first. The VSIX goes to
-// dist-vsix/opentide-<target|universal>-<version>.vsix, with <name>.size.json next to it. A package over
+// vsce runs `vscode:prepublish` (npm run build:production) first, for each package. The VSIXs go to
+// dist-vsix/opentide-<store>-<version>.vsix, each with <name>.size.json next to it. For the Marketplace
+// package, package.json's publisher is replaced while vsce runs, and put back afterwards. A package over
 // pins.json vsix.budgetBytes (or a budgetOverrideBytes for the pinned opentide) fails, printing its size
 // and its five largest directories.
 import { spawnSync } from "node:child_process";
@@ -14,15 +17,19 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   budgetFor,
+  committedPublisherProblem,
   formatReport,
   isPreReleaseVersion,
   mib,
   OUT_DIR,
   PackageError,
+  STORES,
   sizeReport,
   vsixName,
+  withPublisher,
   zipEntries,
 } from "./package-lib.mjs";
+import { assetProblems } from "./release-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -31,27 +38,21 @@ const option = (flag) => {
   return index >= 0 ? args[index + 1] : undefined;
 };
 
-function main() {
-  if (option("--target")) {
-    throw new PackageError(
-      "there are no per-platform packages: the extension runs the user's own opentide. Use npm run package",
-    );
-  }
-  const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
-  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-
-  const vsceArgs = ["package", "--no-dependencies"];
-  if (args.includes("--pre-release") || isPreReleaseVersion(pkg.version)) vsceArgs.push("--pre-release");
-
-  const name = vsixName(undefined, pkg.version);
-  mkdirSync(join(root, OUT_DIR), { recursive: true });
+/** One store's package: package.json with the store's publisher while vsce runs, then the size gate. */
+function packageFor(store, { manifestPath, original, pkg, pins, vsceArgs }) {
+  const name = vsixName(store.store, pkg.version);
   const out = join(root, OUT_DIR, name);
   rmSync(out, { force: true });
-  vsceArgs.push("-o", out);
-
+  const manifest = withPublisher(original, store.publisher);
   const vsce = createRequire(import.meta.url).resolve("@vscode/vsce/vsce");
-  const run = spawnSync(process.execPath, [vsce, ...vsceArgs], { cwd: root, stdio: "inherit" });
-  if (run.status !== 0) throw new PackageError(`vsce package failed (exit ${run.status})`);
+  let run;
+  try {
+    if (manifest !== original) writeFileSync(manifestPath, manifest);
+    run = spawnSync(process.execPath, [vsce, ...vsceArgs, "-o", out], { cwd: root, stdio: "inherit" });
+  } finally {
+    if (manifest !== original) writeFileSync(manifestPath, original);
+  }
+  if (run.status !== 0) throw new PackageError(`vsce package failed for ${name} (exit ${run.status})`);
 
   const buffer = readFileSync(out);
   const entries = zipEntries(buffer);
@@ -78,6 +79,32 @@ function main() {
   if (!report.withinBudget) {
     throw new PackageError(`${name} is ${mib(report.bytes)}, over the ${mib(report.budgetBytes)} budget`);
   }
+  return { name, buffer };
+}
+
+function main() {
+  if (option("--target")) {
+    throw new PackageError(
+      "there are no per-platform packages: the extension runs the user's own opentide. Use npm run package",
+    );
+  }
+  const pins = JSON.parse(readFileSync(join(root, "pins.json"), "utf8"));
+  const manifestPath = join(root, "package.json");
+  const original = readFileSync(manifestPath, "utf8");
+  const pkg = JSON.parse(original);
+  const leftover = committedPublisherProblem(pkg);
+  if (leftover) throw new PackageError(leftover);
+
+  const vsceArgs = ["package", "--no-dependencies"];
+  if (args.includes("--pre-release") || isPreReleaseVersion(pkg.version)) vsceArgs.push("--pre-release");
+  mkdirSync(join(root, OUT_DIR), { recursive: true });
+
+  const built = STORES.map((store) => packageFor(store, { manifestPath, original, pkg, pins, vsceArgs }));
+  const found = assetProblems(built, { version: pkg.version });
+  if (found.length > 0) throw new PackageError(found.join("\n  "));
+  console.log(
+    `package: ${built.map((file) => file.name).join(", ")}: identical but for each store's publisher`,
+  );
 }
 
 try {

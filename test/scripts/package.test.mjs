@@ -6,13 +6,18 @@ import { deflateRawSync } from "node:zlib";
 import { commonOptions } from "../../scripts/build-lib.mjs";
 import {
   budgetFor,
+  committedPublisherProblem,
+  EXTENSION_NAME,
   formatReport,
   isPreReleaseVersion,
   largestDirectories,
   PackageError,
+  STORES,
   sizeReport,
   sizeUnit,
+  storeExtensionId,
   vsixName,
+  withPublisher,
   zipEntries,
   zipRead,
 } from "../../scripts/package-lib.mjs";
@@ -67,9 +72,38 @@ function zip(entries) {
 }
 
 describe("package: names, ignore file and pre-release", () => {
-  it("names the VSIX (universal; a target name for a VSIX from before 0.1.2)", () => {
-    assert.equal(vsixName("linux-x64", "0.2.0"), "opentide-linux-x64-0.2.0.vsix");
-    assert.equal(vsixName(undefined, "0.2.0"), "opentide-universal-0.2.0.vsix");
+  it("names each store's VSIX, and no other", () => {
+    assert.equal(vsixName("marketplace", "0.3.1"), "opentide-marketplace-0.3.1.vsix");
+    assert.equal(vsixName("openvsx", "0.3.1"), "opentide-openvsx-0.3.1.vsix");
+    assert.throws(() => vsixName("linux-x64", "0.3.1"), /no store "linux-x64"/);
+    assert.throws(() => vsixName(undefined, "0.3.1"), /no store/);
+  });
+
+  it("refuses a package.json an interrupted run left with the Marketplace publisher", () => {
+    assert.equal(committedPublisherProblem({ publisher: "opentidehq" }), undefined);
+    assert.match(
+      committedPublisherProblem({ publisher: "opentide" }),
+      /"opentide", not "opentidehq".*git checkout package\.json/,
+    );
+  });
+
+  it("gives each store its publisher, the Open VSX one being package.json's", () => {
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    assert.deepEqual(
+      STORES.map((store) => [store.store, storeExtensionId(store)]),
+      [
+        ["marketplace", "opentide.opentide"],
+        ["openvsx", "opentidehq.opentide"],
+      ],
+    );
+    assert.equal(pkg.name, EXTENSION_NAME);
+    assert.equal(STORES.find((store) => store.store === "openvsx")?.publisher, pkg.publisher);
+    const text = readFileSync(join(root, "package.json"), "utf8");
+    for (const store of STORES) {
+      const manifest = JSON.parse(withPublisher(text, store.publisher));
+      assert.equal(manifest.publisher, store.publisher);
+      assert.deepEqual({ ...manifest, publisher: pkg.publisher }, pkg, "only the publisher changes");
+    }
   });
 
   it("packages an odd minor version as a pre-release", () => {

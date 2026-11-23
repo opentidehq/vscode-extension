@@ -1,0 +1,224 @@
+# The antivirus gate: every store package passes it before the GitHub Release, and so before either store
+# (docs/RELEASING.md, "The antivirus gate"). The Marketplace banned the old publisher, opentidehq, at 0.2.0 for
+# bundling heavy native binaries and for Microsoft Defender detections; this checks both on the exact files
+# that are released.
+#
+#   static     no PE, ELF or Mach-O file at any depth, nested archives opened (scripts/av-gate.mjs static);
+#              each package within 10 % of its recorded size (pins.json vsix.recordedBytes, growthLimit);
+#              YARA rules on the formats (scripts/av/package.yar), proven on a canary written at run time
+#   clamav     ClamAV with fresh signatures and archive scanning, proven on an EICAR canary (plain and zipped)
+#              written at run time; any detection, or a file over a scan limit, fails
+#   defender   Microsoft Defender on windows-latest (scripts/av/defender-scan.ps1): the image's exclusions
+#              removed, signatures updated, proven on an EICAR canary written at run time, then a custom scan of
+#              each .vsix, each extracted VSIX and each .wasm and JavaScript file, verdicts read from MpCmdRun's
+#              output; a detection or an unreadable verdict fails
+#
+# Nothing is uploaded anywhere: no VirusTotal, no external scanner. The EICAR string is put together at run
+# time, never committed.
+#
+# Callers: ci.yml on every pull request and push (the package job's artifact `vsix`), and publish.yml before
+# its attest and release jobs (`vsix-universal`). "Run workflow" on this file is the dry path: it packages the
+# extension (optionally at another version, e.g. the next release's, without committing it) and runs the gate,
+# with nothing tagged, released or published.
+name: AV gate
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        description: The workflow artifact that holds the .vsix files, flat
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Dry run: package as this version (e.g. 0.3.1) before scanning. Nothing is committed, tagged or published"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  # The dry path only: a called gate scans the caller's packages.
+  package:
+    name: Package (dry run)
+    if: ${{ !inputs.artifact }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Set the version (not committed)
+        if: ${{ env.VERSION != '' }}
+        run: npm version "${VERSION}" --no-git-tag-version --allow-same-version
+      - name: Package, one per store
+        run: npm run package -- --universal
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: av-gate-vsix
+          path: dist-vsix/*.vsix
+          if-no-files-found: error
+          retention-days: 7
+
+  static:
+    name: No native executables, size, YARA
+    needs: package
+    if: ${{ !cancelled() && (needs.package.result == 'success' || needs.package.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.artifact || 'av-gate-vsix' }}
+          path: vsix
+      - name: No PE, ELF or Mach-O at any depth; within the recorded size
+        run: node scripts/av-gate.mjs static vsix
+      - name: Install YARA
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q yara
+          yara --version
+      - name: YARA works (a canary written at run time)
+        run: |
+          set -euo pipefail
+          canary="${RUNNER_TEMP}/yara-canary"
+          mkdir -p "${canary}"
+          printf '\x7fELF\x02\x01\x01\x00' > "${canary}/elf"
+          if ! yara -w scripts/av/package.yar "${canary}/elf" | grep -q '^native_elf '; then
+            echo "::error title=AV gate::YARA did not match its canary: the rules or YARA are broken" >&2
+            exit 1
+          fi
+      - name: YARA over each extracted package and each .vsix
+        run: |
+          set -euo pipefail
+          node scripts/av-gate.mjs extract vsix extracted
+          found=""
+          for target in extracted vsix; do
+            found+="$(yara -r -w scripts/av/package.yar "${target}")"
+          done
+          if [[ -n "${found}" ]]; then
+            echo "${found}"
+            echo "::error title=AV gate::YARA matched (above): the package carries a native executable" >&2
+            exit 1
+          fi
+          echo "YARA: no match"
+
+  clamav:
+    name: ClamAV
+    needs: package
+    if: ${{ !cancelled() && (needs.package.result == 'success' || needs.package.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.artifact || 'av-gate-vsix' }}
+          path: vsix
+      - name: Install ClamAV
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q clamav clamav-freshclam
+          sudo systemctl stop clamav-freshclam || true
+      # Fresh signatures, or no scan: a daily database more than two days old fails the gate.
+      - name: Update the signatures
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4; do
+            if sudo freshclam --stdout; then break; fi
+            if [[ "${attempt}" == 4 ]]; then echo "::error title=AV gate::freshclam failed" >&2; exit 1; fi
+            sleep $((attempt * 20))
+          done
+          built="$(sigtool --info /var/lib/clamav/daily.c?d | sed -n 's/^Build time: //p')"
+          echo "daily database built ${built}"
+          age=$(( ( $(date +%s) - $(date -d "${built}" +%s) ) / 3600 ))
+          if (( age > 48 )); then
+            echo "::error title=AV gate::the ClamAV daily database is ${age} hours old" >&2
+            exit 1
+          fi
+          clamscan --version
+      # The EICAR test string, put together here so that no file in the repository carries it.
+      - name: ClamAV works, archive scanning included (EICAR canaries written at run time)
+        run: |
+          set -euo pipefail
+          canary="${RUNNER_TEMP}/clamav-canary"
+          mkdir -p "${canary}"
+          # Two printf calls, `$` written as \x24: no file here holds the string, and no `$` sits in quotes.
+          printf 'X5O!P%%@AP[4\\PZX54(P^)7CC)7}\x24' > "${canary}/eicar.com"
+          printf 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\x24H+H*' >> "${canary}/eicar.com"
+          (cd "${canary}" && python3 -c "import zipfile; zipfile.ZipFile('eicar.zip', 'w', zipfile.ZIP_DEFLATED).write('eicar.com')")
+          for file in eicar.com eicar.zip; do
+            if clamscan --no-summary --scan-archive=yes "${canary}/${file}"; then
+              echo "::error title=AV gate::ClamAV did not detect the EICAR canary ${file}" >&2
+              exit 1
+            fi
+          done
+          rm -rf "${canary}"
+      # Every .vsix and every file extracted from it, archives opened, limits high enough for the WASI module;
+      # a file over a limit is reported as found (--alert-exceeds-max) rather than skipped.
+      - name: Scan each .vsix and each extracted file
+        run: |
+          set -euo pipefail
+          node scripts/av-gate.mjs extract vsix extracted
+          list="${RUNNER_TEMP}/clamav-files.txt"
+          find vsix extracted -type f | sort > "${list}"
+          echo "$(wc -l < "${list}") files"
+          status=0
+          clamscan --infected --scan-archive=yes --alert-exceeds-max=yes --max-filesize=512M \
+            --max-scansize=2048M --max-files=100000 --max-recursion=32 --file-list="${list}" || status=$?
+          if [[ "${status}" != 0 ]]; then
+            echo "::error title=AV gate::ClamAV found something (above), or could not scan (exit ${status})" >&2
+            exit 1
+          fi
+
+  defender:
+    name: Microsoft Defender
+    needs: package
+    if: ${{ !cancelled() && (needs.package.result == 'success' || needs.package.result == 'skipped') }}
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.artifact || 'av-gate-vsix' }}
+          path: vsix
+      - name: Extract the packages
+        run: |
+          node scripts/av-gate.mjs extract vsix extracted
+          if ($LASTEXITCODE -ne 0) { exit 2 }
+      # scripts/av/defender-scan.ps1: the runner's exclusions removed, signatures updated, an EICAR canary that must
+      # be detected for the scan to count, then each .vsix, each extracted package and each .wasm and JavaScript
+      # file scanned on its own, verdicts read from MpCmdRun's output (opentide#1752's lessons).
+      - name: Defender scan, proven on a canary
+        run: pwsh -NoProfile -File scripts/av/defender-scan.ps1 -Packages vsix -Extracted extracted

@@ -1,6 +1,8 @@
 # opentide for VS Code: agent guide
 
-The VS Code extension **`opentidehq.opentide`**: the opentide workbench (live checks, templates,
+The VS Code extension **`opentide.opentide`** (Visual Studio Marketplace) / **`opentidehq.opentide`**
+(Open VSX), one commit packaged with a publisher per store ([`docs/RELEASING.md`](docs/RELEASING.md#two-publishers-and-why);
+code uses `context.extension.id`, never a literal id): the opentide workbench (live checks, templates,
 catalogue, ATT&CK coverage, query results, deploy previews, MCP) on the user's own opentide (`opentide`, or
 `python -m opentide`), with the opentide engine (WASM) for editor features when none is installed.
 
@@ -25,7 +27,7 @@ npm run build
 npm run package                              # the VSIX in dist-vsix/
 ```
 
-- One universal package, no bundled runtime (size gate, smoke test, pins): [`docs/PACKAGING.md`](docs/PACKAGING.md).
+- One universal package per store, no bundled runtime (size gate, smoke test, pins): [`docs/PACKAGING.md`](docs/PACKAGING.md).
   `npm run package`, `npm run smoke -- <vsix>`. Bumping the opentide CI tests against is `pins.json` `opentide.version`.
 
 - Integration tests (`npm run test:integration`, `npm run test:restricted`) download VS Code; they

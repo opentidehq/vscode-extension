@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 //   3. the engine (WASM) worker, dist/engine/worker.js, answers `initialize` with the version engine.json
 //      records and no host, and the web extension is there (package.json `browser` and its Web Worker,
 //      dist/web/engine-worker.js), so the Marketplace offers the package on vscode.dev and github.dev.
-//   node scripts/smoke.mjs <file.vsix> [--keep]
+//   node scripts/smoke.mjs <file.vsix>... [--keep]   (each store's package: package-lib STORES)
 // Exits non-zero on any failure.
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,7 +26,7 @@ import {
 } from "./smoke-lib.mjs";
 
 const args = process.argv.slice(2);
-const vsix = args.find((arg) => !arg.startsWith("--"));
+const vsixFiles = args.filter((arg) => !arg.startsWith("--"));
 const keep = args.includes("--keep");
 const TIMEOUT_MS = 180_000;
 
@@ -186,8 +186,8 @@ function mcpBridge(extension) {
   });
 }
 
-async function main() {
-  if (!vsix) throw new SmokeError("usage: npm run smoke -- <file.vsix> [--keep]");
+/** Smoke-test one package; returns its failures. */
+async function smoke(vsix) {
   const temp = mkdtempSync(join(tmpdir(), "opentide-smoke-"));
   const errors = [];
   try {
@@ -234,11 +234,20 @@ async function main() {
     if (keep) console.log(`smoke: kept ${temp}`);
     else rmSync(temp, { recursive: true, force: true });
   }
-  if (errors.length > 0) {
-    for (const error of errors) console.error(`smoke: FAIL ${error}`);
-    process.exit(1);
+  return errors;
+}
+
+async function main() {
+  if (vsixFiles.length === 0) throw new SmokeError("usage: npm run smoke -- <file.vsix>... [--keep]");
+  let failed = false;
+  for (const vsix of vsixFiles) {
+    const errors = await smoke(vsix);
+    for (const error of errors) console.error(`smoke: FAIL ${vsix}: ${error}`);
+    if (errors.length > 0) failed = true;
+    else console.log(`smoke: OK ${vsix}`);
   }
-  console.log("smoke: OK");
+  if (failed) process.exit(1);
+  console.log(`smoke: OK (${vsixFiles.length} package${vsixFiles.length === 1 ? "" : "s"})`);
 }
 
 main().catch((error) => {

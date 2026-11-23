@@ -45,7 +45,7 @@ manual check to run before a release.
 ## The user-level entry survives an extension update
 
 A user-level entry (Kiro, Devin Desktop, Windsurf) does not name the extension's own folder. An update deletes
-`<extensions>/opentidehq.opentide-<old version>`, and the entry is only rewritten when the extension next activates,
+`<extensions>/<publisher>.opentide-<old version>`, and the entry is only rewritten when the extension next activates,
 so until then, in a workspace with no opentide content for instance, a path with the version in it points at nothing
 and the agent starts a missing file. The entry names a small stable launcher instead:
 
@@ -53,14 +53,14 @@ and the agent starts a missing file. The entry names a small stable launcher ins
 |-|-|
 | Command | the editor's own binary (`process.execPath`) with `ELECTRON_RUN_AS_NODE=1` |
 | Script | `<globalStorage>/mcp-launcher.cjs`, the extension's global storage folder (`context.globalStorageUri`), which does not change across versions. The extension copies `dist/mcp-launcher.js` there at activation when the file is missing or differs |
-| Environment | `OPENTIDE_EXTENSIONS_DIR`, the editor's extensions folder (`~/.kiro/extensions`, `~/.windsurf/extensions`, Devin's equivalent: the parent of the extension's own folder), and `OPENTIDE_MCP_ENTRY_FILE`, the MCP file the entry is in |
-| At start | the launcher lists `OPENTIDE_EXTENSIONS_DIR`, takes the highest version among `opentidehq.opentide-<version>[-<platform>]` folders that have `dist/mcp-wasi.js` (a half-deleted folder is skipped, and so is one in the editor's `.obsolete` list), and `require`s that bridge: stdio is untouched |
+| Environment | `OPENTIDE_EXTENSIONS_DIR`, the editor's extensions folder (`~/.kiro/extensions`, `~/.windsurf/extensions`, Devin's equivalent: the parent of the extension's own folder), `OPENTIDE_EXTENSION_ID`, the extension's id (`context.extension.id`: `opentidehq.opentide` from Open VSX, `opentide.opentide` from the Marketplace), and `OPENTIDE_MCP_ENTRY_FILE`, the MCP file the entry is in. The entry's marker, `OPENTIDE_VSCODE_EXTENSION`, is the same id |
+| At start | the launcher lists `OPENTIDE_EXTENSIONS_DIR`, takes the highest version among `<id>-<version>[-<platform>]` folders (the id from `OPENTIDE_EXTENSION_ID`; an entry written before 0.3.1 has none, and the launcher takes the name of its own folder, the global storage, which VS Code names after the id) that have `dist/mcp-wasi.js` (a half-deleted folder is skipped, and so is one in the editor's `.obsolete` list), and `require`s that bridge: stdio is untouched |
 | None installed | the extension was uninstalled: one line on stderr, an MCP error (`-32603`) for the first request, "the opentide extension is not installed; remove the opentide entry from `<file>` or reinstall", then it exits with 1 |
-| Refreshed | at activation: the launcher file, and the entry when the editor's binary or the extensions folder changed. The entry is **byte-identical across extension updates** |
+| Refreshed | at activation: the launcher file, and the entry when the editor's binary or the extensions folder changed (and once, in 0.3.1, to add `OPENTIDE_EXTENSION_ID`). The entry is **byte-identical across extension updates** |
 
 Tested by `test/unit/mcp-launcher/`, `test/unit/agents/launcher.test.ts` (the entry does not change on an update) and
 `test/scripts/mcp-launcher.test.mjs` (the built launcher against a fake extensions folder). **Assumed, not observed:**
-that Kiro, Devin Desktop and Windsurf keep their extensions in a folder named `opentidehq.opentide-<version>` and
+that Kiro, Devin Desktop and Windsurf keep their extensions in a folder named `<publisher>.opentide-<version>` and
 list obsolete ones in `.obsolete`, as VS Code does; the launcher falls back to "not installed" when the folder has
 none, rather than guessing.
 

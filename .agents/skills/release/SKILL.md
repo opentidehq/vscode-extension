@@ -1,13 +1,14 @@
 ---
 name: release
 description: >-
-  Cut a release of the opentide VS Code extension (opentidehq.opentide): the notes PR (CHANGELOG.md
-  section, package.json version), Run workflow on publish.yml on main, the v* tag and GitHub Release,
-  and the Marketplace and Open VSX publishes over trusted publishing. Use when releasing, tagging,
+  Cut a release of the opentide VS Code extension (opentide.opentide on the Marketplace,
+  opentidehq.opentide on Open VSX): the notes PR (CHANGELOG.md section, package.json version), Run
+  workflow on publish.yml on main, the v* tag and GitHub Release, and the Marketplace and Open VSX
+  publishes over trusted publishing. Use when releasing, tagging,
   publishing to a store, or when publish.yml fails.
 ---
 
-# Release: opentidehq.opentide
+# Release: opentide.opentide (Marketplace) and opentidehq.opentide (Open VSX)
 
 The human procedure, the one-time setup and the failure table are in
 [`docs/RELEASING.md`](../../../docs/RELEASING.md). This is the agent's checklist.
@@ -20,8 +21,11 @@ The human procedure, the one-time setup and the failure table are in
 | Tag | `v<version>`, created by the workflow on the built commit. Never push a tag by hand |
 | Release | **Run workflow** on `.github/workflows/publish.yml`, ref `main`, no inputs |
 | Channel | odd minor = pre-release (`--pre-release` at package and publish), even minor = stable: `node scripts/release.mjs prerelease` |
-| Auth | Marketplace: `vsce publish --oidc` (policy: owner `opentidehq`, repo `vscode-extension`, `.github/workflows/publish.yml`, environment `production`). Open VSX: `ovsx publish --trusted-publishing` (same workflow file and environment); `OVSX_PAT` only for the very first publish |
-| Packages | One, universal, from `npm run package`: the extension bundles no runtime (docs/SPEC.md D1); checked by `node scripts/release.mjs assets` |
+| Ids | Marketplace `opentide.opentide` (publisher `opentide`: `opentidehq` is banned there); Open VSX `opentidehq.opentide` (verified namespace). docs/RELEASING.md "Two publishers, and why" |
+| Auth | Marketplace: `vsce publish --oidc` with publisher `opentide`'s policy (owner `opentidehq`, repo `vscode-extension`, `publish.yml`, environment `production`). Open VSX: `ovsx publish --trusted-publishing` (same workflow file and environment); `OVSX_PAT` only for the very first publish |
+| Packages | Two, universal, from one `npm run package`: `opentide-marketplace-<version>.vsix` (publisher `opentide`) and `opentide-openvsx-<version>.vsix` (publisher `opentidehq`), identical but for the publisher; each job publishes its own. Checked by `node scripts/release.mjs assets` |
+| AV gate | `.github/workflows/av-gate.yml`, before `attest` and `release`: no native executables at any depth, size within 10 % of `pins.json` `vsix.recordedBytes`, YARA, ClamAV, Microsoft Defender (each proven on a canary). Dry run: Run workflow on `av-gate.yml` with a version. docs/RELEASING.md "The antivirus gate" |
+| Marketplace versions | 0.3.1 and later only, each release's own: never publish, backfill or re-run 0.3.0 or older to `opentide` |
 | Never | rename `publish.yml` or the `production` environment (both stores' trust names them); add a workflow input that publishes from another ref; publish from a laptop |
 
 ## When not to release
@@ -76,7 +80,8 @@ publish jobs. Do not approve on the user's behalf; tell them.
 ```bash
 gh release view vx.y.z --repo opentidehq/vscode-extension --json assets --jq '.assets[].name'
 gh release download vx.y.z --repo opentidehq/vscode-extension --dir /tmp/vsx && (cd /tmp/vsx && sha256sum -c SHA256SUMS)
-gh attestation verify /tmp/vsx/opentide-universal-x.y.z.vsix --repo opentidehq/vscode-extension
+gh attestation verify /tmp/vsx/opentide-marketplace-x.y.z.vsix --repo opentidehq/vscode-extension
+gh attestation verify /tmp/vsx/opentide-openvsx-x.y.z.vsix --repo opentidehq/vscode-extension
 npx ovsx@1.3.0 show opentidehq.opentide@x.y.z
 ```
 
@@ -84,8 +89,9 @@ npx ovsx@1.3.0 show opentidehq.opentide@x.y.z
 attestations with a "No build provenance" warning (docs/RELEASING.md, one-time setup). That is expected
 until the repository is public.
 
-The Marketplace page (`https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide`) can
-take a few minutes to show a new version.
+The Marketplace page (`https://marketplace.visualstudio.com/items?itemName=opentide.opentide`) can
+take a few minutes to show a new version. Never look for `opentidehq.opentide` on the Marketplace: that
+publisher is banned and the gallery has never listed it.
 
 ## Failures
 

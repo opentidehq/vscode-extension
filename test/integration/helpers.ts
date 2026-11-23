@@ -1,8 +1,18 @@
 import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ExtensionApi } from "../../src/extension";
 
-export const EXTENSION_ID = "opentidehq.opentide";
+/**
+ * The id of the extension under test, from the repository's package.json (out/test/integration/ is three levels
+ * down): the publisher differs between the stores' packages (docs/RELEASING.md), so it is not a literal.
+ */
+const manifest = JSON.parse(readFileSync(path.join(__dirname, "..", "..", "..", "package.json"), "utf8")) as {
+  publisher: string;
+  name: string;
+};
+export const EXTENSION_ID = `${manifest.publisher}.${manifest.name}`;
 
 /** Activate the extension and return its test API (the FeatureContext). */
 export async function activated(): Promise<Required<ExtensionApi>> {

@@ -1,8 +1,26 @@
 // Which installed copy of this extension the stable MCP launcher runs. vscode-free and dependency-free: the launcher
 // (dist/mcp-launcher.js) is built from this file and ./main.ts, and unit tests import it.
 
+/** An extension id, `<publisher>.<name>`: letters, digits and hyphens on each side of one dot. */
+const EXTENSION_ID = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/i;
+
+/**
+ * The id of the extension whose copies the launcher runs. The entry names it (`OPENTIDE_EXTENSION_ID`, from
+ * `context.extension.id`): the publisher differs between the Visual Studio Marketplace and Open VSX
+ * (docs/RELEASING.md). An entry written before it had the variable runs the launcher from the extension's
+ * global storage folder, which VS Code names after the id: that folder's name.
+ */
+export function extensionIdOf(fromEnv: string | undefined, launcherDir: string): string | undefined {
+  if (fromEnv !== undefined && EXTENSION_ID.test(fromEnv)) return fromEnv;
+  const folder = launcherDir.split(/[\\/]/).filter(Boolean).pop() ?? "";
+  return EXTENSION_ID.test(folder) ? folder : undefined;
+}
+
 /** The folder VS Code gives an installed extension: `<publisher>.<name>-<version>[-<target platform>]`. */
-const FOLDER = /^opentidehq\.opentide-(\d+)\.(\d+)\.(\d+)(?:-([a-z0-9][a-z0-9-]*))?$/i;
+function folderPattern(extensionId: string): RegExp {
+  const id = extensionId.replace(/[.-]/g, (c) => `\\${c}`);
+  return new RegExp(`^${id}-(\\d+)\\.(\\d+)\\.(\\d+)(?:-([a-z0-9][a-z0-9-]*))?$`, "i");
+}
 
 export interface Installed {
   /** The folder's name. */
@@ -12,9 +30,12 @@ export interface Installed {
   readonly bridge: string;
 }
 
-/** The version in an extension folder's name, or undefined when the name is not this extension's. */
-export function folderVersion(name: string): readonly [number, number, number] | undefined {
-  const match = FOLDER.exec(name);
+/** The version in an extension folder's name, or undefined when the name is not `extensionId`'s. */
+export function folderVersion(
+  name: string,
+  extensionId: string,
+): readonly [number, number, number] | undefined {
+  const match = folderPattern(extensionId).exec(name);
   return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : undefined;
 }
 
@@ -57,15 +78,15 @@ export function obsoleteFolders(text: string | undefined): ReadonlySet<string> {
 }
 
 /**
- * The newest installed copy with a bridge on disk: the highest version among the extension's folders in `dir`,
+ * The newest installed copy with a bridge on disk: the highest version among `extensionId`'s folders in `dir`,
  * skipping a folder marked obsolete or with no `dist/mcp-wasi.js` (an old folder the editor is deleting). On a
  * tie (the same version for two platforms) the folder name decides, so the choice is stable.
  */
-export function newestInstalled(dir: string, files: Files): Installed | undefined {
+export function newestInstalled(dir: string, files: Files, extensionId: string): Installed | undefined {
   const obsolete = obsoleteFolders(files.read(files.join(dir, ".obsolete")));
   const found: Installed[] = [];
   for (const folder of files.list(dir)) {
-    const version = folderVersion(folder);
+    const version = folderVersion(folder, extensionId);
     if (!version || obsolete.has(folder)) continue;
     const bridge = files.join(dir, folder, "dist", "mcp-wasi.js");
     if (files.exists(bridge)) found.push({ folder, version, bridge });

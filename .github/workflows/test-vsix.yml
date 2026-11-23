@@ -142,14 +142,15 @@ jobs:
       - name: The MCP bridge against the module
         run: npx mocha --grep "with the real module"
       - name: Smoke test the .vsix
-        run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
+        run: npm run smoke -- dist-vsix/opentide-marketplace-*.vsix dist-vsix/opentide-openvsx-*.vsix
       - name: Name the .vsix
         id: vsix
         env:
           SHA: ${{ steps.build.outputs.sha }}
         run: |
           set -euo pipefail
-          source="$(find dist-vsix -maxdepth 1 -name 'opentide-universal-*.vsix' | head -n 1)"
+          # The Marketplace package (opentide.opentide): the one VS Code installs.
+          source="$(find dist-vsix -maxdepth 1 -name 'opentide-marketplace-*.vsix' | head -n 1)"
           base="$(basename "${source}" .vsix)"
           mkdir -p test-vsix
           cp "${source}" "test-vsix/${base}-wasi-${SHA}.vsix"
@@ -218,7 +219,7 @@ jobs:
           set -euo pipefail
           logs=".vscode-test/user-data/logs"
           [[ -d "${logs}" ]] || exit 0
-          find "${logs}" -type f -path '*/opentidehq.opentide/*' -name '*.log' | sort | while read -r file; do
+          find "${logs}" -type f -path '*/opentide*.opentide/*' -name '*.log' | sort | while read -r file; do
             echo "::group::${file}"
             cat "${file}"
             echo "::endgroup::"

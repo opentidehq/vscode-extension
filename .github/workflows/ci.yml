@@ -215,7 +215,7 @@ jobs:
           set -euo pipefail
           logs=".vscode-test/user-data/logs"
           [[ -d "${logs}" ]] || exit 0
-          find "${logs}" -type f -path '*/opentidehq.opentide/*' -name '*.log' | sort | while read -r file; do
+          find "${logs}" -type f -path '*/opentide*.opentide/*' -name '*.log' | sort | while read -r file; do
             echo "::group::${file}"
             cat "${file}"
             echo "::endgroup::"
@@ -252,11 +252,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: Universal package
+      # One universal package per store, the same build with each store's publisher (docs/RELEASING.md).
+      - name: Universal packages
         run: npm run package -- --universal
-      # The engine (WASM) answers from it, and it carries the web extension.
-      - name: Universal package smoke test
-        run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
+      # The engine (WASM) answers from each, and each carries the web extension.
+      - name: Smoke test, the Marketplace package (opentide.opentide)
+        run: npm run smoke -- dist-vsix/opentide-marketplace-*.vsix
+      - name: Smoke test, the Open VSX package (opentidehq.opentide)
+        run: npm run smoke -- dist-vsix/opentide-openvsx-*.vsix
       - name: Sizes
         if: ${{ !cancelled() }}
         run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
@@ -266,3 +269,11 @@ jobs:
           path: dist-vsix/*.vsix
           if-no-files-found: error
           retention-days: 7
+
+  # The antivirus gate on this run's packages, as publish.yml runs it before a release (av-gate.yml).
+  av-gate:
+    name: AV gate
+    needs: package
+    uses: ./.github/workflows/av-gate.yml
+    with:
+      artifact: vsix

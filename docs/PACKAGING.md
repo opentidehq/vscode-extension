@@ -8,7 +8,7 @@ How the VSIX is built: the package, the pins, the gates, and how to bump what it
 
 | Package | Built with | Contents |
 |---------|------------|----------|
-| Universal, the only one | `npm run package` (`--universal` is accepted) | The extension, its webviews, the grammars, `dist/wasi/` (the WASI module) and `dist/engine/`. No `runtime/`: the extension runs the user's own opentide, else the WASI module |
+| Universal, one per store | `npm run package` (`--universal` is accepted) | The extension, its webviews, the grammars, `dist/wasi/` (the WASI module) and `dist/engine/`. No `runtime/`: the extension runs the user's own opentide, else the WASI module. The Marketplace's (`opentide.opentide`) and Open VSX's (`opentidehq.opentide`) are one build and differ only in package.json's `publisher` ([RELEASING.md](RELEASING.md#two-publishers-and-why)) |
 
 There are no per-platform packages. 0.1.0 and 0.1.1 shipped eight, each with a bundled CPython runtime
 and opentide closure; 0.1.2 dropped them (SPEC D1). VS Code and Open VSX serve a newer universal version
@@ -44,8 +44,10 @@ glue into `dist/engine/worker.js`, and copies `opentide_wasm_bg.wasm`, the zip's
 editor features with no opentide installed, on the web too, and stands in for an opentide whose language
 server does not start.
 
-Output: `dist-vsix/opentide-universal-<version>.vsix`, with `<name>.size.json` next to it for the CI
-summary.
+Output: `dist-vsix/opentide-marketplace-<version>.vsix` and `dist-vsix/opentide-openvsx-<version>.vsix`,
+each with `<name>.size.json` next to it for the CI summary. vsce runs once per store: the Open VSX package
+from `package.json` as committed, the Marketplace one with its `publisher` line set to `opentide` while vsce
+runs (and put back afterwards). The script then checks that the two differ in nothing else, entry by entry.
 
 A package whose minor version is odd is a pre-release: `npm run package` passes `--pre-release` to
 `vsce` by itself (and also when given `--pre-release`), because `vsce publish --pre-release` refuses a
@@ -53,8 +55,8 @@ VSIX that was not packaged as one.
 
 ```bash
 npm ci
-npm run package                                            # dist-vsix/opentide-universal-<version>.vsix
-npm run smoke -- dist-vsix/opentide-universal-<version>.vsix
+npm run package                                            # dist-vsix/opentide-{marketplace,openvsx}-<version>.vsix
+npm run smoke -- dist-vsix/opentide-marketplace-<version>.vsix dist-vsix/opentide-openvsx-<version>.vsix
 ```
 
 ### `npm run package [-- --pre-release]`
@@ -90,6 +92,7 @@ It exits non-zero on any failure.
 | `engine` | opentide's `opentide-wasm-web` zip (version, URL, SHA-256) and the release's `THIRD-PARTY-LICENSES.html` (URL, SHA-256): the engine (WASM). Same release as `highlights` |
 | `tomlGrammar` | The TOML grammar from Even Better TOML (URL, SHA-256) |
 | `vsix.budgetBytes`, `vsix.targetBytes` | The size gate (20 MiB) and the target (16 MiB). The gate is opentide's plan §11 and ADR 0007; the target was 15 MiB until rc.3's WASI module, built at opt-level `s` for a faster language-server start in large workspaces (opentide#1774), grew to about 22 MB (see "The gates") |
+| `vsix.recordedBytes`, `vsix.growthLimit` | The size each package was recorded at, and how far over it the antivirus gate lets one grow (0.1: 10 %). A growth that is meant records the new size in the same PR ([RELEASING.md](RELEASING.md#the-antivirus-gate)) |
 | `vsix.budgetOverrideBytes` | Optional `{ opentide, bytes, reason }`: a temporary larger gate while `opentide.version` is that version, ignored (with a warning) after a bump |
 
 ## The gates
@@ -192,7 +195,7 @@ It checks out opentide at the ref and builds:
 Then it packages the extension with `OPENTIDE_WASI_MODULE` and `OPENTIDE_WASI_LICENCES` (which `npm run build` takes instead of the
 pinned asset: `pins.json` is not consulted, and `wasi.json` records the build as `local`), smoke-tests the
 `.vsix`, runs `npm test` and `npm run test:wasi` on it, and uploads
-`opentide-universal-<version>-wasi-<sha>.vsix` as the artifact `opentide-vsix-wasi-<sha>`. To make one by
+`opentide-marketplace-<version>-wasi-<sha>.vsix` (the Marketplace package, `opentide.opentide`) as the artifact `opentide-vsix-wasi-<sha>`. To make one by
 hand:
 
 ```bash
@@ -205,18 +208,18 @@ npm install
 # a folder with THIRD-PARTY-LICENSES.html (cargo about generate --workspace about.hbs), WASI-LIBC-LICENSES.txt,
 # LICENSE, NOTICE and THIRD-PARTY-DATA-LICENSES.txt (scripts/engine/release.py legal-bundle), as the workflow makes it
 OPENTIDE_WASI_LICENCES=<folder> OPENTIDE_WASI_MODULE=<opentide>/target/wasm32-wasip1/wasi/opentide.wasm npm run package
-npm run smoke -- dist-vsix/opentide-universal-*.vsix
+npm run smoke -- dist-vsix/opentide-marketplace-*.vsix dist-vsix/opentide-openvsx-*.vsix
 ```
 
 ### Install it, and what to try
 
 ```bash
 gh run download <run id> --repo opentidehq/vscode-extension --name opentide-vsix-wasi-<sha>
-code --install-extension opentide-universal-<version>-wasi-<sha>.vsix
+code --install-extension opentide-marketplace-<version>-wasi-<sha>.vsix
 ```
 
 Nothing else to install: the module runs through VS Code's Node, which the output channel says (`WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node`, or `... is installed and not used: ...` with the WASM WASI Core extension); set `opentide.wasi.host` to `wasm-wasi` and **opentide: Restart Server** to try the other host. Uninstall
-with `code --uninstall-extension opentidehq.opentide`. Try it **on a machine with no opentide installed**
+with `code --uninstall-extension opentide.opentide`. Try it **on a machine with no opentide installed**
 (or set `opentide.path` to a path that is nothing, and keep `opentide` off `PATH`):
 
 1. **Open a workspace.** Open a folder with `.opentide/` and `objects/` (`opentide setup` makes one). The
