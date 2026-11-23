@@ -8,8 +8,10 @@
 #              YARA rules on the formats (scripts/av/package.yar), proven on a canary written at run time
 #   clamav     ClamAV with fresh signatures and archive scanning, proven on an EICAR canary (plain and zipped)
 #              written at run time; any detection, or a file over a scan limit, fails
-#   defender   Microsoft Defender on windows-latest: signatures updated, proven on an EICAR canary written at
-#              run time, then a custom scan of each extracted VSIX and of each .vsix; any detection fails
+#   defender   Microsoft Defender on windows-latest (scripts/av/defender-scan.ps1): the image's exclusions
+#              removed, signatures updated, proven on an EICAR canary written at run time, then a custom scan of
+#              each .vsix, each extracted VSIX and each .wasm and JavaScript file, verdicts read from MpCmdRun's
+#              output; a detection or an unreadable verdict fails
 #
 # Nothing is uploaded anywhere: no VirusTotal, no external scanner. The EICAR string is put together at run
 # time, never committed.
@@ -211,59 +213,12 @@ jobs:
         with:
           name: ${{ inputs.artifact || 'av-gate-vsix' }}
           path: vsix
-      - name: Update the signatures
+      - name: Extract the packages
         run: |
-          $ErrorActionPreference = 'Stop'
-          Set-MpPreference -DisableArchiveScanning $false
-          $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
-          $updated = $false
-          foreach ($attempt in 1..3) {
-            & $mp -SignatureUpdate
-            if ($LASTEXITCODE -eq 0) { $updated = $true; break }
-            Start-Sleep -Seconds (20 * $attempt)
-          }
-          if (-not $updated) { throw 'AV gate: Defender could not update its signatures' }
-          $status = Get-MpComputerStatus
-          $status | Format-List AMServiceEnabled, AntivirusEnabled, AMEngineVersion, AntivirusSignatureVersion, AntivirusSignatureLastUpdated, RealTimeProtectionEnabled
-          if (-not $status.AntivirusEnabled) { throw 'AV gate: Defender antivirus is not enabled' }
-          $age = (Get-Date) - $status.AntivirusSignatureLastUpdated
-          if ($age.TotalHours -gt 48) { throw "AV gate: Defender's signatures are $([int]$age.TotalHours) hours old" }
-      # The EICAR test string, put together here so that no file in the repository carries it. Real-time
-      # protection, if on, may remove the file as it is written: the detection history proves it either way.
-      - name: Defender works (an EICAR canary written at run time)
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
-          $canary = Join-Path $env:RUNNER_TEMP 'defender-canary'
-          New-Item -ItemType Directory -Force -Path $canary | Out-Null
-          $text = 'X5O!P%@AP[4\PZX54(P^)7CC)7}$' + 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
-          try { [IO.File]::WriteAllText((Join-Path $canary 'eicar.com'), $text, [Text.Encoding]::ASCII) } catch { Write-Host "written and blocked: $_" }
-          Start-Sleep -Seconds 2
-          & $mp -Scan -ScanType 3 -File $canary -DisableRemediation
-          $code = $LASTEXITCODE
-          $seen = Get-MpThreatDetection | Where-Object { ($_.Resources -join ' ') -like "*defender-canary*" }
-          if ($code -ne 2 -and -not $seen) { throw "AV gate: Defender did not detect the EICAR canary (MpCmdRun exit $code)" }
-          Write-Host "Defender detected the canary (MpCmdRun exit $code)"
-          Remove-Item -Recurse -Force $canary -ErrorAction SilentlyContinue
-          # MpCmdRun's 2 (a detection, expected here) is the step's exit code unless the step sets its own.
-          exit 0
-      - name: Custom scan of each extracted package and each .vsix
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
           node scripts/av-gate.mjs extract vsix extracted
-          if ($LASTEXITCODE -ne 0) { throw 'AV gate: could not extract the packages' }
-          $targets = @(Get-ChildItem -Directory extracted | ForEach-Object FullName) + @(Get-ChildItem vsix -Filter *.vsix | ForEach-Object FullName)
-          $failed = @()
-          foreach ($target in $targets) {
-            Write-Host "scan $target"
-            & $mp -Scan -ScanType 3 -File $target -DisableRemediation
-            if ($LASTEXITCODE -ne 0) { $failed += "$target (MpCmdRun exit $LASTEXITCODE)" }
-          }
-          # Anything found on the packages' paths, by the scans or by real-time protection on extraction.
-          $workspace = $env:GITHUB_WORKSPACE
-          $found = Get-MpThreatDetection | Where-Object { ($_.Resources -join ' ') -like "*$workspace*" }
-          if ($found) { $found | Format-List; $failed += 'detections on the packages (above)' }
-          if ($failed.Count -gt 0) { throw "AV gate: Defender: $($failed -join '; ')" }
-          Write-Host "Defender: no detection in $($targets.Count) targets"
-          exit 0
+          if ($LASTEXITCODE -ne 0) { exit 2 }
+      # scripts/av/defender-scan.ps1: the runner's exclusions removed, signatures updated, an EICAR canary that must
+      # be detected for the scan to count, then each .vsix, each extracted package and each .wasm and JavaScript
+      # file scanned on its own, verdicts read from MpCmdRun's output (opentide#1752's lessons).
+      - name: Defender scan, proven on a canary
+        run: pwsh -NoProfile -File scripts/av/defender-scan.ps1 -Packages vsix -Extracted extracted

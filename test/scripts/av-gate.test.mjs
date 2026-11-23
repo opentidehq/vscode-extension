@@ -193,19 +193,75 @@ describe("AV gate: the workflows", () => {
     assert.match(gate, /workflow_dispatch:/, "the dry path: package and scan, release nothing");
   });
 
-  it("Defender: windows-latest, signatures updated, an EICAR canary, a custom scan of the extracted packages and the .vsix files", () => {
+  it("Defender: windows-latest runs scripts/av/defender-scan.ps1 on the .vsix files and the extracted packages", () => {
     const defender = gate.slice(gate.indexOf("\n  defender:"));
     assert.match(defender, /runs-on: windows-latest/);
-    assert.match(defender, /MpCmdRun\.exe/);
-    assert.match(defender, /-SignatureUpdate/);
-    assert.match(defender, /Set-MpPreference -DisableArchiveScanning \$false/);
-    assert.match(defender, /EICAR canary/);
-    assert.match(defender, /-Scan -ScanType 3 -File \$target -DisableRemediation/);
-    assert.match(defender, /Get-ChildItem -Directory extracted/);
-    assert.match(defender, /Get-ChildItem vsix -Filter \*\.vsix/);
-    assert.match(defender, /Get-MpThreatDetection/);
-    // pwsh steps exit with the last native exit code: the canary's expected 2 must not fail the step.
-    assert.match(defender, /Defender detected the canary[^\n]*\n[^\n]*\n[^\n]*\n {10}exit 0\n/);
+    assert.match(defender, /node scripts\/av-gate\.mjs extract vsix extracted/);
+    assert.match(
+      defender,
+      /pwsh -NoProfile -File scripts\/av\/defender-scan\.ps1 -Packages vsix -Extracted extracted/,
+    );
+  });
+
+  describe("defender-scan.ps1 keeps opentide#1752's lessons, so a 'clean' means something", () => {
+    const ps = read("scripts/av/defender-scan.ps1");
+    it("removes the runner image's exclusions, fails if a path exclusion remains, and never sends samples", () => {
+      assert.match(
+        ps,
+        /Format-List ExclusionPath, ExclusionExtension, ExclusionProcess, DisableRealtimeMonitoring/,
+      );
+      for (const kind of ["ExclusionPath", "ExclusionExtension", "ExclusionProcess"])
+        assert.match(ps, new RegExp(`Remove-MpPreference -${kind} \\$pref\\.${kind}`));
+      assert.match(ps, /if \(\$after\.ExclusionPath\) \{ Fail "path exclusions remain/);
+      assert.match(ps, /-SubmitSamplesConsent 2/);
+      assert.match(ps, /-DisableArchiveScanning \$false/);
+    });
+
+    it("updates the signatures and refuses old ones", () => {
+      assert.match(ps, /-SignatureUpdate/);
+      assert.match(ps, /TotalHours -gt 48/);
+    });
+
+    it("counts a scan only once the canary is detected, by the scan or by real-time protection", () => {
+      assert.match(
+        ps,
+        /\$text = 'X5O[^']*\$' \+ 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$H\+H\*'/,
+        "two halves",
+      );
+      assert.match(ps, /'canary\.com'/);
+      assert.match(ps, /elseif \(\$refused -or \$vanished\)/);
+      assert.match(ps, /Fail "Defender is not scanning/);
+    });
+
+    it("reads each verdict from MpCmdRun's output: clean, detected with names, else unreadable", () => {
+      assert.match(ps, /-Scan -ScanType 3 -File \$target -DisableRemediation/);
+      assert.match(ps, /'found \(\\d\+\) threats\?'/);
+      assert.match(ps, /'found no threats'/);
+      assert.match(ps, /\^\\s\*Threat\\s\*:\\s\*\(\.\+\?\)/);
+      assert.match(ps, /verdict = 'unreadable'/);
+      assert.match(
+        ps,
+        /\$_\.Extension -in '\.wasm', '\.js', '\.cjs', '\.mjs'/,
+        "each .wasm and JS file on its own",
+      );
+      assert.match(ps, /-Filter \*\.vsix/);
+    });
+
+    it("exits 2 itself: no Write-Error, which throws first under ErrorActionPreference Stop", () => {
+      assert.match(ps, /\$ErrorActionPreference = 'Stop'/);
+      const code = ps
+        .split("\n")
+        .filter((line) => !/^\s*#/.test(line))
+        .join("\n");
+      assert.doesNotMatch(code, /Write-Error/);
+      assert.match(ps, /function Fail\(\[string\]\$message\) \{\n {2}Write-Host [^\n]*\n {2}exit 2\n\}/);
+      assert.match(ps, /\nexit 0\n$/);
+    });
+
+    it("finds MpCmdRun under Program Files, else the newest under the Defender platform folder", () => {
+      assert.match(ps, /Join-Path \$env:ProgramFiles 'Windows Defender\\MpCmdRun\.exe'/);
+      assert.match(ps, /Microsoft\\Windows Defender\\Platform/);
+    });
   });
 
   it("ClamAV: fresh signatures, archive scanning, canaries plain and zipped, limits that report rather than skip", () => {
