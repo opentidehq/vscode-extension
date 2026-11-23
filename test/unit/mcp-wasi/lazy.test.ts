@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { LAZY_INIT_ID, type LazyCache, LazyGate, readCache } from "../../../src/core/wasi/mcpLazy";
+import { LAZY_INIT_ID, type LazyCache, LazyGate, readCache } from "../../../src/mcp-wasi/lazy";
 
 const identity = { module: "abc123", root: "/work/repo" };
 const INIT = {
@@ -186,15 +186,17 @@ describe("the MCP bridge's lazy start (#96)", () => {
         readCache(JSON.stringify({ ...cacheOf(), lists: [] }), identity.module, identity.root),
         undefined,
       );
-      assert.equal(
-        readCache(
-          JSON.stringify({ ...cacheOf(), initialize: { protocolVersion: 1 } }),
-          identity.module,
-          identity.root,
-        ),
-        undefined,
-      );
       assert.equal(readCache(undefined, identity.module, identity.root), undefined);
+    });
+    it("leaves out a value the editor could not be given as a result, and keeps the rest", () => {
+      const damaged = JSON.stringify({
+        ...cacheOf(),
+        initialize: { protocolVersion: 1, result: {} },
+        lists: { "tools/list": null, "prompts/list": [], "resources/list": { resources: [] } },
+      });
+      const read = readCache(damaged, identity.module, identity.root);
+      assert.equal(read?.initialize, undefined);
+      assert.deepEqual(read?.lists, { "resources/list": { resources: [] } });
     });
   });
 });

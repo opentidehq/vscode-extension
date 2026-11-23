@@ -8,7 +8,7 @@
 // @opentide/wasi-host's McpFetchBridge takes those lines out, answers them with its FetchHost, and passes
 // every MCP message through in order, so nothing but MCP reaches the editor's stdout.
 //
-// The module starts when it is first needed, not with the process (#96, src/core/wasi/mcpLazy.ts): with a cache file
+// The module starts when it is first needed, not with the process (#96, src/mcp-wasi/lazy.ts): with a cache file
 // (OPENTIDE_MCP_CACHE) from an earlier run for the same module and repository, `initialize` and the lists of tools,
 // prompts and resources are answered from it, and the module starts at the first tool call.
 //
@@ -20,7 +20,7 @@ import * as path from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { describeDroppedLine, isForgedAnswer, LineGuard, leaksPrivateLink } from "../core/wasi/mcpGuard";
 import { checkRoot, startupLine, withWorkspaceHint, workspaceHint } from "../core/wasi/mcpHint";
-import { LazyGate, readCache } from "../core/wasi/mcpLazy";
+import { LazyGate, readCache } from "./lazy";
 
 async function main(): Promise<void> {
   // The package is ESM only: loaded here, bundled into dist/mcp-wasi.js.

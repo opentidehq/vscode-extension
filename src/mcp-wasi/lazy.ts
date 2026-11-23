@@ -44,18 +44,22 @@ export function readCache(text: string | undefined, module: string, root: string
   if (typeof value !== "object" || value === null) return undefined;
   const cache = value as Partial<LazyCache>;
   if (cache.format !== FORMAT || cache.module !== module || cache.root !== root) return undefined;
-  const lists = cache.lists;
-  if (typeof lists !== "object" || lists === null || Array.isArray(lists)) return undefined;
+  if (!isObject(cache.lists)) return undefined;
+  // What the editor is told must be a JSON object, as MCP's results are: a damaged value is left out, and the module
+  // answers that request the next time and writes it again.
+  const lists = Object.fromEntries(Object.entries(cache.lists).filter(([, result]) => isObject(result)));
   const initialize = cache.initialize;
-  if (
-    initialize !== undefined &&
-    (typeof initialize !== "object" ||
-      initialize === null ||
-      typeof initialize.protocolVersion !== "string" ||
-      !("result" in initialize))
-  )
-    return undefined;
-  return { format: FORMAT, module, root, ...(initialize ? { initialize } : {}), lists };
+  const usableInitialize =
+    isObject(initialize) && typeof initialize.protocolVersion === "string" && isObject(initialize.result)
+      ? { protocolVersion: initialize.protocolVersion, result: initialize.result }
+      : undefined;
+  return {
+    format: FORMAT,
+    module,
+    root,
+    ...(usableInitialize ? { initialize: usableInitialize } : {}),
+    lists,
+  };
 }
 
 export interface LazyIo {
@@ -75,6 +79,10 @@ interface Message {
   readonly params?: unknown;
   readonly result?: unknown;
   readonly error?: unknown;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function parse(line: string): Message | undefined {
