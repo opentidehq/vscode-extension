@@ -4,7 +4,15 @@ import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensurePublished, expectedPackages, missingTargets } from "../../tools/publish/marketplace.mjs";
+import { STORES, storeExtensionId } from "../../scripts/package-lib.mjs";
+import {
+  ensurePublished,
+  expectedPackages,
+  FIRST_MARKETPLACE_VERSION,
+  MARKETPLACE_ID,
+  missingTargets,
+  publishProblem,
+} from "../../tools/publish/marketplace.mjs";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -80,6 +88,44 @@ describe("the Marketplace lists the package of a release", () => {
       missing.map((p) => p.target),
       ["darwin-arm64", "linux-x64", "universal", "win32-arm64"],
     );
+  });
+
+  it("publishes only this release's own Marketplace package, 0.3.1 or later: never an older version", () => {
+    assert.equal(MARKETPLACE_ID, storeExtensionId(STORES.find((store) => store.store === "marketplace")));
+    assert.equal(FIRST_MARKETPLACE_VERSION, "0.3.1");
+    const file = "release/opentide-marketplace-0.3.1.vsix";
+    assert.equal(publishProblem("opentide.opentide", "0.3.1", file), undefined);
+    assert.equal(
+      publishProblem("opentide.opentide", "0.4.0", "release/opentide-marketplace-0.4.0.vsix"),
+      undefined,
+    );
+    assert.match(
+      publishProblem("opentide.opentide", "0.3.0", "release/opentide-marketplace-0.3.0.vsix"),
+      /older than 0\.3\.1: only new versions .* never a backfill/,
+    );
+    assert.match(
+      publishProblem("opentide.opentide", "0.2.9", "x/opentide-marketplace-0.2.9.vsix"),
+      /older than 0\.3\.1/,
+    );
+    assert.match(publishProblem("opentidehq.opentide", "0.3.1", file), /not the Marketplace's id/);
+    assert.match(
+      publishProblem("opentide.opentide", "0.3.1", "release/opentide-openvsx-0.3.1.vsix"),
+      /is not opentide-marketplace-0\.3\.1\.vsix/,
+    );
+    assert.match(
+      publishProblem("opentide.opentide", "0.3.2", file),
+      /is not opentide-marketplace-0\.3\.2\.vsix/,
+    );
+    assert.match(publishProblem("opentide.opentide", "v0.3.1", file), /not a release version/);
+  });
+
+  it("publish.yml checks the package's version and name before vsce publish", () => {
+    const text = readFileSync(join(ROOT, ".github", "workflows", "publish.yml"), "utf8");
+    const job = text.slice(text.indexOf("  publish-marketplace:"), text.indexOf("  publish-openvsx:"));
+    const check = job.search(
+      /node tools\/publish\/marketplace\.mjs --check opentide\.opentide "\$\{VERSION\}" "\$\{VSIX\}"/,
+    );
+    assert.ok(check > 0 && check < job.indexOf("vsce publish"), "the check runs before vsce publish");
   });
 
   it("publish.yml checks the listing of opentide.opentide after vsce publish, in the Marketplace job", () => {

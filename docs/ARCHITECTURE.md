@@ -432,7 +432,7 @@ through the host.
 | `npm run test:engine` | @vscode/test-cli label `engine`: no opentide anywhere and `opentide.wasi.enabled` off, the engine (WASM) tier |
 | `npm run test:wasi` / `npm run test:wasi-launcher` | @vscode/test-cli labels `wasi` and `wasi-launcher`: no opentide anywhere, the WASI module through the launcher by default and under `@vscode/wasm-wasi` when `opentide.wasi.host` asks for it (the `wasi` label installs `ms-vscode.wasm-wasi-core` into the test VS Code), and the same tests without it, where the setting falls back to the launcher |
 | `npm run wasi [-- --module <file>]` | download and check the pinned WASI module (`pins.json` `wasi`), or a local one |
-| `npm run package` | dist-vsix/opentide-universal-<version>.vsix (+ `.size.json`), size gate, no `runtime/` |
+| `npm run package` | dist-vsix/opentide-{marketplace,openvsx}-<version>.vsix (+ `.size.json`), size gate, no `runtime/`, identical but for the publisher |
 | `npm run smoke -- <vsix>` | the package's engine worker answers `initialize`, the WASI module answers `serve` through its launcher, the web entry is there, no `runtime/` |
 | `node scripts/release.mjs <command>` | release helpers for publish.yml: `version`, `check`, `notes`, `assets`, `sums`, `sizes` ([RELEASING.md](RELEASING.md)) |
 

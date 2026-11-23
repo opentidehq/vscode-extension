@@ -219,7 +219,7 @@ jobs:
           set -euo pipefail
           logs=".vscode-test/user-data/logs"
           [[ -d "${logs}" ]] || exit 0
-          find "${logs}" -type f -path '*/opentidehq.opentide/*' -name '*.log' | sort | while read -r file; do
+          find "${logs}" -type f -path '*/opentide*.opentide/*' -name '*.log' | sort | while read -r file; do
             echo "::group::${file}"
             cat "${file}"
             echo "::endgroup::"

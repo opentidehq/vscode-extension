@@ -24,6 +24,8 @@ The human procedure, the one-time setup and the failure table are in
 | Ids | Marketplace `opentide.opentide` (publisher `opentide`: `opentidehq` is banned there); Open VSX `opentidehq.opentide` (verified namespace). docs/RELEASING.md "Two publishers, and why" |
 | Auth | Marketplace: `vsce publish --oidc` with publisher `opentide`'s policy (owner `opentidehq`, repo `vscode-extension`, `publish.yml`, environment `production`). Open VSX: `ovsx publish --trusted-publishing` (same workflow file and environment); `OVSX_PAT` only for the very first publish |
 | Packages | Two, universal, from one `npm run package`: `opentide-marketplace-<version>.vsix` (publisher `opentide`) and `opentide-openvsx-<version>.vsix` (publisher `opentidehq`), identical but for the publisher; each job publishes its own. Checked by `node scripts/release.mjs assets` |
+| AV gate | `.github/workflows/av-gate.yml`, before `attest` and `release`: no native executables at any depth, size within 10 % of `pins.json` `vsix.recordedBytes`, YARA, ClamAV, Microsoft Defender (each proven on a canary). Dry run: Run workflow on `av-gate.yml` with a version. docs/RELEASING.md "The antivirus gate" |
+| Marketplace versions | 0.3.1 and later only, each release's own: never publish, backfill or re-run 0.3.0 or older to `opentide` |
 | Never | rename `publish.yml` or the `production` environment (both stores' trust names them); add a workflow input that publishes from another ref; publish from a laptop |
 
 ## When not to release

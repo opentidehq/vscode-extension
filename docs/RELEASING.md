@@ -32,11 +32,17 @@ The extension has a different id in each store:
   never listed `opentidehq.opentide`. The Marketplace publisher is `opentide`.
 - Open VSX keeps its verified namespace `opentidehq`, where 0.3.0 is `opentidehq.opentide`, so its users
   keep their updates. The namespace `opentide` cannot be verified there.
-- Both packages come from one build of one commit. `npm run package` builds the Open VSX package from
-  `package.json` as committed (`"publisher": "opentidehq"`), then the Marketplace one with only that line
-  changed, and checks that every other entry of the two is byte-identical
+- Both packages come from one commit. `npm run package` packages it twice (vsce builds it each time): the
+  Marketplace package with `package.json`'s `publisher` line set to `opentide` while vsce runs, then the
+  Open VSX package from `package.json` as committed (`"publisher": "opentidehq"`). It checks that every
+  other entry of the two is byte-identical
   (`scripts/package-lib.mjs` `STORES`; `node scripts/release.mjs assets` checks it again before the
   release).
+- **Only new versions go to the Marketplace.** The publisher `opentide` starts at 0.3.1. Never publish,
+  backfill or re-run anything older there: 0.3.0 and earlier were built for `opentidehq`. The
+  `publish-marketplace` job refuses a version before 0.3.1, or any file but this release's
+  `opentide-marketplace-<version>.vsix` (`tools/publish/marketplace.mjs --check`). Never use
+  **Re-run failed jobs** on a run of 0.3.0 or earlier.
 - The code never names the id: it takes `context.extension.id` (the MCP entry's marker and the launcher's
   folder match). Settings, commands, views and the MCP provider are `opentide.*` in both.
 
@@ -118,6 +124,28 @@ script runs there. To bump them, change `tools/publish/package.json` and run `np
 - [ ] Both stores list the version: `opentide.opentide` on the Marketplace, `opentidehq.opentide` on
       Open VSX; install the first in VS Code and the second in VSCodium or Cursor.
 - [ ] Open VSX trusted publisher registered; `OVSX_PAT` deleted and revoked.
+
+## The antivirus gate
+
+The Marketplace banned the old publisher, `opentidehq`, at 0.2.0 for bundling heavy native binaries and for
+Microsoft Defender detections. Both packages pass [`av-gate.yml`](../.github/workflows/av-gate.yml) before
+`attest` and the GitHub Release, so before either store. CI runs the same gate on every pull request's packages.
+
+| Job | Checks | Fails on |
+|-----|--------|----------|
+| `static` | `scripts/av-gate.mjs static`: every file of each VSIX, nested zip, gzip and tar archives opened; the size against `pins.json` `vsix.recordedBytes`; YARA (`scripts/av/package.yar`), proven on a canary written at run time | any PE, ELF or Mach-O file at any depth (only WebAssembly, JavaScript and data are allowed); an archive it cannot read; a package more than `vsix.growthLimit` (10 %) over its recorded size; a YARA match |
+| `clamav` | ClamAV with signatures `freshclam` just fetched (a daily database over 48 hours old fails), proven on EICAR canaries (plain and zipped) written at run time; each `.vsix` and every extracted file, archives scanned, limits set to report rather than skip | any detection; a file over a scan limit |
+| `defender` | Microsoft Defender on `windows-latest`: signatures updated, archive scanning on, proven on an EICAR canary written at run time; a custom scan (`MpCmdRun -Scan -ScanType 3 -DisableRemediation`) of each extracted VSIX and of each `.vsix` | any detection, by the scans or by real-time protection |
+
+- **Nothing is uploaded** to VirusTotal or any other external scanner, and no file in the repository holds the
+  EICAR string: the canaries are put together at run time (a test checks both).
+- **The YARA rules judge format only.** The package is a detection-engineering tool: its skills and catalogue
+  describe attacker tooling in plain text, which string rules would flag. Defender and ClamAV judge content.
+- **A package that grew on purpose** records its new size in `pins.json` `vsix.recordedBytes` in the same PR
+  (the size `npm run package` prints).
+- **Dry run:** **Actions → AV gate → Run workflow** (optionally with a version, such as the next release's)
+  packages the extension at that version, without committing it, and runs the gate. Nothing is tagged,
+  released or published. The notes PR's own CI also runs the gate on the real packages of the version it releases.
 
 ## Cutting a release
 
@@ -216,6 +244,7 @@ check` refuses a release while `pins.json` `wasi.sha256` is still a placeholder.
 |-----|---------|------|
 | `prepare` | ubuntu | Refuses unless run on `main`, `CHANGELOG.md`'s newest version matches `package.json`, `[Unreleased]` is empty and `v<version>` is not tagged; computes the channel |
 | `universal` | ubuntu | CI's checks, then `npm run package -- --universal` (one universal package per store, every platform and the web) and a smoke test of each |
+| `av-gate` | ubuntu, windows | [The antivirus gate](#the-antivirus-gate) on both packages: no native executables, the size, YARA, ClamAV, Microsoft Defender |
 | `attest` | ubuntu | `opentide-marketplace-<version>.vsix` is `opentide.opentide` and `opentide-openvsx-<version>.vsix` is `opentidehq.opentide`, both at the version and channel, universal, and otherwise identical; `SHA256SUMS`; build provenance for each file (public repository, or `ATTEST=true`; else a warning) |
 | `release` | ubuntu | Tags `v<version>` on the built commit with the GitHub Release (notes from the changelog, every asset), then checks the downloads against `SHA256SUMS` and, when attested, their attestations |
 | `publish-marketplace` | ubuntu, `production` | `vsce publish --oidc --skip-duplicate --packagePath opentide-marketplace-<version>.vsix`. Then `tools/publish/marketplace.mjs opentide.opentide` waits until the Marketplace gallery lists it, publishes it again if missing, and fails naming it: vsce's "Published" is not the listing (0.1.0, the first publish, kept one package of eight) |
@@ -231,11 +260,13 @@ built and passed its smoke test.
 | `prepare`: `[Unreleased] still holds …`, a version mismatch | Fix it in a PR; run again |
 | `prepare`: `v<version> is already tagged` | That version is out: re-run the failed jobs of its run, or release the next version |
 | `universal` or `attest` | Nothing was tagged. Fix it on `main` (a PR) and run again |
+| `av-gate`: a native executable, a detection or the size | Nothing was tagged. Find what the package carries (the job names the file); a growth that is meant records its size in `pins.json`; a detection that is a false positive is reported to the vendor, never waved through. Fix in a PR and run again |
+| `av-gate`: a canary was not detected, or signatures could not be updated | The scanner, not the package: **Re-run failed jobs** once; if it fails again, fix the gate in a PR |
 | `release` (GitHub Release) | **Re-run failed jobs**. When an earlier attempt already made the Release (for example the verify step failed), the job finds it, checks that its tag is on the run's commit, uploads the assets again with `--clobber` and goes on; a Release on another commit stops it. The stores get nothing until it succeeds |
-| `publish-marketplace` or `publish-openvsx` | **Re-run failed jobs** on the run. The other store is unaffected; `--skip-duplicate` skips what a store already has |
+| `publish-marketplace` or `publish-openvsx` | **Re-run failed jobs** on the run (never on a run of 0.3.0 or earlier for the Marketplace). The other store is unaffected; `--skip-duplicate` skips what a store already has |
 | Open VSX `401`/`403` with trusted publishing | The trusted publisher's repository, workflow (`publish.yml`) or environment (`production`) differs from the run's; fix the registration and re-run the job |
 | Marketplace OIDC exchange refused | The policy expired or names something else (it is the publisher `opentide`'s); recreate it (step 4) and re-run the job |
-| `attest`: `… is opentidehq.opentide, not opentide.opentide` or `… differs … beyond the publisher` | The packages are not one build with each store's publisher: fix `npm run package` (`scripts/package.mjs`) in a PR; nothing was tagged |
+| `attest`: `… is opentidehq.opentide, not opentide.opentide` or `… differs … beyond the publisher` | The packages differ beyond the publisher, or carry the wrong one: fix `npm run package` (`scripts/package.mjs`) in a PR; nothing was tagged |
 
 A re-run uses the run's own commit and the GitHub Release's assets, so it publishes exactly what was
 tagged and attested.

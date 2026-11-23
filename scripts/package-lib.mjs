@@ -13,7 +13,7 @@ export const EXTENSION_NAME = "opentide";
  * The stores, each with its own publisher (docs/RELEASING.md, "One-time setup"). The Visual Studio Marketplace
  * publisher `opentidehq` was banned and cannot be registered again, so the Marketplace package is
  * `opentide.opentide`; Open VSX keeps its verified namespace, `opentidehq.opentide`. Both packages come from
- * one build and differ only in package.json's `publisher` (and the manifest vsce derives from it).
+ * one commit and differ only in package.json's `publisher` (and the manifest vsce derives from it).
  * package.json in the repository is the Open VSX one: every other package is that one with its publisher
  * replaced.
  */
@@ -30,6 +30,20 @@ export function vsixName(store, version) {
   if (!STORES.some((known) => known.store === store))
     throw new PackageError(`no store ${JSON.stringify(store)}`);
   return `opentide-${store}-${version}.vsix`;
+}
+
+/**
+ * Why package.json, as found, is not the committed one, or undefined. The committed package.json is the Open
+ * VSX one; another publisher is an interrupted `npm run package` (vsce killed before the file was put back),
+ * and building both stores from it would carry the wrong publisher on silently.
+ */
+export function committedPublisherProblem(pkg) {
+  const committed = STORES.find((store) => store.store === "openvsx")?.publisher;
+  if (pkg?.publisher === committed) return undefined;
+  return (
+    `package.json's publisher is ${JSON.stringify(pkg?.publisher)}, not ${JSON.stringify(committed)}: an interrupted ` +
+    "npm run package may have left it changed. Run `git checkout package.json` (or set it back) and package again"
+  );
 }
 
 const PUBLISHER_LINE = /^( {2}"publisher": )"[^"]*"(,?)$/m;

@@ -10,6 +10,9 @@
 #                user's own opentide, else the WASI module it carries, and carries no Python runtime. The
 #                Marketplace's is opentide.opentide, Open VSX's opentidehq.opentide: the same build, differing
 #                only in package.json's publisher (docs/RELEASING.md, "One-time setup")
+#   av-gate      the antivirus gate (av-gate.yml): no native executable at any depth, the recorded size,
+#                YARA, ClamAV and Microsoft Defender, each proven on a canary. Nothing is attested, tagged or
+#                released, and no store gets anything, unless both packages pass
 #   attest       the two VSIXs are this version and channel, each with its store's publisher and otherwise
 #                identical; SHA256SUMS; build provenance
 #                (public repository, or the repository variable ATTEST=true on GitHub Enterprise Cloud;
@@ -113,7 +116,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      # Every platform, and vscode.dev / github.dev: one package per store, from one build.
+      # Every platform, and vscode.dev / github.dev: one package per store, from this commit.
       - name: Package
         run: |
           set -euo pipefail
@@ -133,9 +136,19 @@ jobs:
           path: dist-vsix/*.vsix
           if-no-files-found: error
 
+  # Both packages, before anything is attested or released (docs/RELEASING.md, "The antivirus gate").
+  av-gate:
+    name: AV gate
+    needs: universal
+    permissions:
+      contents: read
+    uses: ./.github/workflows/av-gate.yml
+    with:
+      artifact: vsix-universal
+
   attest:
     name: Check, sum and attest the packages
-    needs: [prepare, universal]
+    needs: [prepare, universal, av-gate]
     runs-on: ubuntu-latest
     # id-token and attestations: write sign each asset's build provenance.
     permissions:
@@ -189,8 +202,8 @@ jobs:
   # a store, which is permanent. GITHUB_TOKEN events start no other workflow.
   release:
     name: GitHub Release
-    needs: [prepare, attest]
-    if: ${{ !cancelled() && needs.attest.result == 'success' }}
+    needs: [prepare, av-gate, attest]
+    if: ${{ !cancelled() && needs.av-gate.result == 'success' && needs.attest.result == 'success' }}
     runs-on: ubuntu-latest
     # attestations: read for `gh attestation verify`.
     permissions:
@@ -303,6 +316,11 @@ jobs:
           set -euo pipefail
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
           (cd release && sha256sum --check --strict SHA256SUMS)
+      # Only this release's own Marketplace package, never an older version (no backfill to `opentide`).
+      - name: This release's Marketplace package, 0.3.1 or later
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: node tools/publish/marketplace.mjs --check opentide.opentide "${VERSION}" "${VSIX}"
       # The Marketplace package only (opentide.opentide); a re-run is safe with --skip-duplicate.
       - name: vsce publish --oidc
         run: |

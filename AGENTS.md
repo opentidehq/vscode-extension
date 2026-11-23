@@ -1,7 +1,7 @@
 # opentide for VS Code: agent guide
 
 The VS Code extension **`opentide.opentide`** (Visual Studio Marketplace) / **`opentidehq.opentide`**
-(Open VSX), one build with a publisher per store ([`docs/RELEASING.md`](docs/RELEASING.md#two-publishers-and-why);
+(Open VSX), one commit packaged with a publisher per store ([`docs/RELEASING.md`](docs/RELEASING.md#two-publishers-and-why);
 code uses `context.extension.id`, never a literal id): the opentide workbench (live checks, templates,
 catalogue, ATT&CK coverage, query results, deploy previews, MCP) on the user's own opentide (`opentide`, or
 `python -m opentide`), with the opentide engine (WASM) for editor features when none is installed.

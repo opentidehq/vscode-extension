@@ -45,6 +45,28 @@ describe("the user-level MCP entry for the bundled bridge", () => {
     assert.doesNotMatch(first.text, /1\.0\.0|mcp-wasi\.js/);
   });
 
+  it("rewrites, once, an entry 0.3.0 wrote: its marker, and no OPENTIDE_EXTENSION_ID", () => {
+    const written030 = JSON.stringify({
+      mcpServers: {
+        opentide: {
+          command: "/usr/share/kiro/kiro",
+          args: [path.join(storage, "mcp-launcher.cjs")],
+          env: {
+            ELECTRON_RUN_AS_NODE: "1",
+            OPENTIDE_EXTENSIONS_DIR: "/home/me/.kiro/extensions",
+            OPENTIDE_MCP_ENTRY_FILE: "/home/me/.kiro/settings/mcp.json",
+            OPENTIDE_VSCODE_EXTENSION: "opentidehq.opentide",
+          },
+        },
+      },
+    });
+    const merged = mergeMcpEntry(written030, launcherEntry(input("0.3.1")), ID);
+    assert.equal(merged.kind, "write");
+    if (merged.kind !== "write") return;
+    assert.equal(JSON.parse(merged.text).mcpServers.opentide.env.OPENTIDE_EXTENSION_ID, ID);
+    assert.deepEqual(mergeMcpEntry(merged.text, launcherEntry(input("0.3.2")), ID), { kind: "same" });
+  });
+
   it("changes when the editor's binary or the extensions folder moves, and carries the proxy when there is one", () => {
     const moved = launcherEntry({ ...input("1.0.0"), execPath: "/opt/kiro-2/kiro" });
     const first = mergeMcpEntry(undefined, launcherEntry(input("1.0.0")), ID);

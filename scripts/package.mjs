@@ -17,6 +17,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   budgetFor,
+  committedPublisherProblem,
   formatReport,
   isPreReleaseVersion,
   mib,
@@ -91,6 +92,8 @@ function main() {
   const manifestPath = join(root, "package.json");
   const original = readFileSync(manifestPath, "utf8");
   const pkg = JSON.parse(original);
+  const leftover = committedPublisherProblem(pkg);
+  if (leftover) throw new PackageError(leftover);
 
   const vsceArgs = ["package", "--no-dependencies"];
   if (args.includes("--pre-release") || isPreReleaseVersion(pkg.version)) vsceArgs.push("--pre-release");
@@ -99,7 +102,9 @@ function main() {
   const built = STORES.map((store) => packageFor(store, { manifestPath, original, pkg, pins, vsceArgs }));
   const found = assetProblems(built, { version: pkg.version });
   if (found.length > 0) throw new PackageError(found.join("\n  "));
-  console.log(`package: ${built.map((file) => file.name).join(", ")}: one build, each store's publisher`);
+  console.log(
+    `package: ${built.map((file) => file.name).join(", ")}: identical but for each store's publisher`,
+  );
 }
 
 try {

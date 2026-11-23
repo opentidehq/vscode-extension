@@ -6,6 +6,7 @@ import { deflateRawSync } from "node:zlib";
 import { commonOptions } from "../../scripts/build-lib.mjs";
 import {
   budgetFor,
+  committedPublisherProblem,
   EXTENSION_NAME,
   formatReport,
   isPreReleaseVersion,
@@ -76,6 +77,14 @@ describe("package: names, ignore file and pre-release", () => {
     assert.equal(vsixName("openvsx", "0.3.1"), "opentide-openvsx-0.3.1.vsix");
     assert.throws(() => vsixName("linux-x64", "0.3.1"), /no store "linux-x64"/);
     assert.throws(() => vsixName(undefined, "0.3.1"), /no store/);
+  });
+
+  it("refuses a package.json an interrupted run left with the Marketplace publisher", () => {
+    assert.equal(committedPublisherProblem({ publisher: "opentidehq" }), undefined);
+    assert.match(
+      committedPublisherProblem({ publisher: "opentide" }),
+      /"opentide", not "opentidehq".*git checkout package\.json/,
+    );
   });
 
   it("gives each store its publisher, the Open VSX one being package.json's", () => {

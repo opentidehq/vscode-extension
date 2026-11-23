@@ -92,6 +92,7 @@ It exits non-zero on any failure.
 | `engine` | opentide's `opentide-wasm-web` zip (version, URL, SHA-256) and the release's `THIRD-PARTY-LICENSES.html` (URL, SHA-256): the engine (WASM). Same release as `highlights` |
 | `tomlGrammar` | The TOML grammar from Even Better TOML (URL, SHA-256) |
 | `vsix.budgetBytes`, `vsix.targetBytes` | The size gate (20 MiB) and the target (16 MiB). The gate is opentide's plan §11 and ADR 0007; the target was 15 MiB until rc.3's WASI module, built at opt-level `s` for a faster language-server start in large workspaces (opentide#1774), grew to about 22 MB (see "The gates") |
+| `vsix.recordedBytes`, `vsix.growthLimit` | The size each package was recorded at, and how far over it the antivirus gate lets one grow (0.1: 10 %). A growth that is meant records the new size in the same PR ([RELEASING.md](RELEASING.md#the-antivirus-gate)) |
 | `vsix.budgetOverrideBytes` | Optional `{ opentide, bytes, reason }`: a temporary larger gate while `opentide.version` is that version, ignored (with a warning) after a bump |
 
 ## The gates
