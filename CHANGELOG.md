@@ -6,6 +6,27 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
+opentide runs with nothing installed: the extension bundles opentide 1.0.0-rc.3 as WebAssembly, with no Python.
+Agents get its MCP tools and skills.
+
+### Upgrade
+
+1. If you use an opentide you installed yourself, set `opentide.runtime` to `installed` (or run **opentide:
+   Switch Runtime…**), so the extension keeps using it instead of the bundled one.
+2. If you run tenant commands in a task or terminal, install opentide and choose `installed` the same way:
+   the bundled opentide has no network there.
+
+### Breaking
+
+- **An opentide you have installed is no longer used unless you ask for it.** The extension runs the opentide it
+  carries. A non-empty `opentide.path` still selects `installed`, so a configuration that names a path keeps
+  working. The output channel says which runtime runs and why.
+- **Tasks and the terminal use the bundled opentide by default**, through the extension's own launcher. A
+  tenant command in a task or terminal, and `opentide tui`, do not run there: the extension says so and
+  offers **opentide: Switch Runtime…**.
+
 ### Added
 
 - **The opentide skills and a few lines of guidance come with the extension, for VS Code's agents.** Agent mode
@@ -37,10 +58,9 @@ pre-releases odd ones.
   reports the workspace. `always` and `never` decide it by hand.
 - **`opentide.wasi.enabled` turns the bundled opentide off.** With it off, and no opentide installed, only
   the engine's editor features run.
-- **Grammars for CQL, Exabeam, YARA and YARA-L.** They come with opentide 1.0.0-rc.2's highlights and
+- **Grammars for CQL, Exabeam, YARA and YARA-L.** They come with opentide 1.0.0-rc.3's highlights and
   highlight those queries inside rules. They are available through **Change Language Mode** and have no
   file association yet.
-
 - **Agents get opentide's MCP tools with no opentide installed.** The extension gives VS Code's agent mode
   an `opentide` MCP server that runs the bundled opentide through a small script, run by the editor's own
   Node. With `opentide.runtime` set to `installed`, your own opentide's `mcp start` runs instead.
@@ -56,6 +76,9 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The package grows from 4 to about 16 MiB** for the bundled opentide, one file for every platform.
+- **The bundled opentide is 1.0.0-rc.3's WebAssembly build.** It needs no Python and no opentide on the
+  machine.
 - **The extension is licensed under the EUPL-1.2**, the licence of opentide and of the engine and grammars
   it carries, instead of MIT, so the whole package is under one licence. Third-party material keeps its own
   licence (`NOTICE`, `THIRD-PARTY-LICENSES`).
@@ -64,17 +87,9 @@ pre-releases odd ones.
   runs write by the thousand.
 - **The engine reads your workspace's files straight from the disk** when its folders are `file:` ones, instead of
   asking the editor for each file, which was most of its start-up at a thousand objects.
-- **The package grows from 4 to 13 MiB** for the bundled opentide, one file for every platform.
-- **An opentide you have installed is no longer used unless you ask for it.** Set `opentide.runtime` to
-  `installed`, or keep `opentide.path` set: a non-empty `opentide.path` selects `installed` when
-  `opentide.runtime` is not set, so an existing configuration keeps working. The output channel says which
-  runtime runs and why.
-- **Tasks and the terminal use the bundled opentide by default**, through the extension's own launcher. A
-  tenant command in a task or terminal, and `opentide tui`, do not run there: the extension says so and
-  offers **Switch Runtime…**.
 - **The opentide engine is runtime tier 5, after the bundled opentide.** Restricted Mode still runs the
   engine only: no opentide runs in an untrusted folder, the bundled one included.
-- **The engine and the grammars are opentide 1.0.0-rc.2's.** The engine now reads a folder's
+- **The engine and the grammars are opentide 1.0.0-rc.3's.** The engine now reads a folder's
   `.opentide/configurations/*.toml`, which it needs to check rules in the object folders `paths.toml`
   names.
 - **The `opentide` command in terminals also covers the bundled opentide**, where none is installed.
