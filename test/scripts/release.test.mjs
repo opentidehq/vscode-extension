@@ -90,9 +90,16 @@ function vsix({
 
 /** The two stores' packages of `version`, as `npm run package` names them. */
 function storePackages(version, overrides = {}) {
-  return STORES.map(({ store, publisher, displayName }) => ({
+  return STORES.map(({ store, publisher, name, displayName }) => ({
     name: vsixName(store, version),
-    buffer: vsix({ version, preRelease: isPreRelease(version), publisher, displayName, ...overrides[store] }),
+    buffer: vsix({
+      version,
+      preRelease: isPreRelease(version),
+      publisher,
+      id: name,
+      displayName,
+      ...overrides[store],
+    }),
   }));
 }
 
@@ -290,8 +297,8 @@ describe("release: notes", () => {
       /code --install-extension\n {2}opentidehq\.opentide/,
       "fenced code is left as written",
     );
-    assert.match(notes, /code --install-extension opentide\.opentide --pre-release/);
-    assert.match(notes, /marketplace\.visualstudio\.com\/items\?itemName=opentide\.opentide\)/);
+    assert.match(notes, /code --install-extension opentide\.opentide-vscode --pre-release/);
+    assert.match(notes, /marketplace\.visualstudio\.com\/items\?itemName=opentide\.opentide-vscode\)/);
     assert.match(notes, /open-vsx\.org\/extension\/opentidehq\/opentide\) \(`opentidehq\.opentide`\)/);
     for (const file of ["opentide-marketplace-0.3.0.vsix", "opentide-openvsx-0.3.0.vsix"]) {
       assert.ok(notes.includes(`download \``) && notes.includes(`\`${file}\``), file);
@@ -308,7 +315,7 @@ describe("release: notes", () => {
     const notes = releaseNotes(CHANGELOG, "0.2.0");
     assert.doesNotMatch(notes, /Pre-release/);
     assert.match(notes, /^### Added\n\n- Older\./);
-    assert.match(notes, /`code --install-extension opentide\.opentide`/);
+    assert.match(notes, /`code --install-extension opentide\.opentide-vscode`/);
   });
 
   it("fails for a version the changelog does not have", () => {
@@ -317,16 +324,31 @@ describe("release: notes", () => {
 });
 
 describe("release: assets", () => {
-  it("has a publisher per store: the Marketplace's opentide, Open VSX's verified opentidehq", () => {
-    assert.equal(MARKETPLACE_ID, "opentide.opentide");
+  it("has an id per store: the Marketplace's opentide.opentide-vscode, Open VSX's opentidehq.opentide", () => {
+    // 0.3.1 and 0.3.2 were refused on the Marketplace: "The extension 'opentide' already exists".
+    assert.equal(MARKETPLACE_ID, "opentide.opentide-vscode");
     assert.equal(OPENVSX_ID, "opentidehq.opentide");
     assert.deepEqual(
-      STORES.map(({ store, publisher }) => [store, publisher, vsixName(store, "0.3.1")]),
+      STORES.map(({ store, publisher, name }) => [store, publisher, name, vsixName(store, "0.3.3")]),
       [
-        ["marketplace", "opentide", "opentide-marketplace-0.3.1.vsix"],
-        ["openvsx", "opentidehq", "opentide-openvsx-0.3.1.vsix"],
+        ["marketplace", "opentide", "opentide-vscode", "opentide-marketplace-0.3.3.vsix"],
+        ["openvsx", "opentidehq", "opentide", "opentide-openvsx-0.3.3.vsix"],
       ],
     );
+    const [marketplace, openvsx] = storePackages("0.3.3");
+    assert.equal(vsixIdentity(marketplace.buffer).id, "opentide.opentide-vscode");
+    assert.equal(vsixIdentity(openvsx.buffer).id, "opentidehq.opentide");
+  });
+
+  it("refuses a Marketplace package still named opentide (0.3.2's), and an Open VSX one renamed", () => {
+    const found = assetProblems(
+      storePackages("0.3.3", { marketplace: { id: "opentide" }, openvsx: { id: "opentide-vscode" } }),
+      { version: "0.3.3" },
+    );
+    assert.deepEqual(found, [
+      "opentide-marketplace-0.3.3.vsix is opentide.opentide, not opentide.opentide-vscode (the Visual Studio Marketplace package)",
+      "opentide-openvsx-0.3.3.vsix is opentidehq.opentide-vscode, not opentidehq.opentide (the Open VSX package)",
+    ]);
   });
 
   it("reads a VSIX's identity", () => {
@@ -350,7 +372,7 @@ describe("release: assets", () => {
         ["openvsx", "opentidehq", "opentide"],
       ],
     );
-    const [marketplace, openvsx] = storePackages("0.3.2");
+    const [marketplace, openvsx] = storePackages("0.3.3");
     assert.equal(vsixIdentity(marketplace.buffer).displayName, "opentide for VS Code");
     assert.equal(vsixIdentity(openvsx.buffer).displayName, "opentide");
   });
@@ -379,16 +401,16 @@ describe("release: assets", () => {
       version: "0.3.1",
     });
     assert.deepEqual(found, [
-      "opentide-marketplace-0.3.1.vsix is opentidehq.opentide, not opentide.opentide (the Visual Studio Marketplace package)",
+      "opentide-marketplace-0.3.1.vsix is opentidehq.opentide-vscode, not opentide.opentide-vscode (the Visual Studio Marketplace package)",
     ]);
   });
 
-  it("refuses packages that differ beyond the publisher and display name", () => {
+  it("refuses packages that differ beyond the name, publisher and display name", () => {
     const found = assetProblems(storePackages("0.3.1", { openvsx: { main: "./dist/other.js" } }), {
       version: "0.3.1",
     });
     assert.deepEqual(found, [
-      "extension/package.json differs between opentide-marketplace-0.3.1.vsix and opentide-openvsx-0.3.1.vsix, beyond the publisher and display name",
+      "extension/package.json differs between opentide-marketplace-0.3.1.vsix and opentide-openvsx-0.3.1.vsix, beyond the name, publisher and display name",
     ]);
   });
 
@@ -423,13 +445,14 @@ describe("release: assets", () => {
     ]);
   });
 
-  it("package.json's publisher and display name are replaced alone, keeping the text as it is", () => {
+  it("package.json's name, publisher and display name are replaced alone, keeping the text as it is", () => {
     const text =
-      '{\n  "name": "opentide",\n  "displayName": "opentide",\n  "publisher": "opentidehq",\n  "x": {\n    "publisher": "keep",\n    "displayName": "keep"\n  }\n}\n';
+      '{\n  "name": "opentide",\n  "displayName": "opentide",\n  "publisher": "opentidehq",\n  "x": {\n    "name": "keep",\n    "publisher": "keep",\n    "displayName": "keep"\n  }\n}\n';
     const [marketplace, openvsx] = STORES;
     assert.equal(
       storeManifest(text, marketplace),
       text
+        .replace('"name": "opentide"', '"name": "opentide-vscode"')
         .replace('"opentidehq"', '"opentide"')
         .replace('"displayName": "opentide"', '"displayName": "opentide for VS Code"'),
     );
@@ -443,6 +466,14 @@ describe("release: assets", () => {
       /0 top-level "displayName" lines/,
     );
     assert.throws(() => storeManifest(text, { ...marketplace, publisher: "Bad Id" }), /not a publisher id/);
+    assert.throws(
+      () => storeManifest(text, { ...marketplace, name: "Opentide VS" }),
+      /not an extension name/,
+    );
+    assert.throws(
+      () => storeManifest('{\n  "displayName": "opentide",\n  "publisher": "opentidehq"\n}\n', marketplace),
+      /0 top-level "name" lines/,
+    );
   });
 });
 

@@ -51,7 +51,7 @@ describe("the Marketplace lists the package of a release", () => {
     const listed = new Set(["alpine-arm64"]);
     const published = [];
     const missing = await ensurePublished({
-      id: "opentide.opentide",
+      id: "opentide.opentide-vscode",
       version: "0.1.0",
       expected,
       publish: ({ target }) => {
@@ -71,7 +71,7 @@ describe("the Marketplace lists the package of a release", () => {
     const expected = OLD_RELEASE;
     let calls = 0;
     const missing = await ensurePublished({
-      id: "opentide.opentide",
+      id: "opentide.opentide-vscode",
       version: "0.1.0",
       expected,
       publish: () => {},
@@ -96,7 +96,7 @@ describe("the Marketplace lists the package of a release", () => {
     let polls = 0;
     await assert.rejects(
       ensurePublished({
-        id: "opentide.opentide",
+        id: "opentide.opentide-vscode",
         version: "0.3.2",
         expected: expectedPackages("release/opentide-marketplace-0.3.2.vsix"),
         publish: () => {
@@ -125,50 +125,50 @@ describe("the Marketplace lists the package of a release", () => {
     assert.match(job, /- name: vsce publish --oidc\n {8}run: \|\n {10}set -euo pipefail\n/);
   });
 
-  it("publishes only this release's own Marketplace package, 0.3.1 or later: never an older version", () => {
+  it("publishes only this release's own Marketplace package, 0.3.3 or later: never an older version", () => {
     assert.equal(MARKETPLACE_ID, storeExtensionId(STORES.find((store) => store.store === "marketplace")));
-    assert.equal(FIRST_MARKETPLACE_VERSION, "0.3.1");
-    const file = "release/opentide-marketplace-0.3.1.vsix";
-    assert.equal(publishProblem("opentide.opentide", "0.3.1", file), undefined);
+    assert.equal(MARKETPLACE_ID, "opentide.opentide-vscode");
+    assert.equal(FIRST_MARKETPLACE_VERSION, "0.3.3");
+    const file = "release/opentide-marketplace-0.3.3.vsix";
+    assert.equal(publishProblem("opentide.opentide-vscode", "0.3.3", file), undefined);
     assert.equal(
-      publishProblem("opentide.opentide", "0.4.0", "release/opentide-marketplace-0.4.0.vsix"),
+      publishProblem("opentide.opentide-vscode", "0.4.0", "release/opentide-marketplace-0.4.0.vsix"),
       undefined,
     );
+    // 0.3.1 and 0.3.2 were refused under the name `opentide` and never reached the Marketplace: no backfill.
+    for (const version of ["0.3.2", "0.3.1", "0.3.0"])
+      assert.match(
+        publishProblem("opentide.opentide-vscode", version, `release/opentide-marketplace-${version}.vsix`),
+        /older than 0\.3\.3: only new versions .* never a backfill/,
+      );
+    assert.match(publishProblem("opentide.opentide", "0.3.3", file), /not the Marketplace's id/);
+    assert.match(publishProblem("opentidehq.opentide", "0.3.3", file), /not the Marketplace's id/);
     assert.match(
-      publishProblem("opentide.opentide", "0.3.0", "release/opentide-marketplace-0.3.0.vsix"),
-      /older than 0\.3\.1: only new versions .* never a backfill/,
+      publishProblem("opentide.opentide-vscode", "0.3.3", "release/opentide-openvsx-0.3.3.vsix"),
+      /is not opentide-marketplace-0\.3\.3\.vsix/,
     );
     assert.match(
-      publishProblem("opentide.opentide", "0.2.9", "x/opentide-marketplace-0.2.9.vsix"),
-      /older than 0\.3\.1/,
+      publishProblem("opentide.opentide-vscode", "0.3.4", file),
+      /is not opentide-marketplace-0\.3\.4\.vsix/,
     );
-    assert.match(publishProblem("opentidehq.opentide", "0.3.1", file), /not the Marketplace's id/);
-    assert.match(
-      publishProblem("opentide.opentide", "0.3.1", "release/opentide-openvsx-0.3.1.vsix"),
-      /is not opentide-marketplace-0\.3\.1\.vsix/,
-    );
-    assert.match(
-      publishProblem("opentide.opentide", "0.3.2", file),
-      /is not opentide-marketplace-0\.3\.2\.vsix/,
-    );
-    assert.match(publishProblem("opentide.opentide", "v0.3.1", file), /not a release version/);
+    assert.match(publishProblem("opentide.opentide-vscode", "v0.3.3", file), /not a release version/);
   });
 
   it("publish.yml checks the package's version and name before vsce publish", () => {
     const text = readFileSync(join(ROOT, ".github", "workflows", "publish.yml"), "utf8");
     const job = text.slice(text.indexOf("  publish-marketplace:"), text.indexOf("  publish-openvsx:"));
     const check = job.search(
-      /node tools\/publish\/marketplace\.mjs --check opentide\.opentide "\$\{VERSION\}" "\$\{VSIX\}"/,
+      /node tools\/publish\/marketplace\.mjs --check opentide\.opentide-vscode "\$\{VERSION\}" "\$\{VSIX\}"/,
     );
     assert.ok(check > 0 && check < job.indexOf("vsce publish"), "the check runs before vsce publish");
   });
 
-  it("publish.yml checks the listing of opentide.opentide after vsce publish, in the Marketplace job", () => {
+  it("publish.yml checks the listing of opentide.opentide-vscode after vsce publish, in the Marketplace job", () => {
     const text = readFileSync(join(ROOT, ".github", "workflows", "publish.yml"), "utf8");
     const job = text.slice(text.indexOf("  publish-marketplace:"), text.indexOf("  publish-openvsx:"));
     const publish = job.indexOf("vsce publish");
     const check = job.search(
-      /node tools\/publish\/marketplace\.mjs opentide\.opentide "\$\{VERSION\}" "\$\{VSIX\}"/,
+      /node tools\/publish\/marketplace\.mjs opentide\.opentide-vscode "\$\{VERSION\}" "\$\{VSIX\}"/,
     );
     assert.ok(publish > 0 && check > publish, "the listing check runs after vsce publish");
   });

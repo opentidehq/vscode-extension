@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Packages the VSIXs (SPEC §3 "Packages") and enforces the size gate. There is one universal package per
 // store, for every platform and the web: the extension runs the user's own opentide and carries no runtime.
-// The stores' packages differ only in package.json's `publisher` and `displayName` (package-lib STORES: the
-// Marketplace's `opentide` / "opentide for VS Code", Open VSX's `opentidehq` / "opentide"); this checks that
-// they do, entry by entry.
+// The stores' packages differ only in package.json's `name`, `publisher` and `displayName` (package-lib
+// STORES: the Marketplace's `opentide.opentide-vscode` / "opentide for VS Code", Open VSX's
+// `opentidehq.opentide` / "opentide"); this checks that they do, entry by entry.
 //   node scripts/package.mjs [--universal] [--pre-release]
 //   --pre-release is passed to vsce; it is on by itself for an odd minor version (SPEC §3).
 // vsce runs `vscode:prepublish` (npm run build:production) first, for each package. The VSIXs go to
 // dist-vsix/opentide-<store>-<version>.vsix, each with <name>.size.json next to it. For the Marketplace
-// package, package.json's publisher and display name are replaced while vsce runs, and put back afterwards. A package over
+// package, package.json's name, publisher and display name are replaced while vsce runs, and put back afterwards. A package over
 // pins.json vsix.budgetBytes (or a budgetOverrideBytes for the pinned opentide) fails, printing its size
 // and its five largest directories.
 import { spawnSync } from "node:child_process";
@@ -39,7 +39,7 @@ const option = (flag) => {
   return index >= 0 ? args[index + 1] : undefined;
 };
 
-/** One store's package: package.json with the store's publisher and display name while vsce runs, then the size gate. */
+/** One store's package: package.json with the store's name, publisher and display name while vsce runs, then the size gate. */
 function packageFor(store, { manifestPath, original, pkg, pins, vsceArgs }) {
   const name = vsixName(store.store, pkg.version);
   const out = join(root, OUT_DIR, name);
@@ -104,7 +104,7 @@ function main() {
   const found = assetProblems(built, { version: pkg.version });
   if (found.length > 0) throw new PackageError(found.join("\n  "));
   console.log(
-    `package: ${built.map((file) => file.name).join(", ")}: identical but for each store's publisher and display name`,
+    `package: ${built.map((file) => file.name).join(", ")}: identical but for each store's name, publisher and display name`,
   );
 }
 

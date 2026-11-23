@@ -10,7 +10,7 @@ export class ReleaseError extends Error {}
 
 export const REPOSITORY = "https://github.com/opentidehq/vscode-extension";
 const store = (name) => STORES.find((candidate) => candidate.store === name);
-/** The Visual Studio Marketplace's id of the extension, `opentide.opentide`. */
+/** The Visual Studio Marketplace's id of the extension, `opentide.opentide-vscode`. */
 export const MARKETPLACE_ID = storeExtensionId(store("marketplace"));
 /** Open VSX's id of the extension, `opentidehq.opentide`. */
 export const OPENVSX_ID = storeExtensionId(store("openvsx"));
@@ -243,18 +243,24 @@ const unescapeXml = (text) =>
 const escapeXml = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /**
- * An entry's text with the store's publisher and display name replaced by placeholders, to compare two stores'
- * packages; undefined for an entry that may not differ at all.
+ * An entry's text with the store's name, publisher and display name replaced by placeholders, to compare two
+ * stores' packages; undefined for an entry that may not differ at all. Only the first occurrence of each is
+ * replaced: the top-level field of package.json, the Identity and DisplayName of the manifest.
  */
 function withoutStoreFields(name, buffer, store) {
   const text = buffer.toString("utf8");
   if (name === "extension/package.json")
     return text
+      .replace(`"name": ${JSON.stringify(store.name)}`, '"name": "<name>"')
       .replace(`"publisher": ${JSON.stringify(store.publisher)}`, '"publisher": "<publisher>"')
       .replace(`"displayName": ${JSON.stringify(store.displayName)}`, '"displayName": "<displayName>"');
   if (name === "extension.vsixmanifest")
     return text
-      .replace(`Publisher="${store.publisher}"`, 'Publisher="<publisher>"')
+      .replace(/<Identity\b[^>]*>/, (identity) =>
+        identity
+          .replace(` Id="${store.name}"`, ' Id="<name>"')
+          .replace(` Publisher="${store.publisher}"`, ' Publisher="<publisher>"'),
+      )
       .replace(
         `<DisplayName>${escapeXml(store.displayName)}</DisplayName>`,
         "<DisplayName>&lt;displayName&gt;</DisplayName>",
@@ -263,8 +269,8 @@ function withoutStoreFields(name, buffer, store) {
 }
 
 /**
- * What differs between two stores' packages other than their publisher and display name: every entry is the
- * same bytes, except `extension/package.json` and `extension.vsixmanifest`, which are the same once those two
+ * What differs between two stores' packages other than their name, publisher and display name: every entry is
+ * the same bytes, except `extension/package.json` and `extension.vsixmanifest`, which are the same once those
  * are set aside. `a` and `b` are `{ name, buffer, store }`.
  */
 export function storeDifferences(a, b) {
@@ -281,7 +287,9 @@ export function storeDifferences(a, b) {
     if (left.equals(right)) continue;
     const plainLeft = withoutStoreFields(name, left, a.store);
     if (plainLeft === undefined || plainLeft !== withoutStoreFields(name, right, b.store))
-      found.push(`${name} differs between ${a.name} and ${b.name}, beyond the publisher and display name`);
+      found.push(
+        `${name} differs between ${a.name} and ${b.name}, beyond the name, publisher and display name`,
+      );
   }
   return found;
 }
@@ -290,7 +298,7 @@ export function storeDifferences(a, b) {
  * What is wrong with a release's VSIX files (`[{ name, buffer }]`): exactly one universal package per store
  * (package-lib STORES), each named `opentide-<store>-<version>.vsix`, with that store's publisher, at
  * `version`, with the pre-release flag the version's minor gives, and that store's display name; and the
- * packages differ only in their publisher and display name. Empty when they are right.
+ * packages differ only in their name, publisher and display name. Empty when they are right.
  */
 export function assetProblems(files, { version }) {
   const found = [];
