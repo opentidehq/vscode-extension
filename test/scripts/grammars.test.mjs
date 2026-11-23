@@ -59,6 +59,44 @@ const contributions = JSON.stringify({
     ],
   },
 });
+/** The rules of the zip's opentide-yaml grammar that scripts/tide-align.mjs works on, in their shape and order. */
+const TIDE_PATTERNS = [
+  {
+    begin: "^(configurations)\\s*:\\s*(?:#.*)?$",
+    beginCaptures: { 1: { name: "variable.other.property.tide" } },
+    end: "^(?=\\S)",
+    patterns: [
+      {
+        begin: "^(\\s+)(sentinel)\\s*:\\s*(?:#.*)?$",
+        beginCaptures: { 2: { name: "variable.other.property.tide" } },
+        end: "^(?!\\1\\s+\\S|\\s*$)",
+        patterns: [{ include: "source.kql" }],
+      },
+      { include: "$self" },
+    ],
+  },
+  { comment: "capture:comment", match: "(?m)^\\s*#.*$", name: "comment.line.opentide" },
+  { comment: "capture:string", match: '"(\\\\.|[^"\\\\])*"', name: "string.quoted.opentide" },
+  { comment: "capture:number", match: "\\b[0-9]+\\b", name: "constant.numeric.opentide" },
+  {
+    comment: "capture:tide.property",
+    match: "(?m)^\\s*(?:name|query|uuid)\\s*:",
+    name: "variable.other.property.tide",
+  },
+  {
+    comment: "capture:markdown.heading",
+    match: "(?m)^\\s*#{1,6}\\s+.*$",
+    name: "markup.heading.markdown.tide",
+  },
+  { comment: "capture:markdown.code", match: "`[^`]+`", name: "markup.inline.raw.markdown.tide" },
+  {
+    comment: "capture:markdown.list",
+    match: "(?m)^\\s*(?:[-*+]|\\d+\\.)\\s+",
+    name: "punctuation.definition.list.markdown.tide",
+  },
+  { comment: "capture:tide.uuid", match: "[0-9a-f]{8}-[0-9a-f]{4}", name: "constant.other.uuid.tide" },
+  { comment: "capture:boolean", match: "(?:true|false)", name: "constant.language.boolean.opentide" },
+];
 const grammar = (scopeName, extra = {}) => JSON.stringify({ name: "x", scopeName, patterns: [], ...extra });
 
 describe("grammar build", () => {
@@ -76,16 +114,20 @@ describe("grammar build", () => {
       zip({
         "generated/package-contributions.json": contributions,
         "generated/esql.tmLanguage.json": grammar("source.esql"),
-        "generated/tide.tmLanguage.json": grammar("source.opentide-yaml", {
-          patterns: [{ include: "source.kql" }],
-        }),
+        "generated/tide.tmLanguage.json": grammar("source.opentide-yaml", { patterns: TIDE_PATTERNS }),
         LICENSE: "EUPL",
       }),
     );
     const { outputs, grammars } = transformHighlights(files);
     assert.equal(JSON.parse(outputs.get("esql.tmLanguage.json")).scopeName, "source.opentide.esql");
     const tide = grammars.find((g) => g.language === "opentide-yaml");
-    assert.deepEqual(tide.embeddedLanguages, { "meta.embedded.block.kql": "kql" });
+    // the zip's own embedded scopes, and the ones the aligned grammar adds for Elastic's queries
+    assert.deepEqual(tide.embeddedLanguages, {
+      "meta.embedded.block.eql": "eql",
+      "meta.embedded.block.esql": "esql",
+      "meta.embedded.block.kql": "kql",
+      "meta.embedded.block.kuery": "kuery",
+    });
     assert.equal(tide.path, "./syntaxes/tide.tmLanguage.json");
   });
 

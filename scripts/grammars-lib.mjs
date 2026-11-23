@@ -1,6 +1,7 @@
 // Pure helpers for scripts/grammars.mjs: zip reading, checksum, grammar transforms.
 import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
+import { alignTide, EMBEDDED } from "./tide-align.mjs";
 
 export class GrammarError extends Error {}
 
@@ -67,7 +68,8 @@ export function languageFor(stem) {
 
 /**
  * Turn the highlights zip into the grammar files to write and the `contributes.grammars` fragment.
- * Fails when the ES|QL grammar still refers to `source.esql` after the scope rename.
+ * Fails when the ES|QL grammar still refers to `source.esql` after the scope rename. The opentide-yaml grammar is aligned
+ * with the server's semantic tokens by scripts/tide-align.mjs.
  */
 export function transformHighlights(files) {
   const contributionsRaw = files.get("generated/package-contributions.json");
@@ -86,6 +88,7 @@ export function transformHighlights(files) {
     const stem = match[1];
     const grammar = JSON.parse(raw.toString("utf8"));
     if (stem === "esql" && grammar.scopeName === ESQL_FROM) grammar.scopeName = ESQL_TO;
+    if (stem === "tide") alignTide(grammar, GrammarError);
     const text = `${JSON.stringify(grammar, null, 2)}\n`;
     outputs.set(`${stem}.tmLanguage.json`, text);
     const entry = {
@@ -94,7 +97,13 @@ export function transformHighlights(files) {
       path: `./syntaxes/${stem}.tmLanguage.json`,
     };
     const embeddedLanguages = embedded.get(grammar.scopeName);
-    if (embeddedLanguages) entry.embeddedLanguages = embeddedLanguages;
+    if (stem === "tide") {
+      // The embedded scopes the aligned grammar adds (Elastic's query languages) need their language ids too.
+      const merged = { ...(embeddedLanguages ?? {}), ...EMBEDDED };
+      entry.embeddedLanguages = Object.fromEntries(
+        Object.entries(merged).sort(([a], [b]) => (a < b ? -1 : 1)),
+      );
+    } else if (embeddedLanguages) entry.embeddedLanguages = embeddedLanguages;
     grammars.push(entry);
   }
   if (!outputs.has("esql.tmLanguage.json"))

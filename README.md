@@ -90,8 +90,10 @@ extension runs `python -m opentide` with the same interpreter.
 
 The queries of Sentinel, Defender, Splunk, Carbon Black and Sysdig in a rule
 (`configurations.<platform>.query`) are highlighted, commented and bracket-matched in their own
-language. An Elastic query's language depends on its `language` key, so it gets the language server's
-semantic highlighting only: comment toggling and bracket pairs there are YAML's.
+language. An Elastic query's language depends on its `type` and `language` keys: when `type` (`esql`, `eql`)
+or `language` (`kuery`, `lucene`) is written before `query`, the query is highlighted in that language at
+once; otherwise it gets the language server's semantic highlighting only, and comment toggling and bracket
+pairs there are YAML's.
 
 ### Problems: live, validate and lint
 
