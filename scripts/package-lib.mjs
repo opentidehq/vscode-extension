@@ -10,16 +10,24 @@ export const OUT_DIR = "dist-vsix";
 export const EXTENSION_NAME = "opentide";
 
 /**
- * The stores, each with its own publisher (docs/RELEASING.md, "One-time setup"). The Visual Studio Marketplace
- * publisher `opentidehq` was banned and cannot be registered again, so the Marketplace package is
- * `opentide.opentide`; Open VSX keeps its verified namespace, `opentidehq.opentide`. Both packages come from
- * one commit and differ only in package.json's `publisher` (and the manifest vsce derives from it).
- * package.json in the repository is the Open VSX one: every other package is that one with its publisher
- * replaced.
+ * The stores, each with its own publisher and display name (docs/RELEASING.md, "Two publishers, and why").
+ * The Visual Studio Marketplace publisher `opentidehq` was banned and cannot be registered again, so the
+ * Marketplace package is `opentide.opentide`; Open VSX keeps its verified namespace, `opentidehq.opentide`.
+ * The banned extension, hidden from the gallery, still holds the display name "opentide", and Marketplace
+ * display names are unique (0.3.1's publish was refused: "The extension 'opentide' already exists in the
+ * Marketplace"), so the Marketplace package is "opentide for VS Code"; Open VSX keeps "opentide". Both
+ * packages come from one commit and differ only in package.json's `publisher` and `displayName` (and the
+ * manifest vsce derives from them). package.json in the repository is the Open VSX one: every other package
+ * is that one with those two fields replaced.
  */
 export const STORES = Object.freeze([
-  Object.freeze({ store: "marketplace", label: "Visual Studio Marketplace", publisher: "opentide" }),
-  Object.freeze({ store: "openvsx", label: "Open VSX", publisher: "opentidehq" }),
+  Object.freeze({
+    store: "marketplace",
+    label: "Visual Studio Marketplace",
+    publisher: "opentide",
+    displayName: "opentide for VS Code",
+  }),
+  Object.freeze({ store: "openvsx", label: "Open VSX", publisher: "opentidehq", displayName: "opentide" }),
 ]);
 
 /** A store's extension id, `<publisher>.opentide`. */
@@ -34,31 +42,46 @@ export function vsixName(store, version) {
 
 /**
  * Why package.json, as found, is not the committed one, or undefined. The committed package.json is the Open
- * VSX one; another publisher is an interrupted `npm run package` (vsce killed before the file was put back),
- * and building both stores from it would carry the wrong publisher on silently.
+ * VSX one; another publisher or display name is an interrupted `npm run package` (vsce killed before the file
+ * was put back), and building both stores from it would carry the wrong one on silently.
  */
-export function committedPublisherProblem(pkg) {
-  const committed = STORES.find((store) => store.store === "openvsx")?.publisher;
-  if (pkg?.publisher === committed) return undefined;
-  return (
-    `package.json's publisher is ${JSON.stringify(pkg?.publisher)}, not ${JSON.stringify(committed)}: an interrupted ` +
-    "npm run package may have left it changed. Run `git checkout package.json` (or set it back) and package again"
-  );
+export function committedManifestProblem(pkg) {
+  const committed = STORES.find((store) => store.store === "openvsx");
+  for (const field of ["publisher", "displayName"]) {
+    if (pkg?.[field] === committed?.[field]) continue;
+    return (
+      `package.json's ${field} is ${JSON.stringify(pkg?.[field])}, not ${JSON.stringify(committed?.[field])}: an ` +
+      "interrupted npm run package may have left it changed. Run `git checkout package.json` (or set it back) and package again"
+    );
+  }
+  return undefined;
 }
 
-const PUBLISHER_LINE = /^( {2}"publisher": )"[^"]*"(,?)$/m;
+/** A top-level string field of package.json, on its own line, two spaces in. */
+const topLevelLine = (field) => new RegExp(`^( {2}"${field}": )"[^"]*"(,?)$`, "m");
+
+function replaceTopLevel(text, field, value) {
+  const pattern = topLevelLine(field);
+  const lines = text.match(new RegExp(pattern.source, "gm")) ?? [];
+  if (lines.length !== 1)
+    throw new PackageError(`package.json has ${lines.length} top-level "${field}" lines, not 1`);
+  return text.replace(pattern, (_, start, comma) => `${start}${JSON.stringify(value)}${comma}`);
+}
 
 /**
- * package.json's text with `publisher` set to `publisher`, and nothing else changed (not even its formatting):
- * the one difference between the stores' packages.
+ * package.json's text as `store` packages it: its `publisher` and `displayName`, and nothing else changed (not
+ * even the formatting). Those two fields are the only difference between the stores' packages.
  */
-export function withPublisher(text, publisher) {
-  const lines = text.match(new RegExp(PUBLISHER_LINE.source, "gm")) ?? [];
-  if (lines.length !== 1)
-    throw new PackageError(`package.json has ${lines.length} top-level "publisher" lines, not 1`);
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(publisher))
-    throw new PackageError(`${JSON.stringify(publisher)} is not a publisher id`);
-  return text.replace(PUBLISHER_LINE, `$1${JSON.stringify(publisher)}$2`);
+export function storeManifest(text, store) {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(store.publisher))
+    throw new PackageError(`${JSON.stringify(store.publisher)} is not a publisher id`);
+  if (typeof store.displayName !== "string" || store.displayName.trim() === "")
+    throw new PackageError(`${store.store} has no display name`);
+  return replaceTopLevel(
+    replaceTopLevel(text, "publisher", store.publisher),
+    "displayName",
+    store.displayName,
+  );
 }
 
 /**

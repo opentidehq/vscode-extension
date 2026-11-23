@@ -11,6 +11,7 @@ import {
   FIRST_MARKETPLACE_VERSION,
   MARKETPLACE_ID,
   missingTargets,
+  PublishRefused,
   publishProblem,
 } from "../../tools/publish/marketplace.mjs";
 
@@ -88,6 +89,40 @@ describe("the Marketplace lists the package of a release", () => {
       missing.map((p) => p.target),
       ["darwin-arm64", "linux-x64", "universal", "win32-arm64"],
     );
+  });
+
+  it("stops at a refused publish instead of trying again (0.3.1: the display name was taken)", async () => {
+    let published = 0;
+    let polls = 0;
+    await assert.rejects(
+      ensurePublished({
+        id: "opentide.opentide",
+        version: "0.3.2",
+        expected: expectedPackages("release/opentide-marketplace-0.3.2.vsix"),
+        publish: () => {
+          published += 1;
+          throw new PublishRefused("vsce publish exited 1 for universal (its error is above)");
+        },
+        versions: async () => {
+          polls += 1;
+          return [];
+        },
+        rounds: 3,
+        polls: 2,
+        intervalMs: 0,
+        log: () => {},
+      }),
+      PublishRefused,
+    );
+    assert.equal(published, 1, "one publish, no retry after the refusal");
+    assert.equal(polls, 2, "no polling after the refusal");
+  });
+
+  it("publish.yml shows vsce's refusal and fails the job: nothing swallows it", () => {
+    const text = readFileSync(join(ROOT, ".github", "workflows", "publish.yml"), "utf8");
+    const job = text.slice(text.indexOf("  publish-marketplace:"), text.indexOf("  publish-openvsx:"));
+    assert.doesNotMatch(job, /continue-on-error|\|\| true|2>\s*\/dev\/null|>\s*\/dev\/null/);
+    assert.match(job, /- name: vsce publish --oidc\n {8}run: \|\n {10}set -euo pipefail\n/);
   });
 
   it("publishes only this release's own Marketplace package, 0.3.1 or later: never an older version", () => {
