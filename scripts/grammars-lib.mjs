@@ -1,7 +1,7 @@
 // Pure helpers for scripts/grammars.mjs: zip reading, checksum, grammar transforms.
 import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
-import { alignQuery, alignTide, EMBEDDED } from "./tide-align.mjs";
+import { alignTide, EMBEDDED } from "./tide-align.mjs";
 
 export class GrammarError extends Error {}
 
@@ -89,7 +89,6 @@ export function transformHighlights(files) {
     const grammar = JSON.parse(raw.toString("utf8"));
     if (stem === "esql" && grammar.scopeName === ESQL_FROM) grammar.scopeName = ESQL_TO;
     if (stem === "tide") alignTide(grammar, GrammarError);
-    else alignQuery(grammar);
     const text = `${JSON.stringify(grammar, null, 2)}\n`;
     outputs.set(`${stem}.tmLanguage.json`, text);
     const entry = {

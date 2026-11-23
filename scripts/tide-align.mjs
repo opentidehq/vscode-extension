@@ -37,7 +37,6 @@ export const UUID_NUMBER = "constant.numeric.uuid.tide";
 export const STRING_BLOCK = "string.unquoted.block.tide";
 export const HEADING = "entity.name.type.markdown.tide";
 export const CODE = "constant.regexp.markdown.tide";
-export const KEYWORD = "keyword.other.opentide";
 
 /** The embedded-language scope names the added rules use, with the language id VS Code needs for each. */
 export const EMBEDDED = {
@@ -281,22 +280,6 @@ const ELASTIC_LANGUAGES = [
   { key: "language", value: "kuery", scope: "source.kuery", embedded: "meta.embedded.block.kuery" },
   { key: "language", value: "lucene", scope: "source.lucene", embedded: "meta.embedded.block.lucene" },
 ];
-
-/**
- * The query-language grammars: the server gives a keyword the type `keyword`, whose scope is `keyword`, not
- * `keyword.control` (purple in Dark+, blue for `keyword`), so a keyword the grammar colours does not change colour
- * when the server's tokens land.
- */
-export function alignQuery(grammar) {
-  const walk = (node) => {
-    if (Array.isArray(node)) return node.forEach(walk);
-    if (typeof node !== "object" || node === null) return;
-    if (node.name === "keyword.control.opentide") node.name = `keyword.control.opentide ${KEYWORD}`;
-    for (const value of Object.values(node)) walk(value);
-  };
-  walk(grammar);
-  return grammar;
-}
 
 /**
  * Apply the alignment to the parsed `tide.tmLanguage.json`. Throws `Failure` (an error class) with what changed when the

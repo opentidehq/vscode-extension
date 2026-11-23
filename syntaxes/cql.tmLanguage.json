@@ -20,7 +20,7 @@
     {
       "comment": "capture:keyword",
       "match": "(?i)(?<![A-Za-z0-9_])(?:case|like|match)(?![A-Za-z0-9_])",
-      "name": "keyword.control.opentide keyword.other.opentide"
+      "name": "keyword.control.opentide"
     },
     {
       "comment": "capture:macro",

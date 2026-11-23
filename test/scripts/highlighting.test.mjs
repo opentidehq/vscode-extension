@@ -242,8 +242,8 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
   it("leaves a query to the embedded grammar, and the server", () => {
     const where = tokenAt(kql, "| where TimeGenerated", "where");
     assert.ok(where.scopes.includes("meta.embedded.block.kql"), JSON.stringify(where));
-    // a keyword of a query grammar is the server's `keyword` too, not `keyword.control`
-    assert.equal(where.scopes.at(-1), "keyword.other.opentide");
+    // a keyword of a query grammar is under `keyword.control`, where VS Code maps the server's `keyword` type
+    assert.ok(underType(where.scopes.at(-1), "keyword"), where.scopes.at(-1));
   });
 
   describe("Elastic queries", () => {
@@ -257,7 +257,7 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
         from.scopes.some((scope) => scope.startsWith("keyword")),
         `FROM: ${from.scopes}`,
       );
-      assert.equal(from.scopes.at(-1), "keyword.other.opentide");
+      assert.ok(underType(from.scopes.at(-1), "keyword"), from.scopes.at(-1));
       // the type: line is the server's too: a key, a colon, an enumeration member
       assert.ok(underType(lastScope(esql, "type: esql", "esql"), "enumMember"));
       assert.ok(underType(lastScope(esql, "type: esql", ":"), "operator"));

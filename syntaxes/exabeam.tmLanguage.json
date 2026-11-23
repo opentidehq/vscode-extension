@@ -15,7 +15,7 @@
     {
       "comment": "capture:keyword",
       "match": "(?i)(?<![A-Za-z0-9_])(?:AND|AS|ASC|DESC|DISTINCT|FOREACH|FROM|GROUP\\-BY|IN|LIMIT|NOT|OR|ORDER\\-BY|SELECT|TO|WHERE)(?![A-Za-z0-9_])",
-      "name": "keyword.control.opentide keyword.other.opentide"
+      "name": "keyword.control.opentide"
     },
     {
       "comment": "capture:operator",

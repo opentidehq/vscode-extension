@@ -20,7 +20,7 @@
     {
       "comment": "capture:keyword",
       "match": "(?i)(?<![A-Za-z0-9_])(?:and|as|asc|by|change_point|completion|dedup|dense_vector|desc|dissect|drop|enrich|eval|explain|fillnull|first|fork|from|full|fuse|grok|group|highlight|in|info|inline|inlinestats|ip_location|is|join|keep|key|last|left|like|limit|lookup|metadata|metrics_info|mmr|mv_expand|not|nulls|on|or|promql|registered_domain|rename|rerank|right|rlike|row|sample|score|set|show|sort|stats|ts|ts_collapse|ts_info|uri_parts|user_agent|where|with)(?![A-Za-z0-9_])",
-      "name": "keyword.control.opentide keyword.other.opentide"
+      "name": "keyword.control.opentide"
     },
     {
       "comment": "capture:operator",

@@ -1941,7 +1941,8 @@
             "support.type"
           ],
           "class": [
-            "entity.name.type.class"
+            "entity.name.type.class",
+            "support.class"
           ],
           "enum": [
             "entity.name.type.enum"
@@ -1978,14 +1979,14 @@
             "support.function"
           ],
           "method": [
-            "entity.name.function.member"
+            "entity.name.function.member",
+            "support.function"
           ],
           "macro": [
             "entity.name.function.preprocessor"
           ],
           "keyword": [
-            "keyword.other.opentide",
-            "keyword"
+            "keyword.control"
           ],
           "modifier": [
             "storage.modifier"
