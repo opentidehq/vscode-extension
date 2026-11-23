@@ -164,7 +164,9 @@ jobs:
           set -euo pipefail
           canary="${RUNNER_TEMP}/clamav-canary"
           mkdir -p "${canary}"
-          printf '%s%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$' 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "${canary}/eicar.com"
+          # Two printf calls, `$` written as \x24: no file here holds the string, and no `$` sits in quotes.
+          printf 'X5O!P%%@AP[4\\PZX54(P^)7CC)7}\x24' > "${canary}/eicar.com"
+          printf 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\x24H+H*' >> "${canary}/eicar.com"
           (cd "${canary}" && python3 -c "import zipfile; zipfile.ZipFile('eicar.zip', 'w', zipfile.ZIP_DEFLATED).write('eicar.com')")
           for file in eicar.com eicar.zip; do
             if clamscan --no-summary --scan-archive=yes "${canary}/${file}"; then
