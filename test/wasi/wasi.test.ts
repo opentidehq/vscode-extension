@@ -1,6 +1,7 @@
 // Desktop VS Code with no opentide anywhere and the WASI module the extension carries as the runtime
-// (tier 4): `serve` and the language server run in the extension host under @vscode/wasm-wasi (the
-// ms-vscode.wasm-wasi-core extension, which the label installs), with the workspace mounted. .vscode-test.mjs's
+// (tier 4): `serve` and the language server run through the launcher (VS Code's Node) by default, and under
+// @vscode/wasm-wasi (the ms-vscode.wasm-wasi-core extension, which the `wasi` label installs) when asked, with the
+// workspace mounted. .vscode-test.mjs's
 // `wasi` label takes every folder holding an opentide executable off PATH, as the `engine` label does.
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,11 +28,74 @@ describe("the bundled opentide is the default runtime", () => {
   });
 });
 
+// #100: first problems on 1,000 rules took 10.6 s under @vscode/wasm-wasi and 4.5 s through the launcher, so the launcher is
+// the default wherever it runs. The `wasi` label installs ms-vscode.wasm-wasi-core, `wasi-launcher` does not.
+describe("which host runs the bundled module (#100)", () => {
+  const WASM_WASI_CORE = "ms-vscode.wasm-wasi-core";
+  const installed = (): boolean => vscode.extensions.getExtension(WASM_WASI_CORE) !== undefined;
+  const setHost = (value: string | undefined): Thenable<void> =>
+    vscode.workspace
+      .getConfiguration("opentide.wasi")
+      .update("host", value, vscode.ConfigurationTarget.Global);
+  const restart = async (reason: string) => {
+    const api = await activated();
+    await api.ctx.runtime.restart(reason);
+    assert.ok(await api.ctx.client.ready(), "the language client runs");
+    return api;
+  };
+  const noInstalledOpentide = (): Thenable<void> =>
+    vscode.workspace
+      .getConfiguration("opentide")
+      .update("path", path.join(ROOT, "no-such-dir", "opentide"), vscode.ConfigurationTarget.Global);
+  before(noInstalledOpentide);
+  after(async () => {
+    await setHost(undefined);
+    await vscode.workspace
+      .getConfiguration("opentide")
+      .update("path", undefined, vscode.ConfigurationTarget.Global);
+  });
+
+  it("runs the launcher with opentide.wasi.host at its default, whether or not ms-vscode.wasm-wasi-core is installed", async () => {
+    await setHost(undefined);
+    const api = await restart("wasi host: default");
+    assert.equal(api.wasiHost(), "launcher", `wasm-wasi-core installed: ${installed()}`);
+  });
+
+  it("runs the launcher when opentide.wasi.host says launcher", async () => {
+    await setHost("launcher");
+    const api = await restart("wasi host: launcher");
+    assert.equal(api.wasiHost(), "launcher");
+  });
+
+  it("runs under @vscode/wasm-wasi when opentide.wasi.host asks for it and ms-vscode.wasm-wasi-core is installed", async function () {
+    if (!installed()) this.skip();
+    await setHost("wasm-wasi");
+    const api = await restart("wasi host: wasm-wasi");
+    assert.equal(api.wasiHost(), "wasm-wasi");
+    const uri = fixture("detections", "rules", "misspelled-tlp.yaml");
+    await vscode.window.showTextDocument(uri);
+    await waitFor(() => (vscode.languages.getDiagnostics(uri).length > 0 ? true : undefined));
+  });
+
+  it("falls back to the launcher when opentide.wasi.host asks for wasm-wasi and the extension is not installed", async function () {
+    if (installed()) this.skip();
+    await setHost("wasm-wasi");
+    const api = await restart("wasi host: wasm-wasi, not installed");
+    assert.equal(api.wasiHost(), "launcher");
+  });
+});
+
+// The `wasi` label has ms-vscode.wasm-wasi-core and this suite runs under it (opentide.wasi.host: wasm-wasi), where the
+// default would be the launcher; the `wasi-launcher` label has no such extension and runs it through the launcher.
 describe("the WASI module (tier 4), with no opentide anywhere", () => {
+  const expectedHost = vscode.extensions.getExtension("ms-vscode.wasm-wasi-core") ? "wasm-wasi" : "launcher";
   before(async () => {
     await vscode.workspace
       .getConfiguration("opentide")
       .update("path", path.join(ROOT, "no-such-dir", "opentide"), vscode.ConfigurationTarget.Global);
+    await vscode.workspace
+      .getConfiguration("opentide.wasi")
+      .update("host", expectedHost, vscode.ConfigurationTarget.Global);
     const api = await activated();
     await api.ctx.runtime.restart("wasi test");
   });
@@ -39,6 +103,9 @@ describe("the WASI module (tier 4), with no opentide anywhere", () => {
     await vscode.workspace
       .getConfiguration("opentide")
       .update("path", undefined, vscode.ConfigurationTarget.Global);
+    await vscode.workspace
+      .getConfiguration("opentide.wasi")
+      .update("host", undefined, vscode.ConfigurationTarget.Global);
   });
 
   it("is the runtime when opentide.path (which selects the installed opentide) names nothing", async () => {
@@ -55,6 +122,7 @@ describe("the WASI module (tier 4), with no opentide anywhere", () => {
     const api = await activated();
     const client = await api.ctx.client.ready();
     assert.ok(client, "the WASI language client runs");
+    assert.equal(api.wasiHost(), expectedHost);
     assert.equal(api.ctx.client.serverInfo?.host?.name, "opentide");
     assert.equal(api.ctx.runtime.current?.source, "wasi");
     const uri = fixture("detections", "rules", "misspelled-tlp.yaml");

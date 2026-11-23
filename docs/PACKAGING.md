@@ -26,9 +26,10 @@ SHA-256, verified like the module): `THIRD-PARTY-LICENSES.html` (every Rust crat
 `cargo about` with `wasm32-wasip1`; opentide#1741), `WASI-LIBC-LICENSES.txt`, `LICENSE`, `NOTICE` and `THIRD-PARTY-DATA-LICENSES.txt` (the licence files `NOTICE`
 cites for the datasets compiled into the module). They are
 not the engine's copies in `dist/engine/`, which belong to another build and would go stale when the module is
-bumped. `npm run wasi` downloads and verifies the module and the five files without building. The module needs the
-`ms-vscode.wasm-wasi-core` extension when it is installed (`@vscode/wasm-wasi`), and otherwise runs through
-the launcher as child processes: nothing to install. It is no `extensionDependencies` entry: the core
+bumped. `npm run wasi` downloads and verifies the module and the five files without building. The module runs through
+the launcher as child processes, even when the `ms-vscode.wasm-wasi-core` extension is installed (4.5 s to the first
+problems on 1,000 rules, against 10.6 s under `@vscode/wasm-wasi`; `opentide.wasi.host` can ask for that extension):
+nothing to install. It is no `extensionDependencies` entry: the core
 extension declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode, and an
 extension that depended on it would not activate there.
 
@@ -214,7 +215,7 @@ gh run download <run id> --repo opentidehq/vscode-extension --name opentide-vsix
 code --install-extension opentide-universal-<version>-wasi-<sha>.vsix
 ```
 
-Nothing else to install: with no `ms-vscode.wasm-wasi-core` (WASM WASI Core) the module runs through VS Code's Node, which the output channel says (`WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node`); install that extension and **opentide: Restart Server** to try the other host. Uninstall
+Nothing else to install: the module runs through VS Code's Node, which the output channel says (`WASI: ms-vscode.wasm-wasi-core is not installed: the module runs through VS Code's Node`, or `... is installed and not used: ...` with the WASM WASI Core extension); set `opentide.wasi.host` to `wasm-wasi` and **opentide: Restart Server** to try the other host. Uninstall
 with `code --uninstall-extension opentidehq.opentide`. Try it **on a machine with no opentide installed**
 (or set `opentide.path` to a path that is nothing, and keep `opentide` off `PATH`):
 

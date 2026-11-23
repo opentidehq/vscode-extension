@@ -84,6 +84,14 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **The first problems of a large workspace come about twice as fast with the WASM WASI Core extension installed.** The
+  bundled opentide ran under that extension whenever it was there: 10.6 seconds to the first problems on 1,000 rules,
+  against 4.5 seconds through VS Code's own Node. It now runs through VS Code's Node wherever it can, and
+  `opentide.wasi.host` (`wasm-wasi`) asks for the WASM WASI Core extension instead
+  ([#100](https://github.com/opentidehq/vscode-extension/issues/100)).
+- **A server restart no longer logs a warning.** With the WASM WASI Core extension, every **Restart Server** wrote
+  "opentide lsp start exited with code 1" for the server the extension had stopped itself
+  ([#99](https://github.com/opentidehq/vscode-extension/issues/99)).
 - **A rule you open right after the language server restarts gets its problems.** The server could be asked
   for a file's problems before it had been told the file was open, answer that there were none, and VS Code
   kept that answer. The extension now asks once more after the file is open.

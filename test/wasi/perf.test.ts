@@ -1,5 +1,6 @@
-// How long the first document opened after a language server start waits for its diagnostics, in a real VS Code, under
-// whichever WASI host the label has (`wasm-wasi-core` for `wasi`, the launcher for `wasi-launcher`). It prints one
+// How long the first document opened after a language server start waits for its diagnostics, in a real VS Code, on each
+// WASI host the label has (the launcher, the default, and `wasm-wasi` where the `wasi` label installs
+// ms-vscode.wasm-wasi-core; `opentide.wasi.host` selects one). It prints one
 // `WASI-PERF` line per round and fails only when more than a quarter of the rounds get no diagnostics at all. Runs only with
 // OPENTIDE_PERF=1 (the Test VSIX workflow sets it). docs/PACKAGING.md, "Cold start of the language server", has the numbers.
 import * as assert from "node:assert/strict";
@@ -81,9 +82,33 @@ describe("language server cold start: the first document after a start", functio
 
   // `auto` is what a person gets; `never` is the old behaviour on a server whose version did not parse (the workspace pull
   // answered with nothing), kept to show whether the closed files' pull has anything to do with a round's diagnostics.
-  for (const pull of ["auto", "never"] as const)
-    it(`gets its diagnostics, and how soon is printed (workspacePull ${pull})`, async () => {
+  // Each host the window has: the launcher (the default), and @vscode/wasm-wasi when ms-vscode.wasm-wasi-core is installed
+  // (opentide.wasi.host asks for it), so one run prints both (#100: 4.5 s against 10.6 s on 1,000 rules).
+  const cases: { requested: "launcher" | "wasm-wasi"; pull: "auto" | "never" }[] = [
+    { requested: "launcher", pull: "auto" },
+    { requested: "launcher", pull: "never" },
+  ];
+  if (vscode.extensions.getExtension("ms-vscode.wasm-wasi-core"))
+    cases.push({ requested: "wasm-wasi", pull: "auto" }, { requested: "wasm-wasi", pull: "never" });
+  // A failed round leaves the settings it set: the next test starts from the defaults.
+  afterEach(async () => {
+    for (const [section, key] of [
+      ["opentide.wasi", "host"],
+      ["opentide.diagnostics", "workspacePull"],
+      ["opentide", "trace.server"],
+    ] as const)
+      await vscode.workspace
+        .getConfiguration(section)
+        .update(key, undefined, vscode.ConfigurationTarget.Global);
+  });
+  for (const { requested, pull } of cases)
+    it(`gets its diagnostics, and how soon is printed (${requested}, workspacePull ${pull})`, async () => {
       const api = await activated();
+      const hostSetting = vscode.workspace.getConfiguration("opentide.wasi");
+      const hostBefore = hostSetting.inspect<string>("host")?.globalValue;
+      await hostSetting.update("host", requested, vscode.ConfigurationTarget.Global);
+      await api.ctx.runtime.restart("perf host");
+      const host = api.wasiHost() ?? requested;
       const pullSetting = vscode.workspace.getConfiguration("opentide");
       const pullBefore = pullSetting.inspect<string>("diagnostics.workspacePull")?.globalValue;
       await pullSetting.update("diagnostics.workspacePull", pull, vscode.ConfigurationTarget.Global);
@@ -92,7 +117,6 @@ describe("language server cold start: the first document after a start", functio
       const trace = vscode.workspace.getConfiguration("opentide");
       const traceBefore = trace.inspect<string>("trace.server")?.globalValue;
       await trace.update("trace.server", "verbose", vscode.ConfigurationTarget.Global);
-      const host = vscode.extensions.getExtension("ms-vscode.wasm-wasi-core") ? "wasm-wasi-core" : "launcher";
       const ready: number[] = [];
       const first: number[] = [];
       let timeouts = 0;
@@ -140,6 +164,7 @@ describe("language server cold start: the first document after a start", functio
       }
       await trace.update("trace.server", traceBefore, vscode.ConfigurationTarget.Global);
       await pullSetting.update("diagnostics.workspacePull", pullBefore, vscode.ConfigurationTarget.Global);
+      await hostSetting.update("host", hostBefore, vscode.ConfigurationTarget.Global);
       say(
         `WASI-PERF host=${host} pull=${pull} median open->diagnostics ${median(first)}ms, restart->ready ${median(ready)}ms, ` +
           `${timeouts} of ${ROUNDS} rounds with no diagnostics in 30 s`,

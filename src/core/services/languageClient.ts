@@ -474,6 +474,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       return;
     }
     this.emitter.fire(undefined);
+    // The server's exit that `stop` brings about is expected (a WASI host may report a code of 1 for it, #99).
+    this.wasiServer?.expectExit();
     try {
       await client.stop(5000);
     } catch (error) {

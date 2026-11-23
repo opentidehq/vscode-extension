@@ -52,9 +52,9 @@ pip install opentide
 
 `uv tool install opentide`, or a `.venv` with opentide in it, works too. With no opentide installed, the
 extension runs the opentide it carries (about 7 MiB, one for every platform), with nothing else to install:
-VS Code's own Node runs it, or the
+VS Code's own Node runs it, even when the
 [WASM WASI Core](https://marketplace.visualstudio.com/items?itemName=ms-vscode.wasm-wasi-core) extension
-when you have it. The module has no network of its own: the extension makes its tenant
+is installed (`opentide.wasi.host` can ask for that extension instead). The module has no network of its own: the extension makes its tenant
 requests (query, deploy, `validate --live`), through VS Code's proxy settings and certificate store.
 
 ## Features
@@ -392,7 +392,7 @@ The bundled module has no network of its own, so a tenant command run as a task 
 `opentide tui` does not run: the extension says so and offers **Switch Runtime…** (**My installed opentide**).
 
 The engine (tier 5) is what runs where nothing else does: Restricted Mode, the module turned off or
-unable to run (the WASM WASI Core extension missing). It gives the editor features: diagnostics, hover, completion, semantic
+unable to run. It gives the editor features: diagnostics, hover, completion, semantic
 tokens, quick fixes, go to definition, references, the outline, and, from its index of the workspace,
 the Catalogue, Relations, the graph and Find Detection. The status bar then reads **opentide engine
 (WASM): editor features only**. Everything that runs opentide (validate and lint, new objects, deploy
@@ -418,6 +418,7 @@ workspace's opentide need a trusted folder.
 | `opentide.uv.path` | | The `uv` executable for `opentide.uv.usePin` (default: `uv` on `PATH`) |
 | `opentide.diagnostics.workspacePull` | `auto` | Whether VS Code asks the language server for the problems of closed files. `auto` skips it for an opentide older than 1.0.0rc3, whose server stalls completion re-analysing them: those problems then leave the Problems panel (open files keep theirs, `opentide validate` still reports the workspace) |
 | `opentide.wasi.enabled` | `true` | Allow the bundled opentide; off: your own opentide if one answers, else the engine's editor features only |
+| `opentide.wasi.host` | `auto` | What runs the bundled opentide: `auto` and `launcher` use VS Code's own Node (first problems on 1,000 rules in 4.5 s, against 10.6 s under WASM WASI Core, and nothing to install); `wasm-wasi` uses the WASM WASI Core extension when it is installed. Applies at the next **Restart Server** |
 | `opentide.agents.embeddedSkills` | `auto` | Whether the extension contributes the opentide skills to VS Code's agents: `auto` leaves them out when the `opentide` Agent Plugin is installed and on, `always`, or `never` (machine setting) |
 | `opentide.agents.writeEditorConfig` | `ask` | In Kiro, Devin Desktop and Windsurf (no extension API for MCP servers): `ask` before adding the opentide entry to the editor's user-level MCP file, `always`, or `never` (machine setting) |
 | `opentide.envFile` | | A `.env` file whose variables reach commands that contact a tenant |

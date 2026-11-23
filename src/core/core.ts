@@ -36,10 +36,13 @@ import { menuSections, problemsText } from "./statusText";
 import { editorOnlyText, INSTALL_URL } from "./unavailable";
 import { Emitter } from "./util/event";
 import { serialized } from "./util/serial";
+import type { WasiHostKind } from "./wasi/hostChoice";
 import { createWebviewHelpers } from "./webview/panel";
 
 export interface Core {
   readonly ctx: FeatureContext;
+  /** The host the bundled opentide last started on (launcher or @vscode/wasm-wasi); for the tests. */
+  readonly wasiHost: () => WasiHostKind | undefined;
   /** Resolve the runtime and start the language server, in the background. */
   start(): Promise<void>;
   /**
@@ -422,6 +425,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
 
   return {
     ctx,
+    wasiHost: () => wasiHost.host,
     start,
     shutdown: async (deadlineMs = 4000) => {
       // In order: stop what would start more (a resolution in flight), then the language server, `serve`, and last
