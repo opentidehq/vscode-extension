@@ -15,6 +15,7 @@ import {
 } from "../../../src/features/agents/forks";
 import { parseJsonc, stripJsonc } from "../../../src/features/agents/jsonc";
 import {
+  bridgeCacheFile,
   bridgeInsteadText,
   cursorWorkspaceDiscovered,
   decideMcp,
@@ -692,6 +693,27 @@ describe("agents: the bundled MCP bridge", () => {
     workspaceEntries: [],
     bridge,
     ...overrides,
+  });
+
+  describe("keeps what the module says at start-up, so that it starts at the first tool call (#96)", () => {
+    it("names a cache file under the folder it is given, one per workspace folder", () => {
+      const a = decideMcp(inputs({ cacheDir: "/storage/mcp-cache" }));
+      const b = decideMcp(inputs({ cacheDir: "/storage/mcp-cache", folder: "/other" }));
+      assert.ok(a.provide && b.provide);
+      const file = a.server.env.OPENTIDE_MCP_CACHE ?? "";
+      assert.ok(file.startsWith(path.join("/storage/mcp-cache", "")), file);
+      assert.ok(file.endsWith(".json"));
+      assert.notEqual(file, b.server.env.OPENTIDE_MCP_CACHE);
+      assert.equal(file, bridgeCacheFile("/storage/mcp-cache", "/ws"), "the same folder, the same file");
+    });
+
+    it("names none without a folder to keep it in, or for a user-level file, which has no repository of its own", () => {
+      const none = decideMcp(inputs());
+      const file = decideMcp(inputs({ cacheDir: "/storage/mcp-cache", forFile: true }));
+      assert.ok(none.provide && file.provide);
+      assert.equal(none.server.env.OPENTIDE_MCP_CACHE, undefined);
+      assert.equal(file.server.env.OPENTIDE_MCP_CACHE, undefined);
+    });
   });
 
   it("is the server where no native opentide resolves: the editor's own Node runs the bridge, in the folder", () => {

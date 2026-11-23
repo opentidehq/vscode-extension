@@ -155,6 +155,7 @@ async function decideNow(
     workspaceEntries: mode === "never" ? [] : await workspaceEntries(),
     proxy: httpProxy(),
     bridge: bundledBridge(ctx),
+    cacheDir: path.join(ctx.extension.globalStorageUri.fsPath, "mcp-cache"),
     ...(options.forFile ? { forFile: true } : {}),
   });
   const line = log?.line(decision);
