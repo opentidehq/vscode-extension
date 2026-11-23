@@ -7,7 +7,7 @@
 //   node scripts/release.mjs prerelease [X.Y.Z]    "true" for an odd minor, "false" for an even one
 //   node scripts/release.mjs notes [X.Y.Z] [--no-attestation]
 //                                                  the GitHub Release body, from the version's CHANGELOG.md section
-//   node scripts/release.mjs assets DIR [X.Y.Z]    DIR's VSIX file is this version's universal package
+//   node scripts/release.mjs assets DIR [X.Y.Z]    DIR holds this version's two packages, one per store, the same but for the publisher
 //   node scripts/release.mjs sums DIR              write DIR/SHA256SUMS for every file in DIR
 //   node scripts/release.mjs sizes DIR             a Markdown table of DIR/*.size.json (for $GITHUB_STEP_SUMMARY)
 //

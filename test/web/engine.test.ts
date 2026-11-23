@@ -22,10 +22,10 @@ async function waitFor<T>(
 }
 
 async function api(): Promise<{ session?: EngineSession; explained?: readonly string[] }> {
-  const extension = vscode.extensions.getExtension<{
-    session?: EngineSession;
-    explained?: readonly string[];
-  }>("opentidehq.opentide");
+  // By its name: the publisher differs between the stores' packages (docs/RELEASING.md).
+  const extension = vscode.extensions.all.find(
+    (candidate) => (candidate.packageJSON as { name?: unknown }).name === "opentide",
+  ) as vscode.Extension<{ session?: EngineSession; explained?: readonly string[] }> | undefined;
   ok(extension, "the extension is installed");
   return extension.activate();
 }

@@ -6,15 +6,19 @@
 #
 #   prepare      the version is CHANGELOG.md's newest dated section (scripts/release.mjs); the notes PR
 #                merged ([Unreleased] is empty, package.json has the version) and its tag does not exist
-#   universal    the one package, for every platform and the web: the extension runs the user's own
-#                opentide, else the WASI module it carries, and carries no Python runtime
-#   attest       the VSIX is this version and channel; SHA256SUMS; build provenance
+#   universal    one universal package per store, for every platform and the web: the extension runs the
+#                user's own opentide, else the WASI module it carries, and carries no Python runtime. The
+#                Marketplace's is opentide.opentide, Open VSX's opentidehq.opentide: the same build, differing
+#                only in package.json's publisher (docs/RELEASING.md, "One-time setup")
+#   attest       the two VSIXs are this version and channel, each with its store's publisher and otherwise
+#                identical; SHA256SUMS; build provenance
 #                (public repository, or the repository variable ATTEST=true on GitHub Enterprise Cloud;
 #                otherwise a warning, and the release goes out with SHA256SUMS only)
 #   release      the v<version> tag and the GitHub Release with the notes and the assets, only now that
 #                every package built and passed its smoke test
-#   publish-*    the Marketplace (vsce --oidc) and Open VSX (ovsx, trusted publishing or OVSX_PAT), in
-#                the `production` environment, independent of each other; vsce and ovsx come from
+#   publish-*    the Marketplace package to the Marketplace (vsce --oidc) and the Open VSX package to Open
+#                VSX (ovsx, trusted publishing or OVSX_PAT), in the `production` environment, independent of
+#                each other; vsce and ovsx come from
 #                tools/publish/package-lock.json (npm ci --ignore-scripts), never npx
 #
 # Trusted publishing: the Marketplace policy and the Open VSX trusted publisher name this file,
@@ -109,15 +113,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      # Every platform, and vscode.dev / github.dev.
+      # Every platform, and vscode.dev / github.dev: one package per store, from one build.
       - name: Package
         run: |
           set -euo pipefail
           flags=(--universal)
           if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
           npm run package -- "${flags[@]}"
-      - name: Smoke test
-        run: npm run smoke -- dist-vsix/opentide-universal-*.vsix
+      - name: Smoke test, the Marketplace package (opentide.opentide)
+        run: npm run smoke -- dist-vsix/opentide-marketplace-*.vsix
+      - name: Smoke test, the Open VSX package (opentidehq.opentide)
+        run: npm run smoke -- dist-vsix/opentide-openvsx-*.vsix
       - name: Size
         if: ${{ !cancelled() }}
         run: node scripts/release.mjs sizes dist-vsix >> "$GITHUB_STEP_SUMMARY"
@@ -154,7 +160,7 @@ jobs:
           pattern: vsix-*
           path: release
           merge-multiple: true
-      - name: The universal package, of this version and channel
+      - name: One package per store, of this version and channel, the same but for the publisher
         run: node scripts/release.mjs assets release "${VERSION}"
       # Last, once release/ holds every asset: a user runs `sha256sum -c SHA256SUMS` on a download.
       - name: SHA256SUMS
@@ -259,8 +265,8 @@ jobs:
           done
 
   # The two stores are independent: each needs only the GitHub Release, so one failing never blocks the
-  # other, and "Re-run failed jobs" retries only the one that failed. Both take the packages from the
-  # Release, check them against SHA256SUMS, and skip what the store already has.
+  # other, and "Re-run failed jobs" retries only the one that failed. Both download the Release's assets,
+  # check them against SHA256SUMS, publish their own store's package only, and skip what the store has.
   publish-marketplace:
     name: Publish to the Visual Studio Marketplace
     needs: [prepare, release]
@@ -268,7 +274,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide
+      url: https://marketplace.visualstudio.com/items?itemName=opentide.opentide
     # id-token: write for the Marketplace's OIDC trusted publishing (no PAT).
     permissions:
       contents: read
@@ -276,6 +282,8 @@ jobs:
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      # The Marketplace's package only: publisher `opentide` (the banned `opentidehq` cannot publish there).
+      VSIX: release/opentide-marketplace-${{ needs.prepare.outputs.version }}.vsix
     steps:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -295,26 +303,24 @@ jobs:
           set -euo pipefail
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
           (cd release && sha256sum --check --strict SHA256SUMS)
-      # One call for every package. vsce exchanges a fresh OIDC token for each VSIX (getPAT per package,
-      # duplicates included), so a refusal partway leaves the earlier packages published; a re-run is
-      # safe with --skip-duplicate.
+      # The Marketplace package only (opentide.opentide); a re-run is safe with --skip-duplicate.
       - name: vsce publish --oidc
         run: |
           set -euo pipefail
           flags=(--oidc --skip-duplicate)
           if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
-          tools/publish/node_modules/.bin/vsce publish "${flags[@]}" --packagePath release/*.vsix
+          tools/publish/node_modules/.bin/vsce publish "${flags[@]}" --packagePath "${VSIX}"
       # vsce reporting "Published" is not the Marketplace listing the package: 0.1.0, the extension's first
-      # publish, kept only its first package of eight. Wait until the gallery lists every package of the
-      # Release, publish the missing ones again, and fail naming them if they still do not appear.
-      - name: The Marketplace lists every package
+      # publish, kept only its first package of eight. Wait until the gallery lists the package, publish it
+      # again if it is missing, and fail naming it if it still does not appear.
+      - name: The Marketplace lists the package
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           flags=()
           if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
-          node tools/publish/marketplace.mjs opentidehq.opentide "${VERSION}" release "${flags[@]}"
+          node tools/publish/marketplace.mjs opentide.opentide "${VERSION}" "${VSIX}" "${flags[@]}"
 
   publish-openvsx:
     name: Publish to Open VSX
@@ -330,6 +336,8 @@ jobs:
       id-token: write
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
+      # The Open VSX package only: the verified namespace `opentidehq`.
+      VSIX: release/opentide-openvsx-${{ needs.prepare.outputs.version }}.vsix
     steps:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -349,7 +357,7 @@ jobs:
           set -euo pipefail
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
           (cd release && sha256sum --check --strict SHA256SUMS)
-      # The pre-release flag is in each package (`vsce package --pre-release`); ovsx reads it from there.
+      # The pre-release flag is in the package (`vsce package --pre-release`); ovsx reads it from there.
       - name: ovsx publish
         env:
           # Only for the first publish of the extension, which trusted publishing cannot do; remove the
@@ -360,7 +368,7 @@ jobs:
           if [[ -n "${OVSX_PAT}" ]]; then
             echo "::warning::Publishing to Open VSX with the OVSX_PAT secret. Once the trusted publisher is registered, delete the secret (docs/RELEASING.md)."
             # ovsx reads OVSX_PAT from the environment: the token never appears on a command line.
-            tools/publish/node_modules/.bin/ovsx publish --skip-duplicate --packagePath release/*.vsix
+            tools/publish/node_modules/.bin/ovsx publish --skip-duplicate --packagePath "${VSIX}"
           else
-            tools/publish/node_modules/.bin/ovsx publish --trusted-publishing --skip-duplicate --packagePath release/*.vsix
+            tools/publish/node_modules/.bin/ovsx publish --trusted-publishing --skip-duplicate --packagePath "${VSIX}"
           fi

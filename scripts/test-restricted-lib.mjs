@@ -59,8 +59,8 @@ export function runnerOptions({ files, timeout, color }) {
   return JSON.stringify({ mochaOpts: { ui: "bdd", timeout }, colorDefault: color, preload: [], files });
 }
 
-/** The extension's log files under a user-data-dir (`logs/<session>/.../exthost/opentidehq.opentide/`). */
-export function extensionLogs(userDataDir, extensionId = "opentidehq.opentide") {
+/** The extension's log files under a user-data-dir (`logs/<session>/.../exthost/<publisher>.opentide/`). */
+export function extensionLogs(userDataDir, extensionId) {
   const logs = join(userDataDir, "logs");
   if (!existsSync(logs)) return [];
   return readdirSync(logs, { recursive: true, withFileTypes: true })

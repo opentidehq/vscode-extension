@@ -23,6 +23,9 @@ import {
 } from "./test-restricted-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The id of the extension under test (its log folder): the publisher differs between the stores' packages.
+const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const extensionId = `${manifest.publisher}.${manifest.name}`;
 const require = createRequire(import.meta.url);
 const electron = require("@vscode/test-electron");
 const runner = join(dirname(require.resolve("@vscode/test-cli")), "runner.cjs");
@@ -77,7 +80,7 @@ try {
 
   // A failure is read from CI's log: print the extension's own logs before they go with the folder.
   if (code !== 0 && code !== 130 && code !== 143)
-    for (const file of extensionLogs(userDataDir)) {
+    for (const file of extensionLogs(userDataDir, extensionId)) {
       console.log(`::group::${file}`);
       console.log(readFileSync(file, "utf8"));
       console.log("::endgroup::");

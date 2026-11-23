@@ -124,11 +124,13 @@ export interface McpEntry {
   readonly env: Readonly<Record<string, string>>;
 }
 
-/** The environment variable that marks an entry as this extension's: only such an entry is rewritten or removed. */
+/**
+ * The environment variable that marks an entry as this extension's: only such an entry is rewritten or removed.
+ * Its value is the extension's id (`context.extension.id`, passed to each function below), so a rewrite is for
+ * this extension and not another that copied it. The id is never a literal: the publisher differs between the
+ * Visual Studio Marketplace and Open VSX (docs/RELEASING.md).
+ */
 export const MARKER_ENV = "OPENTIDE_VSCODE_EXTENSION";
-
-/** The marker's value: the extension's id, so a rewrite is for this extension and not another that copied it. */
-export const MARKER_VALUE = "opentidehq.opentide";
 
 export type MergeResult =
   | { readonly kind: "write"; readonly text: string }
@@ -176,18 +178,18 @@ export function configProblem(existing: string | undefined): string | undefined 
 }
 
 /** Whether a server entry carries this extension's marker. */
-export function isOurs(entry: unknown): boolean {
+export function isOurs(entry: unknown, extensionId: string): boolean {
   if (!isRecord(entry) || !isRecord(entry.env)) return false;
-  return entry.env[MARKER_ENV] === MARKER_VALUE;
+  return entry.env[MARKER_ENV] === extensionId;
 }
 
 const stringify = (config: unknown, indent: string): string => `${JSON.stringify(config, null, indent)}\n`;
 
-function entryValue(entry: McpEntry): Record<string, unknown> {
+function entryValue(entry: McpEntry, extensionId: string): Record<string, unknown> {
   return {
     command: entry.command,
     args: [...entry.args],
-    env: { ...entry.env, [MARKER_ENV]: MARKER_VALUE },
+    env: { ...entry.env, [MARKER_ENV]: extensionId },
   };
 }
 
@@ -196,12 +198,16 @@ function entryValue(entry: McpEntry): Record<string, unknown> {
  * server and key. An `opentide` server it did not write (no marker) is `foreign` and left alone; an unreadable
  * file is an `error`: the caller says so instead of overwriting it.
  */
-export function mergeMcpEntry(existing: string | undefined, entry: McpEntry): MergeResult {
+export function mergeMcpEntry(
+  existing: string | undefined,
+  entry: McpEntry,
+  extensionId: string,
+): MergeResult {
   const parsed = parseConfig(existing);
   if ("error" in parsed) return { kind: "error", error: parsed.error };
   const current = parsed.servers[MCP_LABEL];
-  if (current !== undefined && !isOurs(current)) return { kind: "foreign" };
-  const value = entryValue(entry);
+  if (current !== undefined && !isOurs(current, extensionId)) return { kind: "foreign" };
+  const value = entryValue(entry, extensionId);
   if (current !== undefined && JSON.stringify(current) === JSON.stringify(value)) return { kind: "same" };
   const next = { ...parsed.config, mcpServers: { ...parsed.servers, [MCP_LABEL]: value } };
   return { kind: "write", text: stringify(next, parsed.indent) };
@@ -217,10 +223,10 @@ export type RemoveResult =
  * The text with this extension's `opentide` entry gone (and `mcpServers` too when it was the only server).
  * An entry the user wrote is never removed (`none`); a file that cannot be read is an `error`, not "no entry".
  */
-export function removeMcpEntry(existing: string | undefined): RemoveResult {
+export function removeMcpEntry(existing: string | undefined, extensionId: string): RemoveResult {
   const parsed = parseConfig(existing);
   if ("error" in parsed) return { kind: "error", error: parsed.error };
-  if (!isOurs(parsed.servers[MCP_LABEL])) return { kind: "none" };
+  if (!isOurs(parsed.servers[MCP_LABEL], extensionId)) return { kind: "none" };
   const { [MCP_LABEL]: _gone, ...rest } = parsed.servers;
   const { mcpServers: _servers, ...others } = parsed.config;
   const next = Object.keys(rest).length > 0 ? { ...others, mcpServers: rest } : others;
@@ -228,7 +234,7 @@ export function removeMcpEntry(existing: string | undefined): RemoveResult {
 }
 
 /** Whether the file has an `opentide` entry this extension wrote. */
-export function hasOurEntry(existing: string | undefined): boolean {
+export function hasOurEntry(existing: string | undefined, extensionId: string): boolean {
   const parsed = parseConfig(existing);
-  return !("error" in parsed) && isOurs(parsed.servers[MCP_LABEL]);
+  return !("error" in parsed) && isOurs(parsed.servers[MCP_LABEL], extensionId);
 }

@@ -4,7 +4,9 @@
 // installed copy of the extension and runs its bridge (dist/mcp-wasi.js), with stdio untouched.
 //
 //   ELECTRON_RUN_AS_NODE=1 <editor> mcp-launcher.cjs
-//   env: OPENTIDE_EXTENSIONS_DIR  the editor's extensions folder (where `opentidehq.opentide-<version>` live)
+//   env: OPENTIDE_EXTENSIONS_DIR  the editor's extensions folder (where `<publisher>.opentide-<version>` live)
+//        OPENTIDE_EXTENSION_ID    the extension's id (`<publisher>.opentide`: the publisher differs between
+//                                 stores); without it, the name of this file's folder (the global storage)
 //        OPENTIDE_MCP_ENTRY_FILE  the user-level MCP file that holds the entry, named in the error below
 //
 // With no copy installed (the extension was uninstalled): one line on stderr, an MCP error for the first
@@ -12,7 +14,13 @@
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
-import { errorForFirstRequest, type Files, newestInstalled, notInstalledMessage } from "./pick";
+import {
+  errorForFirstRequest,
+  extensionIdOf,
+  type Files,
+  newestInstalled,
+  notInstalledMessage,
+} from "./pick";
 
 const files: Files = {
   list: (dir) => {
@@ -42,7 +50,8 @@ const files: Files = {
 function main(): void {
   const dir = process.env.OPENTIDE_EXTENSIONS_DIR;
   const entryFile = process.env.OPENTIDE_MCP_ENTRY_FILE;
-  const installed = dir ? newestInstalled(dir, files) : undefined;
+  const extensionId = extensionIdOf(process.env.OPENTIDE_EXTENSION_ID, __dirname);
+  const installed = dir && extensionId ? newestInstalled(dir, files, extensionId) : undefined;
   if (installed) {
     process.stderr.write(`opentide mcp launcher: running ${installed.folder}\n`);
     // The bridge starts itself when loaded and keeps this process alive; its stdio is ours.

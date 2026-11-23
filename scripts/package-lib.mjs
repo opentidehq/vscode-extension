@@ -6,9 +6,45 @@ export class PackageError extends Error {}
 
 export const OUT_DIR = "dist-vsix";
 
-/** `opentide-<target>-<version>.vsix`, or `opentide-universal-<version>.vsix`. */
-export function vsixName(target, version) {
-  return `opentide-${target ?? "universal"}-${version}.vsix`;
+/** The extension's name: the part of its id after the publisher, the same in every store. */
+export const EXTENSION_NAME = "opentide";
+
+/**
+ * The stores, each with its own publisher (docs/RELEASING.md, "One-time setup"). The Visual Studio Marketplace
+ * publisher `opentidehq` was banned and cannot be registered again, so the Marketplace package is
+ * `opentide.opentide`; Open VSX keeps its verified namespace, `opentidehq.opentide`. Both packages come from
+ * one build and differ only in package.json's `publisher` (and the manifest vsce derives from it).
+ * package.json in the repository is the Open VSX one: every other package is that one with its publisher
+ * replaced.
+ */
+export const STORES = Object.freeze([
+  Object.freeze({ store: "marketplace", label: "Visual Studio Marketplace", publisher: "opentide" }),
+  Object.freeze({ store: "openvsx", label: "Open VSX", publisher: "opentidehq" }),
+]);
+
+/** A store's extension id, `<publisher>.opentide`. */
+export const storeExtensionId = (store) => `${store.publisher}.${EXTENSION_NAME}`;
+
+/** `opentide-marketplace-<version>.vsix`, `opentide-openvsx-<version>.vsix`: one universal package per store. */
+export function vsixName(store, version) {
+  if (!STORES.some((known) => known.store === store))
+    throw new PackageError(`no store ${JSON.stringify(store)}`);
+  return `opentide-${store}-${version}.vsix`;
+}
+
+const PUBLISHER_LINE = /^( {2}"publisher": )"[^"]*"(,?)$/m;
+
+/**
+ * package.json's text with `publisher` set to `publisher`, and nothing else changed (not even its formatting):
+ * the one difference between the stores' packages.
+ */
+export function withPublisher(text, publisher) {
+  const lines = text.match(new RegExp(PUBLISHER_LINE.source, "gm")) ?? [];
+  if (lines.length !== 1)
+    throw new PackageError(`package.json has ${lines.length} top-level "publisher" lines, not 1`);
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(publisher))
+    throw new PackageError(`${JSON.stringify(publisher)} is not a publisher id`);
+  return text.replace(PUBLISHER_LINE, `$1${JSON.stringify(publisher)}$2`);
 }
 
 /**

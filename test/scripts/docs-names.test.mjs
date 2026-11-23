@@ -23,8 +23,11 @@ function sources(dir) {
 }
 const src = sources(join(ROOT, "src")).join("\n");
 
-/** Not extension names: the project's domain, and the Python module of the engine. */
-const NOT_NAMES = new Set(["opentide.org", "opentide._native"]);
+/**
+ * Not extension names: the project's domain, the Python module of the engine, and the Marketplace's extension id
+ * (docs/RELEASING.md), which is no setting, command or view.
+ */
+const NOT_NAMES = new Set(["opentide.org", "opentide._native", "opentide.opentide"]);
 
 /** `opentide.x.y` is known, or `opentide.x.*` names known settings; else a string the sources use (a context key). */
 function exists(name) {

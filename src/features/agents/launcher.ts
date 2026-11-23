@@ -1,5 +1,5 @@
 // The user-level MCP entry of Kiro, Devin Desktop and Windsurf, for the bundled bridge: it names a small stable
-// launcher in the extension's global storage, not `<extensions>/opentidehq.opentide-<version>/dist/mcp-wasi.js`.
+// launcher in the extension's global storage, not `<extensions>/<publisher>.opentide-<version>/dist/mcp-wasi.js`.
 // An update deletes the old extension folder, and the entry is only rewritten when the extension next activates;
 // until then a path with the version in it points at nothing. The launcher (src/mcp-launcher) finds the newest
 // installed copy when the agent starts it, so the entry stays byte-identical across updates. vscode-free.
@@ -14,6 +14,11 @@ export interface LauncherInput {
   readonly execPath: string;
   /** The extension's global storage folder (`context.globalStorageUri.fsPath`). */
   readonly storageDir: string;
+  /**
+   * The extension's id (`context.extension.id`): the launcher runs the newest folder of this id. The publisher
+   * differs between the Visual Studio Marketplace and Open VSX, so it is never a literal.
+   */
+  readonly extensionId: string;
   /** Where the editor keeps installed extensions: the folder that holds this extension's own. */
   readonly extensionPath: string;
   /** The user-level MCP file the entry is in, named when no copy of the extension is installed. */
@@ -38,6 +43,7 @@ export function launcherEntry(input: LauncherInput): McpEntry {
     env: {
       ELECTRON_RUN_AS_NODE: "1",
       OPENTIDE_EXTENSIONS_DIR: path.dirname(input.extensionPath),
+      OPENTIDE_EXTENSION_ID: input.extensionId,
       OPENTIDE_MCP_ENTRY_FILE: input.entryFile,
       ...(input.proxy ? { OPENTIDE_PROXY: input.proxy } : {}),
     },

@@ -1,6 +1,6 @@
 import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
-import { activated, waitFor } from "./helpers";
+import { activated, EXTENSION_ID, waitFor } from "./helpers";
 
 describe("setup (#16)", () => {
   it("registers the wizard and walkthrough commands", async () => {
@@ -12,7 +12,7 @@ describe("setup (#16)", () => {
   });
 
   it("contributes the walkthrough with seven steps (some in variants), each with a completion event", () => {
-    const extension = vscode.extensions.getExtension("opentidehq.opentide");
+    const extension = vscode.extensions.getExtension(EXTENSION_ID);
     assert.ok(extension);
     const manifest = extension.packageJSON as {
       contributes?: {

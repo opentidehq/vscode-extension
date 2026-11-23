@@ -1,15 +1,16 @@
-// After `vsce publish`, check that the Visual Studio Marketplace lists every package of the release, and
-// publish again the ones it does not. 0.1.0 was the extension's first publish: vsce reported all eight
-// packages published, but the Marketplace kept only the first (alpine-arm64), so VS Code on every other
-// platform said the extension was not available. A brand-new extension is validated asynchronously, and
-// the later uploads in that window were lost without an error.
+// After `vsce publish`, check that the Visual Studio Marketplace lists the release's package, and publish it
+// again if it does not. 0.1.0 was the extension's first publish: vsce reported all eight packages published,
+// but the Marketplace kept only the first (alpine-arm64), so VS Code on every other platform said the
+// extension was not available. A brand-new extension is validated asynchronously, and the later uploads in
+// that window were lost without an error. The Marketplace package is the extension `opentide.opentide`,
+// one universal VSIX (docs/RELEASING.md); the Open VSX one is not published here.
 //
-//   node tools/publish/marketplace.mjs <publisher.name> <version> <dir-of-vsix> [--pre-release]
+//   node tools/publish/marketplace.mjs <publisher.name> <version> <file.vsix> [--pre-release]
 //
 // Dependency-free (Node 22 fetch); the publish job runs it from tools/publish's sparse checkout.
 import { spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const GALLERY = "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery";
@@ -18,18 +19,9 @@ const UNIVERSAL = "universal";
 /** One line on stdout (the job log). */
 const say = (line) => process.stdout.write(`${line}\n`);
 
-/**
- * The packages a release directory holds, from their file names (`opentide-<target>-<version>.vsix`,
- * `opentide-universal-<version>.vsix`): `target` is the Marketplace's targetPlatform, or "universal".
- */
-export function expectedPackages(files, name, version) {
-  const prefix = `${name}-`;
-  const suffix = `-${version}.vsix`;
-  return files
-    .filter((file) => file.startsWith(prefix) && file.endsWith(suffix))
-    .map((file) => ({ file, target: file.slice(prefix.length, -suffix.length) }))
-    .filter(({ target }) => target.length > 0)
-    .sort((a, b) => a.target.localeCompare(b.target));
+/** The package `vsce publish` was given: one universal VSIX (the extension carries no runtime). */
+export function expectedPackages(file) {
+  return [{ file: basename(file), target: UNIVERSAL }];
 }
 
 /** The targets of `expected` the gallery's `versions` do not list at `version`. */
@@ -93,20 +85,21 @@ export async function ensurePublished({
 }
 
 function main() {
-  const [id, version, dir, ...rest] = process.argv.slice(2);
-  if (!id || !version || !dir) {
-    console.error("usage: marketplace.mjs <publisher.name> <version> <dir> [--pre-release]");
+  const [id, version, file, ...rest] = process.argv.slice(2);
+  if (!id || !version || !file?.endsWith(".vsix")) {
+    console.error("usage: marketplace.mjs <publisher.name> <version> <file.vsix> [--pre-release]");
     process.exit(2);
   }
-  const name = id.split(".")[1] ?? id;
-  const expected = expectedPackages(readdirSync(dir), name, version);
-  if (expected.length === 0) {
-    console.error(`marketplace: ${dir} has no ${name}-*-${version}.vsix`);
+  if (!existsSync(file)) {
+    console.error(`marketplace: ${file} does not exist`);
     process.exit(1);
   }
+  const dir = dirname(file);
+  const expected = expectedPackages(file);
   const vsce = fileURLToPath(new URL("./node_modules/.bin/vsce", import.meta.url));
-  const publish = ({ file, target }) => {
-    const args = ["publish", "--oidc", "--skip-duplicate", ...rest, "--packagePath", join(dir, file)];
+  const publish = (pkg) => {
+    const { target } = pkg;
+    const args = ["publish", "--oidc", "--skip-duplicate", ...rest, "--packagePath", join(dir, pkg.file)];
     say(`marketplace: vsce ${args.join(" ")} (${target})`);
     const done = spawnSync(vsce, args, { stdio: "inherit" });
     if (done.status !== 0) say(`marketplace: vsce exited ${done.status} for ${target}`);

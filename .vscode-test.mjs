@@ -1,7 +1,7 @@
 // @vscode/test-cli configurations. `npx vscode-test --label <label>`; they need a VS Code download, so
 // they run in CI, not in sandboxes without network access to update.code.visualstudio.com. The Restricted
 // Mode tests are scripts/test-restricted.mjs: test-cli always launches VS Code with workspace trust off.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { defineConfig } from "@vscode/test-cli";
 
@@ -12,8 +12,12 @@ const installExtensions = ["ms-vscode.wasm-wasi-core"];
 // The tests use mocha's describe/it (as npm test does); test-cli's runner defaults to the tdd UI.
 const mocha = { ui: "bdd" };
 
-/** `--log opentidehq.opentide=trace` for a perf run (OPENTIDE_PERF=1): the server's stderr (OPENTIDE_LSP_TIMING) is debug-level. */
-const perfLog = process.env.OPENTIDE_PERF === "1" ? ["--log", "opentidehq.opentide=trace"] : [];
+/** The extension under test, `<publisher>.<name>`: the publisher differs between the stores' packages. */
+const manifest = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+const extensionId = `${manifest.publisher}.${manifest.name}`;
+
+/** `--log <extension id>=trace` for a perf run (OPENTIDE_PERF=1): the server's stderr (OPENTIDE_LSP_TIMING) is debug-level. */
+const perfLog = process.env.OPENTIDE_PERF === "1" ? ["--log", `${extensionId}=trace`] : [];
 
 /** PATH without the folders that hold an opentide executable: the engine (WASM) tests run with none. */
 function pathWithoutOpentide() {

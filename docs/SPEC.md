@@ -157,7 +157,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 | Package | Contents | Who gets it |
 |---------|----------|-------------|
-| 1 universal VSIX | Extension, grammars, the WASI module and the engine (WASM). Runs the workspace's opentide or `opentide.path`, else the WASI module, else the engine for editor features, and says plainly which | Every platform, remotes, and the web entry ([§13](#13-trust-remote-and-web)) |
+| 1 universal VSIX per store, one build | Extension, grammars, the WASI module and the engine (WASM). Runs the workspace's opentide or `opentide.path`, else the WASI module, else the engine for editor features, and says plainly which. The Marketplace's (`opentide.opentide`) and Open VSX's (`opentidehq.opentide`) differ only in package.json's `publisher` ([RELEASING.md](RELEASING.md#two-publishers-and-why)) | Every platform, remotes, and the web entry ([§13](#13-trust-remote-and-web)) |
 
 - **No runtime and no `opentide-lsp` binary** (D1). `opentide.path` may name an `opentide-lsp` binary for people who want the bare server.
 - **The WASI module.** opentide's CLI on `wasm32-wasip1`, the release asset `opentide-wasm32-wasip1.wasm` (`pins.json` `wasi`, pinned by URL and SHA-256, downloaded and verified by `scripts/wasi.mjs`) is the runtime of tier 4. It costs 7.2 MiB compressed (26.9 MiB installed). Two hosts run it, with nothing to install: VS Code's own Node running the launcher as a child process (the default wherever it can run, even with the `ms-vscode.wasm-wasi-core` extension installed: the first problems on 1,000 rules take 4.5 s, against 10.6 s under `@vscode/wasm-wasi`, #100), and `@vscode/wasm-wasi` where the launcher cannot run or `opentide.wasi.host` asks for it. The core extension is not a manifest dependency: it declares no support for untrusted workspaces, so VS Code disables it in Restricted Mode, where a dependent extension would not activate ([PACKAGING.md](PACKAGING.md#the-package)).
@@ -167,8 +167,8 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 ### Publishing and supply chain
 
 - **OIDC, no long-lived token.** Global Azure DevOps PATs retire on 2026-12-01. Commands as in #9:
-  - Marketplace: `vsce publish --oidc --packagePath dist/*.vsix --skip-duplicate`;
-  - Open VSX: `ovsx publish --trusted-publishing --skip-duplicate`.
+  - Marketplace: `vsce publish --oidc --packagePath opentide-marketplace-<version>.vsix --skip-duplicate`;
+  - Open VSX: `ovsx publish --trusted-publishing --skip-duplicate --packagePath opentide-openvsx-<version>.vsix`.
 - **Namespace:** claim the Open VSX namespace before the first publish.
 - **Pre-releases** use odd minor versions with `--pre-release`. Stable uses even minor versions.
 - **Release cadence:** the package is small and carries no opentide, so releases follow the extension's own changes.
@@ -178,7 +178,7 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
 
 ### Store listing
 
-- **Identity:** display name `opentide`, publisher `opentidehq` on the Marketplace and namespace `opentidehq` on Open VSX ([RELEASING.md](RELEASING.md)).
+- **Identity:** display name `opentide`; publisher `opentide` on the Marketplace (`opentide.opentide`: the publisher `opentidehq` is banned there) and the verified namespace `opentidehq` on Open VSX (`opentidehq.opentide`). The code takes the id from `context.extension.id`, never a literal ([RELEASING.md](RELEASING.md#two-publishers-and-why)).
 - **Categories:** Programming Languages, Linters, Snippets, AI.
 - **Keywords:** detection engineering, detection as code, KQL, SPL, ES|QL, Sentinel, Defender, Splunk, Elastic, Falco, MITRE ATT&CK.
 - **README:** short GIFs of the five moments in [§8](#8-setup-wizard-and-onboarding).

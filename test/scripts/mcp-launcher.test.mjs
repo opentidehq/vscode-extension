@@ -25,7 +25,8 @@ describe("the MCP launcher (dist/mcp-launcher.js)", function () {
 
   before(async () => {
     work = mkdtempSync(join(tmpdir(), "opentide-launcher-"));
-    launcher = join(work, "mcp-launcher.cjs");
+    // Where the extension writes it: its global storage folder, which VS Code names after the extension's id.
+    launcher = join(work, "globalStorage", "opentidehq.opentide", "mcp-launcher.cjs");
     await esbuild.build({
       entryPoints: [join(root, "src", "mcp-launcher", "main.ts")],
       outfile: launcher,
@@ -52,11 +53,13 @@ describe("the MCP launcher (dist/mcp-launcher.js)", function () {
   }
 
   /** Run the launcher, write `input`, and collect what it prints until it exits (or `end` closes its input). */
-  function run(dir, input, { end = true } = {}) {
+  function run(dir, input, { end = true, id } = {}) {
     return new Promise((resolve, reject) => {
+      const { OPENTIDE_EXTENSION_ID: _inherited, ...inherited } = process.env;
       const child = spawn(process.execPath, [launcher], {
         env: {
-          ...process.env,
+          ...inherited,
+          ...(id ? { OPENTIDE_EXTENSION_ID: id } : {}),
           OPENTIDE_EXTENSIONS_DIR: dir,
           OPENTIDE_MCP_ENTRY_FILE: "~/.kiro/settings/mcp.json",
         },
@@ -86,6 +89,17 @@ describe("the MCP launcher (dist/mcp-launcher.js)", function () {
     const { stdout, stderr } = await run(dir, '{"id":1}\n');
     assert.match(stderr, /bridge new/);
     assert.equal(stdout, 'new:{"id":1}\n');
+  });
+
+  it("runs the copies of the id the entry names: each store has its own publisher", async () => {
+    const dir = extensions("stores", {
+      "opentide.opentide-0.3.1": "marketplace",
+      "opentidehq.opentide-0.3.0": "openvsx",
+    });
+    assert.match((await run(dir, "x\n", { id: "opentide.opentide" })).stderr, /bridge marketplace/);
+    assert.match((await run(dir, "x\n", { id: "opentidehq.opentide" })).stderr, /bridge openvsx/);
+    // An entry written before OPENTIDE_EXTENSION_ID: the id of the global storage folder the launcher is in.
+    assert.match((await run(dir, "x\n")).stderr, /bridge openvsx/);
   });
 
   it("skips a half-deleted newer folder and an obsolete one", async () => {

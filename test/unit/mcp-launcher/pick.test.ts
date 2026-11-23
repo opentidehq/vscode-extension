@@ -3,6 +3,7 @@ import * as path from "node:path";
 import {
   compareVersions,
   errorForFirstRequest,
+  extensionIdOf,
   type Files,
   folderVersion,
   newestInstalled,
@@ -24,15 +25,42 @@ function fake(tree: Record<string, string[]>, obsolete?: string): Files {
   };
 }
 const DIR = "/home/me/.kiro/extensions";
+const ID = "opentidehq.opentide";
 const BRIDGE = ["dist/mcp-wasi.js"];
 
 describe("the MCP launcher's choice of an installed extension", () => {
   it("reads the version out of the folder's name, with or without a target platform", () => {
-    assert.deepEqual(folderVersion("opentidehq.opentide-1.2.3"), [1, 2, 3]);
-    assert.deepEqual(folderVersion("opentidehq.opentide-1.12.0-linux-x64"), [1, 12, 0]);
-    assert.equal(folderVersion("opentidehq.opentide-tools-1.0.0"), undefined);
-    assert.equal(folderVersion("other.opentide-1.0.0"), undefined);
-    assert.equal(folderVersion("opentidehq.opentide"), undefined);
+    assert.deepEqual(folderVersion("opentidehq.opentide-1.2.3", ID), [1, 2, 3]);
+    assert.deepEqual(folderVersion("opentidehq.opentide-1.12.0-linux-x64", ID), [1, 12, 0]);
+    assert.equal(folderVersion("opentidehq.opentide-tools-1.0.0", ID), undefined);
+    assert.equal(folderVersion("other.opentide-1.0.0", ID), undefined);
+    assert.equal(folderVersion("opentidehq.opentide", ID), undefined);
+  });
+
+  it("matches the folders of the id it is given: each store's publisher (docs/RELEASING.md)", () => {
+    assert.deepEqual(folderVersion("opentide.opentide-1.2.3", "opentide.opentide"), [1, 2, 3]);
+    assert.equal(folderVersion("opentidehq.opentide-1.2.3", "opentide.opentide"), undefined);
+    assert.equal(folderVersion("opentide.opentide-1.2.3", ID), undefined);
+    assert.equal(
+      folderVersion("opentideXopentide-1.2.3", "opentide.opentide"),
+      undefined,
+      "the dot is literal",
+    );
+    const tree = fake({ "opentide.opentide-2.0.0": BRIDGE, "opentidehq.opentide-1.0.0": BRIDGE });
+    assert.equal(newestInstalled(DIR, tree, ID)?.folder, "opentidehq.opentide-1.0.0");
+    assert.equal(newestInstalled(DIR, tree, "opentide.opentide")?.folder, "opentide.opentide-2.0.0");
+  });
+
+  it("takes the id from the entry, else from the global storage folder it runs from", () => {
+    const storage = "/home/me/.config/Kiro/User/globalStorage/opentidehq.opentide";
+    assert.equal(extensionIdOf("opentide.opentide", storage), "opentide.opentide");
+    assert.equal(extensionIdOf(undefined, storage), "opentidehq.opentide");
+    assert.equal(
+      extensionIdOf(undefined, "C:\\Users\\me\\globalStorage\\opentidehq.opentide\\"),
+      "opentidehq.opentide",
+    );
+    assert.equal(extensionIdOf("not an id", storage), "opentidehq.opentide");
+    assert.equal(extensionIdOf(undefined, "/tmp"), undefined);
   });
 
   it("compares numerically, not as text: 0.10.0 is newer than 0.9.0", () => {
@@ -50,6 +78,7 @@ describe("the MCP launcher's choice of an installed extension", () => {
         "opentidehq.opentide-0.2.0": BRIDGE,
         "other.ext-9.9.9": BRIDGE,
       }),
+      ID,
     );
     assert.equal(found?.folder, "opentidehq.opentide-0.10.0");
     assert.equal(found?.bridge, `${DIR}/opentidehq.opentide-0.10.0/dist/mcp-wasi.js`);
@@ -62,6 +91,7 @@ describe("the MCP launcher's choice of an installed extension", () => {
         "opentidehq.opentide-1.2.0": ["package.json"],
         "opentidehq.opentide-1.0.0": BRIDGE,
       }),
+      ID,
     );
     assert.equal(found?.folder, "opentidehq.opentide-1.0.0");
   });
@@ -73,6 +103,7 @@ describe("the MCP launcher's choice of an installed extension", () => {
         { "opentidehq.opentide-1.0.0": BRIDGE, "opentidehq.opentide-0.8.0": BRIDGE },
         '{"opentidehq.opentide-1.0.0": true}',
       ),
+      ID,
     );
     assert.equal(found?.folder, "opentidehq.opentide-0.8.0");
     assert.deepEqual([...obsoleteFolders("not json")], []);
@@ -81,9 +112,12 @@ describe("the MCP launcher's choice of an installed extension", () => {
   });
 
   it("finds nothing when the extension is uninstalled or the folder cannot be read", () => {
-    assert.equal(newestInstalled(DIR, fake({})), undefined);
-    assert.equal(newestInstalled(DIR, fake({ "opentidehq.opentide-1.0.0": ["package.json"] })), undefined);
-    assert.equal(newestInstalled("/elsewhere", fake({ "opentidehq.opentide-1.0.0": BRIDGE })), undefined);
+    assert.equal(newestInstalled(DIR, fake({}), ID), undefined);
+    assert.equal(
+      newestInstalled(DIR, fake({ "opentidehq.opentide-1.0.0": ["package.json"] }), ID),
+      undefined,
+    );
+    assert.equal(newestInstalled("/elsewhere", fake({ "opentidehq.opentide-1.0.0": BRIDGE }), ID), undefined);
   });
 
   it("is stable when two platforms share a version", () => {
@@ -91,7 +125,7 @@ describe("the MCP launcher's choice of an installed extension", () => {
       "opentidehq.opentide-1.0.0-win32-x64": BRIDGE,
       "opentidehq.opentide-1.0.0-linux-x64": BRIDGE,
     };
-    assert.equal(newestInstalled(DIR, fake(tree))?.folder, "opentidehq.opentide-1.0.0-linux-x64");
+    assert.equal(newestInstalled(DIR, fake(tree), ID)?.folder, "opentidehq.opentide-1.0.0-linux-x64");
   });
 });
 

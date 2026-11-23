@@ -365,6 +365,7 @@ async function forkEntryOf(
   return launcherEntry({
     execPath: decision.server.command,
     storageDir,
+    extensionId: ctx.extension.extension.id,
     extensionPath: ctx.extension.extensionPath,
     entryFile: target.file,
     proxy,
@@ -411,7 +412,7 @@ function maintainForkEntry(ctx: FeatureContext, target: ForkTarget): void {
         return;
       }
       lastProblem = undefined;
-      const ours = hasOurEntry(existing);
+      const ours = hasOurEntry(existing, ctx.extension.extension.id);
       if (!ours) {
         if (mode !== "always") {
           if (asked || ctx.extension.globalState.get<boolean>(DECLINED_KEY)) return;
@@ -442,7 +443,7 @@ async function writeForkEntry(
 ): Promise<"written" | "same" | "refused"> {
   const shown = target.file.replace(os.homedir(), "~");
   const existing = await readFileOrUndefined(target.file);
-  const merged = mergeMcpEntry(existing, entry);
+  const merged = mergeMcpEntry(existing, entry, ctx.extension.extension.id);
   if (merged.kind === "same") return "same";
   if (merged.kind === "foreign") {
     ctx.log.info(`agents: ${shown} has an opentide server the extension did not write: left unchanged`);
@@ -524,7 +525,7 @@ async function removeFromForkMcp(ctx: FeatureContext): Promise<void> {
   if (!target) return;
   const shown = target.file.replace(os.homedir(), "~");
   const existing = await readFileOrUndefined(target.file);
-  const removal = removeMcpEntry(existing);
+  const removal = removeMcpEntry(existing, ctx.extension.extension.id);
   if (removal.kind === "error") {
     ctx.log.warn(`agents: ${shown} ${removal.error}: left unchanged`);
     void vscode.window.showErrorMessage(

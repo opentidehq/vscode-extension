@@ -28,21 +28,28 @@ none ([what runs where](#the-bundled-opentide-what-runs-where)).
 
 ## Install
 
-Releases are on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentidehq.opentide)
-(VS Code) and [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) (VSCodium, Cursor, Windsurf
-and other forks), under the id `opentidehq.opentide`.
+Releases are on two stores, under a different id in each (the same build; only the publisher differs):
+
+| Editor | Store | Id |
+|--------|-------|----|
+| VS Code | [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=opentide.opentide) | `opentide.opentide` |
+| Cursor, Kiro, Windsurf, VSCodium and other forks | [Open VSX](https://open-vsx.org/extension/opentidehq/opentide) | `opentidehq.opentide` |
+
+Settings, commands and the MCP server have the same names under either id.
 
 Versions with an odd minor (0.1.x, 0.3.x) are pre-releases. In the Extensions view, open opentide and
 choose **Switch to Pre-Release Version**, or from a terminal:
 
 ```bash
-code --install-extension opentidehq.opentide --pre-release
+code --install-extension opentide.opentide --pre-release     # VS Code
+cursor --install-extension opentidehq.opentide --pre-release  # an editor that uses Open VSX
 ```
 
-A pinned version installs whatever its channel: `code --install-extension opentidehq.opentide@0.1.0`.
-Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries the
-package as a `.vsix` (**Extensions: Install from VSIX…**), with `SHA256SUMS` and build provenance
-(`gh attestation verify <file>.vsix --repo opentidehq/vscode-extension`).
+A pinned version installs whatever its channel: `code --install-extension opentide.opentide@0.3.1`.
+Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries both
+packages as `.vsix` files (**Extensions: Install from VSIX…**): `opentide-marketplace-<version>.vsix`
+for VS Code and `opentide-openvsx-<version>.vsix` for the other editors, with `SHA256SUMS` and build
+provenance (`gh attestation verify <file>.vsix --repo opentidehq/vscode-extension`).
 
 Then install opentide (Python 3.10 or later) where the repository's checks run:
 

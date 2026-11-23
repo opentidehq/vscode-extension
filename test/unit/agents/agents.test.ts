@@ -9,7 +9,6 @@ import {
   forkTarget,
   hasOurEntry,
   MARKER_ENV,
-  MARKER_VALUE,
   mergeMcpEntry,
   removeMcpEntry,
 } from "../../../src/features/agents/forks";
@@ -40,6 +39,9 @@ import {
 } from "../../../src/features/agents/mcp";
 import { activeObjectPayload, diagnosticsPayload } from "../../../src/features/agents/tools";
 import { fakeRuntime } from "../helpers";
+
+/** The id the extension passes (`context.extension.id`): Open VSX's, as Kiro, Devin Desktop and Windsurf install it. */
+const ID = "opentidehq.opentide";
 
 describe("agents: JSONC", () => {
   it("drops comments and trailing commas, never inside strings", () => {
@@ -518,6 +520,7 @@ describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, 
     const merged = mergeMcpEntry(
       '{\n    "theme": 1,\n    "mcpServers": { "other": { "command": "x" } }\n}\n',
       entry,
+      ID,
     );
     assert.equal(merged.kind, "write");
     if (merged.kind !== "write") return;
@@ -529,60 +532,72 @@ describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, 
         opentide: {
           command: entry.command,
           args: entry.args,
-          env: { ELECTRON_RUN_AS_NODE: "1", [MARKER_ENV]: MARKER_VALUE },
+          env: { ELECTRON_RUN_AS_NODE: "1", [MARKER_ENV]: ID },
         },
       },
     });
-    const fresh = mergeMcpEntry(undefined, entry);
+    const fresh = mergeMcpEntry(undefined, entry, ID);
     assert.equal(fresh.kind, "write");
-    assert.equal(mergeMcpEntry("  \n", entry).kind, "write");
+    assert.equal(mergeMcpEntry("  \n", entry, ID).kind, "write");
   });
 
   it("is idempotent: the entry it wrote is the same, and a changed command or version rewrites only it", () => {
-    const first = mergeMcpEntry('{"mcpServers": {"other": {"command": "x"}}}', entry);
+    const first = mergeMcpEntry('{"mcpServers": {"other": {"command": "x"}}}', entry, ID);
     assert.equal(first.kind, "write");
     if (first.kind !== "write") return;
-    assert.deepEqual(mergeMcpEntry(first.text, entry), { kind: "same" });
+    assert.deepEqual(mergeMcpEntry(first.text, entry, ID), { kind: "same" });
     const moved = {
       ...entry,
       args: ["/home/me/.kiro/extensions/opentidehq.opentide-0.4.0/dist/mcp-wasi.js"],
     };
-    const second = mergeMcpEntry(first.text, moved);
+    const second = mergeMcpEntry(first.text, moved, ID);
     assert.equal(second.kind, "write");
     if (second.kind !== "write") return;
     assert.deepEqual(JSON.parse(second.text).mcpServers.opentide.args, moved.args);
     assert.deepEqual(JSON.parse(second.text).mcpServers.other, { command: "x" });
-    assert.equal(hasOurEntry(second.text), true);
+    assert.equal(hasOurEntry(second.text, ID), true);
   });
 
   it("never touches an opentide server the user wrote, a file it cannot read, or one with comments", () => {
     const own = '{"mcpServers": {"opentide": {"command": "/opt/opentide", "args": ["mcp", "start"]}}}';
-    assert.deepEqual(mergeMcpEntry(own, entry), { kind: "foreign" });
-    assert.deepEqual(removeMcpEntry(own), { kind: "none" });
-    assert.equal(hasOurEntry(own), false);
-    assert.deepEqual(mergeMcpEntry("[1]", entry), { kind: "error", error: "is not a JSON object" });
-    assert.deepEqual(mergeMcpEntry("{ nope", entry), { kind: "error", error: "is not valid JSON" });
-    assert.deepEqual(mergeMcpEntry('{"mcpServers": []}', entry), {
+    assert.deepEqual(mergeMcpEntry(own, entry, ID), { kind: "foreign" });
+    assert.deepEqual(removeMcpEntry(own, ID), { kind: "none" });
+    assert.equal(hasOurEntry(own, ID), false);
+    assert.deepEqual(mergeMcpEntry("[1]", entry, ID), { kind: "error", error: "is not a JSON object" });
+    assert.deepEqual(mergeMcpEntry("{ nope", entry, ID), { kind: "error", error: "is not valid JSON" });
+    assert.deepEqual(mergeMcpEntry('{"mcpServers": []}', entry, ID), {
       kind: "error",
       error: "has an `mcpServers` that is not an object",
     });
-    const commented = mergeMcpEntry('{\n  // mine\n  "mcpServers": {}\n}', entry);
+    const commented = mergeMcpEntry('{\n  // mine\n  "mcpServers": {}\n}', entry, ID);
     assert.equal(commented.kind, "error");
     assert.match(commented.kind === "error" ? commented.error : "", /comments/);
   });
 
-  it("removes its own entry, and `mcpServers` with it only when it was the last server", () => {
-    const written = mergeMcpEntry('{"theme": 1, "mcpServers": {"other": {"command": "x"}}}', entry);
+  it("marks the entry with the running extension's id, and leaves another publisher's entry alone", () => {
+    // The Marketplace package is opentide.opentide, the Open VSX one opentidehq.opentide (docs/RELEASING.md).
+    const written = mergeMcpEntry(undefined, entry, "opentide.opentide");
     assert.equal(written.kind, "write");
     if (written.kind !== "write") return;
-    const removed = removeMcpEntry(written.text);
+    assert.equal(JSON.parse(written.text).mcpServers.opentide.env[MARKER_ENV], "opentide.opentide");
+    assert.equal(hasOurEntry(written.text, "opentide.opentide"), true);
+    assert.equal(hasOurEntry(written.text, ID), false);
+    assert.deepEqual(mergeMcpEntry(written.text, entry, ID), { kind: "foreign" });
+    assert.deepEqual(removeMcpEntry(written.text, ID), { kind: "none" });
+  });
+
+  it("removes its own entry, and `mcpServers` with it only when it was the last server", () => {
+    const written = mergeMcpEntry('{"theme": 1, "mcpServers": {"other": {"command": "x"}}}', entry, ID);
+    assert.equal(written.kind, "write");
+    if (written.kind !== "write") return;
+    const removed = removeMcpEntry(written.text, ID);
     assert.equal(removed.kind, "write");
     if (removed.kind !== "write") return;
     assert.deepEqual(JSON.parse(removed.text), { theme: 1, mcpServers: { other: { command: "x" } } });
-    const only = mergeMcpEntry('{"theme": 1}', entry);
+    const only = mergeMcpEntry('{"theme": 1}', entry, ID);
     assert.equal(only.kind, "write");
     if (only.kind !== "write") return;
-    const removedOnly = removeMcpEntry(only.text);
+    const removedOnly = removeMcpEntry(only.text, ID);
     assert.equal(removedOnly.kind, "write");
     if (removedOnly.kind !== "write") return;
     assert.deepEqual(JSON.parse(removedOnly.text), { theme: 1 });
@@ -603,14 +618,14 @@ describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, 
     ];
     for (const [name, text, pattern] of malformed) {
       it(`${name}`, () => {
-        const merged = mergeMcpEntry(text, entry);
+        const merged = mergeMcpEntry(text, entry, ID);
         assert.equal(merged.kind, "error");
         assert.match(merged.kind === "error" ? merged.error : "", pattern);
-        const removed = removeMcpEntry(text);
+        const removed = removeMcpEntry(text, ID);
         assert.equal(removed.kind, "error");
         assert.match(removed.kind === "error" ? removed.error : "", pattern);
         assert.match(configProblem(text) ?? "", pattern);
-        assert.equal(hasOurEntry(text), false);
+        assert.equal(hasOurEntry(text, ID), false);
       });
     }
 
@@ -626,20 +641,20 @@ describe("agents: editors that take a user-level MCP file (Kiro, Devin Desktop, 
         '{"env": []}',
       ]) {
         const text = `{"mcpServers": {"opentide": ${value}}}`;
-        assert.deepEqual(mergeMcpEntry(text, entry), { kind: "foreign" }, value);
-        assert.deepEqual(removeMcpEntry(text), { kind: "none" }, value);
-        assert.equal(hasOurEntry(text), false, value);
+        assert.deepEqual(mergeMcpEntry(text, entry, ID), { kind: "foreign" }, value);
+        assert.deepEqual(removeMcpEntry(text, ID), { kind: "none" }, value);
+        assert.equal(hasOurEntry(text, ID), false, value);
         assert.equal(configProblem(text), undefined, value);
       }
     });
 
     it("rewrites its own entry even when the entry's other fields are malformed", () => {
-      const ours = `{"mcpServers": {"opentide": {"command": 5, "args": "x", "env": {"${MARKER_ENV}": "${MARKER_VALUE}"}}}}`;
-      const merged = mergeMcpEntry(ours, entry);
+      const ours = `{"mcpServers": {"opentide": {"command": 5, "args": "x", "env": {"${MARKER_ENV}": "${ID}"}}}}`;
+      const merged = mergeMcpEntry(ours, entry, ID);
       assert.equal(merged.kind, "write");
       if (merged.kind !== "write") return;
       assert.equal(JSON.parse(merged.text).mcpServers.opentide.command, entry.command);
-      assert.equal(removeMcpEntry(ours).kind, "write");
+      assert.equal(removeMcpEntry(ours, ID).kind, "write");
     });
 
     it("has no problem with an empty or missing file", () => {

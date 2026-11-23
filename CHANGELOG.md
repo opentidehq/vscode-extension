@@ -1,13 +1,27 @@
 # Changelog
 
-All notable changes to the opentide extension (`opentidehq.opentide`). The format follows
+All notable changes to the opentide extension (`opentide.opentide` on the Visual Studio Marketplace,
+`opentidehq.opentide` on Open VSX). The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Stable releases use even minor versions and
 pre-releases odd ones.
 
 ## [Unreleased]
 
+### Upgrade
+
+1. If you use VS Code, install **opentide** (`opentide.opentide`) from the Visual Studio Marketplace:
+   `code --install-extension opentide.opentide --pre-release`. If you installed `opentidehq.opentide`
+   in VS Code from a `.vsix`, uninstall it first, so the two do not both run.
+
 ### Changed
 
+- **The Visual Studio Marketplace has the extension as `opentide.opentide`.** The Marketplace refuses
+  the publisher `opentidehq`, so the extension never appeared there; it now publishes under
+  `opentide`. Open VSX keeps `opentidehq.opentide`: if you use Kiro, Cursor, Windsurf, VSCodium or
+  another editor that installs from Open VSX, you need do nothing, and updates arrive as before. The
+  two are the same build; settings, commands and the MCP server have the same names in both. Each
+  GitHub Release carries both packages, `opentide-marketplace-<version>.vsix` and
+  `opentide-openvsx-<version>.vsix`.
 - **The opentide MCP server starts its module at the first tool call.** VS Code starts the server with the window, and
   the module took about a second and 100 MB in every window with an opentide folder, used or not. After the first
   run in a folder, the extension answers the editor's start-up questions itself and starts the module when an agent
