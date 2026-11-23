@@ -1902,8 +1902,11 @@
         "path": "./syntaxes/tide.tmLanguage.json",
         "embeddedLanguages": {
           "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
           "meta.embedded.block.falco": "falco",
           "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
           "meta.embedded.block.lucene": "lucene",
           "meta.embedded.block.spl": "spl",
           "meta.embedded.block.yaral": "yaral"
@@ -1923,6 +1926,93 @@
         "language": "opentide-config",
         "scopeName": "source.opentide.toml",
         "path": "./syntaxes/opentide-config.tmLanguage.json"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "opentide-yaml",
+        "scopes": {
+          "namespace": [
+            "entity.name.namespace"
+          ],
+          "type": [
+            "entity.name.type.schema.tide",
+            "entity.name.type",
+            "support.type"
+          ],
+          "class": [
+            "entity.name.type.class",
+            "support.class"
+          ],
+          "enum": [
+            "entity.name.type.enum"
+          ],
+          "interface": [
+            "entity.name.type.interface"
+          ],
+          "struct": [
+            "entity.name.type.struct"
+          ],
+          "typeParameter": [
+            "entity.name.type.parameter"
+          ],
+          "parameter": [
+            "variable.parameter"
+          ],
+          "variable": [
+            "variable.other.readwrite",
+            "entity.name.variable"
+          ],
+          "property": [
+            "variable.other.property.tide",
+            "variable.other.property"
+          ],
+          "enumMember": [
+            "variable.other.enummember.tide",
+            "variable.other.enummember"
+          ],
+          "event": [
+            "variable.other.event"
+          ],
+          "function": [
+            "entity.name.function",
+            "support.function"
+          ],
+          "method": [
+            "entity.name.function.member",
+            "support.function"
+          ],
+          "macro": [
+            "entity.name.function.preprocessor"
+          ],
+          "keyword": [
+            "keyword.control"
+          ],
+          "modifier": [
+            "storage.modifier"
+          ],
+          "comment": [
+            "comment"
+          ],
+          "string": [
+            "string.unquoted.plain.tide",
+            "string"
+          ],
+          "number": [
+            "constant.numeric"
+          ],
+          "regexp": [
+            "constant.regexp"
+          ],
+          "operator": [
+            "keyword.operator.key-value.tide",
+            "keyword.operator"
+          ],
+          "decorator": [
+            "entity.name.decorator",
+            "entity.name.function"
+          ]
+        }
       }
     ],
     "chatInstructions": [
@@ -2570,7 +2660,9 @@
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "mocha": "12.0.3",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vscode-oniguruma": "2.0.1",
+    "vscode-textmate": "9.3.2"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.3",

@@ -12,11 +12,10 @@ describe("README claims", () => {
     const embedded = Object.values(
       pkg.contributes.grammars.find((g) => g.language === "opentide-yaml")?.embeddedLanguages ?? {},
     );
-    assert.ok(
-      !embedded.some((language) => ["esql", "eql", "kuery"].includes(language)),
-      "Elastic is embedded now: update the README",
-    );
-    assert.match(readme, /Elastic query's language depends on its `language` key/);
+    // Elastic's queries are embedded once `type:` or `language:` has named their language (scripts/tide-align.mjs).
+    for (const language of ["esql", "eql", "kuery", "lucene"])
+      assert.ok(embedded.includes(language), language);
+    assert.match(readme, /An Elastic query's language depends on its `type` and `language` keys/);
     assert.doesNotMatch(readme, /Queries embedded in a rule \([^)]*\) are highlighted,\s+commented/);
   });
 });

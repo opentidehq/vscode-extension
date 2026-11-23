@@ -53,8 +53,11 @@
         "path": "./syntaxes/tide.tmLanguage.json",
         "embeddedLanguages": {
           "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
           "meta.embedded.block.falco": "falco",
           "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
           "meta.embedded.block.lucene": "lucene",
           "meta.embedded.block.spl": "spl",
           "meta.embedded.block.yaral": "yaral"
