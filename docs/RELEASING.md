@@ -94,7 +94,7 @@ token, then the token is replaced by the trusted publisher.
 1. Sign in to [open-vsx.org](https://open-vsx.org) with the GitHub account that will own the namespace,
    and sign the Eclipse Foundation Open VSX Publisher Agreement (**Settings → Profile**).
 2. **Settings → Access Tokens → Generate New Token**, described as `vscode-extension first publish`.
-3. Create the namespace: `npx ovsx@1.3.0 create-namespace opentidehq -p <token>`. Then claim it
+3. Create the namespace: `npx ovsx@1.4.0 create-namespace opentidehq -p <token>`. Then claim it
    (verified ownership): open an issue at
    [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues/new/choose) with the
    *Claim namespace ownership* template for `opentidehq`, linking the `opentidehq` GitHub organisation.

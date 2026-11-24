@@ -20,6 +20,12 @@ updates:
     ignore:
       # @types/vscode is the engines.vscode floor (docs/ARCHITECTURE.md); raise both together, by hand.
       - dependency-name: "@types/vscode"
+      # @types/node follows the Node that the engines.vscode floor (^1.91.0) ships and the Node CI runs, not
+      # the newest major: a newer major types APIs the extension host does not have, and its stricter typings
+      # break the tests' typecheck (TS2769 in test/unit/editor-real.test.ts with 26). Minor and patch updates
+      # still come; raise the major by hand, with engines.vscode.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # The store CLIs publish.yml runs (tools/publish). Before merging, check that
   # `tools/publish/node_modules/.bin/vsce publish --help` still lists --oidc and `ovsx publish --help`
