@@ -4,7 +4,16 @@ import * as assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 
 import { initialWidths } from "../../../src/core/webview/kit/columns";
-import { type Column, type Row, sortOrder, TableModel } from "../../../src/core/webview/kit/table";
+import {
+  type Column,
+  INDEX_CHUNK,
+  KIND_SAMPLE,
+  kindHolds,
+  type Row,
+  sortKind,
+  sortOrder,
+  TableModel,
+} from "../../../src/core/webview/kit/table";
 import { rowWindow } from "../../../src/core/webview/kit/virtual";
 
 const COLUMNS: Column[] = [
@@ -162,5 +171,165 @@ describe("performance: 10,000 result rows (SPEC §14)", function () {
       assert.ok(keystroke < BUDGET_MS, `filtering on "${needle}" took ${keystroke.toFixed(1)} ms`);
     }
     assert.ok(model.view({ filter: "ws-0", filterColumn: "DeviceName" }).length > 0);
+  });
+});
+
+describe("kit table model: sampled sort kinds and the background index", () => {
+  /** A scheduler a test drives by hand: tasks wait in a queue until `drain` or `runOne`. */
+  function queue() {
+    const tasks: (() => void)[] = [];
+    return {
+      schedule: (task: () => void) => void tasks.push(task),
+      pending: () => tasks.length,
+      runOne: () => tasks.shift()?.(),
+      drain: () => {
+        while (tasks.length > 0) tasks.shift()?.();
+      },
+    };
+  }
+  const plain: Column[] = [{ name: "v" }];
+
+  it("infers a kind from a sample, so a column of 50,000 numbers is a number column", () => {
+    const rows = Array.from({ length: 50_000 }, (_, i) => ({ v: i % 7 === 0 ? null : i }));
+    assert.equal(sortKind(plain[0] as Column, rows), "number");
+    assert.equal(sortKind({ name: "v" }, [{ v: true }, { v: null }, { v: false }]), "boolean");
+    assert.equal(sortKind({ name: "v" }, [{ v: null }]), "text", "no values: text");
+    assert.equal(sortKind({ name: "v", type: "long" }, []), "number", "a declared type needs no values");
+  });
+
+  it("reads a bounded number of rows, however many there are", () => {
+    let reads = 0;
+    const rows = Array.from({ length: 200_000 }, () => ({
+      get v() {
+        reads++;
+        return 1;
+      },
+    }));
+    sortKind({ name: "v" }, rows);
+    assert.ok(reads <= KIND_SAMPLE.head + KIND_SAMPLE.stride + 2, `read ${reads} rows`);
+  });
+
+  it("sorts correctly when a row outside the sample contradicts the inferred kind", () => {
+    const rows: Row[] = Array.from({ length: 5000 }, (_, i) => ({ v: i }));
+    // Between sampled indices: neither in the first 200 rows nor on the stride.
+    const late = 4001;
+    const strideStep = Math.floor((5000 - KIND_SAMPLE.head) / KIND_SAMPLE.stride);
+    assert.ok((late - KIND_SAMPLE.head) % strideStep !== 0, "the late row is not on the stride");
+    rows[late] = { v: "abc" };
+    const model = new TableModel(plain, rows);
+    assert.equal(model.kindOf("v"), "number", "the sample sees only numbers");
+    assert.equal(kindHolds("number", rows, "v"), false);
+    const order = model.view({ filter: "", filterColumn: "", sort: { column: "v", descending: false } });
+    assert.equal(model.kindOf("v"), "text", "the sort found the contradiction and fell back to text");
+    const texts = order.map((i) => String(rows[i]?.v).toLowerCase());
+    assert.deepEqual(texts, [...texts].sort(), "sorted as text, and the contradicting row is not lost");
+    assert.equal(order.length, rows.length);
+  });
+
+  it("keeps a number column sorted numerically when nothing contradicts it", () => {
+    const rows: Row[] = [{ v: 10 }, { v: 9 }, { v: 100 }];
+    const model = new TableModel(plain, rows);
+    assert.deepEqual(
+      model.view({ filter: "", filterColumn: "", sort: { column: "v", descending: false } }),
+      [1, 0, 2],
+    );
+    assert.equal(model.kindOf("v"), "number");
+  });
+
+  it("builds the filter index in chunks through the injected schedule", () => {
+    const rows = Array.from({ length: INDEX_CHUNK * 2 }, (_, i) => ({ v: `Row-${i}` }));
+    const q = queue();
+    const model = new TableModel(plain, rows, { schedule: q.schedule });
+    assert.equal(model.indexReady, false);
+    assert.equal(q.pending(), 1, "scheduled, not run, by the constructor");
+    q.runOne();
+    assert.equal(model.indexReady, false, "one chunk is not the whole column");
+    assert.equal(q.pending(), 1, "it asked to run again");
+    q.drain();
+    assert.equal(model.indexReady, true);
+    assert.deepEqual(model.view({ filter: "ROW-39999", filterColumn: "" }), [INDEX_CHUNK * 2 - 1]);
+  });
+
+  it("filters correctly before the index is built, at every point of the build", () => {
+    const rows = Array.from({ length: INDEX_CHUNK + 5 }, (_, i) => ({
+      v: `Item-${i}`,
+      w: i % 2 ? "Odd" : "Even",
+    }));
+    const columns: Column[] = [{ name: "v" }, { name: "w" }];
+    const expected = new TableModel(columns, rows).view({ filter: "item-2000", filterColumn: "" });
+    assert.ok(expected.length > 1);
+    const q = queue();
+    const model = new TableModel(columns, rows, { schedule: q.schedule });
+    assert.deepEqual(model.view({ filter: "item-2000", filterColumn: "" }), expected, "before any chunk");
+    assert.equal(model.indexReady, true, "the filter built what it needed");
+    const q2 = queue();
+    const half = new TableModel(columns, rows, { schedule: q2.schedule });
+    q2.runOne();
+    assert.equal(half.indexReady, false);
+    assert.deepEqual(half.view({ filter: "item-2000", filterColumn: "" }), expected, "between chunks");
+    assert.deepEqual(
+      half.view({ filter: "odd", filterColumn: "w" }).length,
+      Math.floor((INDEX_CHUNK + 5) / 2),
+    );
+    q2.drain();
+    assert.deepEqual(half.view({ filter: "item-2000", filterColumn: "" }), expected, "after the build");
+  });
+
+  it("stops building when the model is disposed, and builds nothing for an empty one", () => {
+    const rows = Array.from({ length: INDEX_CHUNK * 3 }, (_, i) => ({ v: i }));
+    const q = queue();
+    const model = new TableModel(plain, rows, { schedule: q.schedule });
+    q.runOne();
+    model.dispose();
+    q.drain();
+    assert.equal(model.indexReady, false, "no further chunks after dispose");
+    const empty = queue();
+    new TableModel([], [], { schedule: empty.schedule });
+    new TableModel(plain, [], { schedule: empty.schedule });
+    assert.equal(empty.pending(), 0);
+  });
+});
+
+describe("performance: 50,000 result rows", function () {
+  this.timeout(120_000);
+  const SLACK = process.env.CI ? 4 : 1.5;
+  // Measured in Node before this change: setData 31 ms, the first filter 58 ms (12 columns, half untyped).
+  const columns: Column[] = Array.from({ length: 12 }, (_, i) => ({
+    name: `c${i}`,
+    ...(i === 0 ? { type: "datetime" } : i === 1 ? { type: "long" } : i === 2 ? { type: "string" } : {}),
+  }));
+  let seed = 11;
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648);
+  const rows: Row[] = Array.from({ length: 50_000 }, () => {
+    const row: Record<string, unknown> = {};
+    for (let c = 0; c < 12; c++)
+      row[`c${c}`] =
+        c === 0
+          ? new Date(1e12 + (next() % 86_400_000)).toISOString()
+          : c === 1 || c % 3 === 0
+            ? next() % 500
+            : `val-${next() % 3000}-${"x".repeat(next() % 20)}`;
+    return row;
+  });
+
+  it("sets the data without scanning every cell, and filters at once once the index is built", () => {
+    const setData = timed(() => {
+      const model = new TableModel(columns, rows);
+      initialWidths(
+        columns.map((c) => c.name),
+        (c, r) => model.text(r, c).length,
+        rows.length,
+      );
+    });
+    assert.ok(setData < 8 * SLACK, `setData took ${setData.toFixed(1)} ms (31 ms before)`);
+    const tasks: (() => void)[] = [];
+    const model = new TableModel(columns, rows, { schedule: (t) => void tasks.push(t) });
+    while (tasks.length > 0) tasks.shift()?.();
+    assert.equal(model.indexReady, true);
+    const first = timed(() => model.view({ filter: "val-12", filterColumn: "" }), 5);
+    assert.ok(first < 40 * SLACK, `a filter after the index was built took ${first.toFixed(1)} ms`);
+    // A filter that arrives first builds the index itself, and is correct (and bounded) too.
+    const early = timed(() => new TableModel(columns, rows).view({ filter: "val-12", filterColumn: "" }), 3);
+    assert.ok(early < 120 * SLACK, `a filter before the index took ${early.toFixed(1)} ms`);
   });
 });
