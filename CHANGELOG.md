@@ -9,6 +9,9 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **The language server starts again after a crash on Windows.** When it ended abruptly, VS Code
+  could report the connection as broken before it closed, and the server then stayed stopped until
+  **opentide: Restart Server**. It now restarts as it does elsewhere.
 - **Faster startup on Windows.** Looking for `opentide`, `python` and `uv` on your PATH no longer
   holds up other extensions, and each is looked up once. A program you install while VS Code is
   open is found after **opentide: Restart Server**.

@@ -32,3 +32,18 @@ export function restartDecision(crashes: readonly number[], now: number): Restar
 export function recentCrashes(crashes: readonly number[], now: number): number[] {
   return crashes.filter((at) => now - at < CRASH_WINDOW_MS);
 }
+
+/** The failed message writes in a row the client carries on through before it shuts the connection down. */
+export const WRITE_ERRORS_TOLERATED = 3;
+
+/**
+ * What to do when the connection to the language server errors. vscode-jsonrpc counts the messages it failed to
+ * write in a row; an error of the streams themselves (the server's output breaking, or its input refusing writes as
+ * the process ends: on Windows a pipe can error before it closes) comes with no count. That is the server going away:
+ * the close that follows decides, under the crash policy above, whether it starts again. Shutting down on it instead
+ * stopped the client, and a stopping client skips the close handler, so a crashed server was never started again.
+ */
+export function connectionErrorAction(count: number | undefined): "continue" | "shutdown" {
+  if (count === undefined) return "continue";
+  return count <= WRITE_ERRORS_TOLERATED ? "continue" : "shutdown";
+}
