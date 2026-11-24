@@ -79,6 +79,8 @@ export interface WebviewHelpers {
     options: PanelOptions<P>,
     restore: (opened: OpentidePanel<P>, saved: SavedState) => void | Thenable<void>,
   ): vscode.Disposable;
+  /** Only for tests: what VS Code calls to revive a panel of a view type, by view type (a reload cannot be driven from a test). */
+  readonly restorers: ReadonlyMap<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>;
   /** The options every opentide webview uses: scripts on, resources only from dist/webview. */
   webviewOptions(): vscode.WebviewOptions;
   /** The page for `entry` with its CSP and nonce (for a WebviewView too). */
@@ -92,7 +94,9 @@ export function createWebviewHelpers(
   log: (message: string) => void,
 ): WebviewHelpers {
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
+  const restorers = new Map<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>();
   const helpers: WebviewHelpers = {
+    restorers,
     webviewOptions: () => ({ enableScripts: true, localResourceRoots: [root] }),
     html(webview, entry, title, options = {}) {
       if (!/^[a-z][a-z0-9-]*$/.test(entry)) throw new Error(`bad webview entry: ${entry}`);
@@ -191,17 +195,23 @@ export function createWebviewHelpers(
       options: PanelOptions<P>,
       restore: (opened: OpentidePanel<P>, saved: SavedState) => void | Thenable<void>,
     ): vscode.Disposable {
-      return vscode.window.registerWebviewPanelSerializer(options.viewType, {
-        async deserializeWebviewPanel(panel, saved: SavedState) {
-          const opened = helpers.adoptPanel<P>(panel, options);
-          try {
-            await restore(opened, saved);
-          } catch (error) {
-            // A panel that cannot be brought back is closed: the alternative is a blank page that never fills.
-            log(`webview: could not restore ${options.viewType}: ${String(error)}`);
-            opened.dispose();
-          }
-        },
+      const deserialize = async (panel: vscode.WebviewPanel, saved: SavedState): Promise<void> => {
+        const opened = helpers.adoptPanel<P>(panel, options);
+        try {
+          await restore(opened, saved);
+        } catch (error) {
+          // A panel that cannot be brought back is closed: the alternative is a blank page that never fills.
+          log(`webview: could not restore ${options.viewType}: ${String(error)}`);
+          opened.dispose();
+        }
+      };
+      restorers.set(options.viewType, deserialize);
+      const registered = vscode.window.registerWebviewPanelSerializer(options.viewType, {
+        deserializeWebviewPanel: deserialize,
+      });
+      return new vscode.Disposable(() => {
+        restorers.delete(options.viewType);
+        registered.dispose();
       });
     },
   };
