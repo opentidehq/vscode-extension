@@ -3,6 +3,7 @@
 import * as vscode from "vscode";
 
 import { nonce, renderHtml } from "./html";
+import { pickResult, pickToHost, quickPickEntries, type PickRequest, type QuickPickEntry } from "./pick";
 import { placement } from "./placement";
 import { acceptMessage, type Protocol, type Validators } from "./protocol";
 
@@ -96,6 +97,12 @@ export function createWebviewHelpers(
     ): HostChannel<P> {
       const handlers = new Map<string, Set<(payload: unknown) => void | Promise<void>>>();
       const subscription = webview.onDidReceiveMessage((raw: unknown) => {
+        // A pick from a list is answered here for every webview: VS Code's QuickPick, not a <select>.
+        const pick = acceptMessage(raw, pickToHost);
+        if (pick) {
+          void answerPick(webview, pick.payload as PickRequest, log);
+          return;
+        }
         const message = acceptMessage(raw, validators);
         if (!message) {
           log(`webview: dropped an invalid message ${JSON.stringify(raw)?.slice(0, 200)}`);
@@ -159,4 +166,25 @@ export function createWebviewHelpers(
     },
   };
   return helpers;
+}
+
+/** Show a webview's list in VS Code's QuickPick and post what was chosen (null when it was dismissed). */
+async function answerPick(webview: vscode.Webview, request: PickRequest, log: (message: string) => void) {
+  let result = pickResult(request, undefined);
+  try {
+    const options = {
+      ...(request.title ? { title: request.title } : {}),
+      ...(request.placeHolder ? { placeHolder: request.placeHolder } : {}),
+      matchOnDescription: true,
+      matchOnDetail: true,
+    };
+    const entries = quickPickEntries(request);
+    const chosen = request.canPickMany
+      ? await vscode.window.showQuickPick<QuickPickEntry>(entries, { ...options, canPickMany: true })
+      : await vscode.window.showQuickPick<QuickPickEntry>(entries, options);
+    result = pickResult(request, chosen);
+  } catch (error) {
+    log(`webview: the pick failed: ${String(error)}`);
+  }
+  await webview.postMessage({ type: "picked", payload: result });
 }
