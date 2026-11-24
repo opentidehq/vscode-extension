@@ -425,6 +425,19 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     });
   });
 
+  it("turns semantic highlighting on for every language with a grammar, whatever the theme says", () => {
+    // A theme without `semanticHighlighting: true` (High Contrast Light, Quiet Light, Solarized Dark…) would otherwise
+    // leave a language to its grammar alone, which colours little but keywords, strings and numbers.
+    const defaults = pkg.contributes.configurationDefaults;
+    for (const { language } of pkg.contributes.grammars) {
+      assert.equal(
+        defaults[`[${language}]`]?.["editor.semanticHighlighting.enabled"],
+        true,
+        `[${language}] has no editor.semanticHighlighting.enabled: true in configurationDefaults`,
+      );
+    }
+  });
+
   it("refuses a grammar that already has the handoff rules, instead of applying them twice", () => {
     const aligned = JSON.parse(readFileSync(join(root, "syntaxes", "tide.tmLanguage.json"), "utf8"));
     assert.throws(() => alignTide(aligned, Error), /already has the handoff rules/);
