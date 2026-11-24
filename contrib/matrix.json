@@ -1,5 +1,6 @@
 {
   "$comment": "The ATT&CK matrix (#20, SPEC §10.2). The sidebar's Coverage view opens it with opentide.matrix.open.",
+  "activationEvents": ["onWebviewPanel:opentide.matrix"],
   "contributes": {
     "commands": [
       {

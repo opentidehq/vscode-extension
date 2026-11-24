@@ -91,7 +91,9 @@
     "onLanguage:lucene",
     "onLanguage:falco",
     "onMcpCollection:opentide",
+    "onWebviewPanel:opentide.graph",
     "onStartupFinished",
+    "onWebviewPanel:opentide.matrix",
     "onTaskType:opentide",
     "onTerminalProfile:opentide.terminal"
   ],
