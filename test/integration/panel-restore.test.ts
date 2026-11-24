@@ -92,18 +92,25 @@ describe("panels restored after a window reload", () => {
   });
 
   // A graph closed while its page (1.2 MB) still loads, then opened again: the new page loads. Panels of one view type
-  // share their webview origin, so a load cut short could hold up the next one's; this says whether it does.
-  it("a graph closed before its page loaded does not keep the next one from loading", async () => {
+  // share their webview origin, so a load cut short could hold up the next one's; each page now asks for its own copy
+  // of its script (panel.ts `html`). Ten cycles in one run, so a single CI job says whether it still happens.
+  it("a graph closed before its page loaded does not keep the next one from loading (10 cycles)", async () => {
     const api = await activated();
-    for (let round = 1; round <= 3; round += 1) {
+    const cycles: number[] = [];
+    for (let cycle = 1; cycle <= 10; cycle += 1) {
       await vscode.commands.executeCommand("opentide.graph.open");
       await waitFor(() => tabsOf(GRAPH)[0]);
       await vscode.commands.executeCommand("workbench.action.closeAllEditors");
       await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
+      const began = Date.now();
+      await vscode.commands.executeCommand("opentide.graph.open");
+      await openedPageReady(api, GRAPH, `the graph opened after one closed while loading (cycle ${cycle})`);
+      cycles.push(Date.now() - began);
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
     }
-    await vscode.commands.executeCommand("opentide.graph.open");
-    await openedPageReady(api, GRAPH, "the graph opened after three closed while loading");
-    assert.equal(api.ctx.webview.pages.size, 1, "the closed panels are forgotten");
+    process.stdout.write(`PANEL-RESTORE close-mid-load cycles ready after ${cycles.join(", ")} ms\n`);
+    assert.equal(api.ctx.webview.pages.size, 0, "the closed panels are forgotten");
   });
 
   it("the graph: a revived panel is wired, shows the graph page and is the one panel", async () => {

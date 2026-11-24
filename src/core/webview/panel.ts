@@ -116,8 +116,13 @@ export function createWebviewHelpers(
     webviewOptions: () => ({ enableScripts: true, localResourceRoots: [root] }),
     html(webview, entry, title, options = {}) {
       if (!/^[a-z][a-z0-9-]*$/.test(entry)) throw new Error(`bad webview entry: ${entry}`);
+      // One token per page: the CSP nonce, and a query on the page's own script and stylesheets. Panels of one view
+      // type share their webview origin; a page closed while its script still loaded may leave that request
+      // pending, and the next panel's request for the same URL would wait behind it (the graph's script is
+      // 1.2 MB). With the query each page asks for its own. The path, and so localResourceRoots, is unchanged.
+      const token = nonce();
       const asset = (...segments: string[]) =>
-        webview.asWebviewUri(vscode.Uri.joinPath(root, ...segments)).toString();
+        `${webview.asWebviewUri(vscode.Uri.joinPath(root, ...segments)).toString()}?p=${token}`;
       return renderHtml({
         cspSource: webview.cspSource,
         scriptUri: asset(`${entry}.js`),
@@ -126,7 +131,7 @@ export function createWebviewHelpers(
         extraStyleUris: [asset("codicons", "codicon.css"), ...(options.kit ? [asset("kit.css")] : [])],
         ...(options.kit ? { bodyClass: "ot-kit" } : {}),
         title,
-        nonce: nonce(),
+        nonce: token,
       });
     },
     connect<P extends Protocol>(

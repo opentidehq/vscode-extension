@@ -57,6 +57,25 @@ describe("registerPanelSerializer", () => {
     logs.length = 0;
   });
 
+  it("gives each page its own query on its script and stylesheets, the CSP nonce, under dist/webview", () => {
+    const revived = revivedPanel();
+    const page = (kit: boolean) =>
+      helpers.html(revived.webview as unknown as vscode.Webview, "graph", "opentide graph", { kit });
+    const first = page(true);
+    const nonceOf = (html: string) => /'nonce-([A-Za-z0-9]+)'/.exec(html)?.[1];
+    const token = nonceOf(first);
+    assert.ok(token, first);
+    const uris = [...first.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1] ?? "");
+    assert.equal(uris.length, 4, "the script, base.css, the codicons and kit.css");
+    for (const uri of uris) {
+      assert.match(uri, /^vscode-resource:\/ext\/dist\/webview\/[^?]+\?p=[A-Za-z0-9]+$/, uri);
+      assert.ok(uri.endsWith(`?p=${token}`), `${uri}: the page's token`);
+    }
+    assert.match(first, new RegExp(`<script nonce="${token}" src="[^"]+/graph\\.js\\?p=${token}"></script>`));
+    const second = page(false);
+    assert.notEqual(nonceOf(second), token, "another page asks for its own copy");
+  });
+
   it("registers a serializer for the view type", () => {
     const registered = helpers.registerPanelSerializer<TestProtocol>(options, () => undefined);
     assert.ok(panelSerializers.has("opentide.test"));
