@@ -13,6 +13,10 @@ export interface FeatureOutcome {
    * after it and the host. (Measured after the await, every feature's time included the ones that ran after it.)
    */
   readonly ms: number;
+  /** When it started (`performance.now()`), to match the GC pauses that fell inside it. */
+  readonly at: number;
+  /** This thread's CPU time over the same stretch, when a CPU clock was given (tests only). */
+  readonly cpuMs?: number;
 }
 
 export async function activateFeatures(
@@ -20,27 +24,34 @@ export async function activateFeatures(
   ctx: Pick<FeatureContext, "subscriptions"> & {
     readonly log: Pick<Logger, "info" | "error"> & Partial<Pick<Logger, "debug">>;
   },
+  cpu?: () => number,
 ): Promise<FeatureOutcome[]> {
   const began = performance.now();
   const seen = new Set<string>();
   const runs = features.map(async (feature): Promise<FeatureOutcome> => {
     const started = performance.now();
+    const cpuStarted = cpu?.();
+    const spent = () => ({
+      ms: performance.now() - started,
+      at: started,
+      ...(cpuStarted !== undefined && cpu ? { cpuMs: cpu() - cpuStarted } : {}),
+    });
     if (seen.has(feature.id)) {
       ctx.log.error(`feature ${feature.id}: a second feature has the same id; skipped`);
-      return { id: feature.id, ok: false, error: "duplicate id", ms: 0 };
+      return { id: feature.id, ok: false, error: "duplicate id", ms: 0, at: started };
     }
     seen.add(feature.id);
     try {
       // Call synchronously, so listeners a feature registers in activate() exist before the core starts.
       const pending = feature.activate(ctx as FeatureContext);
-      const ms = performance.now() - started;
+      const times = spent();
       const result = await pending;
       if (result) ctx.subscriptions.push(result);
-      return { id: feature.id, ok: true, ms };
+      return { id: feature.id, ok: true, ...times };
     } catch (error) {
       const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
       ctx.log.error(`feature ${feature.id} failed to activate: ${message}`);
-      return { id: feature.id, ok: false, error: message, ms: performance.now() - started };
+      return { id: feature.id, ok: false, error: message, ...spent() };
     }
   });
   const outcomes = await Promise.all(runs);

@@ -391,7 +391,7 @@ describe("status item: one clear opentide item", () => {
 });
 
 describe("feature activation summary", () => {
-  const outcome = (id: string, ms: number, ok = true) => ({ id, ok, ms });
+  const outcome = (id: string, ms: number, ok = true) => ({ id, ok, ms, at: 0 });
 
   it("says how many activated in how long, with the slowest three", () => {
     const text = activationSummary(
@@ -433,6 +433,33 @@ describe("feature activation summary", () => {
     assert.ok((ms.slow ?? 0) >= 35 && (ms.slow ?? 0) < 75, `slow ${ms.slow}`);
     assert.ok((ms.quick ?? 99) < 20, `quick ${ms.quick}: it ran before the third, so it must not include it`);
     assert.ok((ms["slow-too"] ?? 0) >= 35 && (ms["slow-too"] ?? 0) < 75, `slow-too ${ms["slow-too"]}`);
+  });
+
+  it("takes each feature's CPU time from the clock it is given, over the same stretch as its wall time", async () => {
+    // A fake clock: each feature's activate spends 7 ms of "CPU" (the quick one none).
+    let cpu = 100;
+    const outcomes = await activateFeatures(
+      [
+        defineFeature({ id: "busy", activate: () => void (cpu += 7) }),
+        defineFeature({ id: "quick", activate: () => undefined }),
+      ],
+      { subscriptions: [], log: { info: () => {}, error: () => {} } },
+      () => cpu,
+    );
+    assert.deepEqual(
+      outcomes.map((o) => [o.id, o.cpuMs]),
+      [
+        ["busy", 7],
+        ["quick", 0],
+      ],
+    );
+    for (const o of outcomes)
+      assert.ok(o.at > 0 && o.at <= performance.now(), `${o.id} starts on the timeline`);
+    const [plain] = await activateFeatures([defineFeature({ id: "x", activate: () => undefined })], {
+      subscriptions: [],
+      log: { info: () => {}, error: () => {} },
+    });
+    assert.equal(plain?.cpuMs, undefined, "no clock, no CPU time (production)");
   });
 
   it("is logged at debug level by activateFeatures, when the log has it", async () => {
