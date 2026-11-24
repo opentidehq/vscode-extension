@@ -33,7 +33,9 @@ describe("a language server that keeps crashing", function () {
     await api.ctx.runtime.restart("crash test");
     const manager = api.ctx.client as LanguageClientManager;
     assert.equal(api.ctx.runtime.current?.source, "wasi", JSON.stringify(api.ctx.runtime.attempts));
-    assert.equal(manager.serverRuntime?.kind, "process", "the WASI module's language server runs");
+    // The bundled module runs the language server, not the engine: a runtime of kind `opentide` with `wasi` set.
+    assert.equal(manager.serverRuntime?.kind, "opentide", JSON.stringify(manager.serverRuntime));
+    assert.ok(manager.serverRuntime?.wasi, "the WASI module's language server runs");
     const events: { at: number; up: boolean }[] = [];
     const watch = api.ctx.client.onDidChange((client) =>
       events.push({ at: Date.now(), up: client !== undefined }),
