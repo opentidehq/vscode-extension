@@ -7,6 +7,12 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Faster startup on Windows.** Looking for `opentide`, `python` and `uv` on your PATH no longer
+  holds up other extensions, and each is looked up once. A program you install while VS Code is
+  open is found after **opentide: Restart Server**.
+
 ## [0.4.1] - 2026-11-24
 
 Tenant queries no longer hold up the editor, and panels come back after a reload. Runs on opentide 1.0.0-rc.5.

@@ -5,7 +5,7 @@ import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import { performance } from "node:perf_hooks";
 
-import { isFile, which } from "../../src/core/runtime/process";
+import { isFile, isFileAsync, PathLookup, which } from "../../src/core/runtime/process";
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`);
@@ -32,6 +32,37 @@ describe("PATH lookup", () => {
       `WHICH platform=${process.platform} dirs=${dirs} extensions=${extensions} stats=${stats} ` +
         `ms=${ms.toFixed(1)} (one uncached lookup of a missing program)`,
     );
-    assert.ok(stats >= dirs * extensions, "every folder and extension is tried");
+    assert.equal(stats, dirs * extensions, "every folder and extension is tried, once");
+  });
+
+  it("says what the extension host's lookups cost: remembered, and off its thread", async () => {
+    const envPath = process.env.PATH ?? "";
+    let stats = 0;
+    const lookup = new PathLookup(
+      (file) => {
+        stats += 1;
+        return isFile(file);
+      },
+      (file) => {
+        stats += 1;
+        return isFileAsync(file);
+      },
+    );
+    // Off the thread: what the call holds the thread for (until its first await), and the whole lookup.
+    let began = performance.now();
+    const pending = lookup.whichAsync("opentide-not-installed", envPath, process.platform);
+    const heldMs = performance.now() - began;
+    assert.equal(await pending, undefined);
+    const asyncMs = performance.now() - began;
+    const asyncStats = stats;
+    // Then the same name again, synchronously: remembered, no stat.
+    began = performance.now();
+    assert.equal(lookup.which("opentide-not-installed", envPath, process.platform), undefined);
+    const cachedMs = performance.now() - began;
+    say(
+      `WHICH platform=${process.platform} async: stats=${asyncStats} ms=${asyncMs.toFixed(1)} ` +
+        `thread held ${heldMs.toFixed(2)} ms; again (cached): stats=${stats - asyncStats} ms=${cachedMs.toFixed(2)}`,
+    );
+    assert.equal(stats, asyncStats, "the second lookup is remembered");
   });
 });
