@@ -66,6 +66,31 @@ describe("registerPanelSerializer", () => {
     assert.ok(!helpers.restorers.has("opentide.test"));
   });
 
+  it("knows each wired panel's page until it closes, and when the page said it is ready (for the tests)", async () => {
+    let opened: OpentidePanel<TestProtocol> | undefined;
+    helpers.registerPanelSerializer<TestProtocol>(options, (wired) => {
+      opened = wired;
+    });
+    const revived = revivedPanel();
+    await panelSerializers.get("opentide.test")?.deserializeWebviewPanel(revived.panel, undefined);
+    const page = () => helpers.pages.get(revived.panel as unknown as vscode.WebviewPanel);
+    assert.deepEqual(page(), { viewType: "opentide.test", ready: false }, "wired, its page not loaded yet");
+    for (const listener of revived.messages) listener({ type: "nonsense", payload: 1 });
+    assert.equal(page()?.ready, false, "only a valid `ready` counts");
+    for (const listener of revived.messages) listener({ type: "ready" });
+    assert.equal(page()?.ready, true);
+    revived.panel.dispose();
+    assert.equal(page(), undefined, "a closed panel is forgotten");
+    assert.ok(opened);
+
+    // Disposed from our side too.
+    const other = revivedPanel();
+    await panelSerializers.get("opentide.test")?.deserializeWebviewPanel(other.panel, undefined);
+    assert.ok(helpers.pages.has(other.panel as unknown as vscode.WebviewPanel));
+    opened?.dispose();
+    assert.ok(!helpers.pages.has(other.panel as unknown as vscode.WebviewPanel));
+  });
+
   it("hands a revived panel to `restore` wired like a new one, with the state the page saved", async () => {
     let got: { opened: OpentidePanel<TestProtocol>; saved: unknown } | undefined;
     helpers.registerPanelSerializer<TestProtocol>(options, (opened, saved) => {

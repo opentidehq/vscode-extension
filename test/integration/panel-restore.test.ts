@@ -5,6 +5,7 @@ import * as assert from "node:assert/strict";
 
 import * as vscode from "vscode";
 
+import type { ExtensionApi } from "../../src/extension";
 import { activated, waitFor } from "./helpers";
 
 const GRAPH = "opentide.graph";
@@ -43,18 +44,40 @@ async function pageReady(panel: vscode.WebviewPanel, received: readonly string[]
     panel.reveal(undefined, false);
     await waitFor(() => (received.includes("ready") ? true : undefined), 30_000);
   } catch {
-    let state: string;
-    try {
-      state = `visible=${panel.visible} active=${panel.active} viewColumn=${String(panel.viewColumn)}`;
-    } catch (error) {
-      state = `the panel is disposed (${String(error)})`;
-    }
     throw new Error(
-      `the page of ${panel.viewType} sent no "ready" in ${Math.round((Date.now() - began) / 1000)} s: ${state}; ` +
-        `messages ${JSON.stringify(received)}; tabs ${tabsOf(panel.viewType).length}`,
+      `the page of ${panel.viewType} sent no "ready" in ${Math.round((Date.now() - began) / 1000)} s: ` +
+        `${panelState(panel)}; messages ${JSON.stringify(received)}; tabs ${tabsOf(panel.viewType).length}`,
     );
   }
   process.stdout.write(`PANEL-RESTORE ${panel.viewType} page ready after ${Date.now() - began} ms\n`);
+}
+
+/** Where a panel is, or that it is gone: what a timeout says, so a page that never loads is diagnosable. */
+function panelState(panel: vscode.WebviewPanel): string {
+  try {
+    return `visible=${panel.visible} active=${panel.active} viewColumn=${String(panel.viewColumn)}`;
+  } catch (error) {
+    return `the panel is disposed (${String(error)})`;
+  }
+}
+
+/**
+ * Until the page of the panel a command opened (the feature's own, not a revived one) has said it is ready: the
+ * graph "as it was before the reload" is a loaded one. Closing it while its page still loads is another case (below).
+ */
+async function openedPageReady(api: Required<ExtensionApi>, viewType: string, what: string): Promise<void> {
+  const began = Date.now();
+  const pages = () => [...api.ctx.webview.pages].filter(([, page]) => page.viewType === viewType);
+  try {
+    await waitFor(() => (pages().some(([, page]) => page.ready) ? true : undefined), 30_000);
+  } catch {
+    const states = pages().map(([panel, page]) => `${panelState(panel)} ready=${page.ready}`);
+    throw new Error(
+      `the page of ${what} sent no "ready" in ${Math.round((Date.now() - began) / 1000)} s: ` +
+        `${states.join("; ") || "no such panel"}; tabs ${tabsOf(viewType).length}`,
+    );
+  }
+  process.stdout.write(`PANEL-RESTORE ${what} page ready after ${Date.now() - began} ms\n`);
 }
 
 describe("panels restored after a window reload", () => {
@@ -68,11 +91,27 @@ describe("panels restored after a window reload", () => {
     assert.ok(api.ctx.webview.restorers.has(MATRIX), "matrix");
   });
 
+  // A graph closed while its page (1.2 MB) still loads, then opened again: the new page loads. Panels of one view type
+  // share their webview origin, so a load cut short could hold up the next one's; this says whether it does.
+  it("a graph closed before its page loaded does not keep the next one from loading", async () => {
+    const api = await activated();
+    for (let round = 1; round <= 3; round += 1) {
+      await vscode.commands.executeCommand("opentide.graph.open");
+      await waitFor(() => tabsOf(GRAPH)[0]);
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
+    }
+    await vscode.commands.executeCommand("opentide.graph.open");
+    await openedPageReady(api, GRAPH, "the graph opened after three closed while loading");
+    assert.equal(api.ctx.webview.pages.size, 1, "the closed panels are forgotten");
+  });
+
   it("the graph: a revived panel is wired, shows the graph page and is the one panel", async () => {
     const api = await activated();
-    // The graph as it was before the reload, then gone with the host: its panel closed.
+    // The graph as it was before the reload (loaded), then gone with the host: its panel closed.
     await vscode.commands.executeCommand("opentide.graph.open");
     await waitFor(() => tabsOf(GRAPH)[0]);
+    await openedPageReady(api, GRAPH, "the graph Show Graph opened");
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
     await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
 
@@ -98,6 +137,7 @@ describe("panels restored after a window reload", () => {
     const api = await activated();
     await vscode.commands.executeCommand("opentide.matrix.open");
     await waitFor(() => tabsOf(MATRIX)[0]);
+    await openedPageReady(api, MATRIX, "the matrix the command opened");
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
     await waitFor(() => (tabsOf(MATRIX).length === 0 ? true : undefined));
 
@@ -121,6 +161,7 @@ describe("panels restored after a window reload", () => {
     const api = await activated();
     await vscode.commands.executeCommand("opentide.graph.open");
     await waitFor(() => tabsOf(GRAPH)[0]);
+    await openedPageReady(api, GRAPH, "the graph already open");
     const { panel, received } = revived(GRAPH, "opentide graph");
     await api.ctx.webview.restorers.get(GRAPH)?.(panel, undefined);
     // The one that was open is closed, and the revived one stays and loads its page.
