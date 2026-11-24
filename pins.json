@@ -55,7 +55,7 @@
   "vsix": {
     "budgetBytes": 20971520,
     "targetBytes": 16777216,
-    "recordedBytes": 16593492,
+    "recordedBytes": 16597236,
     "growthLimit": 0.1
   },
   "skills": {
