@@ -21,6 +21,7 @@
     "**/runtime-licenses",
     "skills/**",
     "language-configuration/**",
+    "test/fixtures/highlighting/**",
     "**/*.md"
   ],
   "sortPackageJson": false

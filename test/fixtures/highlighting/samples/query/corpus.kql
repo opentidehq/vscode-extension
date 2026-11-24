@@ -1,0 +1,147 @@
+SecurityEvent | where EventID == 4625 | as hint.materialized=true Failures | summarize count() by Account
+
+SigninLogs | project-away *Id | project-keep User*Name, IPAddress | project-reorder *, IPAddress asc
+
+// prod comment
+SecurityEvent | take 1
+
+.show tables
+
+datatable(Account: string, Count: long) ["admin", 1, "guest", 2]
+
+SecurityEvent | distinct Computer
+
+let Servers = dynamic(["ADFS01", "ADFS02"]);
+let Limits = dynamic({"max": 10, "min": -1});
+SecurityEvent | where Computer in (Servers)
+
+Event | evaluate bag_unpack(EventData)
+
+SecurityEvent | where EventID in (4624, 4625) and Account !in~ ("SYSTEM", "LOCAL SERVICE")
+
+SecurityEvent | extend x = 1
+
+externaldata (Ip: string, Tag: string) [@"https://example.com/ips.csv"] with (format="csv", ignoreFirstRecord=true)
+| take 10
+
+SecurityEvent
+| facet by Account, Computer with (where EventID == 4625 | take 5)
+
+SecurityEvent | filter EventID == 4688
+
+find in (SecurityEvent, Syslog) where TimeGenerated > ago(1h) project TimeGenerated, Computer:string
+
+SecurityEvent
+| fork failed = (where EventID == 4625 | take 5) (count)
+
+SecurityEvent | where ago(1d) < TimeGenerated
+
+let Logs = (tableName: string, lookback: timespan = 1d) { table(tableName) | where TimeGenerated > ago(lookback) };
+Logs("SigninLogs")
+
+SecurityEvent | summarize hint.shufflekey=Computer count() by Computer
+
+SecurityEvent | extend Process = split(NewProcessName, "\\")[-1], Key = todynamic(EventData)["Key"]
+
+SecurityEvent | join kind=inner SecurityAlert on EventID
+
+let x = 1;
+SecurityEvent | take 1
+
+SecurityEvent | limit 10
+
+SecurityEvent | lookup Identity on EventID
+
+SecurityEvent | make-series Logons = count() on TimeGenerated from ago(7d) to now() step 1h by Computer
+
+let Logons = materialize(SecurityEvent | where EventID == 4624);
+Logons | take 1
+
+SigninLogs | extend City = LocationDetails.city, Data = parse_json(AdditionalFields).Detail
+
+AuditLogs | mv-apply TargetResource = TargetResources on (where TargetResource.type == "User" | take 1)
+
+SecurityEvent | mv-expand EventData
+
+let f = (starttime:datetime, ipaddr:string) { print s = starttime, i = ipaddr };
+f(starttime=ago(1d), ipaddr="1.2.3.4")
+
+print 42
+
+union isfuzzy=true withsource=SourceTable SigninLogs, AADNonInteractiveUserSignInLogs
+
+Syslog
+| parse-kv SyslogMessage as (Level: string, Host: string) with (pair_delimiter = " ", kv_delimiter = "=")
+| take 10
+
+SecurityEvent | parse CommandLine with "cmd "
+
+Syslog | parse-where SyslogMessage with * "user=" User " port=" Port:long
+
+SecurityEvent
+| partition hint.strategy=native by Account (top 1 by TimeGenerated desc)
+
+SecurityEvent | project-away EventID
+
+SecurityEvent | project EventID, Computer
+
+SecurityEvent | project-rename NewName = EventID
+
+union cluster("help").database("Samples").StormEvents, database("Security").['Sign-in Logs'], workspace("w").Sec*
+| take 10
+
+declare query_parameters(account:string = "admin", lookback:timespan = 1d);
+SecurityEvent | where TimeGenerated > ago(lookback) and Account has account
+
+SigninLogs | project ['User Name'] = UserPrincipalName | where ['User Name'] != ""
+
+SecurityEvent | where TimeGenerated between (ago(1d) .. now())
+
+range Day from ago(7d) to now() step 1d
+
+SecurityEvent | where EventID == 4688 | reduce kind=source by CommandLine with threshold=0.1, characters="/\\"
+
+SecurityEvent | render table
+
+SecurityEvent | summarize count() by bin(TimeGenerated, 1h) | render timechart with (title="Events", ycolumns=count_, ymin=0)
+
+SecurityEvent | sample-distinct 10 of Account
+
+range x from 1 to 5 step 1
+| scan declare (cumulative_x: long = 0) with (step s1: true => cumulative_x = x + s1.cumulative_x;)
+
+SecurityEvent | search kind=case_sensitive in (SecurityEvent) Account : "admin" and * has "4625"
+
+search in (SecurityEvent) "mimikatz" | take 10
+
+SecurityEvent | sort by TimeGenerated asc | serialize rn = row_number(), PreviousAccount = prev(Account)
+
+SecurityEvent | sort by TimeGenerated desc
+
+SecurityEvent | where * has "mimikatz" or * contains "psexec" or * matches regex "x"
+
+print "hello"
+
+SecurityEvent | summarize count() by Computer
+
+let events = union isfuzzy=true Security*, *Logs, SigninLogs | union withsource=Source Sign*, SecurityAlert;
+search in (Sec*, SigninLogs) "mimikatz" | take 10
+
+SecurityEvent | take 1
+
+SecurityEvent | extend Failed = toint(EventID == 4625) | top-hitters 10 of Account by Failed
+
+SecurityEvent
+| top-nested 3 of Computer by Failures = count(), top-nested 2 of Account with others = "other" by count() desc
+
+SecurityEvent | top 10 by TimeGenerated
+
+let Threshold = toscalar(SecurityEvent | summarize count());
+SecurityEvent | where EventID > Threshold
+
+print a = datetime(2024-01-01 10:00:00), b = timespan(1d), c = long(null), d = guid(00000000-0000-0000-0000-000000000000)
+
+SecurityEvent | union SecurityAlert
+
+SecurityEvent | where EventID == 4688
+

@@ -55,15 +55,32 @@
                   "name": "keyword.operator.key-value.tide"
                 },
                 "4": {
+                  "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                },
+                "5": {
                   "name": "meta.embedded.block.kql",
                   "patterns": [
                     {
                       "include": "source.kql"
                     }
                   ]
+                },
+                "6": {
+                  "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                },
+                "7": {
+                  "name": "meta.embedded.block.kql",
+                  "patterns": [
+                    {
+                      "include": "source.kql"
+                    }
+                  ]
+                },
+                "8": {
+                  "name": "comment.line.opentide"
                 }
               },
-              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(?:(['\"])(.*?)(\\4)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$"
             },
             {
               "include": "$self"
@@ -110,15 +127,32 @@
                   "name": "keyword.operator.key-value.tide"
                 },
                 "4": {
+                  "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                },
+                "5": {
                   "name": "meta.embedded.block.spl",
                   "patterns": [
                     {
                       "include": "source.spl"
                     }
                   ]
+                },
+                "6": {
+                  "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                },
+                "7": {
+                  "name": "meta.embedded.block.spl",
+                  "patterns": [
+                    {
+                      "include": "source.spl"
+                    }
+                  ]
+                },
+                "8": {
+                  "name": "comment.line.opentide"
                 }
               },
-              "match": "^(\\s+)(query|search)\\s*(:)\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query|search)\\s*(:)\\s+(?![|>])(?:(['\"])(.*?)(\\4)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$"
             },
             {
               "include": "$self"
@@ -165,15 +199,32 @@
                   "name": "keyword.operator.key-value.tide"
                 },
                 "4": {
+                  "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                },
+                "5": {
                   "name": "meta.embedded.block.lucene",
                   "patterns": [
                     {
                       "include": "source.lucene"
                     }
                   ]
+                },
+                "6": {
+                  "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                },
+                "7": {
+                  "name": "meta.embedded.block.lucene",
+                  "patterns": [
+                    {
+                      "include": "source.lucene"
+                    }
+                  ]
+                },
+                "8": {
+                  "name": "comment.line.opentide"
                 }
               },
-              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(?:(['\"])(.*?)(\\4)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$"
             },
             {
               "include": "$self"
@@ -220,15 +271,32 @@
                   "name": "keyword.operator.key-value.tide"
                 },
                 "4": {
+                  "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                },
+                "5": {
                   "name": "meta.embedded.block.falco",
                   "patterns": [
                     {
                       "include": "source.falco"
                     }
                   ]
+                },
+                "6": {
+                  "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                },
+                "7": {
+                  "name": "meta.embedded.block.falco",
+                  "patterns": [
+                    {
+                      "include": "source.falco"
+                    }
+                  ]
+                },
+                "8": {
+                  "name": "comment.line.opentide"
                 }
               },
-              "match": "^(\\s+)(condition)\\s*(:)\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(condition)\\s*(:)\\s+(?![|>])(?:(['\"])(.*?)(\\4)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$"
             },
             {
               "include": "$self"
@@ -275,15 +343,32 @@
                   "name": "keyword.operator.key-value.tide"
                 },
                 "4": {
+                  "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                },
+                "5": {
                   "name": "meta.embedded.block.cql",
                   "patterns": [
                     {
                       "include": "source.opentide.cql"
                     }
                   ]
+                },
+                "6": {
+                  "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                },
+                "7": {
+                  "name": "meta.embedded.block.cql",
+                  "patterns": [
+                    {
+                      "include": "source.opentide.cql"
+                    }
+                  ]
+                },
+                "8": {
+                  "name": "comment.line.opentide"
                 }
               },
-              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(query)\\s*(:)\\s+(?![|>])(?:(['\"])(.*?)(\\4)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$"
             },
             {
               "include": "$self"
@@ -330,15 +415,32 @@
                   "name": "keyword.operator.key-value.tide"
                 },
                 "4": {
+                  "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                },
+                "5": {
                   "name": "meta.embedded.block.yaral",
                   "patterns": [
                     {
                       "include": "source.yaral"
                     }
                   ]
+                },
+                "6": {
+                  "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                },
+                "7": {
+                  "name": "meta.embedded.block.yaral",
+                  "patterns": [
+                    {
+                      "include": "source.yaral"
+                    }
+                  ]
+                },
+                "8": {
+                  "name": "comment.line.opentide"
                 }
               },
-              "match": "^(\\s+)(setup|events|outcome|condition|export)\\s*(:)\\s+(?![|>])(.+)$"
+              "match": "^(\\s+)(setup|events|outcome|condition|export)\\s*(:)\\s+(?![|>])(?:(['\"])(.*?)(\\4)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$"
             },
             {
               "include": "$self"
@@ -395,7 +497,7 @@
                 },
                 {
                   "comment": "elastic type: esql query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*?)(\\5)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -404,12 +506,29 @@
                       "name": "keyword.operator.key-value.tide"
                     },
                     "5": {
+                      "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                    },
+                    "6": {
                       "name": "meta.embedded.block.esql",
                       "patterns": [
                         {
                           "include": "source.opentide.esql"
                         }
                       ]
+                    },
+                    "7": {
+                      "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                    },
+                    "8": {
+                      "name": "meta.embedded.block.esql",
+                      "patterns": [
+                        {
+                          "include": "source.opentide.esql"
+                        }
+                      ]
+                    },
+                    "9": {
+                      "name": "comment.line.opentide"
                     }
                   }
                 },
@@ -455,7 +574,7 @@
                 },
                 {
                   "comment": "elastic type: eql query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*?)(\\5)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -464,12 +583,29 @@
                       "name": "keyword.operator.key-value.tide"
                     },
                     "5": {
+                      "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                    },
+                    "6": {
                       "name": "meta.embedded.block.eql",
                       "patterns": [
                         {
                           "include": "source.eql"
                         }
                       ]
+                    },
+                    "7": {
+                      "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                    },
+                    "8": {
+                      "name": "meta.embedded.block.eql",
+                      "patterns": [
+                        {
+                          "include": "source.eql"
+                        }
+                      ]
+                    },
+                    "9": {
+                      "name": "comment.line.opentide"
                     }
                   }
                 },
@@ -515,7 +651,7 @@
                 },
                 {
                   "comment": "elastic language: kuery query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*?)(\\5)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -524,12 +660,29 @@
                       "name": "keyword.operator.key-value.tide"
                     },
                     "5": {
+                      "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                    },
+                    "6": {
                       "name": "meta.embedded.block.kuery",
                       "patterns": [
                         {
                           "include": "source.kuery"
                         }
                       ]
+                    },
+                    "7": {
+                      "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                    },
+                    "8": {
+                      "name": "meta.embedded.block.kuery",
+                      "patterns": [
+                        {
+                          "include": "source.kuery"
+                        }
+                      ]
+                    },
+                    "9": {
+                      "name": "comment.line.opentide"
                     }
                   }
                 },
@@ -575,7 +728,7 @@
                 },
                 {
                   "comment": "elastic language: lucene query (inline)",
-                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
+                  "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*?)(\\5)|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$",
                   "captures": {
                     "2": {
                       "name": "variable.other.property.tide"
@@ -584,12 +737,29 @@
                       "name": "keyword.operator.key-value.tide"
                     },
                     "5": {
+                      "name": "string.quoted.tide punctuation.definition.string.begin.tide"
+                    },
+                    "6": {
                       "name": "meta.embedded.block.lucene",
                       "patterns": [
                         {
                           "include": "source.lucene"
                         }
                       ]
+                    },
+                    "7": {
+                      "name": "string.quoted.tide punctuation.definition.string.end.tide"
+                    },
+                    "8": {
+                      "name": "meta.embedded.block.lucene",
+                      "patterns": [
+                        {
+                          "include": "source.lucene"
+                        }
+                      ]
+                    },
+                    "9": {
+                      "name": "comment.line.opentide"
                     }
                   }
                 },
@@ -650,7 +820,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -700,7 +870,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -744,7 +914,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -797,7 +967,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -935,7 +1105,7 @@
     {
       "comment": "capture:markdown.code",
       "match": "`[^`]+`",
-      "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+      "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
     },
     {
       "comment": "capture:markdown.list",

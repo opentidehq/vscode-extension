@@ -237,6 +237,12 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     assert.ok(underType(lastScope(esql, "# What it finds", "# What it finds"), "type"));
     assert.ok(scopesOf(esql, "# What it finds", "What").includes("string.unquoted.block.tide"));
     assert.ok(underType(lastScope(esql, "Elastic ESQL with", "`code`"), "regexp"));
+    // not `constant.regexp`, which Dark+ and Dark Modern colour #646695 (3.0:1)
+    assert.equal(lastScope(esql, "Elastic ESQL with", "`code`"), "variable.other.constant.markdown.tide");
+    assert.ok(
+      !tokenTypeScopes.regexp.some((scope) => scope.startsWith("constant.regexp")),
+      tokenTypeScopes.regexp,
+    );
     assert.ok(underType(lastScope(esql, "- one", "- "), "operator"));
   });
 
@@ -286,6 +292,69 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
         assert.equal(embeddedAt(inline, "query: process.name", '"cmd.exe"'), scope, `${language} inline`);
         assert.ok(underType(lastScope(block, "language:", language), "enumMember"), language);
       }
+    });
+
+    it("embeds a quoted inline query between its quotes, not as one string, and keeps a trailing comment", async () => {
+      const lines = await tokenize(
+        [
+          "configurations:",
+          "  crowdstrike:",
+          "    query: '#event_simpleName=ProcessRollup2 | groupBy([ComputerName])'  # note",
+          "  sentinel:",
+          '    query: "SecurityEvent | where Computer != \\"lab\\""',
+          "  splunk:",
+          "    query: index=main | stats count by host # plain",
+          "  elastic:",
+          "    language: kuery",
+          "    query: 'process.name: \"cmd.exe\"' # k",
+          "",
+        ].join("\n"),
+      );
+      for (const [row, embedded] of [
+        ["groupBy", "meta.embedded.block.cql"],
+        ["SecurityEvent", "meta.embedded.block.kql"],
+        ["index=main", "meta.embedded.block.spl"],
+        ["process.name", "meta.embedded.block.kuery"],
+      ]) {
+        const tokens = lines.find((line) => line.line.includes(row));
+        const value = tokens.line.indexOf(":") + 2;
+        const comment = tokens.line.search(/[ \t]+#(?!e)/);
+        const inside = tokens.filter((t) => t.start >= value && (comment < 0 || t.end <= comment));
+        const [first, last] = [inside[0], inside.at(-1)];
+        const quoted = /['"]/.test(tokens.line[value]);
+        for (const token of quoted ? inside.slice(1, -1) : inside) {
+          assert.ok(token.scopes.includes(embedded), `${row}: ${JSON.stringify(token)}`);
+          // the YAML side gives the query no string scope: only the query grammar's own strings are strings
+          assert.ok(
+            !token.scopes.some((scope) => scope.endsWith(".tide") && scope.startsWith("string.")),
+            `${row}: ${JSON.stringify(token)}`,
+          );
+        }
+        if (quoted) {
+          assert.match(
+            first.scopes.at(-1),
+            /punctuation\.definition\.string\.begin/,
+            `${row}: ${JSON.stringify(first)}`,
+          );
+          assert.match(
+            last.scopes.at(-1),
+            /punctuation\.definition\.string\.end/,
+            `${row}: ${JSON.stringify(last)}`,
+          );
+          assert.equal(first.text, tokens.line[value]);
+        }
+      }
+      const pipe = tokenAt(lines, "groupBy", "|");
+      assert.ok(pipe.scopes.at(-1).startsWith("keyword.operator.pipe"), JSON.stringify(pipe));
+      assert.ok(
+        !tokenAt(lines, "groupBy", "ProcessRollup2").scopes.some((scope) => scope.startsWith("string.")),
+      );
+      for (const [row, comment] of [
+        ["groupBy", "# note"],
+        ["index=main", "# plain"],
+        ["process.name", "# k"],
+      ])
+        assert.equal(lastScope(lines, row, comment), "comment.line.opentide", `${row} ${comment}`);
     });
 
     it("falls back to the server when the language is written after the query, or not at all", async () => {
