@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Added
+
+- **The graph and the ATT&CK coverage panel come back after you reload the window.** They reopen where they
+  were, with the choices you had made in them, and show a loading state until opentide has answered.
+
 ### Changed
 
 - **Closing a window stops the language server and `opentide serve` together.** A slow stop of one no
