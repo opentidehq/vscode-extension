@@ -60,6 +60,15 @@ export function parseOpenArgs(arg: unknown): OpenArgs {
   return {};
 }
 
+/** The panel's identity and webview, for a new one and for one VS Code revives after a window reload. */
+const PANEL = {
+  viewType: "opentide.matrix",
+  entry: "matrix",
+  validators: hostValidators,
+  kit: true,
+  retainContextWhenHidden: false,
+} as const;
+
 export default defineFeature({
   id: "matrix",
   activate(ctx) {
@@ -69,11 +78,47 @@ export default defineFeature({
         const args = parseOpenArgs(arg);
         if (matrix) matrix.reveal(args);
         else {
-          matrix = new MatrixPanel(ctx, args, () => {
-            matrix = undefined;
-          });
+          matrix = new MatrixPanel(
+            ctx,
+            args,
+            // Opened on a technique from an editor (a hover, a lens), it goes beside it; otherwise it is a
+            // page of its own in the active group.
+            (title) =>
+              ctx.webview.createPanel<MatrixProtocol>({
+                ...PANEL,
+                title,
+                beside: args.technique !== undefined,
+              }),
+            () => {
+              matrix = undefined;
+            },
+          );
         }
       }),
+      // A reload brings the panel back: its folder is the editor's or the first, its filters are the saved ones, and
+      // the page's own state (the selection, the scroll position) comes with it. Until the runtime has resolved and
+      // the catalogue loaded, the page shows its loading state.
+      ctx.webview.registerPanelSerializer<MatrixProtocol>(
+        { ...PANEL, title: "opentide matrix" },
+        (opened) => {
+          if (matrix) {
+            // One matrix per window: a second revived panel is the same view twice, so it goes.
+            opened.dispose();
+            return;
+          }
+          matrix = new MatrixPanel(
+            ctx,
+            {},
+            (title) => {
+              opened.panel.title = title;
+              return opened;
+            },
+            () => {
+              matrix = undefined;
+            },
+          );
+        },
+      ),
       { dispose: () => matrix?.dispose() },
     );
   },
@@ -92,23 +137,15 @@ class MatrixPanel implements vscode.Disposable {
   constructor(
     private readonly ctx: FeatureContext,
     args: OpenArgs,
+    /** The panel, given its title: a new one, or the one VS Code revived. */
+    viewFor: (title: string) => OpentidePanel<MatrixProtocol>,
     onDispose: () => void,
   ) {
     const saved = ctx.extension.workspaceState.get<unknown>(FILTERS_KEY);
     this.filters = isFilters(saved) ? saved : DEFAULT_FILTERS;
     this.folder = this.chooseFolder(args.folder);
     this.pendingFocus = args.technique;
-    this.view = ctx.webview.createPanel<MatrixProtocol>({
-      viewType: "opentide.matrix",
-      title: matrixTitle(this.folder?.folder.name, ctx.folders.all.length),
-      entry: "matrix",
-      validators: hostValidators,
-      // Opened on a technique from an editor (a hover, a lens), it goes beside it; otherwise it is a
-      // page of its own in the active group.
-      beside: args.technique !== undefined,
-      kit: true,
-      retainContextWhenHidden: false,
-    });
+    this.view = viewFor(matrixTitle(this.folder?.folder.name, ctx.folders.all.length));
     const { channel, panel } = this.view;
     this.disposables.push(
       channel.on("ready", async () => {
