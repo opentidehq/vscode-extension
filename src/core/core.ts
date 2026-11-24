@@ -18,7 +18,7 @@ import { hasOpentideContent } from "./dormant";
 import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
-import { fallbackAttempts } from "./runtime/fallback";
+import { describeFallback, fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
 import { which } from "./runtime/process";
 import { isBundled, shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
@@ -213,6 +213,27 @@ export function createCore(context: vscode.ExtensionContext): Core {
   subscriptions.push(grant);
   void vscode.commands.executeCommand("setContext", "opentide.trusted", vscode.workspace.isTrusted);
 
+  // After a language server start, and after the engine took over from one that kept crashing: say so, once.
+  const announceServer = (): void => {
+    const fallback = client.fallback;
+    const server = client.serverRuntime;
+    if (fallback && server) {
+      runtime.noteAttempts(fallbackAttempts(fallback, server));
+      void vscode.window
+        .showWarningMessage(
+          `The language server of opentide ${fallback.from.version} ${describeFallback(fallback)}. The opentide engine (WASM) gives the editor features instead.`,
+          "Show Output",
+        )
+        .then((choice) => {
+          if (choice) log.show();
+        });
+    }
+    status.setFallback(fallback);
+    status.setServer(client.serverInfo, client.current !== undefined);
+    catalog.refreshAll({ immediate: true });
+  };
+  subscriptions.push(client.onDidFallBack(announceServer));
+
   // Restarts run one at a time; a restart asked for during one runs once more afterwards, and its
   // caller waits for that run, not the one it arrived during.
   const doRestart = async (reason: string): Promise<void> => {
@@ -232,22 +253,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     if (!trust.isTrusted)
       await fs.promises.mkdir(context.globalStorageUri.fsPath, { recursive: true }).catch(() => undefined);
     await client.start(rt, cwd);
-    const fallback = client.fallback;
-    const server = client.serverRuntime;
-    if (fallback && server) {
-      runtime.noteAttempts(fallbackAttempts(fallback, server));
-      void vscode.window
-        .showWarningMessage(
-          `The language server of opentide ${fallback.from.version} did not start (${fallback.reason}). The opentide engine (WASM) gives the editor features instead.`,
-          "Show Output",
-        )
-        .then((choice) => {
-          if (choice) log.show();
-        });
-    }
-    status.setFallback(fallback);
-    status.setServer(client.serverInfo, client.current !== undefined);
-    catalog.refreshAll({ immediate: true });
+    announceServer();
   };
   const restart = serialized((reason) =>
     doRestart(reason).catch((error: unknown) => log.error(`restart failed: ${String(error)}`)),

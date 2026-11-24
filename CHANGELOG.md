@@ -7,6 +7,13 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The editor features come back after the language server crashes.** The server now restarts after a
+  short, growing wait instead of at once. If it crashes five times in three minutes, the opentide engine
+  (WASM) takes over, with a notice, instead of the editor features staying dead until you run
+  `opentide: Restart Server`.
+
 ## [0.4.0] - 2026-11-23
 
 opentide 1.0.0-rc.4 inside the extension. Completion and hover know ATT&CK 20.1 and current MISP threat actors.

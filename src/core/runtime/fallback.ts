@@ -11,9 +11,16 @@ export interface ServerStart {
 }
 
 export interface Fallback {
-  /** The runtime whose language server did not start. */
+  /** The runtime whose language server did not start, or kept stopping. */
   readonly from: Runtime;
   readonly reason: string;
+  /** It started and ran, then crashed too often (restartPolicy.ts); absent when it did not start at all. */
+  readonly crashed?: boolean;
+}
+
+/** What happened to `fallback.from`'s language server, as a phrase after "its language server": "did not start (…)". */
+export function describeFallback(fallback: Fallback): string {
+  return fallback.crashed ? `stopped repeatedly (${fallback.reason})` : `did not start (${fallback.reason})`;
 }
 
 export interface Started {
@@ -50,7 +57,7 @@ export function fallbackAttempts(fallback: Fallback, engine: Runtime) {
       outcome: "failed" as const,
       path: fallback.from.command,
       version: fallback.from.version,
-      detail: `${fallback.from.command}: the language server did not start (${fallback.reason}); the engine (WASM) serves the editor features`,
+      detail: `${fallback.from.command}: the language server ${describeFallback(fallback)}; the engine (WASM) serves the editor features`,
     },
     {
       tier: engine.tier,
