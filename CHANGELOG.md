@@ -9,6 +9,9 @@ pre-releases odd ones.
 
 ### Changed
 
+- **Large query results open and filter faster.** A result of 50,000 rows no longer scans every cell to open,
+  and the table prepares its filter in the background while the panel is idle, so the first filter keystroke
+  answers without a pause.
 - **The ATT&CK coverage panel no longer holds memory while it is in the background.** It is rebuilt when you
   come back to it, with its filters, expanded techniques, selected technique, scroll position and focused
   cell as you left them.
