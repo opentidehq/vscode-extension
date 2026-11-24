@@ -39,6 +39,8 @@ function revived(viewType: string, title: string) {
 async function pageReady(panel: vscode.WebviewPanel, received: readonly string[]): Promise<void> {
   const began = Date.now();
   try {
+    // A webview loads its page once its panel is shown: reveal it (a disposed panel throws, and says so below).
+    panel.reveal(undefined, false);
     await waitFor(() => (received.includes("ready") ? true : undefined), 30_000);
   } catch {
     let state: string;
@@ -48,7 +50,7 @@ async function pageReady(panel: vscode.WebviewPanel, received: readonly string[]
       state = `the panel is disposed (${String(error)})`;
     }
     throw new Error(
-      `the page of ${panel.viewType} sent no "ready" in 30 s: ${state}; ` +
+      `the page of ${panel.viewType} sent no "ready" in ${Math.round((Date.now() - began) / 1000)} s: ${state}; ` +
         `messages ${JSON.stringify(received)}; tabs ${tabsOf(panel.viewType).length}`,
     );
   }
