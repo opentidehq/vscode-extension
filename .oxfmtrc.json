@@ -22,5 +22,6 @@
     "skills/**",
     "language-configuration/**",
     "**/*.md"
-  ]
+  ],
+  "sortPackageJson": false
 }

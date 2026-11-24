@@ -1,16 +1,38 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "import", "unicorn", "oxc"],
-  "categories": { "correctness": "error" },
-  "env": { "node": true, "es2022": true },
+  "plugins": ["typescript", "unicorn", "oxc", "import"],
+  "categories": { "correctness": "error", "suspicious": "warn" },
+  "env": { "node": true, "es2024": true },
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
+    // ignoreReadBeforeAssign: two sites read the variable in a closure before its one assignment
+    // (`let instance` in launcher.cjs, `let open` in a test), which Biome's useConst accepted.
     "prefer-const": ["error", { "ignoreReadBeforeAssign": true }],
+    "no-console": ["error", { "allow": ["error"] }],
+
+    // Off, each with its reason. Not mechanical: the fix changes behaviour or needs a rename or a move.
+    // unicorn: the spread rewrites change what is copied or what is evaluated.
     "unicorn/no-useless-spread": "off",
     "unicorn/no-useless-fallback-in-spread": "off",
+    // `new Array(n)` makes holes; `Array.from({ length: n })` does not (graph/layout.ts).
     "unicorn/no-new-array": "off",
-    "no-console": ["error", { "allow": ["error"] }]
+    // sort() and reverse() mutate in place; toSorted() and toReversed() copy, so a rewrite is only safe
+    // where nothing reads the original afterwards (139 and 5 sites).
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    // Moving 123 closures to an outer scope is a refactor, not a fix.
+    "unicorn/consistent-function-scoping": "off",
+    // 20 shadowed names need renames.
+    "eslint/no-shadow": "off",
+    // VS Code's webview postMessage has no target origin; the rule is for window.postMessage.
+    "unicorn/require-post-message-target-origin": "off",
+    // The names belong to Node and the DOM (`Module._resolveFilename`, `window_` in the virtual list).
+    "eslint/no-underscore-dangle": "off",
+    // The tests construct objects for their side effects.
+    "eslint/no-new": "off",
+    // Intended side-effect imports (the vscode stub register, the web test bundle's mocha setup).
+    "import/no-unassigned-import": "off"
   },
   "overrides": [{ "files": ["scripts/**", "test/**"], "rules": { "no-console": "off" } }],
   "ignorePatterns": [

@@ -2635,7 +2635,7 @@
     "build:production": "npm run features && node scripts/build.mjs --production",
     "watch": "npm run features && node scripts/build.mjs --watch",
     "typecheck": "npm run features && tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json",
-    "lint": "oxlint . && oxfmt --check",
+    "lint": "oxlint --deny-warnings --report-unused-disable-directives . && oxfmt --check",
     "format": "oxlint --fix . && oxfmt",
     "compile-tests": "npm run features && tsc -p tsconfig.json",
     "test": "npm run compile-tests && mocha",
