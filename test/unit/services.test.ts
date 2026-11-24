@@ -8,7 +8,7 @@ import { ACTIVITY_LIMIT, ActivityLog } from "../../src/core/activity";
 import type { RunRecord } from "../../src/core/backend/backend";
 import { CredentialStore } from "../../src/core/credentials";
 import { defineFeature } from "../../src/core/feature";
-import { activateFeatures } from "../../src/core/featureHost";
+import { activateFeatures, activationSummary } from "../../src/core/featureHost";
 import {
   isFamilyFile,
   isObjectFile,
@@ -386,5 +386,42 @@ describe("status item: one clear opentide item", () => {
       menuSections([{ label: "x", order: 100 }]).map((s) => s.label),
       ["opentide"],
     );
+  });
+});
+
+describe("feature activation summary", () => {
+  const outcome = (id: string, ms: number, ok = true) => ({ id, ok, ms });
+
+  it("says how many activated in how long, with the slowest three", () => {
+    const text = activationSummary(
+      [
+        outcome("sidebar", 40),
+        outcome("graph", 22),
+        outcome("matrix", 9),
+        outcome("agents", 3),
+        outcome("x", 1),
+      ],
+      83,
+    );
+    assert.equal(text, "features: 5 activated in 83 ms (slowest: sidebar 40 ms, graph 22 ms, matrix 9 ms)");
+  });
+
+  it("counts a failed feature apart and leaves it out of the slowest", () => {
+    const text = activationSummary([outcome("a", 5), outcome("bad", 900, false)], 12);
+    assert.equal(text, "features: 1 activated in 12 ms (slowest: a 5 ms); 1 failed");
+  });
+
+  it("has nothing to list for no features", () => {
+    assert.equal(activationSummary([], 0), "features: 0 activated in 0 ms");
+  });
+
+  it("is logged at debug level by activateFeatures, when the log has it", async () => {
+    const lines: string[] = [];
+    await activateFeatures([defineFeature({ id: "one", activate: () => undefined })], {
+      subscriptions: [],
+      log: { info: () => {}, error: () => {}, debug: (m: string) => void lines.push(m) },
+    });
+    assert.equal(lines.length, 1);
+    assert.match(lines[0] ?? "", /^features: 1 activated in \d+ ms \(slowest: one \d+ ms\)$/);
   });
 });

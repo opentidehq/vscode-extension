@@ -5,11 +5,11 @@
 import * as path from "node:path";
 
 import * as vscode from "vscode";
-import { LanguageClient } from "vscode-languageclient/node";
 
 import type { FeatureContext } from "./core/context";
 import { type Core, createCore } from "./core/core";
 import { activateFeatures } from "./core/featureHost";
+import { loadLsp } from "./core/lsp/load";
 import { startEngineWorker } from "./core/services/engine";
 import type { WasiHostKind } from "./core/wasi/hostChoice";
 import { features } from "./features/index.generated";
@@ -21,6 +21,8 @@ export interface ExtensionApi {
   readonly ctx?: FeatureContext;
   /** Only in tests: the host the bundled opentide last started on (the launcher or @vscode/wasm-wasi). */
   readonly wasiHost?: () => WasiHostKind | undefined;
+  /** Only in tests: how long `activate` took, until the core and the features were up (SPEC §14: under 300 ms). */
+  readonly activationMs?: number;
   /** Resolves when the first runtime resolution and language server start finished. */
   readonly started: Promise<void>;
 }
@@ -29,12 +31,17 @@ export interface ExtensionApi {
 let running: Core | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionApi> {
+  const began = Date.now();
   if (isVirtualOnly((vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.scheme))) {
     const module = path.join(context.extensionPath, "dist", "engine", "opentide_wasm_bg.wasm");
     activateWeb(context, {
       startEngine: () => startEngineWorker(module),
+      get State() {
+        return loadLsp().State;
+      },
+      engineTransports: (port) => loadLsp().engineTransports(port),
       createClient: (serverOptions, clientOptions) =>
-        new LanguageClient("opentide", "opentide Language Server", serverOptions, clientOptions),
+        new (loadLsp().LanguageClient)("opentide", "opentide Language Server", serverOptions, clientOptions),
     });
     return { started: Promise.resolve() };
   }
@@ -44,7 +51,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const started = core.start();
   await activated;
   // ExtensionMode.Test is 3.
-  return context.extensionMode === 3 ? { ctx: core.ctx, wasiHost: core.wasiHost, started } : { started };
+  const activationMs = Date.now() - began;
+  return context.extensionMode === 3
+    ? { ctx: core.ctx, wasiHost: core.wasiHost, activationMs, started }
+    : { started };
 }
 
 /**

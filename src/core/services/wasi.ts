@@ -16,21 +16,14 @@ import * as cp from "node:child_process";
 import * as fs from "node:fs";
 
 import type { RootFileSystem, Wasm, WasmProcess } from "@vscode/wasm-wasi/v1";
-import { Wasm as WasmApi } from "@vscode/wasm-wasi/v1";
 import * as vscode from "vscode";
-import {
-  Emitter,
-  type MessageReader,
-  type MessageWriter,
-  ReadableStreamMessageReader,
-  WriteableStreamMessageWriter,
-} from "vscode-jsonrpc";
-import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
+import type { MessageReader, MessageWriter } from "vscode-jsonrpc";
 import type { MessageTransports } from "vscode-languageclient/node";
 
 import { fromChildProcess, type ServeProcess } from "../backend/process";
 import { terminateChild } from "../backend/terminate";
 import type { Logger } from "../context";
+import { loadLsp } from "../lsp/load";
 import { cliCommand, type Runtime } from "../runtime/types";
 import { Buffered } from "../wasi/buffered";
 import { GUEST_HOME, wasiEnv } from "../wasi/env";
@@ -141,7 +134,7 @@ export class WasiHost implements vscode.Disposable {
         return undefined;
       }
       try {
-        const wasm = await WasmApi.load();
+        const wasm = await loadLsp().WasmApi.load();
         record("wasm-wasi");
         this.log.info(
           `WASI: running under @vscode/wasm-wasi (${WASM_WASI_CORE} ${wasm.versions.extension}): ${choice.note}`,
@@ -280,6 +273,14 @@ export class WasiHost implements vscode.Disposable {
 
   /** `opentide lsp start`: the language client's transports, with URIs and paths mapped. */
   async startLanguageServer(onStderr: (text: string) => void): Promise<WasiLanguageServer> {
+    // vscode-jsonrpc comes with the language client, from dist/lsp.js (lsp/load.ts).
+    const {
+      Emitter,
+      ReadableStreamMessageReader,
+      StreamMessageReader,
+      StreamMessageWriter,
+      WriteableStreamMessageWriter,
+    } = loadLsp();
     const wasm = await this.wasmWasi();
     if (!wasm) {
       const { child, paths } = this.startChild(["lsp", "start"]);

@@ -9,6 +9,8 @@ pre-releases odd ones.
 
 ### Changed
 
+- **Windows that never need the language server start faster.** The extension loads its language client the
+  first time a server starts, not in every window as it opens.
 - **Large query results open and filter faster.** A result of 50,000 rows no longer scans every cell to open,
   and the table prepares its filter in the background while the panel is idle, so the first filter keystroke
   answers without a pause.
