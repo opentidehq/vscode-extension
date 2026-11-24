@@ -384,10 +384,15 @@ export function createCore(context: vscode.ExtensionContext): Core {
     if (!isBundled(runtime.current)) return;
     lastRecheck = now;
     const attempts = runtime.attempts;
-    const rt = await runtime.resolveAgain();
+    // Nothing restarts unless a user's own opentide appeared, so a language server's fallback to the engine is still
+    // in effect: its attempts stay in the new resolution's, from the moment it is heard of (the status tooltip).
+    const rt = await runtime.resolveAgain({ keepNotes: true });
     // A user's own opentide (tiers 1-3) replaces what the extension carries; anything else changes nothing.
-    if (rt && rt.tier <= 3) await restart(reason);
-    else if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
+    if (rt && rt.tier <= 3) {
+      await restart(reason);
+      return;
+    }
+    if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
       log.debug(`runtime: looked again (${reason}); still ${rt ? describeRuntime(rt) : "no runtime"}`);
   };
   // Anything created under a .venv, a second after the last: a file made right after its new folder

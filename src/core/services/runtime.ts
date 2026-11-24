@@ -6,6 +6,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { Logger, RuntimeService } from "../context";
+import { type ResolveOptions, withNotes } from "../runtime/fallback";
 import { engineNotice } from "../runtime/notice";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
 import { isFile, pathLookup, probe } from "../runtime/process";
@@ -84,6 +85,8 @@ export function readPin(folder: string | undefined): RepoPin | undefined {
 export class RuntimeManager implements RuntimeService, vscode.Disposable {
   private runtime: Runtime | undefined;
   private lastAttempts: readonly ResolveAttempt[] = [];
+  /** What `noteAttempts` added after the last resolution: a language server's fallback to the engine. */
+  private notes: readonly ResolveAttempt[] = [];
   private repoPin: RepoPin | undefined;
   private readonly emitter = new Emitter<Runtime | undefined>();
   private first: Promise<Runtime | undefined> | undefined;
@@ -112,8 +115,12 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     return this.lastAttempts;
   }
 
-  /** Add what happened after the resolution (a language server that fell back to the engine). */
+  /**
+   * Add what happened after the resolution (a language server that fell back to the engine). They stay in the
+   * attempts through a resolution that keeps them (`resolveAgain({ keepNotes: true })`), until one that does not.
+   */
   noteAttempts(attempts: readonly ResolveAttempt[]): void {
+    this.notes = [...this.notes, ...attempts];
     this.lastAttempts = [...this.lastAttempts, ...attempts];
     for (const attempt of attempts)
       this.log.info(
@@ -138,15 +145,15 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
    * Resolve again from scratch, now: the resolution in progress, if any, may predate the change that asks for this,
    * so it is cancelled (its probes end) rather than waited for. Whoever awaited it gets this one's result.
    */
-  resolveAgain(): Promise<Runtime | undefined> {
+  resolveAgain(options: ResolveOptions = {}): Promise<Runtime | undefined> {
     // It looks at PATH again too: the user may have installed opentide, python or uv since.
     pathLookup.clear();
-    return this.begin();
+    return this.begin(options);
   }
 
   /** Resolve the runtime again. Concurrent calls share one resolution. */
   resolve(): Promise<Runtime | undefined> {
-    return this.resolving ?? this.begin();
+    return this.resolving ?? this.begin({});
   }
 
   /** Cancel the resolution in flight, if any (shutdown). */
@@ -154,8 +161,8 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     this.slot.cancel();
   }
 
-  private begin(): Promise<Runtime | undefined> {
-    const started = this.slot.start((signal) => this.doResolve(signal));
+  private begin(options: ResolveOptions): Promise<Runtime | undefined> {
+    const started = this.slot.start((signal) => this.doResolve(signal, options));
     const run: Promise<Runtime | undefined> = started.result
       .then((result) =>
         // Cancelled and replaced: follow the resolution that replaced it.
@@ -173,7 +180,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     return run;
   }
 
-  private async doResolve(signal: AbortSignal): Promise<Runtime | undefined> {
+  private async doResolve(signal: AbortSignal, options: ResolveOptions): Promise<Runtime | undefined> {
     const folder = this.primaryFolder();
     const folderPath = folder?.uri.fsPath;
     const trusted = vscode.workspace.isTrusted;
@@ -197,7 +204,9 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     });
     // Stale (a restart came while this resolved): leave the state to the resolution that replaced it.
     if (signal.aborted) return this.runtime;
-    this.lastAttempts = result.attempts;
+    // In one step, before anyone hears of the new runtime: the notes stay only when asked to.
+    this.notes = options.keepNotes ? this.notes : [];
+    this.lastAttempts = withNotes(result.attempts, this.notes);
     for (const attempt of result.attempts) {
       if (attempt.outcome !== "skipped")
         this.log.debug(
