@@ -776,12 +776,12 @@ function render(options: RenderOptions = {}): void {
   const ids = `${view.nodes.map((n) => n.id).join("\n")}|${view.edges.map((e) => e.id).join("\n")}`;
   let grown: string[] = [];
   if (!sameView || options.relayout) {
-    positions = layout(view.nodes, view.edges);
+    positions = layout(view.nodes, view.edges, mode);
   } else if (ids !== lastIds) {
     const added = view.nodes.filter((node) => !positions.has(node.id)).map((node) => node.id);
     for (const id of [...positions.keys()]) if (!nodesById.has(id)) positions.delete(id);
     if (added.length > INCREMENTAL_LIMIT) {
-      positions = stabilize(positions, layout(view.nodes, view.edges));
+      positions = stabilize(positions, layout(view.nodes, view.edges, mode));
     } else if (added.length > 0) {
       for (const [id, point] of placeNear(positions, added, view.edges)) positions.set(id, point);
       grown = added;
