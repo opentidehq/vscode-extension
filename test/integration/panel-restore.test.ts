@@ -32,6 +32,29 @@ function revived(viewType: string, title: string) {
   return { panel, received };
 }
 
+/**
+ * Until the page of a panel has loaded and said it is ready. A page that does not says what it can see of the panel, so
+ * a failure names where it stopped (a hidden panel, a closed one) rather than only that it timed out.
+ */
+async function pageReady(panel: vscode.WebviewPanel, received: readonly string[]): Promise<void> {
+  const began = Date.now();
+  try {
+    await waitFor(() => (received.includes("ready") ? true : undefined), 30_000);
+  } catch {
+    let state: string;
+    try {
+      state = `visible=${panel.visible} active=${panel.active} viewColumn=${String(panel.viewColumn)}`;
+    } catch (error) {
+      state = `the panel is disposed (${String(error)})`;
+    }
+    throw new Error(
+      `the page of ${panel.viewType} sent no "ready" in 30 s: ${state}; ` +
+        `messages ${JSON.stringify(received)}; tabs ${tabsOf(panel.viewType).length}`,
+    );
+  }
+  process.stdout.write(`PANEL-RESTORE ${panel.viewType} page ready after ${Date.now() - began} ms\n`);
+}
+
 describe("panels restored after a window reload", () => {
   afterEach(async () => {
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
@@ -59,7 +82,7 @@ describe("panels restored after a window reload", () => {
 
     assert.match(panel.webview.html, /graph\.js/, "the graph page was set");
     assert.equal(panel.webview.options.enableScripts, true);
-    await waitFor(() => (received.includes("ready") ? true : undefined), 30_000);
+    await pageReady(panel, received);
     const status = await vscode.commands.executeCommand<{ open: boolean }>("opentide.graph.reveal");
     assert.equal(status?.open, true, "the feature owns the revived panel");
     assert.equal(tabsOf(GRAPH).length, 1, "one graph panel, not a second beside it");
@@ -84,7 +107,7 @@ describe("panels restored after a window reload", () => {
     assert.match(panel.webview.html, /matrix\.js/, "the matrix page was set");
     assert.notEqual(panel.title, "stale title", "the title is the matrix's own again");
     assert.match(panel.title, /ATT&CK Coverage/);
-    await waitFor(() => (received.includes("ready") ? true : undefined), 30_000);
+    await pageReady(panel, received);
     assert.equal(tabsOf(MATRIX).length, 1);
     // The command finds the revived panel: it reveals it, it opens no second one.
     await vscode.commands.executeCommand("opentide.matrix.open");
@@ -92,13 +115,18 @@ describe("panels restored after a window reload", () => {
     assert.equal(tabsOf(MATRIX).length, 1, "the matrix command reused the revived panel");
   });
 
-  it("a second revived panel of a view that is already open is closed: one graph per window", async () => {
+  it("a revived panel replaces a graph that is already open: one graph per window, the revived one", async () => {
     const api = await activated();
     await vscode.commands.executeCommand("opentide.graph.open");
     await waitFor(() => tabsOf(GRAPH)[0]);
-    const { panel } = revived(GRAPH, "opentide graph");
+    const { panel, received } = revived(GRAPH, "opentide graph");
     await api.ctx.webview.restorers.get(GRAPH)?.(panel, undefined);
+    // The one that was open is closed, and the revived one stays and loads its page.
     await waitFor(() => (tabsOf(GRAPH).length === 1 ? true : undefined));
+    await pageReady(panel, received);
+    assert.doesNotThrow(() => panel.viewColumn, "the revived panel was not disposed");
     assert.equal(tabsOf(GRAPH).length, 1);
+    const status = await vscode.commands.executeCommand<{ open: boolean }>("opentide.graph.reveal");
+    assert.equal(status?.open, true, "the feature owns the revived panel, not the one it replaced");
   });
 });

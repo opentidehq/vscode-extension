@@ -155,11 +155,9 @@ class GraphPanel implements vscode.Disposable {
    * runtime has resolved and the catalogue loaded, the page shows its loading state.
    */
   restore(opened: OpentidePanel<GraphProtocol>): void {
-    if (this.opened) {
-      // One graph per window: a second revived panel is the same view twice, so it goes.
-      opened.dispose();
-      return;
-    }
+    // The revived panel is the one VS Code kept: a graph already known (one that is closing, or one opened in the
+    // moment before) gives way to it.
+    this.opened?.dispose();
     const remembered = this.ctx.extension.workspaceState.get<string>(FOLDER_KEY);
     this.folder = restoredFolder(this.ctx.folders.all, remembered);
     this.ready = false;
@@ -213,6 +211,9 @@ class GraphPanel implements vscode.Disposable {
     ];
     panel.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
+      // A panel that closes later than another took its place (a reload revives one while the closing one is still
+      // known) leaves the newer one alone.
+      if (this.opened !== opened) return;
       this.follower.reset();
       this.opened = undefined;
       this.ready = false;

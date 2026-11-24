@@ -73,27 +73,30 @@ export default defineFeature({
   id: "matrix",
   activate(ctx) {
     let matrix: MatrixPanel | undefined;
+    /**
+     * The one matrix of the window. A panel that closes later than another took its place (a reload revives one while
+     * the closing one is still known) does not clear the newer one.
+     */
+    const open = (args: OpenArgs, viewFor: (title: string) => OpentidePanel<MatrixProtocol>): void => {
+      const created: MatrixPanel = new MatrixPanel(ctx, args, viewFor, () => {
+        if (matrix === created) matrix = undefined;
+      });
+      matrix = created;
+    };
     ctx.subscriptions.push(
       vscode.commands.registerCommand("opentide.matrix.open", async (arg?: unknown) => {
         const args = parseOpenArgs(arg);
         if (matrix) matrix.reveal(args);
-        else {
-          matrix = new MatrixPanel(
-            ctx,
-            args,
-            // Opened on a technique from an editor (a hover, a lens), it goes beside it; otherwise it is a
-            // page of its own in the active group.
-            (title) =>
-              ctx.webview.createPanel<MatrixProtocol>({
-                ...PANEL,
-                title,
-                beside: args.technique !== undefined,
-              }),
-            () => {
-              matrix = undefined;
-            },
+        // Opened on a technique from an editor (a hover, a lens), it goes beside it; otherwise it is a page of its
+        // own in the active group.
+        else
+          open(args, (title) =>
+            ctx.webview.createPanel<MatrixProtocol>({
+              ...PANEL,
+              title,
+              beside: args.technique !== undefined,
+            }),
           );
-        }
       }),
       // A reload brings the panel back: its folder is the editor's or the first, its filters are the saved ones, and
       // the page's own state (the selection, the scroll position) comes with it. Until the runtime has resolved and
@@ -101,22 +104,13 @@ export default defineFeature({
       ctx.webview.registerPanelSerializer<MatrixProtocol>(
         { ...PANEL, title: "opentide matrix" },
         (opened) => {
-          if (matrix) {
-            // One matrix per window: a second revived panel is the same view twice, so it goes.
-            opened.dispose();
-            return;
-          }
-          matrix = new MatrixPanel(
-            ctx,
-            {},
-            (title) => {
-              opened.panel.title = title;
-              return opened;
-            },
-            () => {
-              matrix = undefined;
-            },
-          );
+          // The revived panel is the one VS Code kept: a matrix already known (one that is closing, or one opened in
+          // the moment before) gives way to it.
+          matrix?.dispose();
+          open({}, (title) => {
+            opened.panel.title = title;
+            return opened;
+          });
         },
       ),
       { dispose: () => matrix?.dispose() },
