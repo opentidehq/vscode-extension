@@ -11,7 +11,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { alignTide } from "../../scripts/tide-align.mjs";
+import { alignTide, OPERATOR, OPERATOR_LIST } from "../../scripts/tide-align.mjs";
 
 const require = createRequire(import.meta.url);
 const vsctm = require("vscode-textmate");
@@ -65,8 +65,8 @@ async function makeRegistry() {
 }
 
 /** Tokenize a document: per line, the tokens with their text and their scopes (the grammar's own scope first). */
-async function tokenize(text) {
-  const grammar = await (await makeRegistry()).loadGrammar("source.opentide-yaml");
+async function tokenize(text, scopeName = "source.opentide-yaml") {
+  const grammar = await (await makeRegistry()).loadGrammar(scopeName);
   let state = vsctm.INITIAL;
   return text.split("\n").map((line) => {
     const result = grammar.tokenizeLine(line, state);
@@ -208,13 +208,11 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     }
   });
 
-  it("splits a key from its colon: the key is a property, the colon an operator", () => {
+  it("splits a key from its colon: the key is a property, the colon punctuation of its own", () => {
+    // The server gives the colon no token (it did, as an operator, up to opentide 1.0.0-rc.4): the grammar's scope stays.
     for (const [row, key] of KQL_KEYS) {
       assert.ok(underType(lastScope(kql, row, key), "property"), `${key}: ${lastScope(kql, row, key)}`);
-      assert.ok(
-        underType(lastScope(kql, row, ":"), "operator"),
-        `${key}'s colon: ${lastScope(kql, row, ":")}`,
-      );
+      assert.equal(lastScope(kql, row, ":"), OPERATOR, `${key}'s colon`);
     }
   });
 
@@ -228,8 +226,8 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     );
   });
 
-  it("paints list items as the server does: the dash an operator, the value a string", () => {
-    assert.ok(underType(lastScope(kql, "- Acme", "-"), "operator"), lastScope(kql, "- Acme", "-"));
+  it("paints list items as the server does: the dash punctuation of its own, the value a string", () => {
+    assert.equal(lastScope(kql, "- Acme", "-"), OPERATOR_LIST);
     assert.equal(lastScope(kql, "- Acme", "Acme"), "string.unquoted.plain.tide");
   });
 
@@ -243,7 +241,7 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
       !tokenTypeScopes.regexp.some((scope) => scope.startsWith("constant.regexp")),
       tokenTypeScopes.regexp,
     );
-    assert.ok(underType(lastScope(esql, "- one", "- "), "operator"));
+    assert.equal(lastScope(esql, "- one", "- "), "punctuation.definition.list.markdown.tide");
   });
 
   it("leaves a query to the embedded grammar, and the server", () => {
@@ -267,7 +265,7 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
       assert.ok(underType(from.scopes.at(-1), "keyword"), from.scopes.at(-1));
       // the type: line is the server's too: a key, a colon, an enumeration member
       assert.ok(underType(lastScope(esql, "type: esql", "esql"), "enumMember"));
-      assert.ok(underType(lastScope(esql, "type: esql", ":"), "operator"));
+      assert.equal(lastScope(esql, "type: esql", ":"), OPERATOR);
     });
 
     it("embeds EQL for `type: eql`", async () => {
@@ -507,8 +505,43 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     }
   });
 
-  it("refuses a grammar that already has the handoff rules, instead of applying them twice", () => {
+  // TEMPORARY with alignCql (scripts/tide-align.mjs): delete when the extension pins opentide 1.0.0.
+  describe("CQL comments", () => {
+    const isComment = (token) => token.scopes.some((scope) => scope.startsWith("comment"));
+
+    it("does not read the `/*` of a glob as a comment, on its line or the lines after it", async () => {
+      const lines = await tokenize(
+        "repo.name=docker/* foo=1\ncount(x) | groupBy([a])\n",
+        "source.opentide.cql",
+      );
+      for (const line of lines.slice(0, 2))
+        assert.deepEqual(
+          line.filter(isComment).map((token) => token.text),
+          [],
+          `comment in ${JSON.stringify(line.line)}`,
+        );
+      assert.ok(
+        tokenAt(lines, "groupBy", "groupBy").scopes.some((scope) => scope.startsWith("support.function")),
+      );
+    });
+
+    it("still colours a block comment and a line comment", async () => {
+      const lines = await tokenize(
+        "/* c */ repo.name=a // trailing\ncount(x) | foo (/* c */ 1)\n",
+        "source.opentide.cql",
+      );
+      for (const [row, text] of [
+        ["/* c */ repo", "/* c */"],
+        ["/* c */ repo", "// trailing"],
+        ["| foo", "/* c */"],
+      ])
+        assert.ok(isComment(tokenAt(lines, row, text)), `${row}: ${text}`);
+      assert.ok(!isComment(tokenAt(lines, "/* c */ repo", "repo.name")));
+    });
+  });
+
+  it("refuses a grammar that already has the Elastic rules, instead of applying them twice", () => {
     const aligned = JSON.parse(readFileSync(join(root, "syntaxes", "tide.tmLanguage.json"), "utf8"));
-    assert.throws(() => alignTide(aligned, Error), /already has the handoff rules/);
+    assert.throws(() => alignTide(aligned, Error), /the zip has Elastic rules of its own/);
   });
 });
