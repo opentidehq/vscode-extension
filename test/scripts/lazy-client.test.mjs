@@ -4,10 +4,11 @@
 import * as assert from "node:assert/strict";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 
 import * as esbuild from "esbuild";
 
-import { commonOptions, extensionOptions, lspOptions } from "../../scripts/build-lib.mjs";
+import { backendOptions, commonOptions, extensionOptions, lspOptions } from "../../scripts/build-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -53,5 +54,43 @@ describe("the language client is loaded lazily", function () {
   it("the extension names its bundle: the build defines OPENTIDE_LSP_FILE as lsp.js", () => {
     assert.equal(extensionOptions(root, common).define.OPENTIDE_LSP_FILE, '"lsp.js"');
     assert.deepEqual(Object.keys(lspOptions(root, common).entryPoints), ["lsp"]);
+  });
+});
+
+describe("Effect is loaded lazily, with the serve supervisor", function () {
+  this.timeout(60_000);
+  const common = commonOptions(true);
+
+  it("dist/extension.js and dist/lsp.js hold no Effect", async () => {
+    for (const options of [extensionOptions(root, common), lspOptions(root, common)])
+      assert.ok(!(await packages(options)).has("effect"), `effect is in ${Object.keys(options.entryPoints)}`);
+  });
+
+  it("dist/mcp-wasi.js, the MCP bridge, holds no Effect", async () => {
+    const names = await packages({
+      entryPoints: { "mcp-wasi": join(root, "src", "mcp-wasi", "main.ts") },
+      outdir: join(root, "dist"),
+      bundle: true,
+      platform: "node",
+      format: "cjs",
+      target: "node20",
+      mainFields: ["module", "main"],
+      metafile: true,
+    });
+    assert.ok(!names.has("effect"));
+  });
+
+  it("dist/backend.js holds it, and stays within 50 KB gzipped", async () => {
+    const options = backendOptions(root, common);
+    assert.ok((await packages(options)).has("effect"));
+    const { outputFiles } = await esbuild.build({ ...options, write: false, logLevel: "silent" });
+    const [output] = outputFiles.filter((file) => file.path.endsWith("backend.js"));
+    const gzipped = gzipSync(output.contents, { level: 9 }).length;
+    assert.ok(gzipped <= 50 * 1024, `dist/backend.js is ${gzipped} bytes gzipped`);
+  });
+
+  it("the extension names the bundle: the build defines OPENTIDE_BACKEND_FILE as backend.js", () => {
+    assert.equal(extensionOptions(root, common).define.OPENTIDE_BACKEND_FILE, '"backend.js"');
+    assert.deepEqual(Object.keys(backendOptions(root, common).entryPoints), ["backend"]);
   });
 });

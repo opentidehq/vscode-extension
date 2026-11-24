@@ -611,6 +611,9 @@ async function runCommand(args, { env, cwd, emit, cancelled }) {
       emit({ event: "progress", step: "load", done: 1, total: 2 });
       emit({ event: "tenant", platform: "sentinel", tenant: "prod", status: "ok", rows: 3, elapsed_ms: 5 });
       return [envelope("progress"), 0];
+    case "hang":
+      // Never answers, and ignores a cancel: what the serve supervisor kills after its grace.
+      return new Promise(() => {});
     case "slow": {
       const ms = Number(rest[0] ?? 5000);
       const started = Date.now();
