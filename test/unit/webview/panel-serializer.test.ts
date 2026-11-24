@@ -238,7 +238,7 @@ describe("registerPanelSerializer", () => {
         quick.lifecycle.filter((event) => event.id === first).map((event) => [event.event, event.detail]),
         [
           ["wired", undefined],
-          ["replaced", `by #${second}`],
+          ["recreated", `by #${second}`],
         ],
       );
       assert.match(replacement.fake.webview.html, /\/ext\/dist\/webview\/graph\.js/, "showing the page");

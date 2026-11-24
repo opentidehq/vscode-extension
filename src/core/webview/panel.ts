@@ -97,8 +97,8 @@ export interface PageEvent {
   readonly at: number;
   readonly id: number;
   readonly viewType: string;
-  /** `replaced`: its page said nothing, and a new panel took its place (`detail` names the new page). */
-  readonly event: "wired" | "first message" | "ready" | "replaced" | "disposed";
+  /** `recreated`: its page said nothing, and a new panel took its place (`detail` names the new page). */
+  readonly event: "wired" | "first message" | "ready" | "recreated" | "disposed";
   readonly detail?: string;
 }
 
@@ -273,7 +273,7 @@ export function createWebviewHelpers(
         live.current = next;
         channel.rebind(next.webview);
         wire(next);
-        record(was, "replaced", `by #${page.id}`);
+        record(was, "recreated", `by #${page.id}`);
         silent.dispose();
       };
       const watchdog = new LoadWatchdog(
