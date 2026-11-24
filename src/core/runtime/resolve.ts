@@ -84,7 +84,8 @@ export interface ResolveInput {
   readonly proxy: string | undefined;
   readonly homeDir: string;
   exists(file: string): boolean;
-  which(name: string): string | undefined;
+  /** A program on PATH. The extension host's looks it up off its thread (`PathLookup.whichAsync`). */
+  which(name: string): string | undefined | Promise<string | undefined>;
   probe(command: string, args: readonly string[], options: ProbeOptions): Promise<ProbeResult>;
   /** The interpreter the Python Environments extension picked for `folder`, when installed. */
   pythonEnvironments(): Promise<string | undefined>;
@@ -250,21 +251,25 @@ export function opentideForInterpreter(
   return script ? [{ command: script, args: [] }, module] : [module];
 }
 
+/** The interpreter names tried on PATH, in order, with the arguments that pick Python 3. */
+export function pythonNames(platform: NodeJS.Platform): readonly { name: string; args: string[] }[] {
+  return platform === "win32"
+    ? [
+        { name: "python", args: [] },
+        { name: "py", args: ["-3"] },
+      ]
+    : [
+        { name: "python3", args: [] },
+        { name: "python", args: [] },
+      ];
+}
+
 /** The interpreters on PATH that may have opentide installed as a module, in the order tried. */
 export function pythonsOnPath(
   platform: NodeJS.Platform,
   which: (name: string) => string | undefined,
 ): { command: string; args: string[] }[] {
-  const names: { name: string; args: string[] }[] =
-    platform === "win32"
-      ? [
-          { name: "python", args: [] },
-          { name: "py", args: ["-3"] },
-        ]
-      : [
-          { name: "python3", args: [] },
-          { name: "python", args: [] },
-        ];
+  const names = pythonNames(platform);
   const found: { command: string; args: string[] }[] = [];
   for (const { name, args } of names) {
     const command = which(name);
@@ -410,7 +415,9 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
         missing(3, "uv", "the repository pins no opentide version");
         return undefined;
       }
-      const uv = uvExecutable(input.settings.uvPath(), input.folder, input.homeDir, input.which);
+      const uvSetting = input.settings.uvPath();
+      const uvOnPath = uvSetting?.trim() ? undefined : await input.which("uv");
+      const uv = uvExecutable(uvSetting, input.folder, input.homeDir, () => uvOnPath);
       if (!uv) {
         missing(3, "uv", "uv is not on PATH");
         return undefined;
@@ -489,7 +496,7 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
           missing(2, "venv", `${venvPython} does not exist`);
         }
       }
-      const onPath = input.which("opentide");
+      const onPath = await input.which("opentide");
       if (onPath) {
         const runtime = await check(
           { tier: 2, source: "path", command: onPath, args: [], kind: "opentide" },
@@ -501,7 +508,9 @@ export async function resolveRuntime(input: ResolveInput): Promise<ResolveResult
       }
       // `python -m opentide`: a pip --user install whose Scripts folder is not on PATH, or an
       // opentide launcher that a policy does not let run.
-      const pythons = pythonsOnPath(input.platform, input.which);
+      const interpreters = new Map<string, string | undefined>();
+      for (const { name } of pythonNames(input.platform)) interpreters.set(name, await input.which(name));
+      const pythons = pythonsOnPath(input.platform, (name) => interpreters.get(name));
       if (pythons.length === 0) missing(2, "python", "no python on PATH");
       for (const python of pythons) {
         const runtime = await check(

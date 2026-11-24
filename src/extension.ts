@@ -7,6 +7,7 @@ import { performance } from "node:perf_hooks";
 
 import * as vscode from "vscode";
 
+import { type Span, threadCpuClock, watchGc } from "./core/activationClock";
 import type { FeatureContext } from "./core/context";
 import { type Core, createCore } from "./core/core";
 import { activateFeatures } from "./core/featureHost";
@@ -41,7 +42,18 @@ export interface ActivationTimes {
   readonly startMs: number;
   /** Waiting for the features' promises after all of that. */
   readonly settleMs: number;
-  readonly features: readonly { readonly id: string; readonly ms: number }[];
+  /** When `activate` began and returned (`performance.now()`), to match GC pauses against. */
+  readonly span: Span;
+  /** This thread's CPU time during `activate`, where Node has a per-thread CPU clock (not VS Code 1.91's). */
+  readonly cpuMs?: number;
+  /** GC pauses from `activate`'s start on, read after it returned (Node reports them a task later). */
+  readonly gcPauses?: () => readonly Span[];
+  readonly features: readonly {
+    readonly id: string;
+    readonly ms: number;
+    readonly at: number;
+    readonly cpuMs?: number;
+  }[];
 }
 
 /** The running core, for `deactivate` to end its processes. */
@@ -62,25 +74,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     });
     return { started: Promise.resolve() };
   }
+  // ExtensionMode.Test is 3. Only tests measure CPU and GC: the activation test prints where the time went.
+  const testing = context.extensionMode === 3;
+  const cpu = testing ? threadCpuClock() : undefined;
+  const cpuBegan = cpu?.();
+  const gc = testing ? watchGc() : undefined;
+  if (gc) context.subscriptions.push(gc);
   const created = performance.now();
   const core = createCore(context);
   running = core;
   const coreDone = performance.now();
-  const activated = activateFeatures(features, core.ctx);
+  const activated = activateFeatures(features, core.ctx, cpu);
   const featuresDone = performance.now();
   const started = core.start();
   const startDone = performance.now();
   const outcomes = await activated;
-  // ExtensionMode.Test is 3.
-  if (context.extensionMode !== 3) return { started };
+  if (!testing) return { started };
   const end = performance.now();
+  const cpuEnd = cpu?.();
   const activation: ActivationTimes = {
     totalMs: end - began,
     settleMs: end - startDone,
     coreMs: coreDone - created,
     featuresMs: featuresDone - coreDone,
     startMs: startDone - featuresDone,
-    features: outcomes.map((outcome) => ({ id: outcome.id, ms: outcome.ms })),
+    span: { at: began, ms: end - began },
+    ...(cpuBegan !== undefined && cpuEnd !== undefined ? { cpuMs: cpuEnd - cpuBegan } : {}),
+    ...(gc ? { gcPauses: () => gc.pauses() } : {}),
+    features: outcomes.map((outcome) => ({
+      id: outcome.id,
+      ms: outcome.ms,
+      at: outcome.at,
+      ...(outcome.cpuMs !== undefined ? { cpuMs: outcome.cpuMs } : {}),
+    })),
   };
   return { ctx: core.ctx, wasiHost: core.wasiHost, stubWasiFetch: core.stubWasiFetch, activation, started };
 }

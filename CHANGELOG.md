@@ -9,6 +9,9 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **Faster startup on Windows.** Looking for `opentide`, `python` and `uv` on your PATH no longer
+  holds up other extensions, and each is looked up once. A program you install while VS Code is
+  open is found after **opentide: Restart Server**.
 - **The opentide status keeps saying why the engine serves the editor.** When the language server
   keeps crashing and the opentide engine (WASM) takes over, the status tooltip and the output
   said why, until the window got the focus back. Now they keep saying it.

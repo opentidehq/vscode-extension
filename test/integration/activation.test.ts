@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 
 import * as vscode from "vscode";
 
+import { overlapMs } from "../../src/core/activationClock";
 import { activated } from "./helpers";
 
 const say = (line: string): void => {
@@ -11,10 +12,14 @@ const say = (line: string): void => {
 /**
  * SPEC §14's budget for `activate`: 300 ms, a real VS Code on a developer machine with the shipped (minified) bundle.
  * CI runs the unminified bundle, which V8 compiles lazily on each first call, on shared VMs. Observed there (the
- * ACTIVATION lines of CI runs): linux 18-65 ms, macOS 35-126 ms, Windows 50-569 ms with the same code from run to run
- * (368, 522, 569, 409 and 82, 50). So Linux and macOS keep the 300 ms, and Windows, where a runner alone ranges
- * over an order of magnitude, is allowed 750 ms: a regression of the kind this test exists for (a process start, a
- * synchronous read of the workspace) is seconds, not hundreds of milliseconds.
+ * ACTIVATION lines of 26 CI runs, 2026-11-24): ubuntu stable median 26 ms, max 48; macOS stable median 76, max 136;
+ * Windows stable median 122, p90 358, max 820; Windows floor (1.91) median 50, max 82. On Windows nearly all the
+ * spread is in the features' synchronous time, landing on whichever feature runs (sidebar 442 in one run, new-object
+ * 104 in another) while the same feature takes 7-20 ms most runs, and while 1.91 on the same runners never passes
+ * 82 ms; activate's synchronous part does nine small file reads in all. So Linux and macOS keep the 300 ms, and
+ * Windows is allowed 750 ms (about its p96): a regression of the kind this test exists for (a process start, a
+ * synchronous read of the workspace) is seconds, not hundreds of milliseconds. The CPU and GC figures printed with
+ * the times tell such a spike (wall time well above CPU, or GC) from our own code (CPU less GC).
  */
 const BUDGET_MS = process.platform === "win32" ? 750 : 300;
 
@@ -51,13 +56,33 @@ describe("activation (#2)", () => {
     const times = api.activation;
     assert.ok(times, "the test API reports how long activate took");
     const ms = (value: number): string => `${Math.round(value)} ms`;
-    // Each feature's own synchronous time, in the order they activate.
+    // Besides wall time: this thread's CPU (where Node has a per-thread clock), and the GC pauses that fell inside.
+    // Wall well above CPU is time the thread did not run: blocking I/O, or the runner running something else. GC is
+    // the collector's work for every extension in the host. Only CPU less GC is our own code.
+    const pauses = times.gcPauses?.() ?? [];
+    const parts = (span: { at: number; ms: number }, cpuMs: number | undefined): string => {
+      const gcMs = overlapMs(span, pauses);
+      return [
+        ...(cpuMs !== undefined ? [`cpu ${Math.round(cpuMs)}`] : []),
+        ...(times.gcPauses ? [`gc ${Math.round(gcMs)}`] : []),
+      ].join(", ");
+    };
+    const summary = parts(times.span, times.cpuMs);
     say(
       `ACTIVATION platform=${process.platform} total=${ms(times.totalMs)} core=${ms(times.coreMs)} ` +
-        `features=${ms(times.featuresMs)} start=${ms(times.startMs)} settle=${ms(times.settleMs)}`,
+        `features=${ms(times.featuresMs)} start=${ms(times.startMs)} settle=${ms(times.settleMs)}` +
+        (summary
+          ? ` (${summary}; ${pauses.filter((p) => overlapMs(times.span, [p]) > 0).length} GC pauses)`
+          : ""),
     );
+    // Each feature's own synchronous time, in the order they activate.
     say(
-      `ACTIVATION features ${times.features.map((feature) => `${feature.id} ${ms(feature.ms)}`).join(", ")}`,
+      `ACTIVATION features ${times.features
+        .map((feature) => {
+          const detail = parts(feature, feature.cpuMs);
+          return `${feature.id} ${ms(feature.ms)}${detail ? ` (${detail})` : ""}`;
+        })
+        .join(", ")}`,
     );
     const budget = budgetMs();
     say(`ACTIVATION vscode=${vscode.version} budget=${budget} ms`);

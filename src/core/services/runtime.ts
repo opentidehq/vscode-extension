@@ -9,7 +9,7 @@ import type { Logger, RuntimeService } from "../context";
 import { type ResolveOptions, withNotes } from "../runtime/fallback";
 import { engineNotice } from "../runtime/notice";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
-import { isFile, probe, which } from "../runtime/process";
+import { isFile, pathLookup, probe } from "../runtime/process";
 import {
   type EngineLayout,
   parseEngineManifest,
@@ -146,6 +146,8 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
    * so it is cancelled (its probes end) rather than waited for. Whoever awaited it gets this one's result.
    */
   resolveAgain(options: ResolveOptions = {}): Promise<Runtime | undefined> {
+    // It looks at PATH again too: the user may have installed opentide, python or uv since.
+    pathLookup.clear();
     return this.begin(options);
   }
 
@@ -192,7 +194,7 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       proxy: trusted ? httpProxy() : undefined,
       homeDir: os.homedir(),
       exists: isFile,
-      which: (name) => which(name, process.env.PATH, process.platform),
+      which: (name) => pathLookup.whichAsync(name, process.env.PATH, process.platform),
       probe: (command, args, options) => probe(command, args, options),
       pythonEnvironments: () => pythonEnvironmentsInterpreter(folder?.uri),
       pythonExtension: () => pythonExtensionInterpreter(folder?.uri),

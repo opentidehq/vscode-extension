@@ -162,6 +162,31 @@ describe("runtime resolution", () => {
     assert.equal((await resolveRuntime(value)).runtime?.source, "path");
   });
 
+  it("waits for a PATH lookup that answers later, as the extension host's does (off its thread)", async () => {
+    const asked: string[] = [];
+    const later = (answer: Record<string, string>) => async (name: string) => {
+      asked.push(name);
+      await new Promise((resolve) => setImmediate(resolve));
+      return answer[name];
+    };
+    const { value } = input(
+      { which: later({ python3: "/opt/py/bin/python3" }) },
+      {},
+      { versions: { "/opt/py/bin/python3": "opentide 0.20.1" } },
+    );
+    const { runtime } = await resolveRuntime(value);
+    assert.equal(runtime?.source, "python");
+    assert.equal(runtime?.command, "/opt/py/bin/python3");
+    assert.deepEqual(asked, ["opentide", "python3", "python"]);
+
+    const uv = input(
+      { pin: { version: "0.20.1", source: "uv.lock" }, which: later({ uv: "/usr/bin/uv" }) },
+      { uvUsePin: () => true },
+      { versions: { "/usr/bin/uv": "opentide 0.20.1" } },
+    );
+    assert.equal((await resolveRuntime(uv.value)).runtime?.tier, 3);
+  });
+
   it("refuses an opentide older than the minimum with its upgrade command, and the next tier takes over", async () => {
     const { value } = input(
       {},
