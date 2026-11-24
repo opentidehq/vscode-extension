@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Added
+
+- **The graph and the ATT&CK coverage panel come back after you reload the window.** They reopen where they
+  were, with the choices you had made in them, and show a loading state until opentide has answered.
+
 ### Changed
 
 - **Windows that never need the language server start faster.** The extension loads its language client the
