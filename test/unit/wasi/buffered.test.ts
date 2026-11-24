@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { Buffered } from "../../../src/core/wasi/buffered";
 
 describe("Buffered (a stream's replay buffer)", () => {

@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { DetailsIndex, detailTargets } from "../../../src/features/graph/details";
 import { buildModel, missingId, techniqueId } from "../../../src/features/graph/model";
 import { sampleCatalog, UUID } from "../catalogFixture";

@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { SelectionHistory, withoutGone } from "../../../src/features/graph/history";
 
 describe("graph selection history", () => {

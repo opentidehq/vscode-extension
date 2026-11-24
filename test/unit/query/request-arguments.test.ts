@@ -1,11 +1,13 @@
 import * as assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
+
 import {
   CancellationTokenSource,
   createMessageConnection,
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
+
 import { requestArguments } from "../../../src/features/query/targets";
 
 /** What goes out on the wire: the `params` of each request message, as a server that does not spread arrays sees it. */

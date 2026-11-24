@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import * as cp from "node:child_process";
 import { EventEmitter } from "node:events";
+
 import { killTree, terminateChild } from "../../../src/core/backend/terminate";
 
 /** A process that records what it is sent, and leaves only when told to. */

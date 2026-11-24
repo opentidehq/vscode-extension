@@ -1,6 +1,7 @@
 // Every CLI command has a home (SPEC §11, #7): the generic runner, the palette commands for verbs without a
 // panel, the `opentide` task type with `$opentide`, and the terminal (launcher on PATH, profile, links).
 import * as vscode from "vscode";
+
 import { defineFeature } from "../../core/feature";
 import { Palette } from "./palette";
 import { RESULT_SCHEME, ResultStore } from "./resultStore";

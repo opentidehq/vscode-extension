@@ -1,5 +1,6 @@
 // Quick picks before a query runs: tenants, window, and credentials a tenant still needs.
 import * as vscode from "vscode";
+
 import type { FeatureContext } from "../../core/context";
 import { isDuration, type QueryWindow } from "./argv";
 import { platformLabel } from "./lenses";

@@ -5,6 +5,7 @@
 // left as they are), while VS Code's Uri.toString() percent-encodes them (`file:///c%3A/repo`, `%28`).
 // So the folder test compares paths, never URI strings.
 import * as path from "node:path";
+
 import type { CatalogSymbol } from "./types";
 
 export interface WorkspaceSymbol {

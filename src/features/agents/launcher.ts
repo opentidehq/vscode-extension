@@ -4,6 +4,7 @@
 // until then a path with the version in it points at nothing. The launcher (src/mcp-launcher) finds the newest
 // installed copy when the agent starts it, so the entry stays byte-identical across updates. vscode-free.
 import * as path from "node:path";
+
 import type { McpEntry } from "./forks";
 
 /** The launcher's file name in the global storage folder. */

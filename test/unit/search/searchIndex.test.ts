@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import type { CatalogState } from "../../../src/core/catalog/store";
 import { buildIndex, IndexCache, relativePath } from "../../../src/features/search/searchIndex";
 import { ROOT, sampleCatalog, UUID } from "../catalogFixture";

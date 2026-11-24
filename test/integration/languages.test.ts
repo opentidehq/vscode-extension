@@ -1,5 +1,7 @@
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, fixture, waitFor } from "./helpers";
 
 describe("languages and file associations (#4)", () => {

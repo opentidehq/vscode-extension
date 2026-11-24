@@ -1,5 +1,7 @@
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, waitFor } from "./helpers";
 
 describe("sidebar (#15)", () => {

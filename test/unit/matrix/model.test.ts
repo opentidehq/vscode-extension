@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
+
 import type { CatalogDocument, CatalogObject } from "../../../src/core/catalog/types";
 import { matrixTitle, parseOpenArgs } from "../../../src/features/matrix/index";
 import {

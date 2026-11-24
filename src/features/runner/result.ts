@@ -1,6 +1,7 @@
 // A run's result as the UI shows it: one summary line, the document as JSON, explainable failure codes,
 // and the files a writing command changed. vscode-free.
 import * as path from "node:path";
+
 import type { Envelope } from "../../core/backend/types";
 
 export interface RunOutcome {

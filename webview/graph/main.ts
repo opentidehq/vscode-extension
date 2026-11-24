@@ -3,6 +3,7 @@
 // Selection and hover only change Cytoscape classes (no re-render, no layout); expanding a node places
 // its neighbours beside it. Every action goes to the host.
 import cytoscape from "cytoscape";
+
 import { NODE_ACTION_LABELS, type NodeAction, nodeActions } from "../../src/features/graph/actions";
 import { canvasColor } from "../../src/features/graph/colors";
 import { DetailsIndex, type NodeDetails } from "../../src/features/graph/details";

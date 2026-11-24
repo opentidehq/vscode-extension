@@ -14,6 +14,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
+
 import { PackageError, zipEntries, zipRead } from "./package-lib.mjs";
 import {
   checkEngineInitialize,

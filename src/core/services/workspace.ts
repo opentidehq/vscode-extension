@@ -2,7 +2,9 @@
 // events that keep `opentide serve` and the catalogue fresh.
 import * as fs from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import type { FileChangeEvent, FolderService, OpentideFolder } from "../context";
 import { isObjectFile, isOpentideFolder, objectFolders, objectsOnlyByCase, pathsTomlFile } from "../folders";
 import { Emitter } from "../util/event";

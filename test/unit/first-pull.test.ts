@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { FIRST_PULL_WAIT_MS, FirstPullGuard } from "../../src/core/services/firstPull";
 
 const A = "file:///w/detections/rules/a.yaml";

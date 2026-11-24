@@ -1,6 +1,8 @@
 // The Relations view and Show Relations in VS Code. Needs a VS Code download (CI).
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, fixture, waitFor } from "./helpers";
 
 interface RelationsTestState {

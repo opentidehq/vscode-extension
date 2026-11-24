@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { RecentFileEvents } from "../../src/core/services/fileEventDedupe";
 
 describe("a file event two watchers report (E3)", () => {

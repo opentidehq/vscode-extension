@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { facets, type MatchContext, matchDate, search } from "../../../src/features/search/match";
 import { parseQuery } from "../../../src/features/search/query";
 import { buildIndex, type SearchItem } from "../../../src/features/search/searchIndex";

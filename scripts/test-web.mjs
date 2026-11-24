@@ -8,6 +8,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { runTests } from "@vscode/test-web";
 import * as esbuild from "esbuild";
 

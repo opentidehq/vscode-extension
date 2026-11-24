@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { SERVER_WATCH_GLOBS, UNWATCHED_OPENTIDE_DIRECTORIES } from "../../src/core/services/watchGlobs";
 
 /** The glob forms used here: `**` crosses folders, `*` stays within one, nothing else is special. */

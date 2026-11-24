@@ -2,7 +2,9 @@
 // rows in memory only (SPEC §10.4 privacy).
 import * as os from "node:os";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { displayArgv } from "../../core/runtime/env";

@@ -2,6 +2,7 @@
 // warm `opentide serve` per window when the runtime has it, and spawns `opentide --json <argv>` otherwise
 // or for commands that want a process of their own. vscode-free; core/services wires it to VS Code.
 import * as cp from "node:child_process";
+
 import type { Classification } from "../capabilities/classification";
 import type { CommandTree } from "../capabilities/tree";
 import { displayArgv, processEnv, redact } from "../runtime/env";

@@ -6,7 +6,9 @@ import { readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import * as esbuild from "esbuild";
+
 import { webEngineWorkerOptions, webExtensionOptions } from "../../scripts/build-lib.mjs";
 import { engineCacheDir, GLUE, prepareEngine } from "../../scripts/engine-lib.mjs";
 

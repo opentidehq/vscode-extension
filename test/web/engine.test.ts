@@ -2,6 +2,7 @@
 // `vscode-test-web://mount/`: a virtual workspace, as on vscode.dev and github.dev. The engine (WASM)
 // runs in a Web Worker, fed the workspace through VS Code's file system.
 import * as vscode from "vscode";
+
 import type { EngineSession } from "../../src/web/session";
 
 function ok(value: unknown, message: string): asserts value {
@@ -135,7 +136,10 @@ describe("the web extension: the engine (WASM) in a Web Worker", () => {
     void vscode.commands.executeCommand("opentide.diagnostics.validateWorkspace");
     await waitFor(() => (said.length > before ? true : undefined), 10_000);
     const message = said.at(-1) ?? "";
-    ok(message.startsWith("opentide: Validate Workspace needs opentide, which runs in VS Code Desktop"), message);
+    ok(
+      message.startsWith("opentide: Validate Workspace needs opentide, which runs in VS Code Desktop"),
+      message,
+    );
     ok(/engine \(WASM\)/.test(message), message);
   });
 

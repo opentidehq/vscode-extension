@@ -4,6 +4,7 @@ import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { STORES, storeExtensionId } from "../../scripts/package-lib.mjs";
 import {
   ensurePublished,

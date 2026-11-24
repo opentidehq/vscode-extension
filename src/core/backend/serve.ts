@@ -1,5 +1,6 @@
 // The `opentide serve` client (CONTRACTS.md): JSON-RPC 2.0, one message per line, on stdio. vscode-free.
 import type * as cp from "node:child_process";
+
 import type { CancellationToken } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
 import { fromChildProcess, isServeProcess, type ServeProcess } from "./process";

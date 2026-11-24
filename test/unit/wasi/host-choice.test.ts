@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { chooseWasiHost, exitNote, wasiHostSetting } from "../../../src/core/wasi/hostChoice";
 
 describe("which host runs the bundled module (#100)", () => {

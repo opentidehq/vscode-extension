@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { fileUriPath, folderSymbols, pathInside } from "../../src/core/catalog/symbols";
 
 const symbol = (uri: string, name = "Rule") => ({

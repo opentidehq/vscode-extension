@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { itemSignature, type ShownItem } from "../../../src/features/diagnostics/plan";
 
 const range = (line: number, start: number, end: number) => ({

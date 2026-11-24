@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { parseDocument, parseProgressLine, spawnRun } from "../../src/core/backend/spawn";
 import { BackendError, type ProgressEvent } from "../../src/core/backend/types";
 import { CancellationTokenSource } from "../../src/core/util/cancellation";

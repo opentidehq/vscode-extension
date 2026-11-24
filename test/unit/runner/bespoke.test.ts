@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+
 import { CommandTree } from "../../../src/core/capabilities/tree";
 import {
   docsFolders,

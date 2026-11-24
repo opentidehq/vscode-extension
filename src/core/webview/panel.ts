@@ -1,6 +1,7 @@
 // Webview helpers for features that need a panel (SPEC §10): strict CSP with a nonce, local resources
 // only from dist/webview, the shared base CSS, and a typed, validated message channel.
 import * as vscode from "vscode";
+
 import { nonce, renderHtml } from "./html";
 import { placement } from "./placement";
 import { acceptMessage, type Protocol, type Validators } from "./protocol";

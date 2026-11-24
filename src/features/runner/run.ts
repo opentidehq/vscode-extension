@@ -2,7 +2,9 @@
 // command reaches, the background run with progress, and its result. Glue; the logic is in the modules it
 // imports.
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import type { RunRecord, RunResult } from "../../core/backend/backend";
 import { BackendError } from "../../core/backend/types";
 import type { Classification } from "../../core/capabilities/classification";

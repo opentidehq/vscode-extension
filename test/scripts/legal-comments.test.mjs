@@ -3,7 +3,9 @@
 import * as assert from "node:assert/strict";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import * as esbuild from "esbuild";
+
 import { commonOptions } from "../../scripts/build-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");

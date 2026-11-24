@@ -5,7 +5,9 @@ import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
+
 import { createMessageConnection, type MessageConnection } from "vscode-jsonrpc/node";
+
 import { parseServerCatalog, rootOf, serverCatalogDocument } from "../../../src/core/catalog/serverCatalog";
 import { type EngineModule, serveEngine } from "../../../src/engine/host";
 import { engineTransports } from "../../../src/engine/transport";

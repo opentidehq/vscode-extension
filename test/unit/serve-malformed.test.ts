@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import type { ServeProcess } from "../../src/core/backend/process";
 import { ServeClient, serveMessage } from "../../src/core/backend/serve";
 import { BackendError, envelopeProblem, isEnvelope } from "../../src/core/backend/types";

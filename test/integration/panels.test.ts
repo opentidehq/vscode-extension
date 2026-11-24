@@ -1,6 +1,8 @@
 // Query lenses (#17), the deploy plan (#18) and the ATT&CK matrix (#20) inside VS Code.
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, fixture, waitFor } from "./helpers";
 
 const panelOpen = (viewType: string) =>

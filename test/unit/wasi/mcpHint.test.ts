@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
+
 import { checkRoot, startupLine, withWorkspaceHint, workspaceHint } from "../../../src/core/wasi/mcpHint";
 
 const dirs = (...names: string[]) => {

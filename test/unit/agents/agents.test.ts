@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
+
 import type { CatalogDocument } from "../../../src/core/catalog/types";
 import { which } from "../../../src/core/runtime/process";
 import { cursorMcp, cursorRegistration } from "../../../src/features/agents/cursor";

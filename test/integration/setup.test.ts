@@ -1,5 +1,7 @@
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, EXTENSION_ID, waitFor } from "./helpers";
 
 describe("setup (#16)", () => {

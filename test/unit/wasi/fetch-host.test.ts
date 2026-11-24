@@ -5,6 +5,7 @@ import * as assert from "node:assert/strict";
 import * as cp from "node:child_process";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
+
 import { fromChildProcess } from "../../../src/core/backend/process";
 import { ServeClient } from "../../../src/core/backend/serve";
 import { WASI_INITIALIZE_PARAMS } from "../../../src/core/services/wasi";

@@ -5,6 +5,7 @@
 // server's refresh requests (diagnostics, semantic tokens, inlay hints, code lenses) are honoured by
 // vscode-languageclient itself.
 import * as fs from "node:fs";
+
 import * as vscode from "vscode";
 import {
   type Executable,
@@ -14,6 +15,7 @@ import {
   RevealOutputChannelOn,
   State,
 } from "vscode-languageclient/node";
+
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
 import { directThenHost } from "../../engine/reader";

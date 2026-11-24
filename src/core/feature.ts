@@ -1,6 +1,7 @@
 // The feature contract. Each feature lives in src/features/<id>/index.ts and default-exports
 // `defineFeature({ id, activate })`; scripts/features-index.mjs lists them in index.generated.ts.
 import type * as vscode from "vscode";
+
 import type { FeatureContext } from "./context";
 
 export interface Feature {

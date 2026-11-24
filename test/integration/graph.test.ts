@@ -1,6 +1,8 @@
 // The graph panel (#19) in VS Code. Needs a VS Code download (CI).
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import type { GraphPanelStatus } from "../../src/features/graph/state";
 import { activated, fixture, waitFor } from "./helpers";
 

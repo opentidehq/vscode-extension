@@ -3,7 +3,9 @@
 // extension passes the module's path as `workerData.module`; src/engine/host.ts serves the session.
 import { readFileSync } from "node:fs";
 import { parentPort, workerData } from "node:worker_threads";
+
 import { initSync, LanguageServer, version } from "opentide-wasm-glue";
+
 import { type EngineModule, serveEngine } from "../../engine/host";
 
 const port = parentPort;

@@ -1,6 +1,7 @@
 // Pure helpers for scripts/release.mjs: the version CHANGELOG.md releases, its notes, the build matrix,
 // the release assets and their SHA256SUMS. No process exits and no writes; release.mjs does the IO.
 import { createHash } from "node:crypto";
+
 import { readZip } from "./grammars-lib.mjs";
 import { STORES, storeExtensionId, vsixName } from "./package-lib.mjs";
 import { unpinnedLicences } from "./wasi-lib.mjs";

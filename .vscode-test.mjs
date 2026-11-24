@@ -3,6 +3,7 @@
 // Mode tests are scripts/test-restricted.mjs: test-cli always launches VS Code with workspace trust off.
 import { existsSync, readFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
+
 import { defineConfig } from "@vscode/test-cli";
 
 const workspaceFolder = "./test/fixtures/workspace";

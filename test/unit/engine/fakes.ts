@@ -1,5 +1,6 @@
 // Test doubles for the engine channel.
 import { Disposable } from "vscode-jsonrpc";
+
 import type { EnginePort } from "../../../src/engine/transport";
 
 /** A port with hooks the test fires. */

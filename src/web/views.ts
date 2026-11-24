@@ -2,6 +2,7 @@
 // (src/web/catalogueModel.ts). The same view and command ids as the desktop's, so the activity bar and
 // the palette are the ones people know.
 import * as vscode from "vscode";
+
 import type { ServerObject } from "../engine/catalog";
 import {
   type Family,

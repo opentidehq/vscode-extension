@@ -3,7 +3,9 @@
 // links for object UUIDs and diagnostic codes. Glue over launcher.ts and links.ts.
 import * as fs from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import type { FeatureContext } from "../../core/context";
 import { which } from "../../core/runtime/process";
 import { hasCli, type Runtime } from "../../core/runtime/types";

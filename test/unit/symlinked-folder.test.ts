@@ -3,6 +3,7 @@ import * as assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+
 import { inFolderSpelling } from "../../src/core/catalog/store";
 import type { CatalogDocument, CatalogObject } from "../../src/core/catalog/types";
 import { folderSpelling } from "../../src/core/util/paths";

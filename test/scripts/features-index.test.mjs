@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import { featureIds, render } from "../../scripts/features-index.mjs";
 
 describe("features index", () => {
@@ -61,9 +62,8 @@ describe("third-party notices", () => {
   });
 
   it("lists the packages the build copies, with every licence file", async () => {
-    const { bundledPackages, thirdPartyNotices, COPIED_PACKAGES, copiedAssets } = await import(
-      "../../scripts/build-lib.mjs"
-    );
+    const { bundledPackages, thirdPartyNotices, COPIED_PACKAGES, copiedAssets } =
+      await import("../../scripts/build-lib.mjs");
     assert.deepEqual(COPIED_PACKAGES, ["@vscode/codicons"]);
     const root = mkdtempSync(join(tmpdir(), "otide-copied-"));
     const dir = join(root, "node_modules", "@vscode", "codicons");

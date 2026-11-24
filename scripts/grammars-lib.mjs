@@ -1,6 +1,7 @@
 // Pure helpers for scripts/grammars.mjs: zip reading, checksum, grammar transforms.
 import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
+
 import { alignTide, EMBEDDED } from "./tide-align.mjs";
 
 export class GrammarError extends Error {}

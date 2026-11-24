@@ -2,6 +2,7 @@
 // (SPEC §6): a run's result only lands on a file nothing changed since the run started (an edit, or a
 // newer run's result), and an edit drops a file's findings until the next run. vscode-free.
 import * as path from "node:path";
+
 import type { Finding, FindingSource } from "./findings";
 
 /** What a run covered: a folder (every file in it is replaced) or some files of one. */

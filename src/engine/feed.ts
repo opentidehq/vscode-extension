@@ -4,6 +4,7 @@
 // mirror so file changes become a delta. No Node built-ins.
 
 import * as vscode from "vscode";
+
 import type { ReadBytes } from "./reader";
 import {
   CONFIGURATION_GLOB,

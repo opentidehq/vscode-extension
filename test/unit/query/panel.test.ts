@@ -1,6 +1,7 @@
 // The query panel's host side with a fake webview and backend: a run whose tenant picker is open must
 // not overwrite a newer run, nor run again once the panel is closed.
 import * as assert from "node:assert/strict";
+
 import type { RunResult } from "../../../src/core/backend/backend";
 import type { FeatureContext, OpentideFolder } from "../../../src/core/context";
 import { type PanelHooks, QueryPanels, type RunSpec } from "../../../src/features/query/panel";

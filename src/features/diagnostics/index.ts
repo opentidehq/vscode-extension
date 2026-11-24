@@ -3,7 +3,9 @@
 // finding's `fix`, "Explain <code>" on every opentide diagnostic, and the problem counts.
 import * as fs from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import type { RunResult } from "../../core/backend/backend";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";

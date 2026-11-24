@@ -1,6 +1,7 @@
 // `opentide --json validate` and `opentide --json lint` documents as findings: one shape for both, with
 // absolute file paths and CLI spans (1-based, code points). vscode-free.
 import * as path from "node:path";
+
 import type { CliSpan } from "../../core/positions";
 import { folderSpelling } from "../../core/util/paths";
 

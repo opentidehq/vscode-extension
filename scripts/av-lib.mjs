@@ -3,6 +3,7 @@
 // publisher for bundling heavy native binaries and for Defender detections: the package carries WebAssembly,
 // JavaScript and data, and no native executable at any depth, nested archives included. No IO here.
 import { gunzipSync } from "node:zlib";
+
 import { PackageError, zipEntries, zipRead } from "./package-lib.mjs";
 
 /** How deep archives inside archives are opened; deeper is refused rather than left unread. */

@@ -3,8 +3,10 @@
 // instead, as in the browser: opentide reads the workspace from disk, the engine (WASM) through VS Code,
 // here in a worker thread.
 import * as path from "node:path";
+
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
+
 import type { FeatureContext } from "./core/context";
 import { type Core, createCore } from "./core/core";
 import { activateFeatures } from "./core/featureHost";

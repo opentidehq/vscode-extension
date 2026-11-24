@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { LAZY_INIT_ID, type LazyCache, LazyGate, readCache } from "../../../src/mcp-wasi/lazy";
 
 const identity = { module: "abc123", root: "/work/repo" };

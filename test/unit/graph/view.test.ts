@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { layout } from "../../../src/features/graph/layout";
 import { buildModel, type NodeKind, OBJECT_KINDS, techniqueId } from "../../../src/features/graph/model";
 import {

@@ -2,7 +2,9 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import type { Logger, RuntimeService } from "../context";
 import { engineNotice } from "../runtime/notice";
 import { detectPin, pinFileOrder, type RepoPin } from "../runtime/pins";
@@ -277,9 +279,9 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   get pinMismatch(): boolean {
     return Boolean(
       this.repoPin &&
-        this.runtime &&
-        this.runtime.kind === "opentide" &&
-        this.runtime.version !== this.repoPin.version,
+      this.runtime &&
+      this.runtime.kind === "opentide" &&
+      this.runtime.version !== this.repoPin.version,
     );
   }
 

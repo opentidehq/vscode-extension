@@ -1,7 +1,6 @@
 // The deploy plan's command lines (SPEC §10.5, D6): the editor only ever runs `deploy --dry-run`; the
 // real deploy is a command line to copy into a terminal or CI. vscode-free.
 import { shellQuote } from "../../core/runtime/env";
-
 import type { Strategy } from "./protocol";
 
 export type { Strategy };

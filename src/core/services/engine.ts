@@ -2,7 +2,9 @@
 // for the language client (src/engine/transport.ts).
 import * as path from "node:path";
 import { Worker } from "node:worker_threads";
+
 import { Disposable } from "vscode-jsonrpc";
+
 import type { EnginePort } from "../../engine/transport";
 
 /** The worker script next to the module (dist/engine/). */

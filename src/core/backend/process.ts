@@ -1,6 +1,7 @@
 // The process an `opentide serve` client talks to: a child process, or the WASI module in the extension host.
 // vscode-free.
 import type * as cp from "node:child_process";
+
 import { terminateChild } from "./terminate";
 
 /** What `ServeClient` needs of the process: lines in, lines out, and how it ends. */

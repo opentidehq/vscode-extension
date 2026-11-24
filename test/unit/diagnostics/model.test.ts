@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import type { Finding } from "../../../src/features/diagnostics/findings";
 import { FindingsModel, fileKey, isInside } from "../../../src/features/diagnostics/model";
 

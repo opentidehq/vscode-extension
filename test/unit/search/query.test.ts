@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import {
   ageInDays,
   isEmptyQuery,

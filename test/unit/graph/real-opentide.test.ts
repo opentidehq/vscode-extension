@@ -6,6 +6,7 @@
 import * as assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import * as path from "node:path";
+
 import { spawnRun } from "../../../src/core/backend/spawn";
 import { CommandTree } from "../../../src/core/capabilities/tree";
 import { loadedObjects } from "../../../src/core/catalog/rows";

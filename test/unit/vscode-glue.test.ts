@@ -3,7 +3,9 @@ import * as assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import {
   convertShowReferencesArgs,
   DOCUMENT_SELECTOR,

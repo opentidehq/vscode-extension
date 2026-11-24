@@ -1,7 +1,9 @@
 // The ATT&CK matrix (#20, SPEC §10.2): coverage per tactic and technique from `info catalog`.
 import * as fs from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import { loadedObjects } from "../../core/catalog/rows";
 import type { CatalogState } from "../../core/catalog/store";
 import type { CatalogDocument } from "../../core/catalog/types";

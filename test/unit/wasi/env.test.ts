@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { GUEST_HOME, wasiEnv } from "../../../src/core/wasi/env";
 
 describe("the WASI module's environment (src/core/wasi/env.ts)", () => {

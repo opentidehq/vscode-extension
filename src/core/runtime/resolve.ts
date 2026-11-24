@@ -8,6 +8,7 @@
 // signed python but not the unsigned opentide launcher), the same interpreter runs `python -m opentide`.
 // Whichever mode comes first, the other is the fallback, with a notice: nothing falls through silently.
 import * as path from "node:path";
+
 import type { RepoPin } from "./pins";
 import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier, WasiModule } from "./types";
 import {

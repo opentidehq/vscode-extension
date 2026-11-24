@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import type { CatalogState } from "../../../src/core/catalog/store";
 import { hostValidators, webviewValidators } from "../../../src/features/graph/protocol";
 import {

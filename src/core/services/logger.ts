@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+
 import type { Logger } from "../context";
 
 export function createLogger(): Logger & vscode.Disposable {

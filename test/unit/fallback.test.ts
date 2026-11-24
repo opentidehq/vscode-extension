@@ -2,7 +2,9 @@
 // engine module does not load): the engine (WASM) serves the editor features instead.
 import * as assert from "node:assert/strict";
 import * as cp from "node:child_process";
+
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
+
 import { processEnv } from "../../src/core/runtime/env";
 import { fallbackAttempts, type ServerStart, startWithFallback } from "../../src/core/runtime/fallback";
 import { probe } from "../../src/core/runtime/process";

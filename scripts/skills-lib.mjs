@@ -2,6 +2,7 @@
 // to VS Code's agents through `contributes.chatSkills` (SPEC §12). The upstream tree is pinned by commit and by a
 // digest of its content: GitHub's archive bytes are not promised to be stable, the files of a commit are.
 import { createHash } from "node:crypto";
+
 import { GrammarError, sha256 } from "./grammars-lib.mjs";
 
 export class SkillsError extends GrammarError {}

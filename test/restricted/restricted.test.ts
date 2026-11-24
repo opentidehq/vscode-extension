@@ -1,6 +1,8 @@
 // Restricted Mode (#8): only the engine (WASM), no restricted setting read, no commands.
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, waitFor } from "../integration/helpers";
 
 describe("Restricted Mode", () => {
