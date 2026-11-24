@@ -38,6 +38,10 @@ pre-releases odd ones.
 - **The editor features no longer stay stuck when the language server is restarted while it is still
   starting.** A start that gets no answer is given up on after 30 seconds and the opentide engine (WASM) takes
   over; a stop that gets no answer is cut short, so `opentide: Restart Server` always comes back.
+- **A slow tenant query no longer holds up the sidebar, the problems list or the coverage panel.** With the
+  bundled opentide, queries, deploy previews and other commands that reach a tenant run beside the editor's
+  own checks instead of in front of them. An editor command that answers nothing for 5 minutes is cancelled
+  with `timed-out`.
 - **A command that hangs can be cancelled.** Cancelling it stops it within 5 seconds, even when
   opentide does not answer, and the commands queued behind it run. A command still waiting its turn
   is cancelled at once.

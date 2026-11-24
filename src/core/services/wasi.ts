@@ -15,6 +15,7 @@
 import * as cp from "node:child_process";
 import * as fs from "node:fs";
 
+import type { Perform } from "@opentide/wasi-host";
 import type { RootFileSystem, Wasm, WasmProcess } from "@vscode/wasm-wasi/v1";
 import * as vscode from "vscode";
 import type { MessageReader, MessageWriter } from "vscode-jsonrpc";
@@ -258,18 +259,27 @@ export class WasiHost implements vscode.Disposable {
     return { child, paths: new GuestPaths(mounts) };
   }
 
+  /**
+   * Only in tests (ExtensionApi `stubWasiFetch`): what answers the module's `opentide/fetch` in the serve processes
+   * started from now on, in place of Node's HTTP stack.
+   */
+  fetchPerform: Perform | undefined;
+
   /** `opentide serve`: the process `ServeClient` drives, with paths mapped and `opentide/fetch` answered. */
   async startServe(): Promise<ServeProcess> {
     // The package is ESM only: loaded when the first server starts, not at activation.
     const { FetchHost } = await import("@opentide/wasi-host");
+    const perform = this.fetchPerform;
+    const fetchHost = (send: (message: object) => void) =>
+      new FetchHost(send, perform ? { perform } : undefined);
     const wasm = await this.wasmWasi();
     if (!wasm) {
       const { child, paths } = this.startChild(["serve"]);
-      return wasiServeWire(fromChildProcess(child), paths, (send) => new FetchHost(send));
+      return wasiServeWire(fromChildProcess(child), paths, fetchHost);
     }
     const started = await this.startWasm(wasm, ["serve"]);
     const raw = this.rawProcess(started.process, "serve");
-    return wasiServeWire(raw, started.paths, (send) => new FetchHost(send));
+    return wasiServeWire(raw, started.paths, fetchHost);
   }
 
   /** `opentide lsp start`: the language client's transports, with URIs and paths mapped. */
