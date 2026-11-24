@@ -23,6 +23,7 @@ import type {
   ObjectRef,
 } from "../../src/features/matrix/model";
 import { type MatrixProtocol, type MatrixState, webviewValidators } from "../../src/features/matrix/protocol";
+import { restoreUi, type UiState } from "../../src/features/matrix/uistate";
 import { addStyles, announce, h, mount, replace, setClass, setText } from "../panels-kit/dom";
 import { hideHoverCard, hoverCard } from "../panels-kit/menu";
 import { createChannel, vscodeApi } from "../shared/channel";
@@ -30,20 +31,8 @@ import { createChannel, vscodeApi } from "../shared/channel";
 const channel = createChannel<MatrixProtocol>(webviewValidators);
 const root = document.getElementById("root") ?? document.body;
 
-interface UiState {
-  expanded: string[];
-  find: string;
-  hideEmpty: boolean;
-}
-const saved = vscodeApi().getState() as Partial<UiState> | undefined;
-const ui: UiState = {
-  expanded: Array.isArray(saved?.expanded)
-    ? saved.expanded.filter((e): e is string => typeof e === "string")
-    : [],
-  find: typeof saved?.find === "string" ? saved.find : "",
-  hideEmpty: saved?.hideEmpty === true,
-};
-const persist = () => vscodeApi().setState(ui);
+const ui: UiState = restoreUi(vscodeApi().getState());
+const persist = () => vscodeApi().setState({ ...ui, focused });
 
 let state: MatrixState | undefined;
 let detail: CellDetail | undefined;
@@ -51,7 +40,7 @@ let detail: CellDetail | undefined;
  * The focused cell (roving tabindex), as `column:technique`: a technique under two tactics has a cell in
  * each, and the arrow keys move between cells, not techniques.
  */
-let focused: string | undefined;
+let focused: string | undefined = ui.focused;
 const cellKey = (column: number, id: string) => `${column}:${id}`;
 /** The grid's layout key: what decides which cells exist (columns, expanded, hidden, found). */
 let layoutKey = "";
@@ -76,7 +65,10 @@ const matrixElement = h("div", {
     keydown: (event) => onKey(event),
     focusin: (event) => {
       const key = (event.target as HTMLElement).closest<HTMLElement>(".cell")?.dataset.k;
-      if (key) focused = key;
+      if (key) {
+        focused = key;
+        persist();
+      }
     },
   },
 });
@@ -86,6 +78,16 @@ const aside = h("aside", {
   attrs: { "aria-live": "polite", "aria-label": "Technique" },
 });
 const scroller = h("div", { class: "matrix-scroll" }, [matrixElement]);
+let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+scroller.addEventListener("scroll", () => {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => {
+    ui.scroll = { left: scroller.scrollLeft, top: scroller.scrollTop };
+    persist();
+  }, 150);
+});
+/** The saved scroll offset, applied once, when the first grid is in. */
+let scrollRestored = false;
 const layout = h("div", { class: "layout" }, [scroller, aside]);
 const unknown = h("div");
 const placeholder = h("div");
@@ -139,6 +141,11 @@ function render(): void {
   replace(legendRegion, legend(s.filters));
   replace(message, s.message ? h("div", { class: "ot-callout warning", text: s.message }) : null);
   renderGrid(view, s.filters);
+  if (!scrollRestored) {
+    scrollRestored = true;
+    scroller.scrollLeft = ui.scroll.left;
+    scroller.scrollTop = ui.scroll.top;
+  }
   renderDetail();
   replace(
     unknown,

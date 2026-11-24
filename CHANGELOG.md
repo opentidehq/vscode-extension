@@ -9,12 +9,17 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The ATT&CK coverage panel no longer holds memory while it is in the background.** It is rebuilt when you
+  come back to it, with its filters, expanded techniques, selected technique, scroll position and focused
+  cell as you left them.
 - **The graph opens without a pause on catalogues of 500–1,500 objects.** The Catalogue view used to block the
   panel for up to 0.7 s while it was laid out; it now takes a few milliseconds. Small catalogues and Focus
   keep the layout they had.
 
 ### Fixed
 
+- **CQL, Exabeam, YARA and YARA-L queries are fully coloured in every theme.** Fields, functions and types
+  were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
 - **A query written on one line in quotes is coloured as a query.** `query: '…'` was painted as a single
   string until the language server answered. A comment after it is coloured as a comment.
 

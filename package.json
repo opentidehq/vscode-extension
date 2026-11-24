@@ -295,6 +295,18 @@
         "editor.codeActionsOnSave": {
           "source.fixAll.opentide": "never"
         }
+      },
+      "[cql]": {
+        "editor.semanticHighlighting.enabled": true
+      },
+      "[exabeam]": {
+        "editor.semanticHighlighting.enabled": true
+      },
+      "[yara]": {
+        "editor.semanticHighlighting.enabled": true
+      },
+      "[yaral]": {
+        "editor.semanticHighlighting.enabled": true
       }
     },
     "configuration": [
