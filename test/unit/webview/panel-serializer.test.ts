@@ -57,25 +57,6 @@ describe("registerPanelSerializer", () => {
     logs.length = 0;
   });
 
-  it("gives each page its own query on its script and stylesheets, the CSP nonce, under dist/webview", () => {
-    const revived = revivedPanel();
-    const page = (kit: boolean) =>
-      helpers.html(revived.webview as unknown as vscode.Webview, "graph", "opentide graph", { kit });
-    const first = page(true);
-    const nonceOf = (html: string) => /'nonce-([A-Za-z0-9]+)'/.exec(html)?.[1];
-    const token = nonceOf(first);
-    assert.ok(token, first);
-    const uris = [...first.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1] ?? "");
-    assert.equal(uris.length, 4, "the script, base.css, the codicons and kit.css");
-    for (const uri of uris) {
-      assert.match(uri, /^vscode-resource:\/ext\/dist\/webview\/[^?]+\?p=[A-Za-z0-9]+$/, uri);
-      assert.ok(uri.endsWith(`?p=${token}`), `${uri}: the page's token`);
-    }
-    assert.match(first, new RegExp(`<script nonce="${token}" src="[^"]+/graph\\.js\\?p=${token}"></script>`));
-    const second = page(false);
-    assert.notEqual(nonceOf(second), token, "another page asks for its own copy");
-  });
-
   it("registers a serializer for the view type", () => {
     const registered = helpers.registerPanelSerializer<TestProtocol>(options, () => undefined);
     assert.ok(panelSerializers.has("opentide.test"));
@@ -93,13 +74,30 @@ describe("registerPanelSerializer", () => {
     const revived = revivedPanel();
     await panelSerializers.get("opentide.test")?.deserializeWebviewPanel(revived.panel, undefined);
     const page = () => helpers.pages.get(revived.panel as unknown as vscode.WebviewPanel);
-    assert.deepEqual(page(), { viewType: "opentide.test", ready: false }, "wired, its page not loaded yet");
+    const id = page()?.id ?? 0;
+    assert.deepEqual(
+      page(),
+      { viewType: "opentide.test", ready: false, id, messages: 0 },
+      "wired, its page not loaded yet",
+    );
+    for (const listener of revived.messages) listener({ type: "log", payload: "script started" });
     for (const listener of revived.messages) listener({ type: "nonsense", payload: 1 });
     assert.equal(page()?.ready, false, "only a valid `ready` counts");
+    assert.equal(page()?.messages, 2, "every message counts, valid or not");
+    assert.equal(page()?.firstType, "log");
     for (const listener of revived.messages) listener({ type: "ready" });
     assert.equal(page()?.ready, true);
     revived.panel.dispose();
     assert.equal(page(), undefined, "a closed panel is forgotten");
+    assert.deepEqual(
+      helpers.lifecycle.filter((event) => event.id === id).map((event) => [event.event, event.detail]),
+      [
+        ["wired", undefined],
+        ["first message", "log: script started"],
+        ["ready", undefined],
+        ["disposed", undefined],
+      ],
+    );
     assert.ok(opened);
 
     // Disposed from our side too.

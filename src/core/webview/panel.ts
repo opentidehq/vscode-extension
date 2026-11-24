@@ -1,5 +1,7 @@
 // Webview helpers for features that need a panel (SPEC §10): strict CSP with a nonce, local resources
 // only from dist/webview, the shared base CSS, and a typed, validated message channel.
+import { performance } from "node:perf_hooks";
+
 import * as vscode from "vscode";
 
 import { nonce, renderHtml } from "./html";
@@ -71,6 +73,25 @@ interface ReadyProtocol extends Protocol {
 export interface PageState {
   readonly viewType: string;
   readonly ready: boolean;
+  /** Which page this is, in the order the helpers wired them (the lifecycle names it). */
+  readonly id: number;
+  /** Every message the page sent, valid or not: none means its script never ran (or never reached the channel). */
+  readonly messages: number;
+  /** The type of the first message it sent, if any (the graph's is `log`: "script started"). */
+  readonly firstType?: string;
+}
+
+/**
+ * What happened to the pages, in order (for tests): a page wired, its first message, `ready`, its panel disposed.
+ * It says whether a closed panel's dispose came before or after the next panel was wired, and whether a page that
+ * never said `ready` sent anything at all.
+ */
+export interface PageEvent {
+  readonly at: number;
+  readonly id: number;
+  readonly viewType: string;
+  readonly event: "wired" | "first message" | "ready" | "disposed";
+  readonly detail?: string;
 }
 
 export interface WebviewHelpers {
@@ -93,6 +114,8 @@ export interface WebviewHelpers {
   ): vscode.Disposable;
   /** Only for tests: every panel opened or revived and not yet closed, with whether its page said it is ready. */
   readonly pages: ReadonlyMap<vscode.WebviewPanel, PageState>;
+  /** Only for tests: the pages' lifecycle, in order (the last 200 events). */
+  readonly lifecycle: readonly PageEvent[];
   /** Only for tests: what VS Code calls to revive a panel of a view type, by view type (a reload cannot be driven from a test). */
   readonly restorers: ReadonlyMap<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>;
   /** The options every opentide webview uses: scripts on, resources only from dist/webview. */
@@ -100,7 +123,12 @@ export interface WebviewHelpers {
   /** The page for `entry` with its CSP and nonce (for a WebviewView too). */
   html(webview: vscode.Webview, entry: string, title: string, options?: PageOptions): string;
   /** A channel over any webview (panel or view). */
-  connect<P extends Protocol>(webview: vscode.Webview, validators: Validators<P["toHost"]>): HostChannel<P>;
+  connect<P extends Protocol>(
+    webview: vscode.Webview,
+    validators: Validators<P["toHost"]>,
+    /** Hears every message before it is validated (the core counts a page's messages, for tests). */
+    onRaw?: (raw: unknown) => void,
+  ): HostChannel<P>;
 }
 
 export function createWebviewHelpers(
@@ -109,20 +137,28 @@ export function createWebviewHelpers(
 ): WebviewHelpers {
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
   const restorers = new Map<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>();
-  const pages = new Map<vscode.WebviewPanel, { viewType: string; ready: boolean }>();
+  const pages = new Map<vscode.WebviewPanel, { -readonly [K in keyof PageState]: PageState[K] }>();
+  const lifecycle: PageEvent[] = [];
+  let nextPage = 1;
+  const record = (page: PageState, event: PageEvent["event"], detail?: string): void => {
+    lifecycle.push({
+      at: performance.now(),
+      id: page.id,
+      viewType: page.viewType,
+      event,
+      ...(detail ? { detail } : {}),
+    });
+    if (lifecycle.length > 200) lifecycle.shift();
+  };
   const helpers: WebviewHelpers = {
     restorers,
     pages,
+    lifecycle,
     webviewOptions: () => ({ enableScripts: true, localResourceRoots: [root] }),
     html(webview, entry, title, options = {}) {
       if (!/^[a-z][a-z0-9-]*$/.test(entry)) throw new Error(`bad webview entry: ${entry}`);
-      // One token per page: the CSP nonce, and a query on the page's own script and stylesheets. Panels of one view
-      // type share their webview origin; a page closed while its script still loaded may leave that request
-      // pending, and the next panel's request for the same URL would wait behind it (the graph's script is
-      // 1.2 MB). With the query each page asks for its own. The path, and so localResourceRoots, is unchanged.
-      const token = nonce();
       const asset = (...segments: string[]) =>
-        `${webview.asWebviewUri(vscode.Uri.joinPath(root, ...segments)).toString()}?p=${token}`;
+        webview.asWebviewUri(vscode.Uri.joinPath(root, ...segments)).toString();
       return renderHtml({
         cspSource: webview.cspSource,
         scriptUri: asset(`${entry}.js`),
@@ -131,15 +167,17 @@ export function createWebviewHelpers(
         extraStyleUris: [asset("codicons", "codicon.css"), ...(options.kit ? [asset("kit.css")] : [])],
         ...(options.kit ? { bodyClass: "ot-kit" } : {}),
         title,
-        nonce: token,
+        nonce: nonce(),
       });
     },
     connect<P extends Protocol>(
       webview: vscode.Webview,
       validators: Validators<P["toHost"]>,
+      onRaw?: (raw: unknown) => void,
     ): HostChannel<P> {
       const handlers = new Map<string, Set<(payload: unknown) => void | Promise<void>>>();
       const subscription = webview.onDidReceiveMessage((raw: unknown) => {
+        onRaw?.(raw);
         // A pick from a list is answered here for every webview: VS Code's QuickPick, not a <select>.
         const pick = acceptMessage(raw, pickToHost);
         if (pick) {
@@ -181,16 +219,39 @@ export function createWebviewHelpers(
       panel.webview.html = helpers.html(panel.webview, options.entry, options.title, {
         kit: options.kit ?? false,
       });
-      const channel = helpers.connect<P>(panel.webview, options.validators);
-      const page = { viewType: options.viewType, ready: false };
+      const page: { -readonly [K in keyof PageState]: PageState[K] } = {
+        viewType: options.viewType,
+        ready: false,
+        id: nextPage++,
+        messages: 0,
+      };
+      const channel = helpers.connect<P>(panel.webview, options.validators, (raw) => {
+        page.messages += 1;
+        if (page.messages === 1) {
+          const type = (raw as { type?: unknown } | undefined)?.type;
+          page.firstType = typeof type === "string" ? type : typeof raw;
+          const payload = (raw as { payload?: unknown } | undefined)?.payload;
+          record(
+            page,
+            "first message",
+            `${page.firstType}${typeof payload === "string" ? `: ${payload}` : ""}`,
+          );
+        }
+      });
       pages.set(panel, page);
+      record(page, "wired");
       // Through the validated channel (no second listener on the page): every opentide page says `ready` once loaded.
       const loaded = (channel as unknown as HostChannel<ReadyProtocol>).on("ready", () => {
         page.ready = true;
+        record(page, "ready");
       });
+      let forgotten = false;
       const forget = (): void => {
+        if (forgotten) return;
+        forgotten = true;
         loaded.dispose();
         pages.delete(panel);
+        record(page, "disposed");
       };
       const disposeChannel = panel.onDidDispose(() => {
         channel.dispose();

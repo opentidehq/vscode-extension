@@ -86,6 +86,8 @@ document.head.append(style);
 // The codicon font comes with every opentide page (codicons/codicon.css, linked by createPanel).
 
 const channel = createChannel<GraphProtocol>(webviewValidators);
+// First thing the page says: its script ran (the host logs it at debug level). A page that never says it never ran.
+channel.post("log", "script started");
 
 interface Persisted {
   depth: number;

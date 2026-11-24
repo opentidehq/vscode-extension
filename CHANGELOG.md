@@ -9,8 +9,6 @@ pre-releases odd ones.
 
 ### Fixed
 
-- **The graph no longer stays blank when you reopen it.** Closing the graph while it was still
-  loading could leave the next one you opened empty.
 - **Faster startup on Windows.** Looking for `opentide`, `python` and `uv` on your PATH no longer
   holds up other extensions, and each is looked up once. A program you install while VS Code is
   open is found after **opentide: Restart Server**.
