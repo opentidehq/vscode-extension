@@ -37,6 +37,12 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **A restart no longer hangs when the bundled opentide is busy (VS Code's WASI host).** Stopping the bundled
+  opentide while it was working could wait for ever for an exit that VS Code's WASI host never reported, and
+  every restart after it waited too.
+- **The editor features no longer stay stuck when the language server is restarted while it is still
+  starting.** A start that gets no answer is given up on after 30 seconds and the opentide engine (WASM) takes
+  over; a stop that gets no answer is cut short, so `opentide: Restart Server` always comes back.
 - **A command that hangs can be cancelled.** Cancelling it stops it within 5 seconds, even when
   opentide does not answer, and the commands queued behind it run. A command still waiting its turn
   is cancelled at once.

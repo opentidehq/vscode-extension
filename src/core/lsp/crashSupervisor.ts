@@ -23,6 +23,11 @@ export class CrashSupervisor {
 
   constructor(private readonly clock: Clock = systemClock) {}
 
+  /** The server was stopped or replaced on purpose: its closed connection is no crash. */
+  get isCancelled(): boolean {
+    return this.cancelled;
+  }
+
   /** The connection closed on its own: count it, and say what to do. */
   crashed(): RestartDecision & { readonly crashesInWindow: number } {
     const now = this.clock.now();
