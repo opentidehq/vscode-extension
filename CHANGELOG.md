@@ -9,6 +9,8 @@ pre-releases odd ones.
 
 ### Changed
 
+- **Closing a window stops the language server and `opentide serve` together.** A slow stop of one no
+  longer uses up the time VS Code gives the other, so neither is left running behind a closed window.
 - **Windows that never need the language server start faster.** The extension loads its language client the
   first time a server starts, not in every window as it opens.
 - **The graph's platform, status and hops choices open VS Code's own picker.** They were native drop-downs

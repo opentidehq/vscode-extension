@@ -441,8 +441,9 @@ export function createCore(context: vscode.ExtensionContext): Core {
     wasiHost: () => wasiHost.host,
     start,
     shutdown: async (deadlineMs = 4000) => {
-      // In order: stop what would start more (a resolution in flight), then the language server, `serve`, and last
-      // what is left of the WASI processes. Each is awaited: `subscriptions` disposes them without waiting.
+      // In order: stop what would start more (a resolution in flight), then the language server and `serve` together
+      // (each can take a couple of seconds and a kill after that, and neither waits on the other), and last what is
+      // left of the WASI processes. Each is awaited: `subscriptions` disposes them without waiting.
       const result = await runShutdown(
         [
           {
@@ -451,8 +452,10 @@ export function createCore(context: vscode.ExtensionContext): Core {
               runtime.cancelResolution();
             },
           },
-          { name: "language server", run: () => client.dispose() },
-          { name: "opentide serve", run: () => backend.dispose() },
+          [
+            { name: "language server", run: () => client.dispose() },
+            { name: "opentide serve", run: () => backend.dispose() },
+          ],
           { name: "WASI processes", run: () => wasiHost.shutdown() },
         ],
         {
