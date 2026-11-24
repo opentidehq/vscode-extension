@@ -61,6 +61,18 @@ export interface OpentidePanel<P extends Protocol> extends vscode.Disposable {
 /** What the webview last saved with `setState`, as VS Code hands it back after a reload; undefined if it saved none. */
 export type SavedState = unknown;
 
+/** The message every opentide page sends once it has loaded. */
+interface ReadyProtocol extends Protocol {
+  readonly toHost: { readonly ready: undefined };
+  readonly toWebview: Record<string, never>;
+}
+
+/** A panel's page as the core sees it: whether it has loaded and said it is ready (its `ready` message). */
+export interface PageState {
+  readonly viewType: string;
+  readonly ready: boolean;
+}
+
 export interface WebviewHelpers {
   /** Open a panel showing `entry`, wired to a validated channel. */
   createPanel<P extends Protocol>(options: PanelOptions<P>): OpentidePanel<P>;
@@ -79,6 +91,8 @@ export interface WebviewHelpers {
     options: PanelOptions<P>,
     restore: (opened: OpentidePanel<P>, saved: SavedState) => void | Thenable<void>,
   ): vscode.Disposable;
+  /** Only for tests: every panel opened or revived and not yet closed, with whether its page said it is ready. */
+  readonly pages: ReadonlyMap<vscode.WebviewPanel, PageState>;
   /** Only for tests: what VS Code calls to revive a panel of a view type, by view type (a reload cannot be driven from a test). */
   readonly restorers: ReadonlyMap<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>;
   /** The options every opentide webview uses: scripts on, resources only from dist/webview. */
@@ -95,8 +109,10 @@ export function createWebviewHelpers(
 ): WebviewHelpers {
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
   const restorers = new Map<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>();
+  const pages = new Map<vscode.WebviewPanel, { viewType: string; ready: boolean }>();
   const helpers: WebviewHelpers = {
     restorers,
+    pages,
     webviewOptions: () => ({ enableScripts: true, localResourceRoots: [root] }),
     html(webview, entry, title, options = {}) {
       if (!/^[a-z][a-z0-9-]*$/.test(entry)) throw new Error(`bad webview entry: ${entry}`);
@@ -161,13 +177,27 @@ export function createWebviewHelpers(
         kit: options.kit ?? false,
       });
       const channel = helpers.connect<P>(panel.webview, options.validators);
-      const disposeChannel = panel.onDidDispose(() => channel.dispose());
+      const page = { viewType: options.viewType, ready: false };
+      pages.set(panel, page);
+      // Through the validated channel (no second listener on the page): every opentide page says `ready` once loaded.
+      const loaded = (channel as unknown as HostChannel<ReadyProtocol>).on("ready", () => {
+        page.ready = true;
+      });
+      const forget = (): void => {
+        loaded.dispose();
+        pages.delete(panel);
+      };
+      const disposeChannel = panel.onDidDispose(() => {
+        channel.dispose();
+        forget();
+      });
       return {
         panel,
         channel,
         dispose: () => {
           disposeChannel.dispose();
           channel.dispose();
+          forget();
           panel.dispose();
         },
       };
