@@ -33,6 +33,15 @@ function readManifestText(file: string): string | undefined {
   }
 }
 
+/** `readManifestText` without blocking the thread. */
+async function readManifestTextAsync(file: string): Promise<string | undefined> {
+  try {
+    return await fs.promises.readFile(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 /** The engine (WASM) the extension carries (`dist/engine/engine.json`), if it has one; `report` hears why a manifest is unusable. */
 export function readEngine(
   extensionPath: string,
@@ -62,29 +71,57 @@ export function readWasi(extensionPath: string, report?: (problem: string) => vo
   return result.layout;
 }
 
-/** Read the pin files at the top of a folder. */
-export function readPin(folder: string | undefined): RepoPin | undefined {
+/** Read the pin files at the top of a folder, without blocking: the first resolution starts while the window activates. */
+export async function readPin(folder: string | undefined): Promise<RepoPin | undefined> {
   if (!folder) return undefined;
   let names: string[];
   try {
-    names = fs.readdirSync(folder);
+    names = await fs.promises.readdir(folder);
   } catch {
     return undefined;
   }
   const files: Record<string, string> = {};
   for (const name of pinFileOrder(names)) {
-    try {
-      files[name] = fs.readFileSync(path.join(folder, name), "utf8");
-    } catch {
-      // unreadable: skip
-    }
+    const text = await readManifestTextAsync(path.join(folder, name));
+    if (text !== undefined) files[name] = text;
   }
   return detectPin(files);
+}
+
+/**
+ * The WASI module and the engine the extension carries, read once without blocking the thread: their manifests
+ * are part of the installed extension and do not change while it runs.
+ */
+export async function readBundledAsync(
+  extensionPath: string,
+  report: (problem: string) => void,
+): Promise<{ wasi: WasiLayout | undefined; engine: EngineLayout | undefined }> {
+  const wasiDir = path.join(extensionPath, "dist", "wasi");
+  const engineDir = path.join(extensionPath, "dist", "engine");
+  const [wasiText, engineText] = await Promise.all([
+    readManifestTextAsync(path.join(wasiDir, "wasi.json")),
+    readManifestTextAsync(path.join(engineDir, "engine.json")),
+  ]);
+  let wasi: WasiLayout | undefined;
+  if (wasiText !== undefined) {
+    const result = parseWasiManifest(wasiText, wasiDir, process.execPath);
+    if ("problem" in result) report(`${result.problem}; the bundled WASI runtime is not available`);
+    else wasi = result.layout;
+  }
+  let engine: EngineLayout | undefined;
+  if (engineText !== undefined) {
+    const result = parseEngineManifest(engineText, engineDir);
+    if ("problem" in result) report(`${result.problem}; the engine is not available`);
+    else engine = result.layout;
+  }
+  return { wasi, engine };
 }
 
 export class RuntimeManager implements RuntimeService, vscode.Disposable {
   private runtime: Runtime | undefined;
   private lastAttempts: readonly ResolveAttempt[] = [];
+  /** The bundled WASI module's and engine's manifests, read once. */
+  private bundled: ReturnType<typeof readBundledAsync> | undefined;
   /** What `noteAttempts` added after the last resolution: a language server's fallback to the engine. */
   private notes: readonly ResolveAttempt[] = [];
   private repoPin: RepoPin | undefined;
@@ -184,7 +221,15 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     const folder = this.primaryFolder();
     const folderPath = folder?.uri.fsPath;
     const trusted = vscode.workspace.isTrusted;
-    this.repoPin = readPin(folderPath);
+    // Read without blocking: the first resolution starts while the window activates (SPEC §14).
+    const [pin, bundled] = await Promise.all([
+      readPin(folderPath),
+      (this.bundled ??= readBundledAsync(this.context.extensionPath, (problem) =>
+        this.log.warn(`runtime: ${problem}`),
+      )),
+    ]);
+    if (signal.aborted) return this.runtime;
+    this.repoPin = pin;
     const result = await resolveRuntime({
       trusted,
       platform: process.platform,
@@ -198,8 +243,8 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
       probe: (command, args, options) => probe(command, args, options),
       pythonEnvironments: () => pythonEnvironmentsInterpreter(folder?.uri),
       pythonExtension: () => pythonExtensionInterpreter(folder?.uri),
-      wasi: readWasi(this.context.extensionPath, (problem) => this.log.warn(`runtime: ${problem}`)),
-      engine: readEngine(this.context.extensionPath, (problem) => this.log.warn(`runtime: ${problem}`)),
+      wasi: bundled.wasi,
+      engine: bundled.engine,
       signal,
     });
     // Stale (a restart came while this resolved): leave the state to the resolution that replaced it.
