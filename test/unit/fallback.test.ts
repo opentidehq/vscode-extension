@@ -6,7 +6,12 @@ import * as cp from "node:child_process";
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 
 import { processEnv } from "../../src/core/runtime/env";
-import { fallbackAttempts, type ServerStart, startWithFallback } from "../../src/core/runtime/fallback";
+import {
+  describeFallback,
+  fallbackAttempts,
+  type ServerStart,
+  startWithFallback,
+} from "../../src/core/runtime/fallback";
 import { probe } from "../../src/core/runtime/process";
 import { engineRuntime } from "../../src/core/runtime/resolve";
 import { languageServerCommand, type Runtime } from "../../src/core/runtime/types";
@@ -89,6 +94,15 @@ describe("a language server that does not start falls back to the engine (WASM)"
       ],
     );
     assert.match(attempts[0]?.detail ?? "", /did not start.*ImportError.*engine \(WASM\)/);
+  });
+
+  it("says a server that kept crashing stopped, where one that never started did not start", () => {
+    const from = fakeRuntime({ tier: 2, source: "path" });
+    assert.equal(describeFallback({ from, reason: "ImportError" }), "did not start (ImportError)");
+    const crashed = { from, reason: "crashed 5 times in 3 minutes", crashed: true };
+    assert.equal(describeFallback(crashed), "stopped repeatedly (crashed 5 times in 3 minutes)");
+    const [first] = fallbackAttempts(crashed, engineRuntime(ENGINE, false));
+    assert.match(first?.detail ?? "", /stopped repeatedly \(crashed 5 times in 3 minutes\).*engine \(WASM\)/);
   });
 
   it("keeps Restricted Mode, and says nothing when the runtime's own server starts", async () => {

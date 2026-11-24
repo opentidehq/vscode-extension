@@ -20,6 +20,10 @@ pre-releases odd ones.
 
 - **CQL, Exabeam, YARA and YARA-L queries are fully coloured in every theme.** Fields, functions and types
   were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
+- **The editor features come back after the language server crashes.** The server now restarts after a
+  short, growing wait instead of at once. If it crashes five times in three minutes, the opentide engine
+  (WASM) takes over, with a notice, instead of the editor features staying dead until you run
+  `opentide: Restart Server`.
 
 ## [0.4.0] - 2026-11-23
 
