@@ -12,6 +12,9 @@ pre-releases odd ones.
 - **Faster startup on Windows.** Looking for `opentide`, `python` and `uv` on your PATH no longer
   holds up other extensions, and each is looked up once. A program you install while VS Code is
   open is found after **opentide: Restart Server**.
+- **opentide tasks and commands stay available after you switch runtimes.** A command cut short by
+  the switch now runs on the opentide you switched to, and a failed read of opentide's commands is
+  tried again instead of leaving tasks empty until the next restart.
 
 ## [0.4.1] - 2026-11-24
 

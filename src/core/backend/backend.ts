@@ -66,6 +66,11 @@ export interface RunRecord {
 
 export interface BackendDeps {
   runtime(): Runtime | undefined;
+  /**
+   * The runtime once a restart in progress has resolved it; the current one when none is. A request that a restart
+   * cut off runs again on this: during the restart, `runtime()` is still the one it is leaving.
+   */
+  settledRuntime?(): Promise<Runtime | undefined>;
   /** The active runtime's command tree, once loaded. */
   commands(): Promise<CommandTree | undefined>;
   classify(argv: readonly string[]): Classification;
@@ -371,11 +376,12 @@ export class Backend {
       if (current && sameRuntime(other.serveRuntime, runtime)) other.serveRuntime = runtime;
       // Another lane's process that is answering a request finishes it; it is replaced with its lane's next request.
       else if (current && (other === lane || other.inFlight === 0)) {
-        this.dropServe(other, current);
         this.deps.log(
           "info",
-          `the opentide runtime changed: stopping the ${other.name} serve started for the previous one`,
+          `the opentide runtime changed: stopping the ${other.name} serve started for the previous one ` +
+            `(${processLabel(current, other)})`,
         );
+        this.dropServe(other, current);
         void this.closeLane(current);
       }
     }
@@ -550,7 +556,11 @@ export class Backend {
           graceMs,
           kill: () => {
             this.killed.add(client);
-            this.deps.log("warn", `opentide serve did not answer a cancel within ${graceMs} ms: stopping it`);
+            this.deps.log(
+              "warn",
+              `opentide serve ${processLabel(client, lane)} did not answer a cancel within ${graceMs} ms ` +
+                `(\`${argv[0] ?? ""}\`, ${timedOut ? "its deadline passed" : "cancelled"}): killing it`,
+            );
             // Forget it before it exits, so the next request (the writer this one held up) starts a new serve.
             this.dropServe(lane, client);
             client.kill();
@@ -603,9 +613,13 @@ export class Backend {
     options: RunOptions,
     error: unknown,
   ): Promise<Omit<RunResult, "argvDisplay" | "folder" | "durationMs">> {
-    const runtime = this.deps.runtime();
+    // The restart that cut it off may still be resolving: run it on the runtime it lands on, not the one it leaves.
+    const runtime = this.deps.settledRuntime ? await this.deps.settledRuntime() : this.deps.runtime();
     if (this.disposed || !hasCli(runtime)) throw error;
-    this.deps.log("info", "opentide serve restarted before the request reached it: running it again");
+    this.deps.log(
+      "info",
+      `opentide serve restarted before \`${argv[0] ?? ""}\` reached it: running it again on ${runtimeLabel(runtime)}`,
+    );
     return (await this.canServe(runtime, lane))
       ? this.viaServe(lane, runtime, folder, argv, credentials, options)
       : this.viaSpawn(runtime, folder, argv, credentials, options);
@@ -668,7 +682,10 @@ export class Backend {
     this.generation++;
     const serves: ServeClient[] = [];
     for (const lane of this.allLanes()) {
-      if (lane.serve) serves.push(lane.serve);
+      if (lane.serve) {
+        serves.push(lane.serve);
+        this.deps.log("info", `stopping opentide serve ${processLabel(lane.serve, lane)}: restart`);
+      }
       if (lane.idleTimer) clearTimeout(lane.idleTimer);
       Object.assign(lane, newLane(lane.name));
     }
@@ -760,4 +777,16 @@ function waitUnlessCancelled(ms: number, token: CancellationToken | undefined): 
       resolve(false);
     });
   });
+}
+
+/** A runtime as a log line names it: its version and where it comes from. */
+function runtimeLabel(runtime: Runtime): string {
+  return `${runtime.version} (${isWasi(runtime) ? "the bundled WASI module" : runtime.source})`;
+}
+
+/** Which serve process a log line is about: its pid, lane and runtime. */
+function processLabel(client: ServeClient, lane: ServeLane): string {
+  const pid = client.pid;
+  const runtime = lane.serveRuntime;
+  return `(${pid !== undefined ? `pid ${pid}, ` : ""}${lane.name} lane${runtime ? `, ${runtimeLabel(runtime)}` : ""})`;
 }
