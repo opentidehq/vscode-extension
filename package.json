@@ -2014,7 +2014,8 @@
             "constant.numeric"
           ],
           "regexp": [
-            "constant.regexp"
+            "variable.other.constant.markdown.tide",
+            "variable.other.constant"
           ],
           "operator": [
             "keyword.operator.key-value.tide",

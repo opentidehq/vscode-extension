@@ -9,6 +9,9 @@ pre-releases odd ones.
 
 ### Changed
 
+- **Large query results open and filter faster.** A result of 50,000 rows no longer scans every cell to open,
+  and the table prepares its filter in the background while the panel is idle, so the first filter keystroke
+  answers without a pause.
 - **The ATT&CK coverage panel no longer holds memory while it is in the background.** It is rebuilt when you
   come back to it, with its filters, expanded techniques, selected technique, scroll position and focused
   cell as you left them.
@@ -22,6 +25,12 @@ pre-releases odd ones.
   were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
 - **A query written on one line in quotes is coloured as a query.** `query: '…'` was painted as a single
   string until the language server answered. A comment after it is coloured as a comment.
+- **Inline code in a rule's description is readable in dark themes.** It was dark grey on dark, at a contrast
+  of 3:1 in Dark+ and Dark Modern; it now takes the theme's constant colour (8:1).
+- **The editor features come back after the language server crashes.** The server now restarts after a
+  short, growing wait instead of at once. If it crashes five times in three minutes, the opentide engine
+  (WASM) takes over, with a notice, instead of the editor features staying dead until you run
+  `opentide: Restart Server`.
 
 ## [0.4.0] - 2026-11-23
 

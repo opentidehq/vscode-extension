@@ -820,7 +820,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -870,7 +870,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -914,7 +914,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -967,7 +967,7 @@
         {
           "comment": "capture:markdown.code",
           "match": "`[^`]+`",
-          "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+          "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
         },
         {
           "comment": "capture:markdown.list",
@@ -1105,7 +1105,7 @@
     {
       "comment": "capture:markdown.code",
       "match": "`[^`]+`",
-      "name": "markup.inline.raw.markdown.tide constant.regexp.markdown.tide"
+      "name": "markup.inline.raw.markdown.tide variable.other.constant.markdown.tide"
     },
     {
       "comment": "capture:markdown.list",
