@@ -1,5 +1,5 @@
 {
-  "$comment": "How the language server's semantic token types map to TextMate scopes in opentide-yaml, for themes with no rule of their own for a type. Every type of the server's legend (LSP_TOKEN_TYPES in opentide's crates/opentide-highlight) is listed, and the grammar (scripts/tide-align.mjs) gives each construct a last scope that falls under one of its type's scopes, so the server's tokens do not recolour the grammar's. test/scripts/highlighting.test.mjs checks both.",
+  "$comment": "How the language server's semantic token types map to TextMate scopes in opentide-yaml, for themes with no rule of their own for a type. Every type of the server's legend (LSP_TOKEN_TYPES in opentide's crates/opentide-highlight) is listed, and the grammar (the highlights zip, with scripts/tide-align.mjs for Elastic queries) gives each construct a last scope that falls under one of its type's scopes, so the server's tokens do not recolour the grammar's. The key-value colon and list dashes are punctuation the server gives no token. test/scripts/highlighting.test.mjs checks both.",
   "contributes": {
     "semanticTokenScopes": [
       {
@@ -26,7 +26,7 @@
           "string": ["string.unquoted.plain.tide", "string"],
           "number": ["constant.numeric"],
           "regexp": ["variable.other.constant.markdown.tide", "variable.other.constant"],
-          "operator": ["keyword.operator.key-value.tide", "keyword.operator"],
+          "operator": ["keyword.operator"],
           "decorator": ["entity.name.decorator", "entity.name.function"]
         }
       }

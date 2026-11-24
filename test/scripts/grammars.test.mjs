@@ -60,25 +60,33 @@ const contributions = JSON.stringify({
     ],
   },
 });
-/** The rules of the zip's opentide-yaml grammar that scripts/tide-align.mjs works on, in their shape and order. */
+/** The rules of the zip's opentide-yaml grammar (opentide 1.0.0-rc.5 on) that scripts/tide-align.mjs works on, in their shape and order. */
 const TIDE_PATTERNS = [
   {
-    begin: "^(configurations)\\s*:\\s*(?:#.*)?$",
-    beginCaptures: { 1: { name: "variable.other.property.tide" } },
+    begin: "^(configurations)(\\s*)(:)\\s*(?:#.*)?$",
+    beginCaptures: {
+      1: { name: "variable.other.property.tide" },
+      3: { name: "punctuation.separator.key-value.tide" },
+    },
     end: "^(?=\\S)",
     patterns: [
       {
-        begin: "^(\\s+)(sentinel)\\s*:\\s*(?:#.*)?$",
-        beginCaptures: { 2: { name: "variable.other.property.tide" } },
+        begin: "^(\\s+)(sentinel)(\\s*)(:)\\s*(?:#.*)?$",
+        beginCaptures: {
+          2: { name: "variable.other.property.tide" },
+          4: { name: "punctuation.separator.key-value.tide" },
+        },
         end: "^(?!\\1\\s+\\S|\\s*$)",
         patterns: [
           {
-            match: "^(\\s+)(query)\\s*:\\s+(?![|>])(.+)$",
+            match: "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+)$",
             captures: {
               2: { name: "variable.other.property.tide" },
-              3: { name: "meta.embedded.block.kql", patterns: [{ include: "source.kql" }] },
+              4: { name: "punctuation.separator.key-value.tide" },
+              5: { name: "meta.embedded.block.kql", patterns: [{ include: "source.kql" }] },
             },
           },
+          { comment: "capture:comment", match: "(?<=[ \\t])#.*$", name: "comment.line.opentide" },
           { include: "source.kql" },
         ],
       },
@@ -90,8 +98,11 @@ const TIDE_PATTERNS = [
   { comment: "capture:number", match: "\\b[0-9]+\\b", name: "constant.numeric.opentide" },
   {
     comment: "capture:tide.property",
-    match: "(?m)^\\s*(?:name|query|uuid)\\s*:",
-    name: "variable.other.property.tide",
+    match: "^(\\s*)(?:(-)(\\s+))?([A-Za-z0-9_][A-Za-z0-9_.-]*)(\\s*)(:)",
+    captures: {
+      4: { name: "variable.other.property.tide" },
+      6: { name: "punctuation.separator.key-value.tide" },
+    },
   },
   {
     comment: "capture:markdown.heading",

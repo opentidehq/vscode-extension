@@ -77,7 +77,8 @@ describe("highlighting contrast: VS Code's default themes on opentide's grammars
   it("fails a mapping that breaks contrast, and a language left to its grammar", async () => {
     const pkg = read(join(root, "package.json"));
     pkg.contributes.semanticTokenScopes[0].scopes.regexp = ["constant.regexp"];
-    delete pkg.contributes.configurationDefaults["[cql]"];
+    // a language whose grammar leaves most of a query plain (cql's grammar does not, since opentide 1.0.0-rc.5)
+    delete pkg.contributes.configurationDefaults["[kuery]"];
     const failures = semanticFailures(
       await measure({
         root,
@@ -94,7 +95,7 @@ describe("highlighting contrast: VS Code's default themes on opentide's grammars
     );
     assert.ok(
       failures.some((f) =>
-        f.startsWith("High Contrast Light | cql | property: #292929 is the default foreground"),
+        f.startsWith("High Contrast Light | kuery | string: #292929 is the default foreground"),
       ),
       failures.join("\n"),
     );

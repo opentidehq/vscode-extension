@@ -14,6 +14,11 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The bundled opentide (WASI) and the opentide engine (WASM) are 1.0.0-rc.5.** Editor features with no
+  opentide installed, and in Restricted Mode, come from this release
+  ([opentide 1.0.0-rc.5](https://github.com/opentidehq/opentide/releases/tag/v1.0.0-rc.5)).
+- **Most query languages are coloured more fully as soon as a file opens.** The grammars colour fields,
+  functions and constants before the language server answers, so less of a query changes colour once it does.
 - **Closing a window stops the language server and `opentide serve` together.** A slow stop of one no
   longer uses up the time VS Code gives the other, so neither is left running behind a closed window.
 - **Windows that never need the language server start faster.** The extension loads its language client the
