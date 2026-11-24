@@ -48,8 +48,9 @@ function make(
 ) {
   const logs: string[] = [];
   const children: cp.ChildProcess[] = [];
+  let current = runtime;
   const backend = new Backend({
-    runtime: () => runtime,
+    runtime: () => current,
     commands: async () => tree(),
     classify: (argv) => (argv.includes("--tenant") ? TENANT : argv.includes("--write") ? WRITE : READ),
     serveMode: () => "auto",
@@ -75,7 +76,10 @@ function make(
     logs.filter(
       (line) => /opentide serve .* started/.test(line) && line.includes("for long commands") === long,
     ).length;
-  return { backend, logs, children, starts };
+  const setRuntime = (next: Runtime) => {
+    current = next;
+  };
+  return { backend, logs, children, starts, setRuntime };
 }
 
 const exited = (child: cp.ChildProcess) => child.exitCode !== null || child.signalCode !== null;
@@ -83,8 +87,15 @@ const exited = (child: cp.ChildProcess) => child.exitCode !== null || child.sign
 describe("serve lanes", function () {
   this.timeout(20_000);
   const backends: Backend[] = [];
+  // Every rejection of a request is observed: a lane stopping, crashing or changing runtime leaves none unhandled.
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+  before(() => process.on("unhandledRejection", onUnhandled));
+  after(() => process.off("unhandledRejection", onUnhandled));
   afterEach(async () => {
     for (const backend of backends.splice(0)) await backend.dispose();
+    await sleep(50);
+    assert.deepEqual(unhandled.splice(0).map(String), [], "a rejection nobody handled");
   });
 
   it("routes tenant commands and commands of their own to the long lane, the rest to the interactive one", () => {
@@ -160,6 +171,44 @@ describe("serve lanes", function () {
     // A restart (opentide: Restart Server) gives both lanes a fresh start.
     await made.backend.restart();
     assert.equal((await made.backend.run(REPO, ["echo", "--tenant"])).exitCode, 0);
+  });
+
+  it("lets a long command finish when the runtime changes under it, and replaces the stale serves after", async () => {
+    const wasiRuntime = fakeRuntime({ tier: 4, wasi: {} as WasiModule });
+    const made = make({}, wasiRuntime);
+    backends.push(made.backend);
+    await made.backend.run(REPO, ["echo"]);
+    // Longer than stop()'s 2 s wait for `shutdown`: a stop would end it mid-request.
+    const long = made.backend.run(REPO, ["slow", "3500", "--tenant"]);
+    await sleep(400);
+    // Another opentide resolved (a settings change): the editor's next command meets it on the interactive lane.
+    made.setRuntime(fakeRuntime({ tier: 4, wasi: {} as WasiModule, version: "0.22.0" }));
+    assert.equal((await made.backend.run(REPO, ["echo"])).exitCode, 0);
+    const result = await long;
+    assert.equal(result.exitCode, 0, "the long command ran to its end on the serve it started on");
+    assert.equal(result.cancelled, false);
+    assert.ok(
+      made.logs.some((line) => line.includes("stopping the interactive serve started for the previous one")),
+    );
+    assert.ok(!made.logs.some((line) => line.includes("crashed")), made.logs.join("\n"));
+    // The next long command replaces the long lane's stale serve.
+    assert.equal((await made.backend.run(REPO, ["echo", "--tenant"])).exitCode, 0);
+    assert.ok(
+      made.logs.some((line) => line.includes("stopping the long serve started for the previous one")),
+    );
+    assert.equal(made.starts(true), 2);
+  });
+
+  it("keeps both serves when the same runtime is resolved again as a new object", async () => {
+    const made = make();
+    backends.push(made.backend);
+    for (let i = 0; i < 3; i++) {
+      made.setRuntime(fakeRuntime({ tier: 4, wasi: {} as WasiModule }));
+      await made.backend.run(REPO, ["echo"]);
+      await made.backend.run(REPO, ["echo", "--tenant"]);
+    }
+    assert.equal(made.children.length, 2);
+    assert.ok(!made.logs.some((line) => line.includes("the opentide runtime changed")), made.logs.join("\n"));
   });
 
   it("sends file changes to both lanes", async () => {

@@ -8,6 +8,7 @@ import * as path from "node:path";
 
 import * as vscode from "vscode";
 
+import type { RunResult } from "../../src/core/backend/backend";
 import { activated, waitFor } from "../integration/helpers";
 
 const ROOT = path.join(__dirname, "..", "..", "..");
@@ -73,11 +74,14 @@ describe("serve lanes on the bundled opentide (tier 4)", function () {
     );
 
     const startedAt = Date.now();
-    let doctorDone = false;
-    const doctor = backend.run(folder.path, ["doctor"]).finally(() => {
-      doctorDone = true;
-    });
-    await waitFor(() => (fetches > 0 ? true : undefined), 30_000);
+    // Observed at once: a doctor that fails is reported with its error, never left as an unhandled rejection.
+    let outcome: { result?: RunResult; error?: unknown } | undefined;
+    const doctor = backend.run(folder.path, ["doctor"]).then(
+      (result) => (outcome = { result }),
+      (error: unknown) => (outcome = { error }),
+    );
+    await waitFor(() => (fetches > 0 || outcome ? true : undefined), 30_000);
+    assert.equal(outcome, undefined, `doctor ended before its tenant request: ${String(outcome?.error)}`);
     assert.equal(backend.lanesRunning.long, true);
 
     for (const argv of [["info", "catalog"], ["validate"]]) {
@@ -87,9 +91,13 @@ describe("serve lanes on the bundled opentide (tier 4)", function () {
       assert.ok(took < 1000, `${argv.join(" ")} took ${took} ms while doctor waited for its tenant`);
       assert.equal(result.via, "serve");
     }
-    assert.equal(doctorDone, false, "doctor is still waiting for its tenant request");
+    assert.equal(outcome, undefined, "doctor is still waiting for its tenant request");
 
-    const result = await doctor;
+    // Read through a function: the asserts above narrowed `outcome` to undefined.
+    const settled = (): typeof outcome => outcome;
+    await doctor;
+    const result = settled()?.result;
+    assert.ok(result, `doctor failed: ${String(settled()?.error)}`);
     assert.equal(result.via, "serve");
     assert.ok(Date.now() - startedAt >= HOLD_MS - 500, `doctor ended after ${Date.now() - startedAt} ms`);
   });

@@ -163,6 +163,14 @@ export const INTERACTIVE_TIMEOUT_MS = 300_000;
  */
 export const LONG_IDLE_MS = 120_000;
 
+/**
+ * Whether two runtimes are the same opentide: one object, or two resolutions of it that agree in every field (the
+ * runtime is resolved again on a settings change, and a new object for the same opentide is not a reason to restart).
+ */
+export function sameRuntime(a: Runtime | undefined, b: Runtime | undefined): boolean {
+  return a === b || (a !== undefined && b !== undefined && JSON.stringify(a) === JSON.stringify(b));
+}
+
 /** The lane a command runs on, when it runs through serve. */
 export function laneFor(classification: Classification): LaneName {
   return classification.spawn || classification.contactsTenant ? "long" : "interactive";
@@ -336,8 +344,8 @@ export class Backend {
   }
 
   private async canServe(runtime: Runtime, lane: ServeLane): Promise<boolean> {
-    if (this.deps.serveMode() === "never" || lane.serveBrokenFor === runtime) return false;
-    if (lane.serve?.isRunning && lane.serveRuntime === runtime) return true;
+    if (this.deps.serveMode() === "never" || sameRuntime(lane.serveBrokenFor, runtime)) return false;
+    if (lane.serve?.isRunning && sameRuntime(lane.serveRuntime, runtime)) return true;
     if (isWasi(runtime)) return this.deps.wasi !== undefined;
     const tree = await this.deps.commands();
     return tree?.hasCommand("serve") ?? false;
@@ -359,7 +367,10 @@ export class Backend {
     // A serve started for another runtime (a run that began while the runtime was switching), on either lane.
     for (const other of this.allLanes()) {
       const current = other.serve;
-      if (current && other.serveRuntime !== runtime) {
+      // The same runtime resolved again (a new object, nothing changed): keep the process.
+      if (current && sameRuntime(other.serveRuntime, runtime)) other.serveRuntime = runtime;
+      // Another lane's process that is answering a request finishes it; it is replaced with its lane's next request.
+      else if (current && (other === lane || other.inFlight === 0)) {
         this.dropServe(other, current);
         this.deps.log(
           "info",
@@ -368,10 +379,11 @@ export class Backend {
         void this.closeLane(current);
       }
     }
-    if (lane.serveBrokenFor === runtime) {
+    if (sameRuntime(lane.serveBrokenFor, runtime)) {
       return Promise.reject(new BackendError("protocol", "opentide serve is unavailable for this runtime"));
     }
-    if (lane.serveGivenUpFor === runtime) return Promise.reject(new BackendError("crashed", SERVE_GIVEN_UP));
+    if (sameRuntime(lane.serveGivenUpFor, runtime))
+      return Promise.reject(new BackendError("crashed", SERVE_GIVEN_UP));
     if (lane.serve?.isRunning && lane.serveReady) return lane.serveReady;
 
     const env = processEnv(this.deps.baseEnv(), runtime, this.deps.platform, this.fixedEnv());
@@ -449,7 +461,24 @@ export class Backend {
     return env;
   }
 
+  /** A request on `lane`, counted from before its serve starts until it settles (the idle stop, a runtime change). */
   private async viaServe(
+    lane: ServeLane,
+    runtime: Runtime,
+    folder: string,
+    argv: readonly string[],
+    credentials: Readonly<Record<string, string>>,
+    options: RunOptions,
+  ): Promise<Omit<RunResult, "argvDisplay" | "folder" | "durationMs">> {
+    this.busy(lane);
+    try {
+      return await this.serveRequest(lane, runtime, folder, argv, credentials, options);
+    } finally {
+      this.idle(lane);
+    }
+  }
+
+  private async serveRequest(
     lane: ServeLane,
     runtime: Runtime,
     folder: string,
@@ -468,7 +497,8 @@ export class Backend {
       // same start here, so a start that fails sends each of them to spawn.
       client = await this.ensureServe(lane, runtime, folder);
     } catch (error) {
-      if (lane.serveBrokenFor === runtime) return this.viaSpawn(runtime, folder, argv, credentials, options);
+      if (sameRuntime(lane.serveBrokenFor, runtime))
+        return this.viaSpawn(runtime, folder, argv, credentials, options);
       // restart() stopped the serve this request was waiting for: it never reached a serve, so it runs
       // on the current backend whatever its class (a writer included), not as a crash.
       if (this.generation !== generation) return this.rerun(lane, folder, argv, credentials, options, error);
@@ -483,7 +513,6 @@ export class Backend {
         options,
         new BackendError("crashed", "opentide serve stopped"),
       );
-    this.busy(lane);
     const env: Record<string, string> = {
       OPENTIDE_REPO_ROOT: folder,
       ...credentials,
@@ -556,7 +585,6 @@ export class Backend {
       if (timer) clearTimeout(timer);
       forward?.dispose();
       deadline.dispose();
-      this.idle(lane, client);
     }
     return {
       document: result.document,
@@ -654,9 +682,10 @@ export class Backend {
   }
 
   /** A request on `lane` settled: once the long lane has nothing to do for LONG_IDLE_MS, its serve stops. */
-  private idle(lane: ServeLane, client: ServeClient): void {
+  private idle(lane: ServeLane): void {
     lane.inFlight = Math.max(0, lane.inFlight - 1);
-    if (lane.name !== "long" || lane.inFlight > 0) return;
+    const client = lane.serve;
+    if (lane.name !== "long" || lane.inFlight > 0 || !client) return;
     const idleMs = this.deps.supervision?.longIdleMs ?? LONG_IDLE_MS;
     lane.idleTimer = setTimeout(() => {
       lane.idleTimer = undefined;
@@ -680,7 +709,7 @@ export class Backend {
    */
   private recordCrash(lane: ServeLane, runtime: Runtime): void {
     const now = (this.deps.now ?? Date.now)();
-    if (lane.crashes?.runtime !== runtime) {
+    if (!lane.crashes || !sameRuntime(lane.crashes.runtime, runtime)) {
       const supervision = this.deps.supervision;
       lane.crashes = {
         runtime,
@@ -703,7 +732,7 @@ export class Backend {
       );
       return;
     }
-    if (lane.serveGivenUpFor === runtime) return;
+    if (sameRuntime(lane.serveGivenUpFor, runtime)) return;
     lane.serveGivenUpFor = runtime;
     this.deps.log("error", SERVE_GIVEN_UP);
     this.deps.notify?.(SERVE_GIVEN_UP);
