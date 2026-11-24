@@ -17,6 +17,7 @@
 //   tlp, alert_severity, language and an
 //   Elastic `type:` value from their sets    enumMember           variable.other.enummember.tide
 //   a schema such as rule::1.0               type                 entity.name.type.schema.tide
+//   Markdown `code` in a description         regexp               variable.other.constant.markdown.tide
 //
 // What a grammar cannot know stays with the server: which other fields hold an enumeration (their values are
 // `enumMember` there, plain strings here), and the language of a query that no earlier line of its rule names.
@@ -36,7 +37,12 @@ export const ENUM_MEMBER = "variable.other.enummember.tide";
 export const UUID_NUMBER = "constant.numeric.uuid.tide";
 export const STRING_BLOCK = "string.unquoted.block.tide";
 export const HEADING = "entity.name.type.markdown.tide";
-export const CODE = "constant.regexp.markdown.tide";
+/**
+ * Markdown `code`, which the server sends as `regexp`. Not `constant.regexp`: Dark+ and Dark Modern colour it #646695,
+ * 3.0:1 on their background. `variable.other.constant` is at least 5:1 in every default theme and differs from the
+ * description's string colour in all of them (contrib/highlighting.json maps `regexp` to it in opentide-yaml).
+ */
+export const CODE = "variable.other.constant.markdown.tide";
 
 /** The embedded-language scope names the added rules use, with the language id VS Code needs for each. */
 export const EMBEDDED = {
