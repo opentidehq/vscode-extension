@@ -204,7 +204,7 @@ export const OPENTIDE_ENV: Readonly<Record<string, string>> = { PYTHONUTF8: "1",
 export function expandPath(value: string, folder: string | undefined, homeDir: string): string {
   let out = value.trim();
   if (out === "~" || out.startsWith("~/") || out.startsWith("~\\")) out = path.join(homeDir, out.slice(1));
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: VS Code's variable syntax, matched literally
+  // VS Code's variable syntax, matched literally
   if (folder) out = out.replaceAll("${workspaceFolder}", folder);
   if (!path.isAbsolute(out) && folder && /[\\/]/.test(out)) out = path.resolve(folder, out);
   return out;

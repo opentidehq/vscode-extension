@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "useTabs": false,
+  "tabWidth": 2,
+  "printWidth": 110,
+  "singleQuote": false,
+  "jsxSingleQuote": false,
+  "quoteProps": "as-needed",
+  "trailingComma": "all",
+  "semi": true,
+  "arrowParens": "always",
+  "bracketSameLine": false,
+  "bracketSpacing": true,
+  "sortImports": true,
+  "ignorePatterns": [
+    "**/syntaxes",
+    "**/package.json",
+    "**/package-lock.json",
+    "**/src/features/index.generated.ts",
+    "**/contrib/grammars.json",
+    "**/runtime-licenses",
+    "skills/**",
+    "language-configuration/**",
+    "**/*.md"
+  ]
+}

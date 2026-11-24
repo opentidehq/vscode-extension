@@ -135,7 +135,7 @@ describe("the web extension: the engine (WASM) in a Web Worker", () => {
     void vscode.commands.executeCommand("opentide.diagnostics.validateWorkspace");
     await waitFor(() => (said.length > before ? true : undefined), 10_000);
     const message = said.at(-1) ?? "";
-    ok(/^opentide: Validate Workspace needs opentide, which runs in VS Code Desktop/.test(message), message);
+    ok(message.startsWith("opentide: Validate Workspace needs opentide, which runs in VS Code Desktop"), message);
     ok(/engine \(WASM\)/.test(message), message);
   });
 

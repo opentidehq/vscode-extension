@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "unicorn", "oxc"],
+  "categories": { "correctness": "error" },
+  "env": { "node": true, "es2022": true },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "prefer-const": ["error", { "ignoreReadBeforeAssign": true }],
+    "unicorn/no-useless-spread": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-new-array": "off",
+    "no-console": ["error", { "allow": ["error"] }]
+  },
+  "overrides": [{ "files": ["scripts/**", "test/**"], "rules": { "no-console": "off" } }],
+  "ignorePatterns": [
+    "syntaxes/**",
+    "src/features/index.generated.ts",
+    "contrib/grammars.json",
+    "runtime-licenses/**",
+    "skills/**",
+    "dist/**",
+    "dist-vsix/**",
+    "out/**",
+    "node_modules/**",
+    ".vscode-test/**",
+    ".vscode-test-web/**",
+    ".cache/**"
+  ]
+}

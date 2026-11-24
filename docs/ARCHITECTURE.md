@@ -423,7 +423,7 @@ through the host.
 |---------|-|
 | `npm run build` | esbuild: `dist/extension.js`, `dist/web/extension.js` (the `browser` entry), `dist/webview/*.js`, `dist/webview/base.css`, `dist/THIRD-PARTY-NOTICES.txt` (every npm package bundled into the extension, the web entry or a webview) |
 | `npm run typecheck` | tsc (strict) over src and test, and over webview/ with the DOM |
-| `npm run lint` | Biome (lint and format check); `npm run format` fixes |
+| `npm run lint` | oxlint (`.oxlintrc.json`) and `oxfmt --check` (`.oxfmtrc.json`); `npm run format` fixes |
 | `npm test` | tsc to `out/`, then mocha: test/unit and test/scripts in plain node |
 | `npm run manifest` / `manifest:check` | package.json from contrib/*.json |
 | `npm run grammars` / `grammars:check` | syntaxes/ and contrib/grammars.json from the pinned zip (SHA-256 checked) |

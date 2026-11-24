@@ -16,7 +16,7 @@ updates:
       # The test and lint toolchain moves together and never changes shipped behaviour.
       dev-toolchain:
         dependency-type: "development"
-        patterns: ["@types/*", "@vscode/test-*", "mocha", "@biomejs/biome"]
+        patterns: ["@types/*", "@vscode/test-*", "mocha", "oxlint", "oxfmt"]
     ignore:
       # @types/vscode is the engines.vscode floor (docs/ARCHITECTURE.md); raise both together, by hand.
       - dependency-name: "@types/vscode"

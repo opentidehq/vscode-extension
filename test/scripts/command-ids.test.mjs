@@ -15,7 +15,7 @@ function sources(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const file = join(dir, entry.name);
     if (entry.isDirectory()) return sources(file);
-    return /\.ts$/.test(entry.name) && !entry.name.endsWith(".generated.ts") ? [file] : [];
+    return entry.name.endsWith(".ts") && !entry.name.endsWith(".generated.ts") ? [file] : [];
   });
 }
 
@@ -175,7 +175,7 @@ describe("command ids: the guard itself", () => {
       "command(GO, () => {});",
     ].join("\n");
     assert.deepEqual(unregisteredCommands([{ name: "x.ts", text }], contributes), ["opentide.a.other"]);
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: source text with a template, not a template
+    // source text with a template, not a template
     const template = "command(`opentide.a.${kind}`, run);";
     assert.deepEqual(unregisteredCommands([{ name: "y.ts", text: template }], contributes), [
       "opentide.b.go",

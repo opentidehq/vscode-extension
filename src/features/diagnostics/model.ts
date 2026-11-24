@@ -114,7 +114,9 @@ export class FindingsModel {
       if (!covered(finding.file)) continue;
       const key = this.key(finding.file);
       this.paths.set(key, this.paths.get(key) ?? finding.file);
-      byFile.get(key)?.push(finding) ?? byFile.set(key, [finding]);
+      const bucket = byFile.get(key);
+      if (bucket) bucket.push(finding);
+      else byFile.set(key, [finding]);
     }
     const targets = new Set<string>(byFile.keys());
     if (scope.kind === "workspace") {

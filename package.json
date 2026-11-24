@@ -2635,8 +2635,8 @@
     "build:production": "npm run features && node scripts/build.mjs --production",
     "watch": "npm run features && node scripts/build.mjs --watch",
     "typecheck": "npm run features && tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json",
-    "lint": "biome check .",
-    "format": "biome check --write .",
+    "lint": "oxlint . && oxfmt --check",
+    "format": "oxlint --fix . && oxfmt",
     "compile-tests": "npm run features && tsc -p tsconfig.json",
     "test": "npm run compile-tests && mocha",
     "test:integration": "npm run build && npm run compile-tests && vscode-test --label integration",
@@ -2650,7 +2650,6 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.7",
     "@types/mocha": "10.0.10",
     "@types/node": "22.20.5",
     "@types/vscode": "1.91.0",
@@ -2660,6 +2659,8 @@
     "@vscode/vsce": "4.1.1",
     "esbuild": "0.28.2",
     "mocha": "12.0.3",
+    "oxfmt": "0.80.0",
+    "oxlint": "1.95.0",
     "typescript": "7.0.2",
     "vscode-oniguruma": "2.0.1",
     "vscode-textmate": "9.3.2"
