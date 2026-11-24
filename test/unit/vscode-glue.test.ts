@@ -190,13 +190,15 @@ describe("folders: an opentide folder created in the window (#44)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("becomes an opentide folder when setup creates .opentide/, and stops when it goes", () => {
+  it("becomes an opentide folder when setup creates .opentide/, and stops when it goes", async () => {
     const folders = new FolderManager();
     const changes: number[] = [];
     folders.onDidChange((all) => changes.push(all.length));
+    await folders.ready();
     assert.equal(folders.all.length, 0);
     mkdirSync(path.join(dir, ".opentide"));
     stubState.fileEvent("create", path.join(dir, ".opentide"));
+    await folders.ready();
     assert.equal(folders.all.length, 1, "seen without a reload");
     assert.deepEqual(changes, [1]);
     assert.ok(
@@ -206,15 +208,41 @@ describe("folders: an opentide folder created in the window (#44)", () => {
     );
     rmSync(path.join(dir, ".opentide"), { recursive: true });
     stubState.fileEvent("delete", path.join(dir, ".opentide"));
+    await folders.ready();
     assert.equal(folders.all.length, 0);
     folders.dispose();
     assert.equal(stubState.watchers.length, 0, "every watcher is disposed");
   });
 
-  it("also for objects/ alone", () => {
+  it("scans without blocking: empty until the first scan, which fires once with what it found", async () => {
+    mkdirSync(path.join(dir, ".opentide"));
+    const folders = new FolderManager();
+    const changes: number[] = [];
+    folders.onDidChange((all) => changes.push(all.length));
+    assert.equal(folders.all.length, 0, "nothing read yet: the scan is off the thread");
+    await folders.ready();
+    assert.equal(folders.all.length, 1);
+    assert.deepEqual(changes, [1], "the first scan tells whoever read the empty list");
+    folders.dispose();
+  });
+
+  it("keeps the newest scan's answer when an older one finishes after it", async () => {
+    const folders = new FolderManager();
+    await folders.ready();
+    mkdirSync(path.join(dir, ".opentide"));
+    stubState.fileEvent("create", path.join(dir, ".opentide"));
+    rmSync(path.join(dir, ".opentide"), { recursive: true });
+    stubState.fileEvent("delete", path.join(dir, ".opentide"));
+    await folders.ready();
+    assert.equal(folders.all.length, 0, "the last event's scan wins");
+    folders.dispose();
+  });
+
+  it("also for objects/ alone", async () => {
     const folders = new FolderManager();
     mkdirSync(path.join(dir, "objects"));
     stubState.fileEvent("create", path.join(dir, "objects"));
+    await folders.ready();
     assert.equal(folders.all.length, 1);
     folders.dispose();
   });

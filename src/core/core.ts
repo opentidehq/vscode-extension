@@ -109,7 +109,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
   subscriptions.push(folders, fileEvents, registerLanguageAssociation(folders));
 
   const primaryFolder = () => folders.all[0]?.folder ?? vscode.workspace.workspaceFolders?.[0];
-  const runtime = new RuntimeManager(context, log, primaryFolder);
+  const runtime = new RuntimeManager(context, log, primaryFolder, () => folders.ready());
   subscriptions.push(runtime);
 
   const capabilities = new Capabilities({
@@ -291,7 +291,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
   );
   runtime.restartHandler = restart;
 
-  let lastPrimary = folders.all[0]?.path;
+  // The first scan of the folders (it does not block activation) is where the window starts, not a change: the
+  // folder handler below takes its primary folder as the starting point once it is known.
+  let lastPrimary: string | undefined;
+  let foldersKnown = false;
+  void folders.ready().then(() => {
+    lastPrimary = folders.all[0]?.path;
+    foldersKnown = true;
+  });
 
   // Keep the serve digest per version: a different digest for the same version re-reads the commands.
   const digests = new Map<string, string>();
@@ -322,6 +329,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
     folders.onDidChange((all) => {
       // A removed folder's catalogue goes, so a restart's refreshAll does not run `info catalog` there.
       catalog.retain(all.map((folder) => folder.path));
+      // The first scan filling the folders is the window starting (`start` handles it), not a change.
+      if (!foldersKnown) return;
       // A new primary folder changes the runtime; a paths.toml edit only changes object folders, which
       // the engine (WASM) is given as files: it reads them again (a fresh read, not the mirror).
       const primary = all[0]?.path;
@@ -452,6 +461,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
       vscode.workspace.textDocuments.map((document) => document.languageId),
     );
   const start = async (): Promise<void> => {
+    // Whether the window has opentide folders is known once their first scan is done.
+    await folders.ready();
     if (withContent()) return restart("activation");
     status.setDormant(true);
     log.info("activation: no opentide content in this window: the runtime starts when some appears");

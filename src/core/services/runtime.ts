@@ -142,6 +142,8 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     private readonly context: vscode.ExtensionContext,
     private readonly log: Logger,
     private readonly primaryFolder: () => vscode.WorkspaceFolder | undefined,
+    /** Resolves once the window's folders are known (their first scan does not block activation). */
+    private readonly foldersReady: () => Promise<void> = () => Promise.resolve(),
   ) {}
 
   get current(): Runtime | undefined {
@@ -218,6 +220,9 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
   }
 
   private async doResolve(signal: AbortSignal, options: ResolveOptions): Promise<Runtime | undefined> {
+    // The primary folder is the first opentide folder: wait for the folders to be known before picking it.
+    await this.foldersReady();
+    if (signal.aborted) return this.runtime;
     const folder = this.primaryFolder();
     const folderPath = folder?.uri.fsPath;
     const trusted = vscode.workspace.isTrusted;
