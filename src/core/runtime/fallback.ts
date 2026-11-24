@@ -2,7 +2,7 @@
 // whose engine module fails to load or whose `lsp start` crashes, the WASI module under a host that cannot
 // run it), the engine (WASM) serves the editor features instead, and says why (SPEC §4). The runtime stays what it is for commands.
 // vscode-free.
-import type { Runtime } from "./types";
+import type { ResolveAttempt, Runtime } from "./types";
 
 export interface ServerStart {
   readonly ok: boolean;
@@ -73,14 +73,19 @@ export function fallbackAttempts(fallback: Fallback, engine: Runtime) {
   ];
 }
 
-/**
- * What to note again after the runtime was resolved again without a restart (the WASI and engine tiers look again
- * when the window gets the focus back): a resolution replaces the attempts, but a language server that fell back to
- * the engine still has, so the attempts keep saying why. Nothing when no fallback is in effect.
- */
-export function fallbackStillInEffect(
-  fallback: Fallback | undefined,
-  server: Runtime | undefined,
-): ReturnType<typeof fallbackAttempts> {
-  return fallback && server ? fallbackAttempts(fallback, server) : [];
+export interface ResolveOptions {
+  /**
+   * Keep what was noted after the last resolution (a language server's fallback to the engine) in the new one's
+   * attempts: for a look again that restarts nothing (a new .venv, the window getting the focus back), after which
+   * that fallback is still in effect. A restart resolves without them: its language server starts afresh.
+   */
+  readonly keepNotes?: boolean;
+}
+
+/** A resolution's attempts, with the notes kept after them. */
+export function withNotes(
+  attempts: readonly ResolveAttempt[],
+  notes: readonly ResolveAttempt[],
+): readonly ResolveAttempt[] {
+  return notes.length === 0 ? attempts : [...attempts, ...notes];
 }

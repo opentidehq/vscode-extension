@@ -19,7 +19,7 @@ import { hasOpentideContent } from "./dormant";
 import { loadEnvFile } from "./envfile";
 import { cliRange, codePointColumnToUtf16 } from "./positions";
 import { processEnv } from "./runtime/env";
-import { describeFallback, fallbackAttempts, fallbackStillInEffect } from "./runtime/fallback";
+import { describeFallback, fallbackAttempts } from "./runtime/fallback";
 import { usePinnedVersion } from "./runtime/pinned";
 import { which } from "./runtime/process";
 import { isBundled, shouldRecheck, VENV_GLOB, VENV_SETTLE_MS } from "./runtime/recheck";
@@ -368,14 +368,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
     if (!isBundled(runtime.current)) return;
     lastRecheck = now;
     const attempts = runtime.attempts;
-    const rt = await runtime.resolveAgain();
-    // A user's own opentide (tiers 1-3) replaces what the extension carries; anything else changes nothing,
-    // so the language server's fallback to the engine, if any, is still in effect and its attempts stay.
+    // Nothing restarts unless a user's own opentide appeared, so a language server's fallback to the engine is still
+    // in effect: its attempts stay in the new resolution's, from the moment it is heard of (the status tooltip).
+    const rt = await runtime.resolveAgain({ keepNotes: true });
+    // A user's own opentide (tiers 1-3) replaces what the extension carries; anything else changes nothing.
     if (rt && rt.tier <= 3) {
       await restart(reason);
       return;
     }
-    runtime.noteAttempts(fallbackStillInEffect(client.fallback, client.serverRuntime), true);
     if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
       log.debug(`runtime: looked again (${reason}); still ${rt ? describeRuntime(rt) : "no runtime"}`);
   };
