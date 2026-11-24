@@ -1,25 +1,26 @@
 // A workaround for a VS Code webview behaviour seen in CI: when the first page of a view type is closed while it
-// loads, the next panel of that type can stay blank, its page never running (it sends nothing at all). The core
-// loads such a page again, once, if it has said nothing for a while it was visible. vscode-free.
+// loads, the next panel of that type can stay blank, its page never running (it sends nothing at all), and setting
+// its HTML again does not wake it. The core replaces such a panel with a new one, once, if its page has said nothing
+// for a while it was visible. vscode-free.
 
 export interface WatchdogDeps {
   /** Whether the panel is visible now: a hidden panel may not load until it is shown. */
   visible(): boolean;
-  /** Set the page's HTML again (with a fresh nonce): its load starts over, in the same tab. */
-  reload(): void;
-  /** Said once a page is loaded again, and once a page loaded again says nothing either. */
+  /** Open the page again in a new panel, in the same place, and close the silent one. */
+  replace(): void;
+  /** Said once a panel is replaced, and once its replacement says nothing either. */
   log(level: "info" | "warn", message: string): void;
   setTimer?(run: () => void, ms: number): unknown;
   clearTimer?(timer: unknown): void;
 }
 
-/** How long a visible page may say nothing before it is loaded again: a 1.2 MB page on a loaded machine is slow. */
+/** How long a visible page may say nothing before its panel is replaced: a 1.2 MB page on a loaded machine is slow. */
 export const SILENT_PAGE_MS = 10_000;
 
 export class LoadWatchdog {
   private timer: unknown;
   private heardFrom = false;
-  private reloaded = false;
+  private replaced = false;
   private done = false;
   private readonly setTimer: (run: () => void, ms: number) => unknown;
   private readonly clearTimer: (timer: unknown) => void;
@@ -58,18 +59,21 @@ export class LoadWatchdog {
     this.timer = undefined;
     if (this.done || this.heardFrom) return;
     const seconds = Math.round(this.silentMs / 1000);
-    if (this.reloaded) {
-      // Once per page: a page loaded again that says nothing either is left as it is, and said so.
+    if (this.replaced) {
+      // Once: a replacement that says nothing either is left as it is, and said so.
       this.deps.log(
         "warn",
-        `the page of ${this.what} still sent nothing ${seconds} s after it was loaded again`,
+        `the page of ${this.what} still sent nothing ${seconds} s after its panel was replaced`,
       );
       this.stop();
       return;
     }
-    this.reloaded = true;
-    this.deps.log("info", `the page of ${this.what} sent nothing in ${seconds} s: loading it again`);
-    this.deps.reload();
+    this.replaced = true;
+    this.deps.log(
+      "info",
+      `the page of ${this.what} sent nothing in ${seconds} s: opening it again in a new panel`,
+    );
+    this.deps.replace();
     this.visibilityChanged();
   }
 

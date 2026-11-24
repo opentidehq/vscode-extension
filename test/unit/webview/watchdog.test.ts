@@ -6,14 +6,14 @@ import { LoadWatchdog } from "../../../src/core/webview/watchdog";
 
 /** A watchdog on a fake clock: `tick` runs the pending timer. */
 function make(visible = true) {
-  const state = { visible, reloads: 0, logs: [] as string[] };
+  const state = { visible, replaced: 0, logs: [] as string[] };
   let pending: (() => void) | undefined;
   let armed = 0;
   const watchdog = new LoadWatchdog(
     "opentide.graph",
     {
       visible: () => state.visible,
-      reload: () => void (state.reloads += 1),
+      replace: () => void (state.replaced += 1),
       log: (level, message) => void state.logs.push(`${level}: ${message}`),
       setTimer: (run) => {
         armed += 1;
@@ -35,13 +35,15 @@ function make(visible = true) {
 }
 
 describe("page watchdog", () => {
-  it("loads a visible page that said nothing again, and says so", () => {
+  it("replaces the panel of a visible page that said nothing, and says so", () => {
     const { state, tick, isArmed } = make();
     assert.ok(isArmed());
     tick();
-    assert.equal(state.reloads, 1);
-    assert.deepEqual(state.logs, ["info: the page of opentide.graph sent nothing in 10 s: loading it again"]);
-    assert.ok(isArmed(), "it waits again for the page it loaded again");
+    assert.equal(state.replaced, 1);
+    assert.deepEqual(state.logs, [
+      "info: the page of opentide.graph sent nothing in 10 s: opening it again in a new panel",
+    ]);
+    assert.ok(isArmed(), "it waits again, for the new panel's page");
   });
 
   it("stops for good at the page's first message, any message", () => {
@@ -51,14 +53,14 @@ describe("page watchdog", () => {
     tick();
     watchdog.visibilityChanged();
     assert.ok(!isArmed(), "showing it again does not start a wait");
-    assert.equal(state.reloads, 0);
+    assert.equal(state.replaced, 0);
   });
 
   it("does not run while the panel is hidden, and starts over when it is shown", () => {
     const { watchdog, state, tick, isArmed } = make(false);
     assert.ok(!isArmed(), "a hidden panel may not load until it is shown");
     tick();
-    assert.equal(state.reloads, 0);
+    assert.equal(state.replaced, 0);
     state.visible = true;
     watchdog.visibilityChanged();
     assert.ok(isArmed());
@@ -68,17 +70,17 @@ describe("page watchdog", () => {
     state.visible = true;
     watchdog.visibilityChanged();
     tick();
-    assert.equal(state.reloads, 1);
+    assert.equal(state.replaced, 1);
   });
 
-  it("loads a page again at most once: one silent after that is only a warning", () => {
+  it("replaces a panel at most once: a replacement silent too is only a warning", () => {
     const { state, tick, isArmed } = make();
     tick();
     tick();
-    assert.equal(state.reloads, 1, "never a second reload, so it cannot loop");
+    assert.equal(state.replaced, 1, "never a second replacement, so it cannot loop");
     assert.equal(
       state.logs[1],
-      "warn: the page of opentide.graph still sent nothing 10 s after it was loaded again",
+      "warn: the page of opentide.graph still sent nothing 10 s after its panel was replaced",
     );
     assert.ok(!isArmed());
     tick();
@@ -90,6 +92,6 @@ describe("page watchdog", () => {
     watchdog.dispose();
     assert.ok(!isArmed());
     tick();
-    assert.equal(state.reloads, 0);
+    assert.equal(state.replaced, 0);
   });
 });
