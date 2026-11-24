@@ -7,23 +7,19 @@
 import * as fs from "node:fs";
 
 import * as vscode from "vscode";
-import {
-  CloseAction,
-  ErrorAction,
-  type ErrorHandler,
-  type Executable,
+import type {
+  ErrorHandler,
+  Executable,
   LanguageClient,
-  type LanguageClientOptions,
-  type MessageTransports,
-  RevealOutputChannelOn,
-  State,
+  LanguageClientOptions,
+  MessageTransports,
 } from "vscode-languageclient/node";
 
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
 import { directThenHost } from "../../engine/reader";
 import { EngineSync, initializationOptions, type SyncAction } from "../../engine/sync";
-import { type EnginePort, engineTransports } from "../../engine/transport";
+import type { EnginePort } from "../../engine/transport";
 import type { WorkspaceDelta } from "../../engine/workspace";
 import { SERVER_CATALOG_CHANGED } from "../catalog/serverCatalog";
 import type { LanguageClientService, Logger, OpentideServerInfo } from "../context";
@@ -35,6 +31,7 @@ import {
   readServerInfo,
 } from "../lsp";
 import { CrashSupervisor } from "../lsp/crashSupervisor";
+import { type LspModule, loadLsp } from "../lsp/load";
 import { CRASH_WINDOW_MS } from "../lsp/restartPolicy";
 import { skipWorkspacePull, workspacePullSetting } from "../runtime/diagnostics";
 import { processEnv } from "../runtime/env";
@@ -282,16 +279,25 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     cwd: string | undefined,
     reuseWorkspace: boolean,
   ): Promise<ServerStart> {
+    // The package comes from dist/lsp.js, on the first start (lsp/load.ts).
+    let lsp: LspModule;
+    try {
+      lsp = loadLsp();
+    } catch (error) {
+      const message = `the language client could not be loaded (${error instanceof Error ? error.message : String(error)})`;
+      this.log.error(`language server failed to start: ${message}`);
+      return { ok: false, error: message };
+    }
     this.supervisor?.cancel();
     const supervisor = new CrashSupervisor();
     this.supervisor = supervisor;
     const started: { client?: LanguageClient } = {};
     const clientOptions: LanguageClientOptions = {
       documentSelector: DOCUMENT_SELECTOR,
-      errorHandler: this.errorHandler(runtime, cwd, supervisor, started),
+      errorHandler: this.errorHandler(lsp, runtime, cwd, supervisor, started),
       outputChannel: this.outputChannel,
       traceOutputChannel: this.traceChannel,
-      revealOutputChannelOn: RevealOutputChannelOn.Never,
+      revealOutputChannelOn: lsp.RevealOutputChannelOn.Never,
       synchronize: { fileEvents: this.watcher() },
       middleware: this.diagnosticsMiddleware(runtime),
     };
@@ -317,9 +323,9 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     // A server that stops on its own (an engine trap ends its worker; a process that exits) is not
     // running: the status says so, with Restart. The client restarts it under its crash ceiling.
     client.onDidChangeState(({ newState }) => {
-      if (newState === State.Stopped && this.client === client) {
+      if (newState === lsp.State.Stopped && this.client === client) {
         this.serverDown(client, "stopped; the client restarts it, or use opentide: Restart Server");
-      } else if (newState === State.Running && this.client === client && !this.running) {
+      } else if (newState === lsp.State.Running && this.client === client && !this.running) {
         this.running = true;
         this.log.info("language server: running again");
         if (this.engine) void this.apply(this.sync.ready(this.engine.updates));
@@ -364,6 +370,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
    * restart (restartPolicy.ts) and, at the ceiling, the engine (WASM) in its place when the extension carries one.
    */
   private errorHandler(
+    lsp: LspModule,
     runtime: Runtime,
     cwd: string | undefined,
     supervisor: CrashSupervisor,
@@ -371,7 +378,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   ): ErrorHandler {
     return {
       error: (_error, _message, count) =>
-        count && count <= 3 ? { action: ErrorAction.Continue } : { action: ErrorAction.Shutdown },
+        count && count <= 3 ? { action: lsp.ErrorAction.Continue } : { action: lsp.ErrorAction.Shutdown },
       closed: async () => {
         const decision = supervisor.crashed();
         const minutes = CRASH_WINDOW_MS / 60_000;
@@ -387,7 +394,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
           if (engine && started.client)
             this.fallBackToEngine(started.client, { from: runtime, reason, crashed: true }, engine, cwd);
           return {
-            action: CloseAction.DoNotRestart,
+            action: lsp.CloseAction.DoNotRestart,
             message: `The ${runtime.kind === "engine" ? "opentide engine (WASM)" : "opentide language server"} ${reason}. It will not be restarted: use opentide: Restart Server.`,
             // The core says so itself when the engine takes over.
             handled: engine !== undefined,
@@ -400,8 +407,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
         if (started.client) this.serverDown(started.client, "stopped; restarting");
         // A stop or a new start meanwhile cancels the wait: the client must not bring back a server that was dropped.
         if (!(await supervisor.wait(decision.restartAfterMs)))
-          return { action: CloseAction.DoNotRestart, handled: true };
-        return { action: CloseAction.Restart, handled: true };
+          return { action: lsp.CloseAction.DoNotRestart, handled: true };
+        return { action: lsp.CloseAction.Restart, handled: true };
       },
     };
   }
@@ -455,7 +462,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   ): LanguageClient {
     const executable = serverExecutable(runtime, cwd);
     this.log.info(`language server: ${executable.command} ${(executable.args ?? []).join(" ")}`);
-    return new LanguageClient("opentide", "opentide Language Server", executable, clientOptions);
+    return new (loadLsp().LanguageClient)("opentide", "opentide Language Server", executable, clientOptions);
   }
 
   /**
@@ -473,7 +480,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
       this.wasiServer = server;
       return server.transports;
     };
-    return new LanguageClient("opentide", "opentide Language Server", transports, clientOptions);
+    return new (loadLsp().LanguageClient)("opentide", "opentide Language Server", transports, clientOptions);
   }
 
   private endWasi(): void {
@@ -503,9 +510,9 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     const transports = async (): Promise<MessageTransports> => {
       const port = startEngineWorker(runtime.command);
       engine.port = port;
-      return engineTransports(port);
+      return loadLsp().engineTransports(port);
     };
-    return new LanguageClient("opentide", "opentide Language Server", transports, {
+    return new (loadLsp().LanguageClient)("opentide", "opentide Language Server", transports, {
       ...clientOptions,
       synchronize: {},
       // Read at each initialize, the client's own restarts included: the workspace as it stands then.

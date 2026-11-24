@@ -19,17 +19,30 @@ import { PackageError, zipEntries, zipRead } from "./package-lib.mjs";
 import {
   checkEngineInitialize,
   checkKnowledgePackage,
+  checkLspBundle,
   checkMcpBridge,
   checkWasiPackage,
   checkWasiServe,
   checkWebEntry,
   SmokeError,
 } from "./smoke-lib.mjs";
+import { failure, runWithStandIn } from "./vscode-stand-in.mjs";
 
 const args = process.argv.slice(2);
 const vsixFiles = args.filter((arg) => !arg.startsWith("--"));
 const keep = args.includes("--keep");
 const TIMEOUT_MS = 180_000;
+
+/** dist/lsp.js required as the extension does, with a stand-in for `vscode`: what it exports, and the enum values the extension uses. */
+const LSP_PROBE = `
+const m = require(process.argv[1]);
+process.stdout.write(JSON.stringify({
+  client: typeof m.LanguageClient,
+  CloseAction: typeof m.CloseAction, ErrorAction: typeof m.ErrorAction,
+  RevealOutputChannelOn: typeof m.RevealOutputChannelOn, State: typeof m.State,
+  running: m.State?.Running, restart: m.CloseAction?.Restart, never: m.RevealOutputChannelOn?.Never,
+}));
+`;
 
 function step(name) {
   console.log(`smoke: ${name}`);
@@ -221,6 +234,13 @@ async function smoke(vsix) {
     const wasi = await wasiServe(extension);
     errors.push(...checkWasiServe(wasi.initialize, wasi.run, wasi.manifest, wasi.exitCode));
     console.log(`smoke: WASI opentide ${wasi.initialize?.result?.version} (${wasi.manifest.source})`);
+
+    step("language client: dist/lsp.js, as the extension loads it on the first start");
+    const lspExists = (file) => existsSync(join(extension, ...file.split("/")));
+    const lsp = lspExists("dist/lsp.js")
+      ? runWithStandIn(LSP_PROBE, join(extension, "dist", "lsp.js"))
+      : { status: 1, stdout: "", stderr: "" };
+    errors.push(...checkLspBundle(lspExists, lsp.status === 0 ? lsp.stdout : failure(lsp)));
 
     step("MCP bridge: initialize and tools/list");
     const mcp = await mcpBridge(extension);

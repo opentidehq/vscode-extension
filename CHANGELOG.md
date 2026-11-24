@@ -9,6 +9,8 @@ pre-releases odd ones.
 
 ### Changed
 
+- **Windows that never need the language server start faster.** The extension loads its language client the
+  first time a server starts, not in every window as it opens.
 - **The graph's platform, status and hops choices open VS Code's own picker.** They were native drop-downs
   whose popup looked unlike the rest of VS Code.
 - **The ATT&CK coverage panel's folder, platform and tenant choices open VS Code's own picker.** They were

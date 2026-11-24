@@ -3,7 +3,7 @@
 import * as path from "node:path";
 import { Worker } from "node:worker_threads";
 
-import { Disposable } from "vscode-jsonrpc";
+import type { Disposable } from "vscode-jsonrpc";
 
 import type { EnginePort } from "../../engine/transport";
 
@@ -26,7 +26,7 @@ export function startEngineWorker(module: string): EnginePort {
   const listen = <T extends unknown[]>(event: string, listener: (...args: T) => void): Disposable => {
     const handler = (...args: unknown[]) => listener(...(args as T));
     worker.on(event, handler);
-    return Disposable.create(() => worker.off(event, handler));
+    return { dispose: () => void worker.off(event, handler) };
   };
   return {
     post: (text) => worker.postMessage(text),
