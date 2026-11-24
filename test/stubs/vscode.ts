@@ -297,7 +297,20 @@ export class StubTreeView<T> {
   }
 }
 
+/** A webview panel serializer registered through `window.registerWebviewPanelSerializer`, by view type. */
+export const panelSerializers = new Map<
+  string,
+  { deserializeWebviewPanel(panel: unknown, state: unknown): Thenable<void> }
+>();
+
 export const window = {
+  registerWebviewPanelSerializer(
+    viewType: string,
+    serializer: { deserializeWebviewPanel(panel: unknown, state: unknown): Thenable<void> },
+  ): Disposable {
+    panelSerializers.set(viewType, serializer);
+    return new Disposable(() => void panelSerializers.delete(viewType));
+  },
   createTreeView<T>(id: string, options: { treeDataProvider: T }): StubTreeView<T> {
     return new StubTreeView(id, options.treeDataProvider);
   },
