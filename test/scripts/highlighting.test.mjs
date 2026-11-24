@@ -65,8 +65,8 @@ async function makeRegistry() {
 }
 
 /** Tokenize a document: per line, the tokens with their text and their scopes (the grammar's own scope first). */
-async function tokenize(text) {
-  const grammar = await (await makeRegistry()).loadGrammar("source.opentide-yaml");
+async function tokenize(text, scopeName = "source.opentide-yaml") {
+  const grammar = await (await makeRegistry()).loadGrammar(scopeName);
   let state = vsctm.INITIAL;
   return text.split("\n").map((line) => {
     const result = grammar.tokenizeLine(line, state);
@@ -503,6 +503,41 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
         `[${language}] has no editor.semanticHighlighting.enabled: true in configurationDefaults`,
       );
     }
+  });
+
+  // TEMPORARY with alignCql (scripts/tide-align.mjs): delete when the extension pins opentide 1.0.0.
+  describe("CQL comments", () => {
+    const isComment = (token) => token.scopes.some((scope) => scope.startsWith("comment"));
+
+    it("does not read the `/*` of a glob as a comment, on its line or the lines after it", async () => {
+      const lines = await tokenize(
+        "repo.name=docker/* foo=1\ncount(x) | groupBy([a])\n",
+        "source.opentide.cql",
+      );
+      for (const line of lines.slice(0, 2))
+        assert.deepEqual(
+          line.filter(isComment).map((token) => token.text),
+          [],
+          `comment in ${JSON.stringify(line.line)}`,
+        );
+      assert.ok(
+        tokenAt(lines, "groupBy", "groupBy").scopes.some((scope) => scope.startsWith("support.function")),
+      );
+    });
+
+    it("still colours a block comment and a line comment", async () => {
+      const lines = await tokenize(
+        "/* c */ repo.name=a // trailing\ncount(x) | foo (/* c */ 1)\n",
+        "source.opentide.cql",
+      );
+      for (const [row, text] of [
+        ["/* c */ repo", "/* c */"],
+        ["/* c */ repo", "// trailing"],
+        ["| foo", "/* c */"],
+      ])
+        assert.ok(isComment(tokenAt(lines, row, text)), `${row}: ${text}`);
+      assert.ok(!isComment(tokenAt(lines, "/* c */ repo", "repo.name")));
+    });
   });
 
   it("refuses a grammar that already has the Elastic rules, instead of applying them twice", () => {

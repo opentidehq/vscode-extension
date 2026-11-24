@@ -12,6 +12,7 @@ import {
   transformToml,
   verifySha256,
 } from "../../scripts/grammars-lib.mjs";
+import { alignCql } from "../../scripts/tide-align.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -128,6 +129,15 @@ describe("grammar build", () => {
       (e) => e instanceof GrammarError && /SHA-256/.test(e.message),
     );
     assert.doesNotThrow(() => verifySha256(buffer, sha256(buffer), "highlights"));
+  });
+
+  // TEMPORARY with alignCql: delete when the extension pins opentide 1.0.0.
+  it("fails the CQL alignment when the zip's comment rules are not the ones it expects", () => {
+    const fixed = JSON.parse(readFileSync(join(root, "syntaxes", "cql.tmLanguage.json"), "utf8"));
+    assert.throws(
+      () => alignCql(fixed, GrammarError),
+      (e) => e instanceof GrammarError && /cql\.tmLanguage\.json: the comment rules/.test(e.message),
+    );
   });
 
   it("renames the ES|QL scope off Elastic's source.esql and applies embeddedLanguages", () => {

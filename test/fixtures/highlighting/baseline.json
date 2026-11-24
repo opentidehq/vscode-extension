@@ -1,7 +1,7 @@
 {
   "$comment": "The most of a group's meaningful tokens the grammars alone may leave in the default foreground, in any default theme. `node scripts/highlighting-contrast.mjs baseline` writes it; lower it as opentide's grammars improve.",
   "textmate": {
-    "cql": 0.046,
+    "cql": 0.152,
     "eql": 0.115,
     "esql": 0.329,
     "exabeam": 0.207,
