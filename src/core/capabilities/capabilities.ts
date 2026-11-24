@@ -1,5 +1,6 @@
 // Capabilities of the active opentide: its command tree, read once per opentide version and cached.
 // vscode-free; the fetch and the cache are injected.
+import { BackendError } from "../backend/types";
 import { hasCli, type Runtime } from "../runtime/types";
 import { type Disposable, Emitter, type Event, toDisposable } from "../util/event";
 import { type Classification, type Classifier, classify } from "./classification";
@@ -15,6 +16,8 @@ export interface CapabilitiesDeps {
   fetch(runtime: Runtime): Promise<unknown>;
   readonly cache: CommandsCache;
   log(level: "info" | "warn", message: string): void;
+  /** How long before a failed read is tried again, once (default 1 s). */
+  readonly retryDelayMs?: number;
 }
 
 /** A version whose tree can change without a version bump is not cached on disk. */
@@ -83,16 +86,32 @@ export class Capabilities implements Disposable {
     return tree;
   }
 
+  /**
+   * Read the tree; a read that fails is tried once more, after a moment, while the runtime is still this one: one
+   * failed read would otherwise leave the window without a tree (no tasks, the features it gates off) until the next
+   * runtime change. Each failure is logged with what opentide printed on stderr.
+   */
   private async fetchTree(runtime: Runtime): Promise<CommandTree | undefined> {
-    try {
-      const document = await this.deps.fetch(runtime);
-      const tree = CommandTree.parse(document);
-      if (cacheable(tree.version)) await this.deps.cache.write(tree.version, document).catch(() => undefined);
-      this.deps.log("info", `opentide ${tree.version}: ${tree.commands.length} commands`);
-      return tree;
-    } catch (error) {
-      this.deps.log("warn", `could not read \`opentide --json commands\`: ${String(error)}`);
-      return undefined;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const document = await this.deps.fetch(runtime);
+        const tree = CommandTree.parse(document);
+        if (cacheable(tree.version))
+          await this.deps.cache.write(tree.version, document).catch(() => undefined);
+        this.deps.log("info", `opentide ${tree.version}: ${tree.commands.length} commands`);
+        return tree;
+      } catch (error) {
+        const stderr =
+          error instanceof BackendError && error.detail?.trim() ? `; stderr: ${error.detail.trim()}` : "";
+        const again = attempt === 1 && this.runtime === runtime;
+        this.deps.log(
+          "warn",
+          `could not read \`opentide --json commands\`: ${String(error)}${stderr}${again ? "; trying again" : ""}`,
+        );
+        if (!again) return undefined;
+        await new Promise((resolve) => setTimeout(resolve, this.deps.retryDelayMs ?? 1000));
+        if (this.runtime !== runtime) return undefined;
+      }
     }
   }
 
