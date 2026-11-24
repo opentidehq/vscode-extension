@@ -102,6 +102,29 @@ export function checkKnowledgePackage(pkg, exists) {
   return errors;
 }
 
+/**
+ * dist/lsp.js, the language client package that dist/extension.js loads on the first client start: in the package, and,
+ * when loaded (`loaded` is its stdout, JSON, from a run with a stand-in for `vscode`), exporting what the extension uses.
+ */
+export function checkLspBundle(exists, loaded) {
+  if (!exists("dist/lsp.js"))
+    return ["the package has no dist/lsp.js (the language client, loaded on the first start)"];
+  let answer;
+  try {
+    answer = JSON.parse(loaded);
+  } catch {
+    return [`dist/lsp.js did not load: ${String(loaded).slice(0, 200)}`];
+  }
+  const errors = [];
+  if (answer.client !== "function") errors.push("dist/lsp.js does not export LanguageClient");
+  for (const name of ["CloseAction", "ErrorAction", "RevealOutputChannelOn", "State"])
+    if (answer[name] !== "object") errors.push(`dist/lsp.js does not export ${name}`);
+  // The extension names these values (lsp.State.Running, lsp.CloseAction.Restart, lsp.RevealOutputChannelOn.Never).
+  for (const name of ["running", "restart", "never"])
+    if (typeof answer[name] !== "number") errors.push(`dist/lsp.js lacks the enum value ${name}: ${loaded}`);
+  return errors;
+}
+
 /** The WASI module's files in an unpacked package (`exists` takes a path relative to the extension folder). */
 export function checkWasiPackage(exists) {
   // The licence set ships with the module it belongs to (pins.json wasi.licences).

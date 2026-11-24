@@ -103,6 +103,41 @@ export function thirdPartyNotices(packages, readFile) {
  * dist/web/extension.js, CommonJS for the web worker extension host, with only `vscode` external. The
  * browser platform makes a Node built-in fail to resolve instead of being bundled.
  */
+/** The extension host bundle: dist/extension.js. It holds no vscode-languageclient: that is dist/lsp.js (lspOptions). */
+export function extensionOptions(root, common = {}) {
+  return {
+    ...common,
+    entryPoints: { extension: join(root, "src", "extension.ts") },
+    outdir: join(root, "dist"),
+    platform: "node",
+    format: "cjs",
+    target: "node20",
+    external: ["vscode"],
+    mainFields: ["module", "main"],
+    // Where src/core/lsp/load.ts finds the client package, next to this bundle.
+    define: { OPENTIDE_LSP_FILE: JSON.stringify("lsp.js") },
+    metafile: true,
+  };
+}
+
+/**
+ * vscode-languageclient, on its own: dist/lsp.js, which the extension loads when the first language client starts
+ * (src/core/lsp/load.ts). Requiring it costs about 53 ms that a window with no client never pays.
+ */
+export function lspOptions(root, common = {}) {
+  return {
+    ...common,
+    entryPoints: { lsp: join(root, "src", "core", "lsp", "client.ts") },
+    outdir: join(root, "dist"),
+    platform: "node",
+    format: "cjs",
+    target: "node20",
+    external: ["vscode"],
+    mainFields: ["module", "main"],
+    metafile: true,
+  };
+}
+
 export function webExtensionOptions(root, common = {}) {
   return {
     ...common,

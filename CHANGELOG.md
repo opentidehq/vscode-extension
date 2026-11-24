@@ -9,6 +9,8 @@ pre-releases odd ones.
 
 ### Changed
 
+- **Windows that never need the language server start faster.** The extension loads its language client the
+  first time a server starts, not in every window as it opens.
 - **The ATT&CK coverage panel no longer holds memory while it is in the background.** It is rebuilt when you
   come back to it, with its filters, expanded techniques, selected technique, scroll position and focused
   cell as you left them.

@@ -20,6 +20,13 @@ describe("activation (#2)", () => {
     assert.equal(api.ctx.trust.isTrusted, true);
   });
 
+  // SPEC §14: activation until the commands and views are registered, with no process start on the critical path.
+  it("activates in under 300 ms", async () => {
+    const api = await activated();
+    assert.ok(typeof api.activationMs === "number", "the test API reports how long activate took");
+    assert.ok(api.activationMs < 300, `activate took ${api.activationMs} ms`);
+  });
+
   it("restarts the language server and the backend on opentide: Restart Server", async () => {
     const api = await activated();
     await vscode.commands.executeCommand("opentide.restartServer");

@@ -12,10 +12,10 @@
 //   4. Start before the workspace is read on a large repository (thousands of files over a slow file
 //      system), feeding the rest in batches with #1.
 import * as vscode from "vscode";
-import { LanguageClient } from "vscode-languageclient/browser";
+import { LanguageClient, State } from "vscode-languageclient/browser";
 
 import { engineInit } from "../engine/protocol";
-import type { EnginePort } from "../engine/transport";
+import { type EnginePort, engineTransports } from "../engine/transport";
 import { activateWeb } from "./activate";
 import type { EngineSession } from "./session";
 
@@ -71,6 +71,8 @@ export interface WebApi {
 export function activate(context: vscode.ExtensionContext): WebApi {
   const mode = activateWeb(context, {
     startEngine: () => webEnginePort(context.extensionUri),
+    State,
+    engineTransports,
     createClient: (serverOptions, clientOptions) =>
       new LanguageClient("opentide", "opentide Language Server", serverOptions, clientOptions),
   });

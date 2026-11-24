@@ -10,6 +10,7 @@ package.json            manifest; `contributes` and `activationEvents` are GENER
 contrib/                manifest fragments: core.json, grammars.json (generated), <feature>.json
 pins.json               the opentide CI tests against, the WASI module, highlights and engine (+SHA-256), VSIX size budget (PACKAGING.md)
 src/extension.ts        activate(): the core, then every feature (a virtual workspace gets src/web/ instead)
+src/core/lsp/          the language client's pieces: client.ts is the entry of dist/lsp.js (vscode-languageclient, loaded on the first client start by load.ts; extension.js imports its types only), restartPolicy.ts, crashSupervisor.ts
 src/mcp-wasi/           the MCP bridge, bundled to dist/mcp-wasi.js (run by the editor's own Node)
 src/web/                web mode (vscode.dev, github.dev, virtual workspaces): the engine, its views; no Node built-ins
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts

@@ -5,10 +5,10 @@
 // worker and the client: a Web Worker and vscode-languageclient/browser in the browser, a worker thread
 // and the node client on the desktop. No Node built-ins.
 import * as vscode from "vscode";
-import {
-  type BaseLanguageClient,
-  type LanguageClientOptions,
-  type MessageTransports,
+import type {
+  BaseLanguageClient,
+  LanguageClientOptions,
+  MessageTransports,
   State,
 } from "vscode-languageclient";
 
@@ -24,7 +24,7 @@ import { convertShowReferencesArgs } from "../engine/lsp";
 import { objectFolders } from "../engine/pathsToml";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../engine/protocol";
 import { EngineSync, initializationOptions, type SyncAction } from "../engine/sync";
-import { type EnginePort, engineTransports } from "../engine/transport";
+import type { EnginePort, engineTransports } from "../engine/transport";
 import { isSuppliedPath, objectRoots } from "../engine/workspace";
 import { uniqueObjects } from "./catalogueModel";
 
@@ -32,6 +32,13 @@ import { uniqueObjects } from "./catalogueModel";
 export interface EngineHost {
   /** Start a worker serving the engine. */
   startEngine(): EnginePort;
+  /**
+   * The client package's `State`. The host hands it in so that this module holds none of the package: on the
+   * desktop it is loaded from dist/lsp.js with the first client (src/core/lsp/load.ts).
+   */
+  readonly State: typeof State;
+  /** The channel to the worker as the client's transports (src/engine/transport.ts), from the same place as `State`. */
+  readonly engineTransports: typeof engineTransports;
   createClient(
     serverOptions: () => Promise<MessageTransports>,
     clientOptions: LanguageClientOptions,
@@ -183,7 +190,7 @@ export class EngineSession implements vscode.Disposable {
     const client = this.host.createClient(
       async () => {
         this.port = this.host.startEngine();
-        return engineTransports(this.port);
+        return this.host.engineTransports(this.port);
       },
       {
         documentSelector: WEB_DOCUMENT_SELECTOR,
@@ -209,12 +216,12 @@ export class EngineSession implements vscode.Disposable {
     // An engine that traps ends its worker: the client restarts it, under its crash ceiling.
     client.onDidChangeState(({ newState }) => {
       if (this.client !== client) return;
-      if (newState === State.Stopped && this.running) {
+      if (newState === this.host.State.Stopped && this.running) {
         this.output.warn("engine: stopped; the client restarts it, or use opentide: Restart Server");
         this.running = false;
         this.sync.down();
         this.fire();
-      } else if (newState === State.Running && !this.running) {
+      } else if (newState === this.host.State.Running && !this.running) {
         this.running = true;
         this.output.info("engine: running again");
         void this.apply(this.sync.ready(this.updates));
