@@ -1,0 +1,312 @@
+$e.metadata.event_type = "USER_LOGIN" AND $e.security_result.action = "BLOCK" aNd $e.target.port > 0
+
+arrays.contains(["a", "b"], $e.principal.hostname)
+
+principal.hostname = "web01"
+labels["env"] = "prod"
+ip = "10.0.0.1" AND raw = /mimikatz/ nocase
+
+$e.network.sent_bytes + $e.network.received_bytes > 1000 * 1024 / 2
+
+// a single-line comment
+/* and a
+   block comment */
+metadata.event_type = "USER_LOGIN"
+
+$e.target.port >= 1024
+$e.principal.hostname != "web01" nocase
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  condition:
+    $e
+}
+
+stage total_users {
+  outcome:
+    $count = count($user_login_counts.user)
+  limit:
+    1
+}
+cross join $total_users, $user_login_counts
+outcome:
+  $share = max($user_login_counts.count) / max($total_users.count)
+
+$e.target.user.userid = %admins.userid
+
+metadata.event_type = "USER_LOGIN"
+dedup:
+  target.user.userid, principal.ip
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $u = $e.target.user.userid
+  match:
+    $u by 2h
+  condition:
+    $e
+}
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $e.principal.hostname = "web01"
+  condition:
+    $e
+}
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  outcome:
+    $user = $e.target.user.userid
+  condition:
+    $e
+  export:
+    %logins.write_row(user: $user)
+}
+
+strings.to_lower($e.principal.hostname) = "web01"
+re.regex($e.target.url, `login\.php`) nocase
+
+rule r {
+  meta:
+    author = "a"
+  setup:
+    graph_append [$g, %assets]
+    graph_exclude ($g.graph.entity.hostname = %retired.hostname)
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  condition:
+    $e
+}
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  outcome:
+    $risk_score = if($e.security_result.action = "BLOCK", 80, 20)
+  condition:
+    $e
+}
+
+$e.principal.ip in cidr %corp_ranges
+$e.target.hostname in regex %bad_hosts nocase
+$e.principal.user.userid in %admins.userid
+
+$e.additional.fields["Owner"] = "alice"
+
+metadata.event_type = "USER_LOGIN"
+limit:
+  50
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $user = $e.target.user.userid
+  match:
+    $user over 10m
+  condition:
+    #e > 3
+}
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $user = $e.target.user.userid
+    $t.metadata.event_type = "PROCESS_LAUNCH"
+    $t.principal.user.userid = $user
+  match:
+    $user over 5m after $e
+  condition:
+    $e and $t
+}
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  condition:
+    $e
+}
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $ip = $e.principal.ip
+  match:
+    $ip over 1h
+  outcome:
+    $fails = max(metrics.auth_attempts_fail(period:1d, window:30d, metric:value_sum, agg:max, filter:value_sum > 10 AND event_count_sum > 2, principal.asset.ip:$ip))
+    $countries = max(metrics.auth_attempts_success(period:1d, window:30d, metric:value_sum, agg:max, principal.ip_geo_artifact.location.country_or_region: *))
+  condition:
+    $e
+  export:
+    %seen.write_row(fails: $fails)
+}
+
+not $e.principal.hostname = "web01"
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $a.metadata.event_type = "USER_LOGIN"
+    $b.metadata.event_type = "USER_LOGOUT"
+    $a.target.user.userid = $user
+    $b.target.user.userid = $user
+  match:
+    $user over 1h
+  condition:
+    any of [$a, $b]
+}
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  condition:
+    $e
+  options:
+    allow_zero_values = true
+    suppression_window = 1h
+}
+
+$e.metadata.event_type = "USER_LOGIN" or $e.metadata.event_type = "USER_LOGOUT"
+
+metadata.event_type = "USER_LOGIN"
+$user = target.user.userid
+match:
+  $user
+outcome:
+  $n = count(metadata.id)
+order:
+  $n desc, $user asc
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  outcome:
+    $risk_score = 40
+    $host = $e.principal.hostname
+  condition:
+    $e
+}
+
+$e.metadata.event_type = "A" and ($e.target.port = 22 or $e.target.port = 3389)
+
+any $e.principal.ip = "10.0.0.1"
+all $e.security_result.action != "BLOCK"
+
+$e.target.process.command_line = `C:\Windows\cmd.exe`
+
+$e.principal.hostname in %servers
+
+$e.target.process.file.full_path = /\\powershell\.exe$/ nocase
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  condition:
+    $e
+}
+
+metadata.event_type = "NETWORK_DNS"
+network.dns.questions.name = "example.com"
+
+events:
+  metadata.event_type = "NETWORK_DNS"
+  network.dns.questions.name = /evil\.example$/ nocase
+
+metadata.event_type = "USER_LOGIN"
+select:
+  principal.ip, target.user.userid
+
+rule r {
+  meta:
+    author = "a"
+  setup:
+    graph_override ($g.graph.entity.ip = %hosts.ip)
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $g.graph.entity.ip = $ip
+    $e.principal.ip = $ip
+  match:
+    $ip over 1h
+  condition:
+    $e and $g
+}
+
+stage daily {
+  metadata.event_type = "NETWORK_CONNECTION"
+  $host = principal.hostname
+  match:
+    $host by day
+  outcome:
+    $bytes = sum(network.sent_bytes)
+}
+$host = $daily.host
+match:
+  $host
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+  outcome:
+    $host = $e.principal.hostname
+  condition:
+    $e
+  export:
+    %hosts.write_row(hostname: $host)
+}
+
+$e.security_result.detection_fields["status"] = "7"
+$e.target.ip[0] = "10.0.0.1"
+
+#e > 0 and !$f
+
+metadata.event_type = "USER_LOGIN"
+unselect:
+  metadata.id
+
+rule r {
+  meta:
+    author = "a"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $user = $e.target.user.userid
+  match:
+    $user over 10m
+  outcome:
+    $first = window_start
+    $last = window_end
+  condition:
+    $e
+}
+

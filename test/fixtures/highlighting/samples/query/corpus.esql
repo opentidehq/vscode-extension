@@ -1,0 +1,175 @@
+FROM metrics-*
+| STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1 hour)
+| CHANGE_POINT c ON t AS type, pvalue
+
+// leading comment
+FROM logs-* METADATA _id /* inline */
+| LIMIT 1
+
+FROM logs-* /* outer /* inner */ still outer */ METADATA _id
+| LIMIT 1 /* an unbalanced /* opener ends at the first close */
+
+FROM logs-* METADATA _id
+| COMPLETION summary = message WITH my_llm
+
+FROM logs-* METADATA _id
+| COMPLETION summary = message WITH { "inference_id": "my-llm" }
+
+FROM logs-* METADATA _id
+| DEDUP
+
+FROM docs METADATA _id
+| DENSE_VECTOR embedding = title WITH { "inference_id": "e5" }
+
+FROM logs-* METADATA _id
+| DISSECT message "%{date} - %{msg}" APPEND_SEPARATOR = " "
+
+FROM logs-* METADATA _id
+| DROP event.original, *.raw
+
+FROM logs-* METADATA _id
+| ENRICH hosts-policy ON host.name WITH os = host.os.name, host.ip
+
+FROM logs-* METADATA _id
+| EVAL lower_name = TO_LOWER(process.name), n = 1 + 2 * 3
+
+EXPLAIN (FROM logs-* | LIMIT 1)
+
+FROM logs-* METADATA _id
+| FILLNULL 0 ON bytes
+
+FROM logs-* METADATA _id
+| FORK (WHERE a == 1) (WHERE b == 2 | LIMIT 5)
+
+FROM logs-endpoint.events.process-*, remote:logs-* METADATA _id, _version, _index
+| LIMIT 10
+
+FROM logs-* METADATA _id
+| EVAL c = COALESCE(a, b), s = STARTS_WITH(process.name, "x")
+
+FROM docs METADATA _id, _index, _score
+| FORK (WHERE a == 1) (WHERE b == 2)
+| FUSE linear SCORE BY _score
+
+FROM logs-* METADATA _id
+| GROK message "%{IP:client} %{WORD:method}"
+
+FROM docs METADATA _id
+| HIGHLIGHT "breach" ON title, body
+
+FROM logs-* METADATA _id
+| WHERE process.name IN ("a.exe", "b.exe") AND x NOT IN (1, 2)
+
+FROM logs-* METADATA _id
+| WHERE user.name NOT IN (FROM admins | WHERE active | KEEP user.name)
+
+FROM logs-* METADATA _id
+| WHERE (host.name, user.name) IN (FROM admins | KEEP host.name, user.name)
+
+FROM logs-* METADATA _id
+| EVAL port = destination.port::integer
+
+FROM logs-* METADATA _id
+| INLINE STATS c = COUNT(*) BY host.name
+| WHERE c > 10
+
+FROM logs-* METADATA _id
+| IP_LOCATION geo = source.ip
+
+FROM logs-* METADATA _id
+| WHERE user.name IS NOT NULL AND host.ip IS NULL
+
+FROM logs-* METADATA _id
+| LOOKUP JOIN threat-intel ON source.ip
+
+FROM logs-* METADATA _id
+| KEEP @timestamp, host.*, `process.name`
+
+FROM logs-* METADATA _id
+| WHERE process.name LIKE "*.exe" OR process.name RLIKE "cmd.*"
+
+FROM logs-* METADATA _id
+| LIMIT 100
+
+FROM logs-* METADATA _id
+| WHERE MATCH(message, "x", { "fuzziness": 1 })
+
+FROM logs-* METADATA _id
+| WHERE message:"failed login"
+
+FROM logs-* [METADATA _id, _version]
+| LIMIT 1
+
+FROM logs-* METADATA _id
+| WHERE event.category == "process"
+
+TS metrics-*
+| METRICS_INFO
+
+FROM docs METADATA _id
+| MMR ON embedding LIMIT 10
+
+FROM logs-* METADATA _id
+| MV_EXPAND process.args
+
+ROW a = 1, b = 1.5, c = .5, d = 1e3
+
+FROM logs-* METADATA _id
+| WHERE host.name == ?host AND x > ?1
+
+PROMQL index=metrics-* (rate(http_requests_total[5m]))
+
+FROM logs-* METADATA _id
+| WHERE @timestamp > NOW() - 1 day
+
+FROM logs-* METADATA _id
+| REGISTERED_DOMAIN d = dns.question.name
+
+FROM logs-* METADATA _id
+| RENAME user.name AS user, new = old
+
+FROM docs METADATA _score
+| RERANK "query text" ON title WITH { "inference_id": "r" }
+
+ROW a = 1, b = "two", c = [1, 2]
+
+FROM logs-* METADATA _id
+| SAMPLE 0.1
+
+SET time_zone = "+01:00";
+FROM logs-* | LIMIT 1
+
+SHOW INFO
+
+FROM logs-* METADATA _id
+| SORT @timestamp DESC NULLS LAST, host.name
+
+FROM logs-*, (FROM archive-* | WHERE x > 1) METADATA _id
+| LIMIT 1
+
+FROM logs-*
+| STATS c = COUNT(*), u = COUNT_DISTINCT(user.name) WHERE event.outcome == "failure" BY host.name, b = BUCKET(@timestamp, 1 hour)
+
+FROM logs-* METADATA _id
+| WHERE file.path == """C:\Windows\System32""" OR a == "tab\tquote\""
+
+PROMQL index=metrics-* (up)
+| TS_COLLAPSE
+
+TS metrics-* | STATS max(cpu) BY host.name
+
+TS metrics-*
+| TS_INFO
+
+FROM logs-* METADATA _id
+| FROBNICATE x = 1
+
+FROM logs-* METADATA _id
+| URI_PARTS u = url.original
+
+FROM logs-* METADATA _id
+| USER_AGENT ua = user_agent.original
+
+FROM logs-* METADATA _id
+| WHERE process.name == "cmd.exe" AND NOT host.os.type == "linux"
+

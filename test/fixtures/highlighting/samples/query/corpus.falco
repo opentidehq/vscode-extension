@@ -1,0 +1,32 @@
+spawned_process and container and proc.tty != 0
+
+and not proc.pname in (gitlab-runner, buildkite-agent)
+
+fd.sport > 1024 and fd.name startswith /etc and proc.pname exists and evt.dir = <
+
+proc.aname[2] = sshd and evt.arg.flags contains O_TRUNC
+
+proc.aname[2] = sshd and proc.env[HOME] startswith /root and json.value[/user/name] = "admin" and k8s.pod.label['app'] = web
+
+tolower(proc.name) in (bash, sh) and len(proc.args) > 4096 and basename(tolower(proc.exepath)) = python
+
+evt.type in shell_events
+
+open_read and sensitive_files and proc_name_exists
+
+not proc.name in (sshd, sudo) and not container
+
+proc.name = anyof (bash, sh) and fd.name startswith oneof (/etc, /usr) and proc.cmdline contains allof shell_args
+
+proc.name = bash or proc.name = sh
+
+(evt.type in (open, openat, openat2) and evt.is_open_write = true)
+
+proc.cmdline contains "-c \"curl\"" and fd.name = '/etc/shadow'
+
+join(",", (proc.name, proc.pname, "x", 1)) = "a,b" and concat(proc.name, "-", toupper(proc.pname)) = a-B and getopt(proc.args, "nt:")[t] = value and len(()) = 0
+
+proc.name in (bash, "sh", 'zsh', 1, in.proftpd, "sh -c uname -p 2> /dev/null")
+
+proc.pname = val(proc.name) and fd.name startswith val(proc.cwd)
+

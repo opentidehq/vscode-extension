@@ -1,0 +1,132 @@
+index=main | eval k=host."-".source, "a.b"='c.d', {host}=source
+
+tstats count where index=main by sourcetype
+
+index=main sourcetype=foo
+
+index=main |
+
+index
+
+index=main CASE(Admin)
+
+index=main | top limit=10 host
+
+index=main | timechart span=1h count by host where count > 10
+
+index=main | bin _time span=1h | regex _raw!="a"
+
+index=main
+```` a comment
+over two lines ```
+| stats count
+
+index=main | dedup host
+
+index=main | dedup host user keepempty=true sortby -_time
+
+index=main | eval x=1
+
+index=main | table _time host user* | fields - _raw
+
+index=main status==200 code<>404 bytes=>10 bytes=<99 user!~admin
+
+index=main status=="200" dGVzdA== ==200 x=a==b
+
+index=main status == 200 NOT code <> 404 bytes => 10 bytes =< 99 user !~ admin
+
+index=main [search status==200 OR code<>404 | fields status]
+
+index=main "http_request.user_agent"=x version=2.0.0 domain_rank=-1 _index_latest=@m
+
+index=main | fields
+
+index=main | fields host, source
+
+index=main | fillnull value="-" a, b
+
+index=main | foreach user* [| eval r<<MATCHSTR>>=lower(<<FIELD>>) ]
+
+index=main | eval s=case(bytes>1, 1, true(), 0), t=if(user like "a%", 1, 0)
+
+index=main | head 1
+
+index=main app IN ("a" "b", c*)
+
+| inputlookup t.csv where a==1 b<>2 c=>3 d=<4 e!~5
+
+| inputlookup
+
+| inputlookup append=t t.csv where (x="a" OR x="b") AND y<=60
+
+index=main | join host [ search index=other ]
+
+index=main | lookup
+
+index=main | lookup dnslookup clientip
+
+index=main | lookup dnslookup clientip as src OUTPUTNEW clienthost AS h
+
+| tstats `security_content_summariesonly` count from datamodel=Endpoint.Processes by Processes.user
+| `drop_dm_object_name(Processes)`
+
+index=main | makemv delim="," users
+
+index=main | mvexpand users
+
+index=main | outputlookup append=true t-x.csv
+
+| tstats count where index=main by _time PREFIX(src=) span=1h
+
+index=main | rename host AS hostname
+
+index=main | rename DNS.* as *, host AS h
+
+index=main | rex field=_raw "(?<ip>\d+)"
+
+index=main | search status==200 OR code<>404 bytes=>10 | stats count
+
+search index=main
+
+search |
+
+index=main (EventCode=4624 OR EventCode=4625) NOT user=SYSTEM app IN ("a" "b") earliest=-1h@h latest=now
+
+index=main (EventCode=4624 OR EventCode=4625) NOT user=SYSTEM
+
+index=main | sort - _time
+
+index=main | spath input=x path=a{}.b output=y
+
+index=main | eventstats values(dns_*) as dns_*, dc(src) AS c by dest, user
+
+index=main | stats
+
+index=main | stats count by host
+
+index=main | streamstats count by user reset_on_change=true
+
+index=main | stats count min(_time) as firstTime max(_time) as lastTime BY host user
+
+index=main | table host, source
+
+index=main | tail 1
+
+index=main TERM(EventID=4688) TERM(user=)
+
+index=main TERM(EventID=4688
+
+index=main | tojson fill_null=true a, b* output_field=j
+
+| tstats count where index=main sourcetype=~x by host
+
+tstats count where index=main by host
+
+| tstats summariesonly=true count min(_time) as firstTime from datamodel=Endpoint.Processes where Processes.process_name IN ("cmd.exe","powershell.exe") by Processes.dest, Processes.user
+
+index=main | bogus foo=bar
+
+index=main | where
+
+index=main | where bytes>0
+

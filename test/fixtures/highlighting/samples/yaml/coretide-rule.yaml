@@ -1,0 +1,4 @@
+# A CoreTIDE layout (Objects/, no .opentide/): not an opentide workspace. Its YAML must stay `yaml`.
+name: CoreTIDE rule
+metadata:
+  uuid: 5f0c2d9a-1111-4222-8333-444455556666

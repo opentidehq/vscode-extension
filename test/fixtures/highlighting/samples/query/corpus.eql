@@ -1,0 +1,45 @@
+any where event.category == "process"
+
+// leading
+process where /* inline */ true
+
+process where process.pid >= 4 and process.pid != 8
+
+process where event.type == "start" and process.name : "cmd.exe"
+
+process where ?process.parent.name == null and `odd field` != "x"
+
+process where endsWith~(process.name, ".EXE") and length(user.name) > 3
+
+join [process where true] [file where true]
+
+sequence with maxspan=5m
+  [process where true]
+  ![file where true]
+
+process where a == 1 and b == 1.5 and c == .5
+
+process where true | head 5
+
+process where process.name in~ ("a", "b") and file.path like~ "*.dll" and x regex "a+"
+
+process where descendant of [process where true]
+
+sample by host.id
+  [process where true]
+  [file where true]
+
+sequence by host.id with maxspan=1m
+  [process where event.type == "start"]
+  [network where true]
+
+process where file.path == """C:\Windows\cmd.exe""" and a == "tab\t"
+
+sequence with maxspan=5m
+  [process where true]
+  ![file where true]
+
+sequence [process where true] with runs=2
+
+sequence with maxspan=500ms [a where true] [b where true]
+
