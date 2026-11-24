@@ -75,6 +75,8 @@ describe("activation (#2)", () => {
           ? ` (${summary}; ${pauses.filter((p) => overlapMs(times.span, [p]) > 0).length} GC pauses)`
           : ""),
     );
+    // Where `core` went: `createCore`'s steps (the folder scan reads the workspace synchronously).
+    say(`ACTIVATION core ${times.coreSteps.map((step) => `${step.name} ${ms(step.ms)}`).join(", ")}`);
     // Each feature's own synchronous time, in the order they activate.
     say(
       `ACTIVATION features ${times.features

@@ -39,6 +39,7 @@ import { menuSections, problemsText } from "./statusText";
 import { editorOnlyText, INSTALL_URL } from "./unavailable";
 import { Emitter } from "./util/event";
 import { serialized } from "./util/serial";
+import { type Step, Steps } from "./util/steps";
 import type { WasiHostKind } from "./wasi/hostChoice";
 import { createWebviewHelpers } from "./webview/panel";
 
@@ -46,6 +47,8 @@ export interface Core {
   readonly ctx: FeatureContext;
   /** The host the bundled opentide last started on (launcher or @vscode/wasm-wasi); for the tests. */
   readonly wasiHost: () => WasiHostKind | undefined;
+  /** For the tests: where `createCore`'s synchronous time went, step by step. */
+  readonly steps: readonly Step[];
   /** For the tests: answer the WASI module's tenant requests with `perform` in the serve processes started next. */
   readonly stubWasiFetch: (perform: Perform | undefined) => void;
   /** Resolve the runtime and start the language server, in the background. */
@@ -95,12 +98,14 @@ function envFileVariables(folder: string, log: Logger): Record<string, string> {
 }
 
 export function createCore(context: vscode.ExtensionContext): Core {
+  const steps = new Steps();
   const log = createLogger();
   const subscriptions = context.subscriptions;
   subscriptions.push(log);
 
   const folders = new FolderManager();
   const fileEvents = new FileEvents(folders);
+  steps.mark("folders");
   subscriptions.push(folders, fileEvents, registerLanguageAssociation(folders));
 
   const primaryFolder = () => folders.all[0]?.folder ?? vscode.workspace.workspaceFolders?.[0];
@@ -178,6 +183,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     wasiHost,
   );
   subscriptions.push({ dispose: () => void client.dispose() });
+  steps.mark("services");
 
   const catalog = new CatalogStore({
     availability: () => backend.availability(),
@@ -210,6 +216,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
 
   const status = new StatusManager();
   subscriptions.push(status);
+  steps.mark("status");
 
   const grant = new Emitter<void>();
   const trust: TrustService = {
@@ -400,6 +407,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
       void restart("Python environment changed");
   }).then((disposable) => subscriptions.push(disposable));
 
+  steps.mark("commands and listeners");
   const ctx: FeatureContext = {
     extension: context,
     subscriptions,
@@ -460,8 +468,10 @@ export function createCore(context: vscode.ExtensionContext): Core {
     subscriptions.push(...waiting);
   };
 
+  steps.mark("feature context");
   return {
     ctx,
+    steps: steps.all,
     wasiHost: () => wasiHost.host,
     stubWasiFetch: (perform) => {
       wasiHost.fetchPerform = perform;

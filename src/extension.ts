@@ -44,6 +44,8 @@ export interface ActivationTimes {
   readonly settleMs: number;
   /** When `activate` began and returned (`performance.now()`), to match GC pauses against. */
   readonly span: Span;
+  /** `createCore`'s steps (folders, services, …), whose sum is `coreMs`. */
+  readonly coreSteps: readonly { readonly name: string; readonly ms: number }[];
   /** This thread's CPU time during `activate`, where Node has a per-thread CPU clock (not VS Code 1.91's). */
   readonly cpuMs?: number;
   /** GC pauses from `activate`'s start on, read after it returned (Node reports them a task later). */
@@ -98,6 +100,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     coreMs: coreDone - created,
     featuresMs: featuresDone - coreDone,
     startMs: startDone - featuresDone,
+    coreSteps: core.steps,
     span: { at: began, ms: end - began },
     ...(cpuBegan !== undefined && cpuEnd !== undefined ? { cpuMs: cpuEnd - cpuBegan } : {}),
     ...(gc ? { gcPauses: () => gc.pauses() } : {}),
