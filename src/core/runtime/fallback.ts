@@ -8,6 +8,8 @@ export interface ServerStart {
   readonly ok: boolean;
   /** Why it did not start. */
   readonly error?: string;
+  /** A stop or a new start was asked for while it was starting: no failure of the server, so no fallback. */
+  readonly abandoned?: boolean;
 }
 
 export interface Fallback {
@@ -40,6 +42,7 @@ export async function startWithFallback(
 ): Promise<Started> {
   const first = await start(runtime);
   if (first.ok) return { server: runtime };
+  if (first.abandoned) return { server: undefined };
   if (runtime.kind === "engine") return { server: undefined };
   const fallback: Fallback = { from: runtime, reason: first.error ?? "the language server did not start" };
   const wasm = engine(runtime.restricted);

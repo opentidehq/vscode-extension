@@ -28,6 +28,7 @@ import { loadLsp } from "../lsp/load";
 import { cliCommand, type Runtime } from "../runtime/types";
 import { Buffered } from "../wasi/buffered";
 import { GUEST_HOME, wasiEnv } from "../wasi/env";
+import { watchExit } from "../wasi/exit";
 import { chooseWasiHost, exitNote, type WasiHostKind, wasiHostSetting } from "../wasi/hostChoice";
 import { GuestPaths, guestPathOf, launcherMounts, type Mount } from "../wasi/paths";
 import { wasiServeWire } from "../wasi/wire";
@@ -318,19 +319,18 @@ export class WasiHost implements vscode.Disposable {
     proc.stdout?.onData((chunk) => dataEmitter.fire(chunk));
     const stderrDecoder = new TextDecoder();
     proc.stderr?.onData((chunk) => onStderr(stderrDecoder.decode(chunk, { stream: true })));
-    void proc.run().then(
-      (code) => {
-        this.live.delete(proc);
-        const note = exitNote("opentide lsp start", code, this.endedByUs.has(proc));
+    // The pipe closes when the process ends: by its own exit, or, for one this extension ended, once `terminate` has
+    // settled (`run()` does not, then: wasi/exit.ts), so the client and whoever waits on it hear it either way.
+    const watcher = watchExit(proc, (exit) => {
+      this.live.delete(proc);
+      if (exit.kind === "exited") {
+        const note = exitNote("opentide lsp start", exit.code, this.endedByUs.has(proc));
         if (note) this.log[note.level](note.text);
-        closeEmitter.fire();
-      },
-      (error: unknown) => {
-        this.live.delete(proc);
-        this.log.warn(`WASI: opentide lsp start ended: ${String(error)}`);
-        closeEmitter.fire();
-      },
-    );
+      } else if (exit.kind === "failed") {
+        this.log.warn(`WASI: opentide lsp start ended: ${String(exit.error)}`);
+      }
+      closeEmitter.fire();
+    });
 
     const inner = new ReadableStreamMessageReader({
       onData: (listener) => dataEmitter.event(listener),
@@ -354,7 +354,7 @@ export class WasiHost implements vscode.Disposable {
       terminate: () => {
         this.endedByUs.add(proc);
         this.live.delete(proc);
-        void proc.terminate().catch(() => undefined);
+        void watcher.terminate();
       },
     };
   }
@@ -370,17 +370,16 @@ export class WasiHost implements vscode.Disposable {
     proc.stdout?.onData((chunk) => out.push(decoder.decode(chunk, { stream: true })));
     const errDecoder = new TextDecoder();
     proc.stderr?.onData((chunk) => err.push(errDecoder.decode(chunk, { stream: true })));
-    void proc.run().then(
-      (code) => {
-        this.live.delete(proc);
-        close.push([code, null]);
-      },
-      (error: unknown) => {
-        this.live.delete(proc);
-        this.log.warn(`WASI: opentide ${name} ended: ${String(error)}`);
+    // `run()` never settles for a process that `terminate` ended, so the exit is also reported once the terminate has
+    // settled (wasi/exit.ts): `kill` then ends whoever waits for it.
+    const watcher = watchExit(proc, (exit) => {
+      this.live.delete(proc);
+      if (exit.kind === "exited") close.push([exit.code, null]);
+      else if (exit.kind === "failed") {
+        this.log.warn(`WASI: opentide ${name} ended: ${String(exit.error)}`);
         close.push([null, null]);
-      },
-    );
+      } else close.push([null, "SIGKILL"]);
+    });
     return {
       write: (text) => {
         void proc.stdin
@@ -394,7 +393,7 @@ export class WasiHost implements vscode.Disposable {
       kill: () => {
         this.endedByUs.add(proc);
         this.live.delete(proc);
-        void proc.terminate().catch(() => undefined);
+        void watcher.terminate();
       },
     };
   }

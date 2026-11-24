@@ -242,25 +242,41 @@ export function createCore(context: vscode.ExtensionContext): Core {
   };
   subscriptions.push(client.onDidFallBack(announceServer));
 
+  // A marker before and after each wait of a restart: one that hangs names the step it is in (the log's last line).
+  const step = async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+    log.info(`restart: ${name}…`);
+    const began = Date.now();
+    try {
+      const result = await work();
+      log.info(`restart: ${name} done (${Date.now() - began} ms)`);
+      return result;
+    } catch (error) {
+      log.info(`restart: ${name} failed after ${Date.now() - began} ms`);
+      throw error;
+    }
+  };
+
   // Restarts run one at a time; a restart asked for during one runs once more afterwards, and its
   // caller waits for that run, not the one it arrived during.
   const doRestart = async (reason: string): Promise<void> => {
     log.info(`restart: ${reason}`);
     status.update({ runtime: runtime.current, resolving: true, pin: runtime.pin, trusted: trust.isTrusted });
-    await client.stop();
-    await backend.restart();
+    await step("stopping the language server", () => client.stop());
+    await step("stopping opentide serve", () => backend.restart());
     // Which host runs the module is asked again: the WASM WASI Core extension may have been installed.
     wasiHost.reset();
     // From scratch, now: a resolution still running (a stale uv probe) is cancelled, not waited for. The one at
     // activation is the exception: a feature that asked for the runtime a moment ago started a resolution with
     // the same inputs, and a second one would log the same line twice.
-    const rt = reason === "activation" ? await runtime.ready() : await runtime.resolveAgain();
+    const rt = await step("resolving the runtime", () =>
+      reason === "activation" ? runtime.ready() : runtime.resolveAgain(),
+    );
     void capabilities.load(rt);
     status.update({ runtime: rt, resolving: false, pin: runtime.pin, trusted: trust.isTrusted });
     const cwd = trust.isTrusted ? primaryFolder()?.uri.fsPath : context.globalStorageUri.fsPath;
     if (!trust.isTrusted)
       await fs.promises.mkdir(context.globalStorageUri.fsPath, { recursive: true }).catch(() => undefined);
-    await client.start(rt, cwd);
+    await step("starting the language server", () => client.start(rt, cwd));
     announceServer();
   };
   const restart = serialized((reason) =>
