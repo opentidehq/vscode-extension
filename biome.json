@@ -13,6 +13,7 @@
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 110 },
+  "markdown": { "formatter": { "enabled": false } },
   "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" } },
   "linter": {
     "enabled": true,

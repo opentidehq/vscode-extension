@@ -16,7 +16,7 @@ export function menuMove(key: string, index: number, enabled: readonly boolean[]
     case "ArrowDown":
       return step(index, 1);
     case "ArrowUp":
-      return step(index < 0 ? 0 : index, -1);
+      return step(Math.max(index, 0), -1);
     case "Home":
       return step(-1, 1);
     case "End":
