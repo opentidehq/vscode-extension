@@ -2,6 +2,7 @@
 // The view follows the active opentide editor (debounced, never taking focus) unless pinned, and
 // reads the cached catalogue: following an editor never runs opentide.
 import * as vscode from "vscode";
+
 import {
   isMethodNotFound,
   parseServerCatalog,

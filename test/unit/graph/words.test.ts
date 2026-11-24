@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { OBJECT_ICONS } from "../../../src/core/catalog/objectIcons";
 import { MISSING_ICON, RELATION_WORDS, relationLabel } from "../../../src/core/catalog/relations";
 import { ALL_KINDS } from "../../../src/features/graph/model";

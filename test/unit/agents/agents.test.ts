@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
+
 import type { CatalogDocument } from "../../../src/core/catalog/types";
 import { which } from "../../../src/core/runtime/process";
 import { cursorMcp, cursorRegistration } from "../../../src/features/agents/cursor";
@@ -282,7 +283,7 @@ describe("agents: MCP server", () => {
         opentide: {
           command: "opentide",
           args: ["mcp", "start"],
-          // biome-ignore lint/suspicious/noTemplateCurlyInString: Claude Code expands it, not JavaScript
+          // Claude Code expands it, not JavaScript
           env: { OPENTIDE_REPO_ROOT: "${CLAUDE_PROJECT_DIR}" },
         },
       },
@@ -340,7 +341,7 @@ describe("agents: MCP server", () => {
     assert.equal(entryUsable("opentide", lookup(["opentide"])), true);
     assert.equal(entryUsable("/venv/bin/opentide", lookup([], ["/venv/bin/opentide"])), true);
     assert.equal(entryUsable("/gone/opentide", lookup([])), false);
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: a VS Code variable, not a template
+    // a VS Code variable, not a template
     assert.equal(entryUsable("${workspaceFolder}/.venv/bin/opentide", lookup([])), true);
     assert.equal(entryUsable(null, lookup([])), true);
   });

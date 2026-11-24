@@ -1,7 +1,9 @@
 // "opentide: Find Detection…" (SPEC §10.3): a quick pick over the cached catalogue with filter tokens.
 // Glue only; parsing is query.ts, matching match.ts, the rows present.ts, the index searchIndex.ts.
 import * as fs from "node:fs";
+
 import * as vscode from "vscode";
+
 import type { FeatureContext } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { type ItemProblems, search } from "./match";

@@ -4,6 +4,7 @@
 // message for src/engine/host.ts. A classic script, not a module: VS Code's web extension host starts a
 // worker from another origin through `importScripts`.
 import { initSync, LanguageServer, version } from "opentide-wasm-glue";
+
 import { type EngineModule, serveEngine } from "../engine/host";
 import { moduleUrlOf } from "../engine/protocol";
 

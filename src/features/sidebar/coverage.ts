@@ -112,28 +112,26 @@ export function coverageNodes(
     const gap = t.rules.length === 0;
     const children: TreeNode[] = [
       ...t.subtechniques.map((sub) => techniqueNode(sub, id)),
-      ...t.rules.map(
-        (rule): TreeNode => ({
-          id: `${id}/rule:${rule.uuid}`,
-          label: rule.name,
-          description: rule.path,
-          tooltipMarkdown: objectTooltip(rule, index),
-          icon: objectIcon("rule").codicon,
-          iconColor: objectIcon("rule").themeColor,
-          contextValue: "object.rule",
-          open: { path: rule.file_path, line: Math.max(0, rule.line - 1) },
-          decorate: false,
-          ref: {
-            kind: "object",
-            folder,
-            uuid: rule.uuid,
-            type: "rule",
-            name: rule.name,
-            file: rule.file_path,
-          },
-          search: `${rule.name}\n${rule.uuid}`.toLowerCase(),
-        }),
-      ),
+      ...t.rules.map((rule): TreeNode => ({
+        id: `${id}/rule:${rule.uuid}`,
+        label: rule.name,
+        description: rule.path,
+        tooltipMarkdown: objectTooltip(rule, index),
+        icon: objectIcon("rule").codicon,
+        iconColor: objectIcon("rule").themeColor,
+        contextValue: "object.rule",
+        open: { path: rule.file_path, line: Math.max(0, rule.line - 1) },
+        decorate: false,
+        ref: {
+          kind: "object",
+          folder,
+          uuid: rule.uuid,
+          type: "rule",
+          name: rule.name,
+          file: rule.file_path,
+        },
+        search: `${rule.name}\n${rule.uuid}`.toLowerCase(),
+      })),
     ];
     return branch(
       {

@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import * as path from "node:path";
+
 import type { Envelope } from "../../../src/core/backend/types";
 import { CommandTree } from "../../../src/core/capabilities/tree";
 import { CancellationTokenSource } from "../../../src/core/util/cancellation";

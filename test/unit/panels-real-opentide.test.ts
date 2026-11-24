@@ -3,6 +3,7 @@
 import * as assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import * as path from "node:path";
+
 import { Backend } from "../../src/core/backend/backend";
 import { spawnRun } from "../../src/core/backend/spawn";
 import { classify } from "../../src/core/capabilities/classification";

@@ -1,6 +1,7 @@
 // The panels kit's vscode-free and DOM-free pieces: component render functions (VNodes), placement and
 // the panel pool, window math, column sizing, keyed updates, menus.
 import * as assert from "node:assert/strict";
+
 import {
   gridTemplate,
   initialWidths,

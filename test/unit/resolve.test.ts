@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
+
 import {
   chooseRuntimeMode,
   opentideForInterpreter,
@@ -670,7 +671,7 @@ describe("the uv executable (tier 3 and Create .venv with the pinned version)", 
       path.join("/home/me", ".local/bin/uv"),
     );
     assert.equal(
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: VS Code's variable syntax, matched literally
+      // VS Code's variable syntax, matched literally
       uvExecutable("${workspaceFolder}/tools/uv", FOLDER, "/home/me", which),
       `${FOLDER}/tools/uv`,
     );

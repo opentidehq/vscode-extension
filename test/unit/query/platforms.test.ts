@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { type LensTarget, lensesFor, tenantPhrase } from "../../../src/features/query/lenses";
 import {
   fallbackCaps,

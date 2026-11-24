@@ -157,7 +157,7 @@ function splitColons(rules, Failure) {
 function keyRule() {
   return {
     comment: "handoff:key-value",
-    match: `^(\\s*)(?:(-)(\\s+))?(${KEY})(\\s*)(:)(?=\\s|$)` + `(?:([ \\t]+)${NOT_PLAIN}${PLAIN_VALUE})?`,
+    match: `^(\\s*)(?:(-)(\\s+))?(${KEY})(\\s*)(:)(?=\\s|$)(?:([ \\t]+)${NOT_PLAIN}${PLAIN_VALUE})?`,
     captures: {
       2: CAPTURE(OPERATOR_LIST),
       4: CAPTURE(PROPERTY),

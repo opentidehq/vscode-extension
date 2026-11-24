@@ -1,6 +1,7 @@
 // Load-error rows in `info catalog` (opentide's output_schema): `uuid`, `type`, `schema` and the paths
 // may be null, and a broken copy of a file can carry a loaded object's UUID. Every consumer must cope.
 import * as assert from "node:assert/strict";
+
 import { findByUuid, isLoaded, loadedObjects, rowKey } from "../../src/core/catalog/rows";
 import type { CatalogState } from "../../src/core/catalog/store";
 import type { CatalogDocument, CatalogObject } from "../../src/core/catalog/types";

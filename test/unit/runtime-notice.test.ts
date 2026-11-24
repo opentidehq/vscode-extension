@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { engineNotice } from "../../src/core/runtime/notice";
 
 describe("engineNotice (#90: why the engine is the runtime)", () => {

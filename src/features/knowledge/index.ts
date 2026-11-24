@@ -6,7 +6,9 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import { defineFeature } from "../../core/feature";
 import { type PluginCandidate, pluginSuppliesSkills, skillsFromPlugin, skillsMode } from "./plugin";
 

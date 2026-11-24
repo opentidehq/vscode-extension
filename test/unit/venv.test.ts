@@ -2,6 +2,7 @@ import * as assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+
 import { usePinnedVersion } from "../../src/core/runtime/pinned";
 import type { ResolveAttempt, Runtime } from "../../src/core/runtime/types";
 import { execStep, runSteps, type Step, venvSteps } from "../../src/core/runtime/venv";

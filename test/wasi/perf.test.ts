@@ -5,7 +5,9 @@
 // OPENTIDE_PERF=1 (the Test VSIX workflow sets it). docs/PACKAGING.md, "Cold start of the language server", has the numbers.
 import * as assert from "node:assert/strict";
 import { rmSync, writeFileSync } from "node:fs";
+
 import * as vscode from "vscode";
+
 import type { ExtensionApi } from "../../src/extension";
 import { activated, fixture } from "../integration/helpers";
 

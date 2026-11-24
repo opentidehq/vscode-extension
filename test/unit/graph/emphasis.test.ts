@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { emphasisOf, Incidence, planEmphasis, slices } from "../../../src/features/graph/emphasis";
 
 const edges = [

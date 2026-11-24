@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { RELATION_WORDS, relationIndexOf } from "../../../src/core/catalog/relations";
 import { changedNodes, type TreeNode } from "../../../src/features/sidebar/node";
 import {

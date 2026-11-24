@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+
 import { nativeExecutables, nativeFormat, sizeGrowthProblem } from "../../scripts/av-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");

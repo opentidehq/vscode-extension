@@ -2,6 +2,7 @@
 // catalogue's RelationIndex or, without `info catalog`, from the language server's index. Also the
 // tooltips and the CodeLens text every sidebar surface shares. vscode-free.
 import * as path from "node:path";
+
 import { countOf, kindName, objectIcon } from "../../core/catalog/objectIcons";
 import {
   type Direction,
@@ -113,17 +114,15 @@ export function graphFromCatalog(
 ): RelationGraph {
   const known = fromCatalog.get(doc);
   if (known && known.folder === folder) return known;
-  const objects = doc.objects.filter(isLoaded).map(
-    (o): RelObject => ({
-      uuid: o.uuid,
-      type: o.type,
-      name: o.name,
-      path: o.path,
-      file: o.file_path,
-      line: Math.max(0, o.line - 1),
-      platforms: o.platforms,
-    }),
-  );
+  const objects = doc.objects.filter(isLoaded).map((o): RelObject => ({
+    uuid: o.uuid,
+    type: o.type,
+    name: o.name,
+    path: o.path,
+    file: o.file_path,
+    line: Math.max(0, o.line - 1),
+    platforms: o.platforms,
+  }));
   const graph = new RelationGraph(
     "catalog",
     folder,

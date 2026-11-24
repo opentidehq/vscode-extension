@@ -1,6 +1,8 @@
 // Restricted Mode (#6, #7): no opentide task, and the runner's commands run nothing.
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { OpentideTaskProvider } from "../../src/features/runner/taskProvider";
 import { activated } from "../integration/helpers";
 

@@ -20,7 +20,9 @@
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import * as esbuild from "esbuild";
+
 import {
   bundledPackages,
   COPIED_PACKAGES,

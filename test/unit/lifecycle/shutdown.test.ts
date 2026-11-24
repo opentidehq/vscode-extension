@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { runShutdown } from "../../../src/core/shutdown";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));

@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+
 import { GrammarError, readZip, verifySha256 } from "./grammars-lib.mjs";
 
 /** The glue (bundled into the worker) and the module (copied next to it). */

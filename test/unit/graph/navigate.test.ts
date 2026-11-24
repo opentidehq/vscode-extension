@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { arrowDirection, nodeInDirection } from "../../../src/features/graph/navigate";
 
 describe("graph keyboard navigation", () => {

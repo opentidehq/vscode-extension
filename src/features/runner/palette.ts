@@ -2,7 +2,9 @@
 // Generated Docs, Show Vocabulary…, Show Unreviewed Rules, share preview/status/targets, Explain a Code…,
 // Open the TUI in a terminal. Each runs a real opentide command (P3) and says what it ran.
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import type { FeatureContext } from "../../core/context";
 import { bundledTerminalLimit } from "../../core/runtime/limits";
 import { cliCommand, hasCli } from "../../core/runtime/types";

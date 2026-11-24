@@ -1,5 +1,6 @@
 // `opentide --json <argv>` as a process of its own. vscode-free.
 import * as cp from "node:child_process";
+
 import type { CancellationToken } from "../util/cancellation";
 import { type SpawnFn, terminateChild } from "./terminate";
 import { BackendError, cancelledEnvelope, type Envelope, isEnvelope, type ProgressEvent } from "./types";

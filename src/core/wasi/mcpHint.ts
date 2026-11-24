@@ -31,7 +31,7 @@ export function checkRoot(
 ): RootCheck {
   const configured = env[ROOT_VARIABLE]?.trim() || undefined;
   if (configured) return { configured, resolved: isDirectory(configured) ? configured : undefined };
-  for (let folder = path.resolve(cwd); ; ) {
+  for (let folder = path.resolve(cwd); ;) {
     if (isDirectory(path.join(folder, ".opentide")) || isDirectory(path.join(folder, "objects")))
       return { configured: undefined, resolved: folder };
     const parent = path.dirname(folder);

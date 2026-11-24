@@ -5,6 +5,7 @@
 // that carries this extension's marker is ever rewritten or removed; every other server and key is kept.
 // vscode-free.
 import * as path from "node:path";
+
 import { parseJsonc } from "./jsonc";
 import { MCP_LABEL } from "./mcp";
 

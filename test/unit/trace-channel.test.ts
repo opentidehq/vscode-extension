@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { traceLogLevel } from "../../src/core/services/traceLevel";
 
 // The channel itself needs VS Code; its level rule (traceLevel.ts) does not.

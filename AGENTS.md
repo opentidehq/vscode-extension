@@ -21,7 +21,7 @@ Read, in order:
 npm ci
 npm run manifest:check   # package.json contributes == contrib/*.json
 npm run typecheck
-npm run lint             # Biome; `npm run format` fixes formatting
+npm run lint             # oxlint + `oxfmt --check`; `npm run format` fixes
 npm test                 # unit + script tests, plain node, no VS Code
 npm run build
 npm run package                              # the VSIX in dist-vsix/

@@ -3,6 +3,7 @@ import * as assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+
 import { Backend } from "../../../src/core/backend/backend";
 import { classify } from "../../../src/core/capabilities/classification";
 import { CommandTree } from "../../../src/core/capabilities/tree";

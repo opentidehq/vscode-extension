@@ -3,6 +3,7 @@ import * as assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+
 import { ACTIVITY_LIMIT, ActivityLog } from "../../src/core/activity";
 import type { RunRecord } from "../../src/core/backend/backend";
 import { CredentialStore } from "../../src/core/credentials";

@@ -1,6 +1,8 @@
 // Diagnostics (#13) in VS Code. Needs a VS Code download (CI); the runtime parts need OPENTIDE_TEST_BIN.
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, fixture, waitFor } from "./helpers";
 
 const codeOf = (d: vscode.Diagnostic): string | undefined =>

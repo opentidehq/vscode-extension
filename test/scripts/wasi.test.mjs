@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { sha256 } from "../../scripts/grammars-lib.mjs";
 import {
   checkModule,
@@ -71,7 +72,10 @@ describe("wasi: the pinned WASI module", () => {
     );
     assert.equal(WASI_ASSET, "opentide-wasm32-wasip1.wasm");
     // The digest is the module's line in the release's SHA256SUMS, or says it is a placeholder: never a guess.
-    assert.ok(!isPlaceholder(pins.wasi.sha256) || /^PLACEHOLDER-/.test(pins.wasi.sha256), pins.wasi.sha256);
+    assert.ok(
+      !isPlaceholder(pins.wasi.sha256) || pins.wasi.sha256.startsWith("PLACEHOLDER-"),
+      pins.wasi.sha256,
+    );
     assert.match(pins.wasi.version, /^\d+\.\d+\.\d+(-rc\.\d+)?$/);
   });
 
@@ -184,7 +188,7 @@ describe("wasi: the pinned WASI module", () => {
         );
         // A real digest, or marked as the placeholder it is until the release exists.
         assert.ok(
-          !isPlaceholder(entry.sha256) || /^PLACEHOLDER-/.test(entry.sha256),
+          !isPlaceholder(entry.sha256) || entry.sha256.startsWith("PLACEHOLDER-"),
           `${name}: ${entry.sha256}`,
         );
       }

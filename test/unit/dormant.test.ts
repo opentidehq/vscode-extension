@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { hasOpentideContent, OPENTIDE_LANGUAGES } from "../../src/core/dormant";
 
 describe("a window with no opentide content", () => {

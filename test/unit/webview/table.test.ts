@@ -2,6 +2,7 @@
 // performance budget of SPEC §14 for query results: no synchronous step over 16 ms for 10,000 rows.
 import * as assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
+
 import { initialWidths } from "../../../src/core/webview/kit/columns";
 import { type Column, type Row, sortOrder, TableModel } from "../../../src/core/webview/kit/table";
 import { rowWindow } from "../../../src/core/webview/kit/virtual";

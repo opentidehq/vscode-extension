@@ -6,6 +6,7 @@ import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { EXTENSION_NAME, STORES, storeExtensionId } from "../../scripts/package-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");

@@ -6,7 +6,9 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import { activated, fixture, waitFor } from "../integration/helpers";
 
 const ROOT = path.join(__dirname, "..", "..", "..");

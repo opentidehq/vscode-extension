@@ -1,6 +1,7 @@
 // The "New object" flow's logic (SPEC §7): what it asks, the `opentide new` argv it builds, the picker
 // items it shows and what each failure offers. vscode-free.
 import * as path from "node:path";
+
 import { loadedObjects } from "../../core/catalog/rows";
 import type { CatalogObject } from "../../core/catalog/types";
 import { folderSpelling } from "../../core/util/paths";

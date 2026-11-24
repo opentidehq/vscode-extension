@@ -3,7 +3,9 @@
 // `.vscode/*.code-snippets`; writes nothing (the user applies the insertion).
 import * as fs from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import type { FeatureContext } from "../../core/context";
 import { platformLabel } from "./flow";
 import { configurationsLine, indentBlock, type TideSnippet, tideSnippets } from "./snippets";

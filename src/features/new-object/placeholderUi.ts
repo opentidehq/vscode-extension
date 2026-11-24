@@ -2,6 +2,7 @@
 // ruler), Next / Previous placeholder, `N placeholders left`, the `opentide.hasPlaceholders` context
 // key, and "Mark as done", a text edit the user applies (D3). Markers are never removed automatically.
 import * as vscode from "vscode";
+
 import type { FeatureContext } from "../../core/context";
 import { placeholdersLeft } from "./flow";
 import {

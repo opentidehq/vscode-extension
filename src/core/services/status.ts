@@ -2,6 +2,7 @@
 // with its menu, and the language status item that shows `capabilities.experimental.opentide` from
 // initialize, inferring nothing (#3).
 import * as vscode from "vscode";
+
 import type { OpentideServerInfo, ProblemCounts, StatusMenuItem, StatusService } from "../context";
 import { DOCUMENT_SELECTOR } from "../lsp";
 import type { Fallback } from "../runtime/fallback";

@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { directThenHost } from "../../src/engine/reader";
 
 const file = (path: string) => ({ scheme: "file", fsPath: path });

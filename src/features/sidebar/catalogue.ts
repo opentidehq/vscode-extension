@@ -501,18 +501,16 @@ export function fromSymbols(symbols: readonly CatalogSymbol[], prefix = ""): Tre
       const items = symbols
         .filter((s) => (family ? s.family === family : !known.has(s.family)))
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map(
-          (s): TreeNode => ({
-            id: `${id}/${s.uri}#${s.line}`,
-            label: s.name,
-            icon: objectIcon(s.family).codicon,
-            iconColor: objectIcon(s.family).themeColor,
-            contextValue: `symbol.${s.family || "other"}`,
-            open: { uri: s.uri, line: s.line, character: s.character },
-            tooltip: decodeURIComponent(s.uri.replace(/^file:\/\//, "")),
-            search: s.name.toLowerCase(),
-          }),
-        );
+        .map((s): TreeNode => ({
+          id: `${id}/${s.uri}#${s.line}`,
+          label: s.name,
+          icon: objectIcon(s.family).codicon,
+          iconColor: objectIcon(s.family).themeColor,
+          contextValue: `symbol.${s.family || "other"}`,
+          open: { uri: s.uri, line: s.line, character: s.character },
+          tooltip: decodeURIComponent(s.uri.replace(/^file:\/\//, "")),
+          search: s.name.toLowerCase(),
+        }));
       return group(id, label, icon, items);
     })
     .filter((node) => (node.children?.length ?? 0) > 0);

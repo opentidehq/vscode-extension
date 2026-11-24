@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { DetailsIndex } from "../../../src/features/graph/details";
 import {
   describe as describeNode,

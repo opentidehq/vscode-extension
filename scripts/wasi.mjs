@@ -11,6 +11,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { sha256 } from "./grammars-lib.mjs";
 import { prepareWasi, WASI_ASSET, WASI_LICENCES, wasiCachePath } from "./wasi-lib.mjs";
 

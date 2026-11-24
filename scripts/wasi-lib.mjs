@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+
 import { GrammarError, verifySha256 } from "./grammars-lib.mjs";
 
 /** The release asset's name, and the module's name in dist/wasi/. */

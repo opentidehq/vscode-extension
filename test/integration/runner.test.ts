@@ -1,7 +1,9 @@
 // The runner (#7) and agents (#6) features in VS Code. The task and MCP cases need a real opentide
 // (OPENTIDE_TEST_BIN); the rest run on any runtime.
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, waitFor } from "./helpers";
 
 const BIN = process.env.OPENTIDE_TEST_BIN;

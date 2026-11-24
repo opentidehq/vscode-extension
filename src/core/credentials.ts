@@ -3,6 +3,7 @@
 // environment only of runs that contact a tenant (backend RunOptions.credentials). vscode-free: the
 // SecretStorage is injected (a `vscode.SecretStorage` qualifies).
 import { createHash } from "node:crypto";
+
 import { Emitter, type Event } from "./util/event";
 
 export interface SecretStorageLike {

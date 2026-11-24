@@ -1,6 +1,7 @@
 // The `opentide` task provider (SPEC §11): validate, lint, generate, dry-run deploy and query for tasks.json,
 // keybindings and pre-launch chains, with `$opentide` filling Problems. Glue over tasks.ts.
 import * as vscode from "vscode";
+
 import type { FeatureContext } from "../../core/context";
 import { bundledTerminalLimit } from "../../core/runtime/limits";
 import { cliCommand, hasCli } from "../../core/runtime/types";

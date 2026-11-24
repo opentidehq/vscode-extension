@@ -14,6 +14,7 @@
 // Code disables it in Restricted Mode, and an extension that depended on it would not activate there.
 import * as cp from "node:child_process";
 import * as fs from "node:fs";
+
 import type { RootFileSystem, Wasm, WasmProcess } from "@vscode/wasm-wasi/v1";
 import { Wasm as WasmApi } from "@vscode/wasm-wasi/v1";
 import * as vscode from "vscode";
@@ -26,6 +27,7 @@ import {
 } from "vscode-jsonrpc";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import type { MessageTransports } from "vscode-languageclient/node";
+
 import { fromChildProcess, type ServeProcess } from "../backend/process";
 import { terminateChild } from "../backend/terminate";
 import type { Logger } from "../context";

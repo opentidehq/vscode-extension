@@ -1,6 +1,7 @@
 // `$opentide` from contrib/runner.json, applied the way VS Code applies a two-line problem pattern.
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
+
 import { ROOT } from "../helpers";
 
 interface Pattern {

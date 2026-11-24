@@ -3,7 +3,9 @@
 // by its code. Also placeholder navigation and the workspace's `tide-*` snippets in `opentide-yaml`.
 import * as fs from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";

@@ -11,6 +11,7 @@ import {
   type MessageReader,
   type MessageWriter,
 } from "vscode-jsonrpc";
+
 import { exitReasonOf } from "./host";
 
 /** The client's end of the channel to the engine worker. */

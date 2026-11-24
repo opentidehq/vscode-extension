@@ -2,6 +2,7 @@
 // catalogue document built from it, on a runtime without `info catalog` (src/engine/catalog.ts parses
 // it and turns its references into relations). vscode-free.
 import * as path from "node:path";
+
 import { SERVER_CATALOG, type ServerCatalog, type ServerRoot, serverRelations } from "../../engine/catalog";
 import { fileUriPath, pathInside } from "./symbols";
 import type { CatalogDocument, CatalogObject } from "./types";

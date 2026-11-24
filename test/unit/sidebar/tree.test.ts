@@ -1,5 +1,6 @@
 // NodeTree against the vscode stub: which elements a refresh names.
 import * as assert from "node:assert/strict";
+
 import type { TreeNode } from "../../../src/features/sidebar/node";
 import { NodeTree } from "../../../src/features/sidebar/tree";
 

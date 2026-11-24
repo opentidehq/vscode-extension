@@ -3,6 +3,7 @@
 // editor unless pinned. Glue only; the logic is in model.ts, view.ts, layout.ts, details.ts, diff.ts,
 // placement.ts and state.ts, and the drawing in webview/graph/main.ts.
 import * as vscode from "vscode";
+
 import type { CatalogState } from "../../core/catalog/store";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";

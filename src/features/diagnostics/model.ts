@@ -2,6 +2,7 @@
 // (SPEC §6): a run's result only lands on a file nothing changed since the run started (an edit, or a
 // newer run's result), and an edit drops a file's findings until the next run. vscode-free.
 import * as path from "node:path";
+
 import type { Finding, FindingSource } from "./findings";
 
 /** What a run covered: a folder (every file in it is replaced) or some files of one. */
@@ -114,7 +115,9 @@ export class FindingsModel {
       if (!covered(finding.file)) continue;
       const key = this.key(finding.file);
       this.paths.set(key, this.paths.get(key) ?? finding.file);
-      byFile.get(key)?.push(finding) ?? byFile.set(key, [finding]);
+      const bucket = byFile.get(key);
+      if (bucket) bucket.push(finding);
+      else byFile.set(key, [finding]);
     }
     const targets = new Set<string>(byFile.keys());
     if (scope.kind === "workspace") {

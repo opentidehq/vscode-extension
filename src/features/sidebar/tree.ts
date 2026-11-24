@@ -1,5 +1,6 @@
 // A TreeDataProvider over the plain nodes the view models build, and the TreeView around it.
 import * as vscode from "vscode";
+
 import { changedNodes, type TreeNode, uniqueIds, type ViewModel, walk } from "./node";
 
 export function openTargetUri(node: TreeNode): vscode.Uri | undefined {

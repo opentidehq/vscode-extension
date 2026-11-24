@@ -18,6 +18,7 @@ import { type ChildProcessByStdio, spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Readable, Writable } from "node:stream";
+
 import { describeDroppedLine, isForgedAnswer, LineGuard, leaksPrivateLink } from "../core/wasi/mcpGuard";
 import { checkRoot, startupLine, withWorkspaceHint, workspaceHint } from "../core/wasi/mcpHint";
 import { LazyGate, readCache } from "./lazy";

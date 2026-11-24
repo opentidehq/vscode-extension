@@ -2,6 +2,7 @@
 // (src/extension.ts): the engine (WASM) session, its views, the status, and an explanation instead of
 // "command not found" for every command that needs opentide. No Node built-ins.
 import * as vscode from "vscode";
+
 import { ENGINE_STATUS, INSTALL_URL } from "../engine/protocol";
 import {
   CONTINUE_ON_DESKTOP,

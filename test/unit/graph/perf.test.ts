@@ -2,6 +2,7 @@
 // the vscode-free code the webview runs, on a synthetic catalogue of 2,000 and 5,000 objects. The
 // Cytoscape side (classes, drawing) is measured in a real VS Code; see SPEC §10.1 "Scale".
 import * as assert from "node:assert/strict";
+
 import { DetailsIndex } from "../../../src/features/graph/details";
 import { diffModels } from "../../../src/features/graph/diff";
 import { emphasisOf, Incidence, planEmphasis } from "../../../src/features/graph/emphasis";

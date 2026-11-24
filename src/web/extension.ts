@@ -13,6 +13,7 @@
 //      system), feeding the rest in batches with #1.
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/browser";
+
 import { engineInit } from "../engine/protocol";
 import type { EnginePort } from "../engine/transport";
 import { activateWeb } from "./activate";

@@ -1,6 +1,8 @@
 // Find Detection (#21) in VS Code. Needs a VS Code download (CI).
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated } from "./helpers";
 
 describe("search (#21)", () => {

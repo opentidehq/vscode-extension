@@ -1,5 +1,6 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+
 import { classify } from "../../../src/core/capabilities/classification";
 import { CommandTree } from "../../../src/core/capabilities/tree";
 import { modesOf, runnableCommands } from "../../../src/features/runner/commands";

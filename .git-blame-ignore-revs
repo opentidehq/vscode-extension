@@ -1,0 +1,3 @@
+# Mechanical reformats; `git config blame.ignoreRevsFile .git-blame-ignore-revs` (GitHub reads this file itself).
+# style: format with oxfmt
+6ff82d39836232c4855d2117a370b9ac4c731353

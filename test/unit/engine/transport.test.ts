@@ -1,5 +1,7 @@
 import * as assert from "node:assert/strict";
+
 import type { Message } from "vscode-jsonrpc";
+
 import { exitNotice } from "../../../src/engine/host";
 import { engineTransports, parseMessage } from "../../../src/engine/transport";
 import { fakeEnginePort } from "./fakes";

@@ -1,6 +1,7 @@
 // FeatureContext: everything the core gives a feature. docs/ARCHITECTURE.md documents it.
 import type * as vscode from "vscode";
 import type { LanguageClient } from "vscode-languageclient/node";
+
 import type { ActivityLog } from "./activity";
 import type { Backend } from "./backend/backend";
 import type { Capabilities } from "./capabilities/capabilities";

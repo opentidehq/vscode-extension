@@ -1,7 +1,9 @@
 // The deploy plan (#18, SPEC §10.5): a `deploy --dry-run` preview, never a real deploy (D6).
 import * as fs from "node:fs";
 import * as path from "node:path";
+
 import * as vscode from "vscode";
+
 import { BackendError } from "../../core/backend/types";
 import { findByUuid, loadedObjects } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";

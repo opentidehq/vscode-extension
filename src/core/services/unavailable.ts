@@ -1,5 +1,6 @@
 // Saying that opentide cannot run something, with Install opentide and Switch Runtime… (core/unavailable).
 import * as vscode from "vscode";
+
 import {
   INSTALL_ACTION,
   INSTALL_URL,

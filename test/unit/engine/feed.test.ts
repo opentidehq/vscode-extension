@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { comparablePath, relativeTo } from "../../../src/engine/feed";
 
 const uri = (path: string, scheme = "file", authority = "") => ({ scheme, authority, path });

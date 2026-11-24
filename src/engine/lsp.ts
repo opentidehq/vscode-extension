@@ -2,6 +2,7 @@
 // `opentide.showReferences` lens. vscode-free (types only), no Node built-ins.
 import type * as vscode from "vscode";
 import type { Location as LspLocation, Position as LspPosition } from "vscode-languageclient";
+
 import type { OpentideServerInfo } from "../core/context";
 
 /** `capabilities.experimental.opentide`, when the server sent one that looks right. */

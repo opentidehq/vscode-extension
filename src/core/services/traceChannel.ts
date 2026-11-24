@@ -3,6 +3,7 @@
 // setting alone showed nothing (QA rerun 3). This channel's level follows the setting instead: Trace for `messages`
 // and `verbose`, Info for `off`, and everything written goes to the channel whatever its level.
 import * as vscode from "vscode";
+
 import { traceLogLevel } from "./traceLevel";
 
 export class TraceChannel implements vscode.LogOutputChannel {

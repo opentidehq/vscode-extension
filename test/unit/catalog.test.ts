@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { type CatalogState, CatalogStore, type CatalogStoreDeps } from "../../src/core/catalog/store";
 import { sleep, until } from "./helpers";
 

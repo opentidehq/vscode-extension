@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { RECHECK_INTERVAL_MS, shouldRecheck, VENV_GLOB } from "../../src/core/runtime/recheck";
 import { fakeRuntime } from "./helpers";
 

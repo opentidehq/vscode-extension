@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { ensureSaved, type SavableDocument } from "../../src/core/util/saved";
 
 function document(isDirty: boolean, saves = true): SavableDocument & { saved: number } {

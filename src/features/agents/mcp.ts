@@ -2,6 +2,7 @@
 // stdio definition. vscode-free; index.ts makes the vscode.McpStdioServerDefinition.
 import { createHash } from "node:crypto";
 import * as path from "node:path";
+
 import type { Runtime } from "../../core/runtime/types";
 import { cliCommand, hasCli, isWasi } from "../../core/runtime/types";
 import { atLeast, isUntaggedDevBuild } from "../../core/runtime/version";

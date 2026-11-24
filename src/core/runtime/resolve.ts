@@ -8,6 +8,7 @@
 // signed python but not the unsigned opentide launcher), the same interpreter runs `python -m opentide`.
 // Whichever mode comes first, the other is the fallback, with a notice: nothing falls through silently.
 import * as path from "node:path";
+
 import type { RepoPin } from "./pins";
 import type { ResolveAttempt, ResolveResult, Runtime, RuntimeSource, RuntimeTier, WasiModule } from "./types";
 import {
@@ -204,7 +205,7 @@ export const OPENTIDE_ENV: Readonly<Record<string, string>> = { PYTHONUTF8: "1",
 export function expandPath(value: string, folder: string | undefined, homeDir: string): string {
   let out = value.trim();
   if (out === "~" || out.startsWith("~/") || out.startsWith("~\\")) out = path.join(homeDir, out.slice(1));
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: VS Code's variable syntax, matched literally
+  // VS Code's variable syntax, matched literally
   if (folder) out = out.replaceAll("${workspaceFolder}", folder);
   if (!path.isAbsolute(out) && folder && /[\\/]/.test(out)) out = path.resolve(folder, out);
   return out;

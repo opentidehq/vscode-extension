@@ -1,6 +1,7 @@
 // Settings, read with trust in mind: in Restricted Mode no setting of the restricted list is read at all
 // (#8 done-when), so a workspace cannot point the extension at its own executables.
 import * as vscode from "vscode";
+
 import type { RuntimeMode, RuntimeSettings } from "../runtime/resolve";
 
 /** `capabilities.untrustedWorkspaces.restrictedConfigurations` in package.json. */

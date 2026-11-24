@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+
 import { SerialQueue, serialized } from "../../src/core/util/serial";
 
 /** A task whose runs finish when the test says so. */

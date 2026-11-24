@@ -1,6 +1,8 @@
 // Needs a real opentide: OPENTIDE_TEST_BIN. Skipped otherwise.
 import * as assert from "node:assert/strict";
+
 import * as vscode from "vscode";
+
 import { activated, fixture, waitFor } from "./helpers";
 
 const BIN = process.env.OPENTIDE_TEST_BIN;
