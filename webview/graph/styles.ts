@@ -29,6 +29,7 @@ body { padding: 0; overflow: hidden; }
 .segmented button[aria-pressed="true"], .segmented button[aria-pressed="true"]:hover:not(:disabled) {
   color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
 .toolbar select { height: 24px; padding: 0 4px; font-size: 12px; }
+.toolbar .ot-pick { height: 24px; padding: 0 4px; font-size: 12px; }
 .target { display: inline-flex; align-items: center; gap: 4px; max-width: 26ch; height: 24px; padding: 0 4px 0 6px;
   border-radius: 4px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
 .target .follow-state { font-size: 11px; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.04em; }

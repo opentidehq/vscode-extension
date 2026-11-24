@@ -3,6 +3,7 @@ import * as assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+import { performance } from "node:perf_hooks";
 
 import { ACTIVITY_LIMIT, ActivityLog } from "../../src/core/activity";
 import type { RunRecord } from "../../src/core/backend/backend";
@@ -413,6 +414,25 @@ describe("feature activation summary", () => {
 
   it("has nothing to list for no features", () => {
     assert.equal(activationSummary([], 0), "features: 0 activated in 0 ms");
+  });
+
+  it("times each feature's own activate, not the time until it settled (the ones after it do not count)", async () => {
+    const busy = (ms: number): void => {
+      const until = performance.now() + ms;
+      while (performance.now() < until);
+    };
+    const outcomes = await activateFeatures(
+      [
+        defineFeature({ id: "slow", activate: () => busy(40) }),
+        defineFeature({ id: "quick", activate: () => undefined }),
+        defineFeature({ id: "slow-too", activate: () => busy(40) }),
+      ],
+      { subscriptions: [], log: { info: () => {}, error: () => {} } },
+    );
+    const ms = Object.fromEntries(outcomes.map((o) => [o.id, o.ms]));
+    assert.ok((ms.slow ?? 0) >= 35 && (ms.slow ?? 0) < 75, `slow ${ms.slow}`);
+    assert.ok((ms.quick ?? 99) < 20, `quick ${ms.quick}: it ran before the third, so it must not include it`);
+    assert.ok((ms["slow-too"] ?? 0) >= 35 && (ms["slow-too"] ?? 0) < 75, `slow-too ${ms["slow-too"]}`);
   });
 
   it("is logged at debug level by activateFeatures, when the log has it", async () => {

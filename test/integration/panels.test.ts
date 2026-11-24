@@ -194,4 +194,64 @@ describe("panels open beside the object and reuse their panel (SPEC §10)", () =
       webview.createPanel = create;
     }
   });
+
+  it("answers a webview's pick with VS Code's QuickPick, and Escape leaves the value alone", async () => {
+    const api = await activated();
+    const posted: { type: string; payload: unknown }[] = [];
+    const received = new vscode.EventEmitter<unknown>();
+    // A webview that only records what the host posts to it; `received` plays the page's messages.
+    const webview = {
+      onDidReceiveMessage: received.event,
+      postMessage: (message: { type: string; payload: unknown }) => {
+        posted.push(message);
+        return Promise.resolve(true);
+      },
+    } as unknown as vscode.Webview;
+    const channel = api.ctx.webview.connect(webview, {});
+    const window = vscode.window as unknown as { showQuickPick: unknown };
+    const original = window.showQuickPick;
+    const shown: { items: { value: string; label: string; description?: string }[]; options: unknown }[] = [];
+    try {
+      const request = {
+        id: "pick-test-1",
+        title: "Filter in column",
+        items: [
+          { value: "", label: "all columns" },
+          { value: "DeviceName", label: "DeviceName" },
+        ],
+        current: [""],
+      };
+      // A choice: the item's value comes back under the request's id.
+      window.showQuickPick = async (items: (typeof shown)[number]["items"], options: unknown) => {
+        shown.push({ items, options });
+        return items[1];
+      };
+      received.fire({ type: "pick", payload: request });
+      const picked = await waitFor(() => posted.find((m) => m.type === "picked"));
+      assert.deepEqual(picked.payload, { id: "pick-test-1", values: ["DeviceName"] });
+      assert.equal(shown[0]?.items[0]?.description, "current", "the current value is marked");
+      assert.equal(((shown[0]?.options ?? {}) as { title?: string }).title, "Filter in column");
+      // Escape: undefined from the picker is a dismissal, `values: null`.
+      posted.length = 0;
+      window.showQuickPick = async () => undefined;
+      received.fire({ type: "pick", payload: { ...request, id: "pick-test-2" } });
+      const dismissed = await waitFor(() => posted.find((m) => m.type === "picked"));
+      assert.deepEqual(dismissed.payload, { id: "pick-test-2", values: null });
+      // A malformed request is dropped, not shown.
+      posted.length = 0;
+      let asked = false;
+      window.showQuickPick = async () => {
+        asked = true;
+        return undefined;
+      };
+      received.fire({ type: "pick", payload: { id: "", items: [] } });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      assert.equal(asked, false);
+      assert.equal(posted.length, 0);
+    } finally {
+      window.showQuickPick = original;
+      channel.dispose();
+      received.dispose();
+    }
+  });
 });

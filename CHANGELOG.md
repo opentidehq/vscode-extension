@@ -11,6 +11,13 @@ pre-releases odd ones.
 
 - **Windows that never need the language server start faster.** The extension loads its language client the
   first time a server starts, not in every window as it opens.
+- **The graph's platform, status and hops choices open VS Code's own picker.** They were native drop-downs
+  whose popup looked unlike the rest of VS Code.
+- **The ATT&CK coverage panel's folder, platform and tenant choices open VS Code's own picker.** They were
+  native drop-downs whose popup looked unlike the rest of VS Code; the folder list shows each folder's path.
+- **The results table's "in column" choice opens VS Code's own picker.** It was a native drop-down whose popup
+  looked unlike the rest of VS Code; it is now a button that opens the Quick Pick, with the current column
+  marked, and Escape keeps the choice.
 - **Large query results open and filter faster.** A result of 50,000 rows no longer scans every cell to open,
   and the table prepares its filter in the background while the panel is idle, so the first filter keystroke
   answers without a pause.

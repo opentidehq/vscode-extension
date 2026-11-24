@@ -775,7 +775,7 @@ Revises #8 and #10.
 
 ### Performance budgets
 
-The targets the design is held to. CI checks two of them: the quick search keystroke (50 ms at 5,000 objects, `test/unit/search/match.test.ts`) and the Catalogue-mode graph layout at scale (`test/unit/graph/layout.test.ts`, seconds rather than minutes). Measuring the rest in CI on a 500-object fixture is open work.
+The targets the design is held to. CI checks three of them: the quick search keystroke (50 ms at 5,000 objects, `test/unit/search/match.test.ts`), the Catalogue-mode graph layout at scale (`test/unit/graph/layout.test.ts`, seconds rather than minutes) and activation (`test/integration/activation.test.ts`, which prints where `activate`'s time goes on every run). The 300 ms is for a real VS Code on a developer machine with the shipped, minified bundle; CI runs the unminified one on shared VMs, so the test holds Linux and macOS to 300 ms (observed 18–126 ms) and allows Windows 750 ms (observed 50–569 ms, from run to run on the same code). Measuring the rest in CI on a 500-object fixture is open work.
 
 | Moment | Budget |
 |--------|-------:|
