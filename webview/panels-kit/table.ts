@@ -13,12 +13,22 @@ import {
   clampFocus,
   filterColumnAfter,
   type Row,
+  type Schedule,
   TableModel,
   type TableViewState,
 } from "../../src/core/webview/kit/table";
 import { pageRows, revealRow, rowWindow } from "../../src/core/webview/kit/virtual";
 import { announce, frameThrottle, h, setClass, setText } from "./dom";
 import { showMenu } from "./menu";
+
+/**
+ * Background work for the model's filter index: when the webview is idle, within a second at the latest
+ * (a busy webview still gets it built), else a timer where there is no requestIdleCallback.
+ */
+const idle: Schedule = (task) => {
+  if (typeof requestIdleCallback === "function") requestIdleCallback(() => task(), { timeout: 1000 });
+  else setTimeout(task, 16);
+};
 
 const ROW_HEIGHT = 24;
 const OVERSCAN = 6;
@@ -132,7 +142,8 @@ export class VirtualTable {
 
   setData(columns: readonly Column[], rows: readonly Row[]): void {
     if (this.model.columns === columns && this.model.rows === rows) return;
-    this.model = new TableModel(columns, rows);
+    this.model.dispose();
+    this.model = new TableModel(columns, rows, { schedule: idle });
     // An empty table (a failed tab) keeps the sort for the next data that has the column.
     if (this.sort && columns.length > 0 && !columns.some((c) => c.name === this.sort?.column))
       this.sort = undefined;

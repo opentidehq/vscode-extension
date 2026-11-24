@@ -5,7 +5,7 @@ import * as vscode from "vscode";
 
 import type { OpentideServerInfo, ProblemCounts, StatusMenuItem, StatusService } from "../context";
 import { DOCUMENT_SELECTOR } from "../lsp";
-import type { Fallback } from "../runtime/fallback";
+import { describeFallback, type Fallback } from "../runtime/fallback";
 import { describeRuntime, ENGINE_LABEL, ENGINE_STATUS } from "../runtime/types";
 import { problemsText, type StatusModel, serveText, statusLabel, statusText, sumCounts } from "../statusText";
 
@@ -139,7 +139,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
       if (runtime.restricted) tooltip.appendMarkdown("\n\nRestricted Mode: only the language server runs.");
       if (this.fallback)
         tooltip.appendMarkdown(
-          `\n\n$(warning) Its language server did not start (${this.fallback.reason}): the ${ENGINE_LABEL} serves the editor features.`,
+          `\n\n$(warning) Its language server ${describeFallback(this.fallback)}: the ${ENGINE_LABEL} serves the editor features.`,
         );
       if (model.pin && model.pin.version !== runtime.version) {
         tooltip.appendMarkdown(
@@ -182,7 +182,7 @@ export class StatusManager implements StatusService, vscode.Disposable {
     }
     if (this.fallback) {
       this.language.text = `opentide ${runtime.version} · language server: ${ENGINE_LABEL}`;
-      this.language.detail = `its own language server did not start (${this.fallback.reason}) · ${describeRuntime(runtime)}`;
+      this.language.detail = `its own language server ${describeFallback(this.fallback)} · ${describeRuntime(runtime)}`;
       this.language.severity = vscode.LanguageStatusSeverity.Warning;
       return;
     }

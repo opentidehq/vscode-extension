@@ -145,4 +145,53 @@ describe("panels open beside the object and reuse their panel (SPEC §10)", () =
     await new Promise((resolve) => setTimeout(resolve, 500));
     assert.equal(webviewTabs("opentide.matrix").length, 1, "reused, not a new tab");
   });
+
+  it("ATT&CK matrix: hidden and shown again, the page is rebuilt from the host, with the filters and the selected detail", async function () {
+    const api = await activated();
+    if (!api.ctx.runtime.current) this.skip();
+    // Record what the matrix posts to its page; the panel is created after this.
+    const posts: { type: string; payload: unknown }[] = [];
+    const webview = api.ctx.webview;
+    const create = webview.createPanel.bind(webview);
+    webview.createPanel = ((options: Parameters<typeof create>[0]) => {
+      const created = create(options);
+      const post = created.channel.post.bind(created.channel) as (t: string, p: unknown) => Thenable<boolean>;
+      (created.channel as { post: unknown }).post = (type: string, payload: unknown) => {
+        posts.push({ type, payload });
+        return post(type, payload);
+      };
+      return created;
+    }) as typeof webview.createPanel;
+    try {
+      await vscode.commands.executeCommand("opentide.matrix.open", { technique: "T1003" });
+      await waitFor(() => posts.find((p) => p.type === "detail" && p.payload !== null));
+      const group = (await waitFor(() => webviewTabs("opentide.matrix")[0])).group;
+      // Another editor in the panel's group sends the panel to the background: VS Code drops its page.
+      posts.length = 0;
+      await vscode.window.showTextDocument(fixture("objects", "rules", "suspicious-lsass-access.yaml"), {
+        viewColumn: group.viewColumn,
+        preview: false,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.ok(webviewTabs("opentide.matrix")[0], "the panel is still open, hidden");
+      // Showing it again (the command reveals the one panel) loads a new page, which says `ready`; the
+      // host answers with the state and the detail.
+      await vscode.commands.executeCommand("opentide.matrix.open");
+      const detail = await waitFor(() => posts.find((p) => p.type === "detail" && p.payload !== null)).catch(
+        () => {
+          throw new Error(
+            `no detail after showing the panel again; posted: ${posts.map((p) => p.type).join(", ")}`,
+          );
+        },
+      );
+      assert.equal((detail.payload as { id: string }).id, "T1003", "the selected detail is posted again");
+      const state = posts.find((p) => p.type === "state")?.payload as
+        | { filters: { layer: string } }
+        | undefined;
+      assert.ok(state, "the state is posted again, with the saved filters");
+      assert.ok(["rules", "planned", "unaddressed"].includes(state.filters.layer));
+    } finally {
+      webview.createPanel = create;
+    }
+  });
 });

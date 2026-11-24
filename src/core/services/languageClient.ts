@@ -8,6 +8,9 @@ import * as fs from "node:fs";
 
 import * as vscode from "vscode";
 import {
+  CloseAction,
+  ErrorAction,
+  type ErrorHandler,
   type Executable,
   LanguageClient,
   type LanguageClientOptions,
@@ -31,6 +34,8 @@ import {
   forwardNotification,
   readServerInfo,
 } from "../lsp";
+import { CrashSupervisor } from "../lsp/crashSupervisor";
+import { CRASH_WINDOW_MS } from "../lsp/restartPolicy";
 import { skipWorkspacePull, workspacePullSetting } from "../runtime/diagnostics";
 import { processEnv } from "../runtime/env";
 import { type Fallback, type ServerStart, startWithFallback } from "../runtime/fallback";
@@ -104,6 +109,14 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private lastFallback: Fallback | undefined;
   /** The WASI module's language server, while it runs. */
   private wasiServer: WasiLanguageServer | undefined;
+  /** The crashes of the running start, and the waits before its restarts (restartPolicy.ts). */
+  private supervisor: CrashSupervisor | undefined;
+  private readonly fellBack = new Emitter<void>();
+  /**
+   * Fires when the engine (WASM) took over from a language server that kept crashing, or could not: read
+   * `fallback` and `serverRuntime` then. A start that falls back at once (`start`) does not fire it.
+   */
+  readonly onDidFallBack = this.fellBack.event;
 
   constructor(
     private readonly log: Logger,
@@ -269,8 +282,13 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     cwd: string | undefined,
     reuseWorkspace: boolean,
   ): Promise<ServerStart> {
+    this.supervisor?.cancel();
+    const supervisor = new CrashSupervisor();
+    this.supervisor = supervisor;
+    const started: { client?: LanguageClient } = {};
     const clientOptions: LanguageClientOptions = {
       documentSelector: DOCUMENT_SELECTOR,
+      errorHandler: this.errorHandler(runtime, cwd, supervisor, started),
       outputChannel: this.outputChannel,
       traceOutputChannel: this.traceChannel,
       revealOutputChannelOn: RevealOutputChannelOn.Never,
@@ -284,6 +302,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
         : runtime.wasi && this.wasi
           ? this.wasiClient(this.wasi, runtime, clientOptions)
           : this.processClient(runtime, cwd, clientOptions);
+    started.client = client;
     try {
       await client.start();
     } catch (error) {
@@ -299,10 +318,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     // running: the status says so, with Restart. The client restarts it under its crash ceiling.
     client.onDidChangeState(({ newState }) => {
       if (newState === State.Stopped && this.client === client) {
-        this.log.warn("language server: stopped; the client restarts it, or use opentide: Restart Server");
-        this.running = false;
-        this.sync.down();
-        this.emitter.fire(undefined);
+        this.serverDown(client, "stopped; the client restarts it, or use opentide: Restart Server");
       } else if (newState === State.Running && this.client === client && !this.running) {
         this.running = true;
         this.log.info("language server: running again");
@@ -332,9 +348,96 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     return { ok: true };
   }
 
+  /** The server is not answering: the status says so, and what changed while it was away is kept for its return. */
+  private serverDown(client: LanguageClient, why: string): void {
+    if (this.client !== client || !this.running) return;
+    this.log.warn(`language server: ${why}`);
+    this.running = false;
+    this.sync.down();
+    this.emitter.fire(undefined);
+  }
+
   /**
-   * Why the runtime's own language server did not start, when the engine (WASM) serves the editor
-   * features in its place; undefined otherwise.
+   * The client's handler for a connection that errors or closes. `error` is vscode-languageclient's own: carry on
+   * through the first three errors in a row, then shut down. `closed` replaces its restart at once and its five
+   * crashes in three minutes (the server then stays dead, whatever tier it was) with a growing wait before each
+   * restart (restartPolicy.ts) and, at the ceiling, the engine (WASM) in its place when the extension carries one.
+   */
+  private errorHandler(
+    runtime: Runtime,
+    cwd: string | undefined,
+    supervisor: CrashSupervisor,
+    started: { client?: LanguageClient },
+  ): ErrorHandler {
+    return {
+      error: (_error, _message, count) =>
+        count && count <= 3 ? { action: ErrorAction.Continue } : { action: ErrorAction.Shutdown },
+      closed: async () => {
+        const decision = supervisor.crashed();
+        const minutes = CRASH_WINDOW_MS / 60_000;
+        if ("giveUp" in decision) {
+          const engine = runtime.kind === "engine" ? undefined : this.engineRuntime(runtime.restricted);
+          const reason = `crashed ${decision.crashes} times in ${minutes} minutes`;
+          this.log.error(
+            `language server: ${reason}; it is not restarted` +
+              (engine ? "; the opentide engine (WASM) serves the editor features instead" : ""),
+          );
+          if (started.client) this.serverDown(started.client, `stopped (${reason})`);
+          // Not from inside this call: the client finishes handling the close before it can be stopped and replaced.
+          if (engine && started.client)
+            this.fallBackToEngine(started.client, { from: runtime, reason, crashed: true }, engine, cwd);
+          return {
+            action: CloseAction.DoNotRestart,
+            message: `The ${runtime.kind === "engine" ? "opentide engine (WASM)" : "opentide language server"} ${reason}. It will not be restarted: use opentide: Restart Server.`,
+            // The core says so itself when the engine takes over.
+            handled: engine !== undefined,
+          };
+        }
+        this.log.warn(
+          `language server: the connection closed (crash ${decision.crashesInWindow} in ${minutes} minutes); ` +
+            `restarting in ${decision.restartAfterMs / 1000} s`,
+        );
+        if (started.client) this.serverDown(started.client, "stopped; restarting");
+        // A stop or a new start meanwhile cancels the wait: the client must not bring back a server that was dropped.
+        if (!(await supervisor.wait(decision.restartAfterMs)))
+          return { action: CloseAction.DoNotRestart, handled: true };
+        return { action: CloseAction.Restart, handled: true };
+      },
+    };
+  }
+
+  /** After the ceiling: stop the crashed client and start the engine's language server in its place. */
+  private fallBackToEngine(
+    crashed: LanguageClient,
+    fallback: Fallback,
+    engine: Runtime,
+    cwd: string | undefined,
+  ): void {
+    setTimeout(() => {
+      void this.lifecycle
+        .run(async () => {
+          if (this.client !== crashed) return; // a start or a stop got there first
+          await this.doStop();
+          const started = await this.startServer(engine, cwd, false);
+          if (started.ok) {
+            this.lastFallback = fallback;
+            this.last = { runtime: engine, cwd };
+            this.emitter.fire(this.client);
+          } else {
+            this.log.error(
+              `language server: the opentide engine (WASM) did not start either (${started.error})`,
+            );
+            this.emitter.fire(undefined);
+          }
+          this.fellBack.fire();
+        })
+        .catch((error: unknown) => this.log.error(`language server: falling back failed: ${String(error)}`));
+    }, 0);
+  }
+
+  /**
+   * Why the runtime's own language server did not start or kept crashing, when the engine (WASM) serves the
+   * editor features in its place; undefined otherwise.
    */
   get fallback(): Fallback | undefined {
     return this.lastFallback;
@@ -465,6 +568,10 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   }
 
   private async doStop(): Promise<void> {
+    // A client waiting to restart has its connection closed already: let it finish handling that (it then reports
+    // Stopped) before it is stopped, or the stop waits for a shutdown reply that cannot come.
+    if (this.supervisor?.cancel()) await new Promise<void>((resolve) => setImmediate(resolve));
+    this.supervisor = undefined;
     const client = this.client;
     this.client = undefined;
     this.running = false;
@@ -511,5 +618,6 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     this.traceChannel.dispose();
     this.emitter.dispose();
     this.catalogChanged.dispose();
+    this.fellBack.dispose();
   }
 }
