@@ -1,43 +1,36 @@
 // The window's opentide folders, `opentide-yaml` for paths.toml object folders (#4), and batched file
 // events that keep `opentide serve` and the catalogue fresh.
-import * as fs from "node:fs";
 import * as path from "node:path";
 
 import * as vscode from "vscode";
 
 import type { FileChangeEvent, FolderService, OpentideFolder } from "../context";
-import { isObjectFile, isOpentideFolder, objectFolders, objectsOnlyByCase, pathsTomlFile } from "../folders";
+import { isObjectFile, objectsOnlyByCase, scanFolder } from "../folders";
 import { Emitter } from "../util/event";
-
-function readPathsToml(folder: string): string | undefined {
-  try {
-    return fs.readFileSync(pathsTomlFile(folder), "utf8");
-  } catch {
-    return undefined;
-  }
-}
 
 export class FolderManager implements FolderService, vscode.Disposable {
   private folders: OpentideFolder[] = [];
   private readonly emitter = new Emitter<readonly OpentideFolder[]>();
   private readonly disposables: vscode.Disposable[] = [];
   private layoutWatchers: vscode.Disposable[] = [];
+  private generation = 0;
+  private scanning: Promise<void> = Promise.resolve();
 
   readonly onDidChange = this.emitter.event;
 
   constructor() {
-    this.recompute(false);
+    void this.recompute();
     const watcher = vscode.workspace.createFileSystemWatcher("**/.opentide/configurations/paths.toml");
     this.watchLayout();
     this.disposables.push(
       watcher,
       vscode.workspace.onDidChangeWorkspaceFolders(() => {
         this.watchLayout();
-        this.recompute(true);
+        void this.recompute();
       }),
-      watcher.onDidCreate(() => this.recompute(true)),
-      watcher.onDidDelete(() => this.recompute(true)),
-      watcher.onDidChange(() => this.recompute(true)),
+      watcher.onDidCreate(() => void this.recompute()),
+      watcher.onDidDelete(() => void this.recompute()),
+      watcher.onDidChange(() => void this.recompute()),
     );
   }
 
@@ -60,8 +53,8 @@ export class FolderManager implements FolderService, vscode.Disposable {
       );
       this.layoutWatchers.push(
         layout,
-        layout.onDidCreate(() => this.recompute(true)),
-        layout.onDidDelete(() => this.recompute(true)),
+        layout.onDidCreate(() => void this.recompute()),
+        layout.onDidDelete(() => void this.recompute()),
       );
     }
   }
@@ -70,20 +63,37 @@ export class FolderManager implements FolderService, vscode.Disposable {
     return this.folders;
   }
 
-  private recompute(fire: boolean): void {
-    const next: OpentideFolder[] = [];
-    for (const folder of vscode.workspace.workspaceFolders ?? []) {
-      if (folder.uri.scheme !== "file") continue;
-      const fsPath = folder.uri.fsPath;
-      if (!isOpentideFolder(fsPath)) continue;
-      next.push({ folder, path: fsPath, objectFolders: objectFolders(readPathsToml(fsPath)) });
-    }
-    const changed =
-      JSON.stringify(next.map((f) => [f.path, f.objectFolders])) !==
-      JSON.stringify(this.folders.map((f) => [f.path, f.objectFolders]));
-    this.folders = next;
-    void vscode.commands.executeCommand("setContext", "opentide.hasWorkspace", next.length > 0);
-    if (fire && changed) this.emitter.fire(next);
+  /** Resolves once the latest scan (the first at activation, or one after a change) has set `all`. */
+  ready(): Promise<void> {
+    return this.scanning;
+  }
+
+  /**
+   * Read the workspace folders again, off the thread (the first scan runs while the window activates, SPEC §14).
+   * A scan that a newer one overtook leaves `all` to it. A change, the first scan's included, fires onDidChange.
+   */
+  private recompute(): Promise<void> {
+    const generation = ++this.generation;
+    const scanning = (async () => {
+      const candidates = (vscode.workspace.workspaceFolders ?? []).filter(
+        (folder) => folder.uri.scheme === "file",
+      );
+      const scanned = await Promise.all(candidates.map((folder) => scanFolder(folder.uri.fsPath)));
+      if (generation !== this.generation) return;
+      const next: OpentideFolder[] = [];
+      candidates.forEach((folder, index) => {
+        const found = scanned[index];
+        if (found) next.push({ folder, path: folder.uri.fsPath, objectFolders: found.objectFolders });
+      });
+      const changed =
+        JSON.stringify(next.map((f) => [f.path, f.objectFolders])) !==
+        JSON.stringify(this.folders.map((f) => [f.path, f.objectFolders]));
+      this.folders = next;
+      void vscode.commands.executeCommand("setContext", "opentide.hasWorkspace", next.length > 0);
+      if (changed) this.emitter.fire(next);
+    })();
+    this.scanning = scanning;
+    return scanning;
   }
 
   folderOf(uri: vscode.Uri): OpentideFolder | undefined {
