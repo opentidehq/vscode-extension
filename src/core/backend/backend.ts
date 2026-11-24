@@ -151,8 +151,11 @@ const newLane = (name: LaneName): ServeLane => ({
   idleTimer: undefined,
 });
 
-/** How long the interactive lane waits for an answer before it cancels the command (then kills, after the grace). */
-export const INTERACTIVE_TIMEOUT_MS = 60_000;
+/**
+ * How long the interactive lane waits for an answer before it cancels the command (then kills, after the grace): a hard
+ * stop for a serve that hangs, far above a full `validate` of a large workspace under WASI.
+ */
+export const INTERACTIVE_TIMEOUT_MS = 300_000;
 
 /**
  * How long the long lane's serve stays up after its last command: a second serve costs about 100–180 MB (SPEC §14), so it

@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 
-import { Backend, type BackendDeps, laneFor } from "../../src/core/backend/backend";
+import { Backend, type BackendDeps, INTERACTIVE_TIMEOUT_MS, laneFor } from "../../src/core/backend/backend";
 import { fromChildProcess } from "../../src/core/backend/process";
 import { BackendError } from "../../src/core/backend/types";
 import { type Classification, classify } from "../../src/core/capabilities/classification";
@@ -187,6 +187,10 @@ describe("serve lanes", function () {
     await made.backend.dispose();
     await sleep(100);
     for (const child of made.children) assert.ok(exited(child), `serve pid ${child.pid} is still running`);
+  });
+
+  it("gives an interactive command 5 minutes by default: a hard stop for a hung serve, not for a long validate", () => {
+    assert.equal(INTERACTIVE_TIMEOUT_MS, 300_000);
   });
 
   it("gives an interactive command a deadline, and a long one none", async () => {

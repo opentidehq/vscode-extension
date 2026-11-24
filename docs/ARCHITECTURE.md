@@ -289,7 +289,7 @@ through it. So a serve that hangs or keeps crashing stops every command. The sup
 - **Two lanes on tier 4** (`backend.ts`, `laneFor`). Commands that contact a tenant or would be a process of their
   own natively (`classification.contactsTenant || classification.spawn`: a query, a deploy dry run, doctor) run on
   the `long` lane, everything else on `interactive`, so a tenant that takes a minute never holds up validate-on-save
-  or the catalogue behind serve's one request at a time. `interactive` gives a command 60 s, then cancels it
+  or the catalogue behind serve's one request at a time. `interactive` gives a command 5 minutes, then cancels it
   (`timed-out`); `long` has no deadline (cancel-driven), starts with its first command and stops after 2 minutes
   idle. Each lane has its own process, crash ceiling and backoff; `invalidate`, a runtime change, restart and dispose
   reach both, and dispose closes them together (one step of the shutdown's group with the language server). Natively
