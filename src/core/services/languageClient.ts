@@ -33,7 +33,7 @@ import {
 import { disposeBounded, startBounded, stopBounded } from "../lsp/bounds";
 import { CrashSupervisor } from "../lsp/crashSupervisor";
 import { type LspModule, loadLsp } from "../lsp/load";
-import { CRASH_WINDOW_MS } from "../lsp/restartPolicy";
+import { connectionErrorAction, CRASH_WINDOW_MS } from "../lsp/restartPolicy";
 import { skipWorkspacePull, workspacePullSetting } from "../runtime/diagnostics";
 import { processEnv } from "../runtime/env";
 import { type Fallback, type ServerStart, startWithFallback } from "../runtime/fallback";
@@ -383,8 +383,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   }
 
   /**
-   * The client's handler for a connection that errors or closes. `error` is vscode-languageclient's own: carry on
-   * through the first three errors in a row, then shut down. `closed` replaces its restart at once and its five
+   * The client's handler for a connection that errors or closes. `error` carries on through a read error (the close
+   * that follows decides) and the first three write errors in a row, then shuts down (restartPolicy.ts). `closed` replaces its restart at once and its five
    * crashes in three minutes (the server then stays dead, whatever tier it was) with a growing wait before each
    * restart (restartPolicy.ts) and, at the ceiling, the engine (WASM) in its place when the extension carries one.
    */
@@ -397,7 +397,9 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   ): ErrorHandler {
     return {
       error: (_error, _message, count) =>
-        count && count <= 3 ? { action: lsp.ErrorAction.Continue } : { action: lsp.ErrorAction.Shutdown },
+        connectionErrorAction(count) === "continue"
+          ? { action: lsp.ErrorAction.Continue }
+          : { action: lsp.ErrorAction.Shutdown },
       closed: async () => {
         // Stopped or replaced on purpose, or a start given up on: nothing to restart, and no crash to count.
         if (supervisor.isCancelled) return { action: lsp.CloseAction.DoNotRestart, handled: true };
