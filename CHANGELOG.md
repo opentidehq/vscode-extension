@@ -9,6 +9,11 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The deploy plan is a native view in the panel, and each change opens in VS Code's diff editor.** It lists
+  platform → tenant → change with the counts of each, an icon per action, the number of changes as a badge and a
+  one-line summary. Opening a change shows what is deployed against what the plan would send (the request alone
+  when the plan has no deployed state). Options, filter, "Open Rule", "Copy Request" and the copy commands are in
+  the view's toolbar and menus; the summary cards and the lock that kept several plans open are gone.
 - **The ATT&CK coverage panel's folder, platform and tenant choices open VS Code's own picker.** They were
   native drop-downs whose popup looked unlike the rest of VS Code; the folder list shows each folder's path.
 - **The results table's "in column" choice opens VS Code's own picker.** It was a native drop-down whose popup

@@ -129,8 +129,8 @@ Files are created and changed by opentide commands, or by text edits the user ap
 
 ### D4. Native UI first, webviews where native cannot draw
 
-- **Webviews:** the graph, the ATT&CK matrix, query results, the deploy plan and the setup wizard.
-- **Native:** everything else, including payloads and compiled queries. They open as read-only virtual documents (`opentide-payload:`, `opentide-compiled:`) in a normal editor, with its search, folding and copy.
+- **Webviews:** the graph, the ATT&CK matrix, query results and the setup wizard.
+- **Native:** everything else, including the deploy plan (a tree view in the panel area, each change opening in the diff editor), payloads and compiled queries. They open as read-only virtual documents (`opentide-payload:`, `opentide-compiled:`) in a normal editor, with its search, folding and copy.
 
 ### D5. One finding, one squiggle
 
@@ -465,7 +465,7 @@ The stepper marks each step done, current, invalid (a visited step with a proble
 3. **Create your first detection.** Opens the New Rule flow.
 4. **Validate it.** "Validate workspace", and how Problems and Explain work.
 5. **See how it fits.** Opens the graph on the new rule and the ATT&CK matrix.
-6. **Preview a deploy.** Opens the deploy plan as a dry run.
+6. **Preview a deploy.** Runs a dry run into the Deploy Plan view.
 7. **Bring your agent.** MCP is on; install the skills plugin.
 
 ---
@@ -527,7 +527,7 @@ OPENTIDE
   - *Tokens:* a 4/8 px spacing grid, radii and a type scale (`--ot-*` in `base.css`), every colour a `--vscode-*` theme variable; `kit.css` styles the components. Codicons ship in the extension (`@vscode/codicons`, `dist/webview/codicons/`), loaded under the page's CSP, never from a CDN.
   - *Components:* a toolbar (the object and its context on the left, actions on the right, sticky), buttons and icon toggles, a segmented control (a radio group, arrow keys), chips, badges and tags, a progress bar and skeleton rows while loading (always in the page, so nothing moves when data arrives), empty and error states with one primary action and **Show output**, callouts (info, warning, error), collapsible sections, stat cards, a stepper, menus and hover cards.
   - *Behaviour:* visible focus rings; the focus kept on re-render; `prefers-reduced-motion` and VS Code's own reduce-motion setting stop every animation; high-contrast themes get contrast borders and outlines where a fill would be the only signal.
-- **Beside the object:** a panel about an object (query results, the deploy plan of a rule, the matrix asked for a technique) opens in `ViewColumn.Beside` with `preserveFocus` when invoked from an editor, so the YAML stays in view; so do the compiled query, payload and setup file documents (in preview) and the Explain page (Markdown preview to the side). Each kind keeps one panel and retargets it to the next object; its title names the object ("Query · LSASS handle… · Sentinel"). A lock button pins a panel to its object: the next object opens a panel of its own, and an object already shown in a panel is revealed there. A file opened from a panel goes to the group beside the panel (the object's editor group when the panel is beside it).
+- **Beside the object:** a panel about an object (query results, the matrix asked for a technique) opens in `ViewColumn.Beside` with `preserveFocus` when invoked from an editor, so the YAML stays in view; so do the compiled query, payload and setup file documents (in preview) and the Explain page (Markdown preview to the side). Each kind keeps one panel and retargets it to the next object; its title names the object ("Query · LSASS handle… · Sentinel"). A lock button pins a panel to its object: the next object opens a panel of its own, and an object already shown in a panel is revealed there. A file opened from a panel goes to the group beside the panel (the object's editor group when the panel is beside it).
 - **Fast:** a state update patches the page (keyed updates; unchanged sections, their open state and the focus stay); lists longer than 200 rows are virtualised; the virtual table keeps a pool of row elements and only changes their text; sorting and filtering 10,000 rows each take less than a frame (16 ms, `test/unit/webview/table.test.ts`).
 
 ### 10.1 Graph: how detections connect
@@ -637,20 +637,23 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
 
 ### 10.5 Deploy plan (dry run)
 
-- **Opened by:** "Preview deploy" from a rule, the catalogue, the palette or the walkthrough.
-- **Choices:**
-  - strategy: `PREVIEW` or `RELEASE`;
-  - scope: **changed rules** (the CLI's default, from the git diff) or **all** (`--all`). Per rule once opentide supports it ([§15](#15-what-this-needs-from-opentide-and-language-server)).
+A native tree view, "opentide Deploy Plan", in the panel area beside Problems (D4). It appears at the first preview.
+
+- **Opened by:** "Preview deploy" from a rule, the catalogue, the palette or the walkthrough. The command runs the dry run and brings the view forward. The view holds one plan at a time: the next preview replaces it.
+- **Choices** (the view's "Deploy Plan Options…", three pickers): which rules (**changed rules**, the CLI's default from the git diff, **all** with `--all`, or the rules picked, `--uuid`/`--file`), the strategies (`PREVIEW`, `RELEASE`) and one platform or all. The last choice is remembered per workspace.
 - **Runs** `opentide --json deploy --dry-run --strategy … [--all] [--platform …]`. No credentials are needed.
 - **Unsaved rules:** a preview of rule files with unsaved edits asks first to save them or to preview the saved versions.
 - **Shows:**
-  - **Summary:** the count of each action as cards.
-  - **Changes:** platform → tenant → rule → action (`create`, `update`, `upsert`, `disable`, `delete`), with the status, one collapsible section per platform (lists longer than 200 rows virtualised).
-  - **Skipped:** each rule with its reason (strategy, status, unconfigured).
-  - **Missing tenants:** a callout in the platform's section, with **Open configuration**.
+  - **Tree:** platform → tenant → change. Each platform and tenant shows its counts in the description (`+2 ~3 −1`: creates, updates and upserts, deletes and disables; `!1` for a rule that did not compile). Each change has the icon of its action (`create`, `update`, `upsert`, `disable`, `delete`; an error for a rule that did not compile) and its action and status as the description. Tenants sort by name, changes by action then name. VS Code's tree virtualises long plans.
+  - **Badge and message:** the view's badge is the number of changes; its message is one line: "Dry run · PREVIEW · 3 create or update · 1 skipped".
+  - **Skipped:** a group with each rule and the reason (strategy, status).
+  - **Not matched:** a group with the `--uuid`/`--file` values that matched no rule.
+  - **Missing tenants:** a row in the platform, with **Open Platform Configuration**.
   - **Diagnostics:** also added to Problems, under `opentide deploy`.
-  - **Payloads:** each `api_request` opens as a read-only JSON document (`opentide-payload:`), so search, folding and copy are the editor's.
-- **Commands** (a collapsed section): the command line, and "Copy as CI step": a GitHub Actions step whose `env` names every credential variable of the tenants the plan deploys to (from `info`'s tenants, set in the editor or not), plus any the plan's warnings name. No "Deploy" button (D6).
+- **A change opens in the diff editor** between two read-only `opentide-payload:` documents, what is deployed and what the plan would send, when the plan carries what is deployed; otherwise the request opens alone (opentide 0.21's plans carry no deployed state). Search, folding and copy are the editor's. The context menu also has Open Rule, Copy Request and "Run the Dry Run Again".
+- **Toolbar:** refresh (cancel while it runs) and filter (a picker: all, one platform, or one tenant of it); the overflow menu has the options and the copy commands.
+- **Commands:** "Copy Dry-Run Command", "Copy Deploy Command" and "Copy Deploy as a CI Step": a GitHub Actions step whose `env` names every credential variable of the tenants the plan deploys to (from `info`'s tenants, set in the editor or not), plus any the plan's warnings name. No "Deploy" button (D6).
+- **Not expressible natively:** the summary cards of the earlier webview (the message line and the badge carry the totals), the commands section with the command line shown (the copy commands replace it), and several plans open at once with a lock (one view, one plan).
 
 ---
 
@@ -669,7 +672,7 @@ Opened by a query lens, "Run query" in the catalogue or palette, or a `.kql` / `
 | `lint`, `lint --fix` | Problems; "Fix filenames" shows the renames first (not in 0.1, [#40](https://github.com/opentidehq/vscode-extension/issues/40)) |
 | `info`, `info coverage`, `info vocab` | Catalogue, Coverage, Platforms; "Show vocabulary…" opens a vocabulary as a read-only document |
 | `query` | Query results panel (§10.4) |
-| `deploy --dry-run` | Deploy plan panel (§10.5) |
+| `deploy --dry-run` | Deploy Plan view (§10.5) |
 | `generate` and its phases; `generate docs`, `exports`, `explorer`, `extract` | Palette "Generate…" with the phases as a multi-pick; "Open generated docs" (Markdown preview); `extract` is marked as contacting tenants |
 | `rules unreviewed` | Search `unreviewed:`; Catalogue badge; palette "Show unreviewed rules" |
 | `share preview`, `share status`, `share targets` | Palette and Catalogue context menu (TLP-aware) |
