@@ -179,9 +179,11 @@ describe("opentide serve client: a process that will not go", () => {
     await advance(2000); // no answer to `shutdown`: `exit` is sent, and the kill timer starts
     await advance(2000); // the kill
     assert.equal(killed(), 1, "it was killed once");
+    await advance(2999);
     assert.equal(stopped, false, "still waiting for the exit it was promised");
-    await advance(2000); // the last limit
+    await advance(1); // the last limit: 3 s after the kill
     await stopping;
     assert.equal(stopped, true, "stop() returned although the process never exited");
+    assert.equal(serve.isRunning, false, "and the serve is marked ended");
   });
 });

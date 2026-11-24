@@ -9,6 +9,9 @@ import { BackendError, type Envelope, envelopeProblem, isEnvelope, type Progress
 
 export const SERVE_PROTOCOL = 1;
 
+/** How long `stop()` waits for the exit of a process after killing it, before it is given up on. */
+const EXIT_GRACE_MS = 3000;
+
 export interface InitializeResult {
   readonly protocol: number;
   readonly version: string;
@@ -191,15 +194,26 @@ export class ServeClient {
       // the process is going away either way
     }
     const timer = setTimeout(() => this.kill(), timeoutMs);
-    // The kill is the last resort, and a process that does not go after it is given up on: waiting for ever would hold
-    // whoever awaits the stop (a restart, the shutdown). Its exit, if it comes, is still handled.
+    // The kill is the last resort, and a process that does not report its exit after it is given up on: waiting for
+    // ever would hold whoever awaits the stop (a restart, the shutdown). It is marked ended, and a late exit is ignored.
     let giveUp: NodeJS.Timeout | undefined;
+    let gaveUp = false;
     await Promise.race([
       exited,
       new Promise<void>((resolve) => {
-        giveUp = setTimeout(resolve, 2 * timeoutMs);
+        giveUp = setTimeout(() => {
+          gaveUp = true;
+          resolve();
+        }, timeoutMs + EXIT_GRACE_MS);
       }),
     ]);
+    if (gaveUp) {
+      this.options.log?.(
+        "warn",
+        `opentide serve did not report its exit after it was killed: not waiting for it`,
+      );
+      this.handleExit(null, "SIGKILL");
+    }
     clearTimeout(timer);
     clearTimeout(giveUp);
   }
