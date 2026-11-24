@@ -11,6 +11,7 @@ import {
   fallbackAttempts,
   type ServerStart,
   startWithFallback,
+  withNotes,
 } from "../../src/core/runtime/fallback";
 import { probe } from "../../src/core/runtime/process";
 import { engineRuntime } from "../../src/core/runtime/resolve";
@@ -103,6 +104,19 @@ describe("a language server that does not start falls back to the engine (WASM)"
     assert.equal(describeFallback(crashed), "stopped repeatedly (crashed 5 times in 3 minutes)");
     const [first] = fallbackAttempts(crashed, engineRuntime(ENGINE, false));
     assert.match(first?.detail ?? "", /stopped repeatedly \(crashed 5 times in 3 minutes\).*engine \(WASM\)/);
+  });
+
+  it("puts the notes kept (a fallback) after a new resolution's attempts, and leaves them as they are without", () => {
+    const from = fakeRuntime({ tier: 4, source: "wasi" });
+    const notes = fallbackAttempts(
+      { from, reason: "crashed 5 times in 3 minutes", crashed: true },
+      engineRuntime(ENGINE, false),
+    );
+    const fresh = [
+      { tier: 4, source: "wasi", outcome: "ok", detail: "the module the extension carries" },
+    ] as const;
+    assert.deepEqual(withNotes(fresh, notes), [...fresh, ...notes]);
+    assert.equal(withNotes(fresh, []), fresh, "no notes: the resolution's own attempts");
   });
 
   it("keeps Restricted Mode, and says nothing when the runtime's own server starts", async () => {
