@@ -74,6 +74,26 @@ describe("a language server that keeps crashing", function () {
       );
       // The commands still run on the bundled opentide: only the editor features moved to the engine.
       assert.equal(api.ctx.runtime.current?.source, "wasi");
+      // Looking for a user's own opentide again (a new .venv, or the window getting the focus back) resolves the
+      // runtime again, without a restart: the engine still serves, and the attempts still say why.
+      const before = api.ctx.runtime.attempts;
+      const venv = fixture(".venv", "recheck-marker");
+      await vscode.workspace.fs.writeFile(venv, new Uint8Array());
+      try {
+        await waitFor(() => (api.ctx.runtime.attempts !== before ? true : undefined), 30_000);
+        const again = api.ctx.runtime.attempts;
+        assert.ok(
+          again.some((a) => a.outcome === "failed" && /stopped repeatedly/.test(a.detail)),
+          JSON.stringify(again),
+        );
+        assert.ok(
+          again.some((a) => a.tier === 5 && a.outcome === "ok"),
+          JSON.stringify(again),
+        );
+        assert.equal(manager.serverRuntime?.kind, "engine", "the engine still serves");
+      } finally {
+        await vscode.workspace.fs.delete(fixture(".venv"), { recursive: true });
+      }
     } finally {
       watch.dispose();
     }
