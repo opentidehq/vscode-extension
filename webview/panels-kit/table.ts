@@ -20,6 +20,7 @@ import {
 import { pageRows, revealRow, rowWindow } from "../../src/core/webview/kit/virtual";
 import { announce, frameThrottle, h, setClass, setText } from "./dom";
 import { showMenu } from "./menu";
+import { PickButton } from "./pick";
 
 /**
  * Background work for the model's filter index: when the webview is idle, within a second at the latest
@@ -30,6 +31,7 @@ const idle: Schedule = (task) => {
   else setTimeout(task, 16);
 };
 
+const ALL_COLUMNS = { value: "", label: "all columns" } as const;
 const ROW_HEIGHT = 24;
 const OVERSCAN = 6;
 
@@ -52,7 +54,7 @@ interface Sort {
 export class VirtualTable {
   readonly element: HTMLElement;
   private readonly filterInput: HTMLInputElement;
-  private readonly columnSelect: HTMLSelectElement;
+  private readonly columnPick: PickButton;
   private readonly countLabel: HTMLElement;
   private readonly header: HTMLElement;
   private readonly viewport: HTMLElement;
@@ -98,15 +100,17 @@ export class VirtualTable {
         },
       },
     });
-    this.columnSelect = h("select", {
-      attrs: { "aria-label": "Filter in column" },
-      on: {
-        change: () => {
-          this.pendingColumn = undefined;
-          this.changed();
-        },
+    this.columnPick = new PickButton({
+      label: "Filter in column",
+      title: "Filter in column",
+      placeHolder: "Choose the column the filter looks in",
+      focusKey: "filter-column",
+      onChange: () => {
+        this.pendingColumn = undefined;
+        this.changed();
       },
     });
+    this.columnPick.setItems([ALL_COLUMNS]);
     this.countLabel = h("span", { class: "muted", attrs: { "aria-live": "polite" } });
     this.header = h("div", { class: "vt-header", attrs: { role: "row", "aria-rowindex": 1 } });
     this.spacer = h("div", { class: "vt-spacer" });
@@ -131,7 +135,7 @@ export class VirtualTable {
       h("div", { class: "ot-bar" }, [
         h("span", { class: "codicon codicon-filter", attrs: { "aria-hidden": "true" } }),
         this.filterInput,
-        h("label", {}, ["in ", this.columnSelect]),
+        h("span", { class: "ot-pick-field" }, ["in ", this.columnPick.element]),
         h("span", { class: "ot-spacer" }),
         this.countLabel,
       ]),
@@ -153,16 +157,12 @@ export class VirtualTable {
       rows.length,
     );
     this.widths = columns.map((c, i) => this.chosenWidths.get(c.name) ?? guessed[i] ?? 120);
-    const previous = this.pendingColumn ?? this.columnSelect.value;
-    this.columnSelect.replaceChildren(
-      h("option", { text: "all columns", attrs: { value: "" } }),
-      ...columns.map((c) => h("option", { text: c.name, attrs: { value: c.name } })),
-    );
+    const previous = this.pendingColumn ?? this.columnPick.value;
     const { value, pending } = filterColumnAfter(
       previous,
       columns.map((c) => c.name),
     );
-    this.columnSelect.value = value;
+    this.columnPick.setItems([ALL_COLUMNS, ...columns.map((c) => ({ value: c.name, label: c.name }))], value);
     this.pendingColumn = pending;
     this.buildPool();
     this.renderHeader();
@@ -173,7 +173,7 @@ export class VirtualTable {
   viewState(): TableViewState {
     return {
       filter: this.filterInput.value,
-      filterColumn: this.pendingColumn ?? this.columnSelect.value,
+      filterColumn: this.pendingColumn ?? this.columnPick.value,
       ...(this.sort ? { sort: this.sort } : {}),
     };
   }
@@ -182,7 +182,7 @@ export class VirtualTable {
   restoreView(state: TableViewState): void {
     this.filterInput.value = state.filter;
     this.pendingColumn = state.filterColumn || undefined;
-    if (!state.filterColumn) this.columnSelect.value = "";
+    if (!state.filterColumn) this.columnPick.setValue("");
     this.sort = state.sort;
   }
 
@@ -217,7 +217,7 @@ export class VirtualTable {
   private refresh(): void {
     this.shown = this.model.view({
       filter: this.filterInput.value,
-      filterColumn: this.columnSelect.value,
+      filterColumn: this.columnPick.value,
       ...(this.sort ? { sort: this.sort } : {}),
     });
     const total = this.model.rows.length;
@@ -537,7 +537,7 @@ export class VirtualTable {
 
   private filterTo(column: string, text: string): void {
     this.filterInput.value = text;
-    this.columnSelect.value = column;
+    this.columnPick.setValue(column);
     this.pendingColumn = undefined;
     this.changed();
     this.viewport.focus();
