@@ -1,0 +1,42 @@
+SELECT COUNT(*) AS n, MAX(bytes), RGX_EXTRACT(user, "(\\w+)") AS name WHERE vendor:"Microsoft"
+
+activity_type:"process-create" AND NOT user:"`SYSTEM`" web application
+
+SELECT user WHERE outcome:"fail" AS failed
+
+process_command_line:RGXi("\\s-enc\\s") AND file_name:WLDi("*resume*")
+
+SELECT user AS account, * WHERE vendor:"Microsoft"
+
+user IN "Privileged Accounts" AND NOT src_host IN "Jump Hosts"."Hostname"
+
+bytes_in > 1000 AND bytes_out:>=5 AND product=="web application" AND src_ip:10.0.0.1 AND parsed:true AND user != "x"
+
+vendor:"Microsoft" | FOREACH dest_host [ SELECT src_host WHERE src_host: @dest_host ] LIMIT 10
+
+"Admin login" web* Okta
+
+SELECT user FROM logins WHERE outcome:"fail"
+
+(process_name:"a.exe" OR process_name:"b.exe") AND user:"x"
+
+SELECT user, COUNT(*) AS n GROUP-BY user
+
+SELECT user WHERE outcome:"fail" LIMIT 20
+
+user:("joe", "jane") AND dest_port:(139, 445) AND src_ip:(0.0.0.0, null)
+
+NOT dest_port:null AND NOT (user:"a" OR user:"b")
+
+process_name:"wscript.exe" OR process_name:"cscript.exe"
+
+SELECT user, COUNT(*) AS n GROUP-BY user ORDER-BY n DESC, user ASC
+
+count:[1 TO 5] AND bytes:{1 TO *} AND src_ip:[10.0.0.0/8] AND time:[2026-11-01T00:00:00Z TO *]
+
+SELECT DISTINCT user, src_ip WHERE vendor:"Microsoft"
+
+activity_type:"app-login" AND outcome:"fail"
+
+SELECT user WHERE activity_type:"app-login" AND outcome:"fail"
+

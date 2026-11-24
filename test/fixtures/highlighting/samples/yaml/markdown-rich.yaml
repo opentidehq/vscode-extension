@@ -1,0 +1,38 @@
+name: Markdown rich description
+
+metadata:
+  uuid: 6bd65871-e768-4bb7-875b-570909c287a6
+  schema: rule::1.0
+  version: 1
+  created: 2026-11-22
+  tlp: amber
+  author: qa
+
+description: |
+  # Credential access via LSASS
+  The rule looks for **handles** to `lsass.exe` opened with `PROCESS_VM_READ` by an *unexpected* process.
+  ## Why
+  - `procdump.exe -ma lsass.exe` dumps memory
+  - see [Microsoft docs](https://learn.microsoft.com/en-us/windows/win32/procthread)
+  > Tuning: exclude `MsMpEng.exe`.
+
+response:
+  alert_severity: High
+  procedure:
+    analysis: |
+      ## Triage
+      Check the `GrantedAccess` mask and the **parent** of `SourceImage`.
+      - Look at `0x1010` and `0x1410`
+
+configurations:
+  crowdstrike:
+    status: STAGING
+    query: '#event_simpleName=ProcessRollup2 | CommandLine=/procdump/i | groupBy([ComputerName])'
+  sentinel:
+    schema: platform::sentinel::1.0
+    status: STAGING
+    query: |
+      DeviceProcessEvents
+      | where FileName in~ ("procdump.exe", "procdump64.exe") and ProcessCommandLine has "lsass"
+      | extend Host = tostring(split(DeviceName, ".")[0])
+      | summarize count() by Host, bin(Timestamp, 1h)

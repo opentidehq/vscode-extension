@@ -1,0 +1,24 @@
+event.category:process AND process.name:cmd.exe
+
+title:alert^2
+
+process.name:cmd.exe
+
+name:jon~1 AND name:bob~AUTO
+
+(a OR b) AND c
+
++event.category:process -user.name:SYSTEM !host.name:a
+
+message:"failed login"~2
+
+bytes:[100 TO 200} AND @timestamp:[now-1d/d TO now]
+
+process.name:/cmd\.exe/
+
+*
+
+process.name:cmd.exe AND _exists_:host.name
+
+process.name:cmd* AND file.name:a?c
+

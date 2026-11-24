@@ -1,0 +1,30 @@
+tags:(a and b)
+
+event.category:process and event.type:start
+
+"process.name":cmd.exe and machine.os*:win*
+
+process.name:"cmd.exe"
+
+(a:1 or b:2) and c:3
+
+user:{ first:Alice and last:Smith }
+
+host.os.type:(not windows)
+
+not user.name:SYSTEM
+
+host.os.type:(windows or linux)
+
+process.name:cmd.exe or process.name:powershell.exe
+
+message:"failed login"
+
+event.code >= 4624 and bytes < 100
+
+message:failed login*
+
+powershell
+
+process.name:(cmd.exe or "power shell.exe")
+
