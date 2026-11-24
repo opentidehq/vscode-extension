@@ -173,14 +173,17 @@ describe("panels open beside the object and reuse their panel (SPEC §10)", () =
         preview: false,
       });
       await new Promise((resolve) => setTimeout(resolve, 500));
-      const tab = webviewTabs("opentide.matrix")[0];
-      assert.ok(tab, "the panel is still open, hidden");
-      // Showing it again loads a new page, which says `ready`; the host answers with state and detail.
-      await vscode.commands.executeCommand(
-        "workbench.action.openEditorAtIndex",
-        tab ? group.tabs.indexOf(tab) : 0,
+      assert.ok(webviewTabs("opentide.matrix")[0], "the panel is still open, hidden");
+      // Showing it again (the command reveals the one panel) loads a new page, which says `ready`; the
+      // host answers with the state and the detail.
+      await vscode.commands.executeCommand("opentide.matrix.open");
+      const detail = await waitFor(() => posts.find((p) => p.type === "detail" && p.payload !== null)).catch(
+        () => {
+          throw new Error(
+            `no detail after showing the panel again; posted: ${posts.map((p) => p.type).join(", ")}`,
+          );
+        },
       );
-      const detail = await waitFor(() => posts.find((p) => p.type === "detail" && p.payload !== null));
       assert.equal((detail.payload as { id: string }).id, "T1003", "the selected detail is posted again");
       const state = posts.find((p) => p.type === "state")?.payload as
         | { filters: { layer: string } }
