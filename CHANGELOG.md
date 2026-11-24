@@ -7,6 +7,10 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-24
+
+Tenant queries no longer hold up the editor, and panels come back after a reload. Runs on opentide 1.0.0-rc.5.
+
 ### Added
 
 - **The graph and the ATT&CK coverage panel come back after you reload the window.** They reopen where they
