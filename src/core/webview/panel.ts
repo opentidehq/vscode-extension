@@ -58,9 +58,29 @@ export interface OpentidePanel<P extends Protocol> extends vscode.Disposable {
   readonly channel: HostChannel<P>;
 }
 
+/** What the webview last saved with `setState`, as VS Code hands it back after a reload; undefined if it saved none. */
+export type SavedState = unknown;
+
 export interface WebviewHelpers {
   /** Open a panel showing `entry`, wired to a validated channel. */
   createPanel<P extends Protocol>(options: PanelOptions<P>): OpentidePanel<P>;
+  /**
+   * Wire a panel VS Code made (one revived after a reload) as `createPanel` wires its own: the webview's options, its
+   * page and the validated channel. The caller then sends what the page shows, as for a new panel.
+   */
+  adoptPanel<P extends Protocol>(panel: vscode.WebviewPanel, options: PanelOptions<P>): OpentidePanel<P>;
+  /**
+   * Bring back the panels of `options.viewType` after a window reload: VS Code keeps their place and, with
+   * `setState`, the page's own state, but the extension host starts without them. `restore` gets each revived panel
+   * wired (`adoptPanel`) and what the page saved. Register it when the feature activates, and add
+   * `onWebviewPanel:<viewType>` to its activation events so a reload activates the extension for it.
+   */
+  registerPanelSerializer<P extends Protocol>(
+    options: PanelOptions<P>,
+    restore: (opened: OpentidePanel<P>, saved: SavedState) => void | Thenable<void>,
+  ): vscode.Disposable;
+  /** Only for tests: what VS Code calls to revive a panel of a view type, by view type (a reload cannot be driven from a test). */
+  readonly restorers: ReadonlyMap<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>;
   /** The options every opentide webview uses: scripts on, resources only from dist/webview. */
   webviewOptions(): vscode.WebviewOptions;
   /** The page for `entry` with its CSP and nonce (for a WebviewView too). */
@@ -74,7 +94,9 @@ export function createWebviewHelpers(
   log: (message: string) => void,
 ): WebviewHelpers {
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
+  const restorers = new Map<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>();
   const helpers: WebviewHelpers = {
+    restorers,
     webviewOptions: () => ({ enableScripts: true, localResourceRoots: [root] }),
     html(webview, entry, title, options = {}) {
       if (!/^[a-z][a-z0-9-]*$/.test(entry)) throw new Error(`bad webview entry: ${entry}`);
@@ -132,6 +154,24 @@ export function createWebviewHelpers(
         },
       };
     },
+    adoptPanel<P extends Protocol>(panel: vscode.WebviewPanel, options: PanelOptions<P>): OpentidePanel<P> {
+      // A revived panel has no options of its own: scripts and resource roots are set again, as for a new one.
+      panel.webview.options = helpers.webviewOptions();
+      panel.webview.html = helpers.html(panel.webview, options.entry, options.title, {
+        kit: options.kit ?? false,
+      });
+      const channel = helpers.connect<P>(panel.webview, options.validators);
+      const disposeChannel = panel.onDidDispose(() => channel.dispose());
+      return {
+        panel,
+        channel,
+        dispose: () => {
+          disposeChannel.dispose();
+          channel.dispose();
+          panel.dispose();
+        },
+      };
+    },
     createPanel<P extends Protocol>(options: PanelOptions<P>): OpentidePanel<P> {
       const where = options.beside
         ? objectPanelColumn()
@@ -149,20 +189,30 @@ export function createWebviewHelpers(
           enableFindWidget: options.enableFindWidget ?? true,
         },
       );
-      panel.webview.html = helpers.html(panel.webview, options.entry, options.title, {
-        kit: options.kit ?? false,
-      });
-      const channel = helpers.connect<P>(panel.webview, options.validators);
-      const disposeChannel = panel.onDidDispose(() => channel.dispose());
-      return {
-        panel,
-        channel,
-        dispose: () => {
-          disposeChannel.dispose();
-          channel.dispose();
-          panel.dispose();
-        },
+      return helpers.adoptPanel(panel, options);
+    },
+    registerPanelSerializer<P extends Protocol>(
+      options: PanelOptions<P>,
+      restore: (opened: OpentidePanel<P>, saved: SavedState) => void | Thenable<void>,
+    ): vscode.Disposable {
+      const deserialize = async (panel: vscode.WebviewPanel, saved: SavedState): Promise<void> => {
+        const opened = helpers.adoptPanel<P>(panel, options);
+        try {
+          await restore(opened, saved);
+        } catch (error) {
+          // A panel that cannot be brought back is closed: the alternative is a blank page that never fills.
+          log(`webview: could not restore ${options.viewType}: ${String(error)}`);
+          opened.dispose();
+        }
       };
+      restorers.set(options.viewType, deserialize);
+      const registered = vscode.window.registerWebviewPanelSerializer(options.viewType, {
+        deserializeWebviewPanel: deserialize,
+      });
+      return new vscode.Disposable(() => {
+        restorers.delete(options.viewType);
+        registered.dispose();
+      });
     },
   };
   return helpers;
