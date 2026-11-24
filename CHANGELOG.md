@@ -16,6 +16,11 @@ pre-releases odd ones.
   panel for up to 0.7 s while it was laid out; it now takes a few milliseconds. Small catalogues and Focus
   keep the layout they had.
 
+### Fixed
+
+- **CQL, Exabeam, YARA and YARA-L queries are fully coloured in every theme.** Fields, functions and types
+  were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
+
 ## [0.4.0] - 2026-11-23
 
 opentide 1.0.0-rc.4 inside the extension. Completion and hover know ATT&CK 20.1 and current MISP threat actors.
