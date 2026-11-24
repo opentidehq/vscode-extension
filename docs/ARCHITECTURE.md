@@ -286,7 +286,7 @@ path) instead of failing.
 
 ### `ctx.client`
 
-The window's one `LanguageClient` (vscode-languageclient 10): `current`, `ready()`, `onDidChange`, and
+The window's one `LanguageClient` (vscode-languageclient 11): `current`, `ready()`, `onDidChange`, and
 `serverInfo` = `capabilities.experimental.opentide` from `initialize` (`host`, `engine`, `catalog`,
 `configurationChecks`, `configurationSchemas`), undefined when the server sends none. Pulled
 diagnostics are on and the server's refresh requests are honoured by the client. **Add no middleware
