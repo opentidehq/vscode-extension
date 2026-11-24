@@ -23,6 +23,8 @@ pre-releases odd ones.
 
 - **CQL, Exabeam, YARA and YARA-L queries are fully coloured in every theme.** Fields, functions and types
   were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
+- **Inline code in a rule's description is readable in dark themes.** It was dark grey on dark, at a contrast
+  of 3:1 in Dark+ and Dark Modern; it now takes the theme's constant colour (8:1).
 - **The editor features come back after the language server crashes.** The server now restarts after a
   short, growing wait instead of at once. If it crashes five times in three minutes, the opentide engine
   (WASM) takes over, with a notice, instead of the editor features staying dead until you run
