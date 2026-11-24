@@ -13,6 +13,8 @@ pre-releases odd ones.
   were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
 - **Inline code in a rule's description is readable in dark themes.** It was dark grey on dark, at a contrast
   of 3:1 in Dark+ and Dark Modern; it now takes the theme's constant colour (8:1).
+- **A query written on one line in quotes is coloured as a query.** `query: '…'` was painted as a single
+  string until the language server answered. A comment after it is coloured as a comment.
 
 ## [0.4.0] - 2026-11-23
 
