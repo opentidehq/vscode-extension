@@ -60,8 +60,10 @@ describe("registerPanelSerializer", () => {
   it("registers a serializer for the view type", () => {
     const registered = helpers.registerPanelSerializer<TestProtocol>(options, () => undefined);
     assert.ok(panelSerializers.has("opentide.test"));
+    assert.ok(helpers.restorers.has("opentide.test"), "tests can reach what VS Code would call");
     registered.dispose();
     assert.ok(!panelSerializers.has("opentide.test"), "disposing it unregisters the view type");
+    assert.ok(!helpers.restorers.has("opentide.test"));
   });
 
   it("hands a revived panel to `restore` wired like a new one, with the state the page saved", async () => {
