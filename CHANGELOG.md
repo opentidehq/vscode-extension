@@ -7,6 +7,12 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The opentide status keeps saying why the engine serves the editor.** When the language server
+  keeps crashing and the opentide engine (WASM) takes over, the status tooltip and the output
+  said why, until the window got the focus back. Now they keep saying it.
+
 ## [0.4.1] - 2026-11-24
 
 Tenant queries no longer hold up the editor, and panels come back after a reload. Runs on opentide 1.0.0-rc.5.

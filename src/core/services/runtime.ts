@@ -112,9 +112,14 @@ export class RuntimeManager implements RuntimeService, vscode.Disposable {
     return this.lastAttempts;
   }
 
-  /** Add what happened after the resolution (a language server that fell back to the engine). */
-  noteAttempts(attempts: readonly ResolveAttempt[]): void {
+  /**
+   * Add what happened after the resolution (a language server that fell back to the engine). `quiet` when it is
+   * noted again, after a resolution that replaced it: the log already said it.
+   */
+  noteAttempts(attempts: readonly ResolveAttempt[], quiet = false): void {
+    if (attempts.length === 0) return;
     this.lastAttempts = [...this.lastAttempts, ...attempts];
+    if (quiet) return;
     for (const attempt of attempts)
       this.log.info(
         `runtime tier ${attempt.tier} (${attempt.source}): ${attempt.outcome}: ${attempt.detail}`,

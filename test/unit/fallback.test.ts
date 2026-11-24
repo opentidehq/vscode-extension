@@ -9,6 +9,7 @@ import { processEnv } from "../../src/core/runtime/env";
 import {
   describeFallback,
   fallbackAttempts,
+  fallbackStillInEffect,
   type ServerStart,
   startWithFallback,
 } from "../../src/core/runtime/fallback";
@@ -103,6 +104,23 @@ describe("a language server that does not start falls back to the engine (WASM)"
     assert.equal(describeFallback(crashed), "stopped repeatedly (crashed 5 times in 3 minutes)");
     const [first] = fallbackAttempts(crashed, engineRuntime(ENGINE, false));
     assert.match(first?.detail ?? "", /stopped repeatedly \(crashed 5 times in 3 minutes\).*engine \(WASM\)/);
+  });
+
+  it("keeps a fallback in the attempts after the runtime is looked up again, while it is in effect", () => {
+    const from = fakeRuntime({ tier: 4, source: "wasi" });
+    const engine = engineRuntime(ENGINE, false);
+    const crashed = { from, reason: "crashed 5 times in 3 minutes", crashed: true };
+    assert.deepEqual(fallbackStillInEffect(crashed, engine), fallbackAttempts(crashed, engine));
+    assert.deepEqual(
+      fallbackStillInEffect(undefined, engine),
+      [],
+      "no fallback: the server is the runtime's own",
+    );
+    assert.deepEqual(
+      fallbackStillInEffect(crashed, undefined),
+      [],
+      "no server runs: nothing serves in its place",
+    );
   });
 
   it("keeps Restricted Mode, and says nothing when the runtime's own server starts", async () => {

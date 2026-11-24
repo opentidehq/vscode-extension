@@ -72,3 +72,15 @@ export function fallbackAttempts(fallback: Fallback, engine: Runtime) {
     },
   ];
 }
+
+/**
+ * What to note again after the runtime was resolved again without a restart (the WASI and engine tiers look again
+ * when the window gets the focus back): a resolution replaces the attempts, but a language server that fell back to
+ * the engine still has, so the attempts keep saying why. Nothing when no fallback is in effect.
+ */
+export function fallbackStillInEffect(
+  fallback: Fallback | undefined,
+  server: Runtime | undefined,
+): ReturnType<typeof fallbackAttempts> {
+  return fallback && server ? fallbackAttempts(fallback, server) : [];
+}
