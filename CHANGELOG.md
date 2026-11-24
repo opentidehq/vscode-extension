@@ -7,6 +7,12 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **The graph opens without a pause on catalogues of 500–1,500 objects.** The Catalogue view used to block the
+  panel for up to 0.7 s while it was laid out; it now takes a few milliseconds. Small catalogues and Focus
+  keep the layout they had.
+
 ### Fixed
 
 - **Inline code in a rule's description is readable in dark themes.** It was dark grey on dark, at a contrast

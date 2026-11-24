@@ -3,6 +3,7 @@ import * as assert from "node:assert/strict";
 import { loadedObjects } from "../../../src/core/catalog/rows";
 import {
   bounds,
+  CATALOGUE_LAYERED,
   columnLimit,
   HUGE_LAYOUT,
   LARGE_VIEW_LEAVE,
@@ -230,6 +231,29 @@ describe("graph layout: Catalogue mode at scale", () => {
       );
     });
   }
+
+  it("lays out 1,000 objects in Catalogue mode within 150 ms, and 1,400 likewise", () => {
+    for (const size of [1000, 1400]) {
+      const view = computeView(buildModel(dense(size)), {}, options);
+      layout(view.nodes, view.edges, "catalogue"); // warm-up: JIT, not the measured case
+      const started = performance.now();
+      const positions = layout(view.nodes, view.edges, "catalogue");
+      const elapsed = performance.now() - started;
+      assert.equal(positions.size, view.nodes.length);
+      assert.ok(elapsed < 150, `${size} objects (${view.nodes.length} nodes) took ${Math.round(elapsed)} ms`);
+    }
+  });
+
+  it("keeps dagre for Focus mode and for small Catalogue views", () => {
+    const view = computeView(buildModel(dense(500)), {}, options);
+    const core = view.nodes.filter((n) => !["technique", "logsource", "platform"].includes(n.kind));
+    assert.ok(core.length > CATALOGUE_LAYERED, "the 500-object view is above the Catalogue threshold");
+    const same = (a: Map<string, { x: number; y: number }>, b: Map<string, { x: number; y: number }>) =>
+      [...a].every(([id, p]) => b.get(id)?.x === p.x && b.get(id)?.y === p.y);
+    assert.ok(!same(layout(view.nodes, view.edges, "focus"), layout(view.nodes, view.edges, "catalogue")));
+    const small = computeView(buildModel(dense(100)), {}, options);
+    assert.ok(same(layout(small.nodes, small.edges, "focus"), layout(small.nodes, small.edges, "catalogue")));
+  });
 
   it("puts techniques, log sources and platforms in columns right of the objects, without overlaps", () => {
     const view = computeView(buildModel(dense(300)), {}, options);
