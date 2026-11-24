@@ -114,8 +114,11 @@ export function extensionOptions(root, common = {}) {
     target: "node20",
     external: ["vscode"],
     mainFields: ["module", "main"],
-    // Where src/core/lsp/load.ts finds the client package, next to this bundle.
-    define: { OPENTIDE_LSP_FILE: JSON.stringify("lsp.js") },
+    // Where src/core/lsp/load.ts and src/core/backend/load.ts find their bundles, next to this one.
+    define: {
+      OPENTIDE_LSP_FILE: JSON.stringify("lsp.js"),
+      OPENTIDE_BACKEND_FILE: JSON.stringify("backend.js"),
+    },
     metafile: true,
   };
 }
@@ -128,6 +131,24 @@ export function lspOptions(root, common = {}) {
   return {
     ...common,
     entryPoints: { lsp: join(root, "src", "core", "lsp", "client.ts") },
+    outdir: join(root, "dist"),
+    platform: "node",
+    format: "cjs",
+    target: "node20",
+    external: ["vscode"],
+    mainFields: ["module", "main"],
+    metafile: true,
+  };
+}
+
+/**
+ * The serve supervisor and Effect, on their own: dist/backend.js, which the extension loads with the first command
+ * (src/core/backend/load.ts), so a window that runs none never loads Effect.
+ */
+export function backendOptions(root, common = {}) {
+  return {
+    ...common,
+    entryPoints: { backend: join(root, "src", "core", "backend", "supervisor.ts") },
     outdir: join(root, "dist"),
     platform: "node",
     format: "cjs",

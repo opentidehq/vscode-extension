@@ -125,6 +125,29 @@ export function checkLspBundle(exists, loaded) {
   return errors;
 }
 
+/**
+ * dist/backend.js, the serve supervisor with Effect, which dist/extension.js loads with the first command: in the
+ * package, and, when loaded (`loaded` is its stdout, JSON), exporting what backend.ts calls, its Effect code working.
+ */
+export function checkBackendBundle(exists, loaded) {
+  if (!exists("dist/backend.js"))
+    return ["the package has no dist/backend.js (the serve supervisor, loaded with the first command)"];
+  let answer;
+  try {
+    answer = JSON.parse(loaded);
+  } catch {
+    return [`dist/backend.js did not load: ${String(loaded).slice(0, 200)}`];
+  }
+  const errors = [];
+  for (const name of ["runWithGrace", "makeWriteLock", "makeCrashBudget", "openLane", "isWaitCancelled"])
+    if (answer[name] !== "function") errors.push(`dist/backend.js does not export ${name}`);
+  if (typeof answer.graceMs !== "number") errors.push("dist/backend.js does not export CANCEL_GRACE_MS");
+  // The Schedule ran: three backoffs, then the ceiling.
+  if (JSON.stringify(answer.budget) !== "[true,true,true,false]")
+    errors.push(`dist/backend.js's crash ceiling answered ${JSON.stringify(answer.budget)}`);
+  return errors;
+}
+
 /** The WASI module's files in an unpacked package (`exists` takes a path relative to the extension folder). */
 export function checkWasiPackage(exists) {
   // The licence set ships with the module it belongs to (pins.json wasi.licences).

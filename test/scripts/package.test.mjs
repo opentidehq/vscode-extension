@@ -24,6 +24,7 @@ import {
   zipRead,
 } from "../../scripts/package-lib.mjs";
 import {
+  checkBackendBundle,
   checkEngineInitialize,
   checkKnowledgePackage,
   checkMcpBridge,
@@ -273,6 +274,32 @@ describe("package: zip reading", () => {
 });
 
 describe("smoke: checks", () => {
+  it("dist/backend.js must be in the package, export the supervisor and run its crash ceiling", () => {
+    const loaded = JSON.stringify({
+      runWithGrace: "function",
+      makeWriteLock: "function",
+      makeCrashBudget: "function",
+      openLane: "function",
+      isWaitCancelled: "function",
+      graceMs: 5000,
+      budget: [true, true, true, false],
+    });
+    assert.deepEqual(
+      checkBackendBundle(() => true, loaded),
+      [],
+    );
+    assert.match(checkBackendBundle(() => false, loaded)[0], /no dist\/backend\.js/);
+    assert.match(checkBackendBundle(() => true, "SyntaxError: x")[0], /did not load/);
+    const broken = { ...JSON.parse(loaded), openLane: "undefined", budget: [true, true, true, true] };
+    assert.deepEqual(
+      checkBackendBundle(() => true, JSON.stringify(broken)),
+      [
+        "dist/backend.js does not export openLane",
+        "dist/backend.js's crash ceiling answered [true,true,true,true]",
+      ],
+    );
+  });
+
   it("every package carries the web extension: browser, the engine's Web Worker and the module", () => {
     const pkg = {
       browser: "./dist/web/extension.js",

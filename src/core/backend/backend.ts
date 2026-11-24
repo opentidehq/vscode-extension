@@ -10,10 +10,12 @@ import { cliCommand, hasCli, isWasi, type Runtime } from "../runtime/types";
 import { editorOnlyText } from "../unavailable";
 import type { CancellationToken } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
+import { loadSupervisor } from "./load";
 import type { ServeProcess } from "./process";
 import { ServeClient } from "./serve";
 import { type SpawnFn, spawnRun } from "./spawn";
-import { BackendError, type Envelope, type ProgressEvent } from "./types";
+import type { CrashBudget, Lane, WriteLock } from "./supervisor";
+import { BackendError, cancelledEnvelope, type Envelope, type ProgressEvent } from "./types";
 
 export interface RunOptions {
   /** Cancels the run: `$/cancelRequest` under serve, SIGINT (POSIX) or a process-tree kill (Windows). */
@@ -87,20 +89,22 @@ export interface BackendDeps {
     readonly initializeParams: object;
   };
   now?(): number;
+  /**
+   * A notice for the user, shown once when a WASI runtime's serve crashed past the ceiling and commands stop running
+   * until "opentide: Restart Server". A native runtime spawns its commands instead, with a log line.
+   */
+  notify?(message: string): void;
+  /** The supervisor's timings (supervisor.ts has the defaults); tests shorten them. */
+  readonly supervision?: {
+    readonly cancelGraceMs?: number;
+    readonly crashBackoffMs?: number;
+    readonly crashWindowMs?: number;
+  };
 }
 
-/** A first-in, first-out lock: writers run one at a time. */
-class Queue {
-  private tail: Promise<void> = Promise.resolve();
-  run<T>(task: () => Promise<T>): Promise<T> {
-    const result = this.tail.then(task, task);
-    this.tail = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
-  }
-}
+/** Why a WASI runtime's commands stopped: its serve crashed past the ceiling. */
+export const SERVE_GIVEN_UP =
+  "opentide serve stopped working: it crashed 4 times within 2 minutes. Run \u201copentide: Restart Server\u201d to try again.";
 
 export class Backend {
   private serve: ServeClient | undefined;
@@ -111,7 +115,18 @@ export class Backend {
   /** Bumped by restart(), so a start it overtook does not mark the new runtime broken. */
   private generation = 0;
   private serveBrokenFor: Runtime | undefined;
-  private readonly writes = new Queue();
+  /** A WASI runtime whose serve crashed past the ceiling: its commands are refused until restart(). */
+  private serveGivenUpFor: Runtime | undefined;
+  /** The crash ceiling of the runtime whose serve last crashed. */
+  private crashes: { readonly runtime: Runtime; readonly budget: CrashBudget } | undefined;
+  /** No serve starts before this time: the backoff after a crash. */
+  private restartAt = 0;
+  /** Serve processes killed on purpose (a cancel they did not answer): their exit is not a crash. */
+  private readonly killed = new WeakSet<ServeClient>();
+  /** Each serve process's lane: closing it stops the process (supervisor.ts openLane). */
+  private readonly lanes = new WeakMap<ServeClient, Lane<ServeClient>>();
+  /** Writers one at a time (supervisor.ts), made with the first writer. */
+  private writes: WriteLock | undefined;
   private nextId = 1;
   private disposed = false;
   private readonly runEmitter = new Emitter<RunRecord>();
@@ -154,8 +169,18 @@ export class Backend {
       throw new BackendError(code, messages[code]);
     }
     const classification = this.deps.classify(argv);
-    const task = () => this.execute(runtime, folder, argv, classification, options);
-    return classification.writes ? this.writes.run(task) : task();
+    const task = (notStarted = false) =>
+      this.execute(runtime, folder, argv, classification, options, notStarted);
+    if (!classification.writes) return task();
+    const supervisor = loadSupervisor();
+    this.writes ??= supervisor.makeWriteLock();
+    try {
+      return await this.writes.run(() => task(), options.cancellation);
+    } catch (error) {
+      // Cancelled while it waited for the writer before it: it never ran, and says so.
+      if (supervisor.isWaitCancelled(error)) return task(true);
+      throw error;
+    }
   }
 
   private async execute(
@@ -164,6 +189,7 @@ export class Backend {
     argv: readonly string[],
     classification: Classification,
     options: RunOptions,
+    notStarted = false,
   ): Promise<RunResult> {
     const now = this.deps.now ?? Date.now;
     const inject = options.credentials ?? classification.contactsTenant;
@@ -195,6 +221,15 @@ export class Backend {
       );
       return { ...result, argvDisplay, folder, durationMs };
     };
+
+    if (notStarted) {
+      return finish({
+        document: cancelledEnvelope(argv[0] ?? ""),
+        exitCode: 130,
+        via: isWasi(runtime) || !classification.spawn ? "serve" : "spawn",
+        cancelled: true,
+      });
+    }
 
     try {
       // The WASI module has no network of its own: every command, the tenant ones too, goes through serve,
@@ -255,11 +290,12 @@ export class Backend {
     if (current && this.serveRuntime !== runtime) {
       this.dropServe(current);
       this.deps.log("info", "the opentide runtime changed: stopping the serve started for the previous one");
-      void current.stop();
+      void this.closeLane(current);
     }
     if (this.serveBrokenFor === runtime) {
       return Promise.reject(new BackendError("protocol", "opentide serve is unavailable for this runtime"));
     }
+    if (this.serveGivenUpFor === runtime) return Promise.reject(new BackendError("crashed", SERVE_GIVEN_UP));
     if (this.serve?.isRunning && this.serveReady) return this.serveReady;
 
     const env = processEnv(this.deps.baseEnv(), runtime, this.deps.platform, this.fixedEnv());
@@ -267,32 +303,41 @@ export class Backend {
     const spawn = this.deps.spawn ?? cp.spawn;
     const wasi = isWasi(runtime) ? this.deps.wasi : undefined;
     const log = (level: "debug" | "info" | "warn", message: string) => this.deps.log(level, message);
-    const client = new ServeClient(
-      wasi
-        ? { start: () => wasi.start(), initializeParams: wasi.initializeParams, log }
-        : {
-            start: (): cp.ChildProcess =>
-              spawn(command, args, {
-                cwd: folder,
-                env,
-                stdio: ["pipe", "pipe", "pipe"],
-                windowsHide: true,
-                shell: false,
-              }),
-            log,
-          },
+    // The lane is the process's scope: closing it (a runtime switch, restart, dispose) stops the process.
+    const lane = loadSupervisor().openLane(
+      () =>
+        new ServeClient(
+          wasi
+            ? { start: () => wasi.start(), initializeParams: wasi.initializeParams, log }
+            : {
+                start: (): cp.ChildProcess =>
+                  spawn(command, args, {
+                    cwd: folder,
+                    env,
+                    stdio: ["pipe", "pipe", "pipe"],
+                    windowsHide: true,
+                    shell: false,
+                  }),
+                log,
+              },
+        ),
+      (client) => client.stop(),
     );
+    const client = lane.value;
+    this.lanes.set(client, lane);
     const generation = this.generation;
     this.serve = client;
     this.serveRuntime = runtime;
     client.onDidExit(({ code, signal, expected }) => {
       const wasCurrent = this.serve === client || this.serve === undefined;
       this.dropServe(client);
-      if (!expected)
+      if (!expected && !this.killed.has(client)) {
         this.deps.log(
           "warn",
           `opentide serve exited (${signal ?? `code ${code}`}); the next request restarts it`,
         );
+        if (generation === this.generation) this.recordCrash(runtime);
+      }
       if (wasCurrent) this.serveEmitter.fire({ running: false });
     });
     // start() spawns synchronously, so `client.isRunning` holds before this returns: a concurrent
@@ -335,6 +380,10 @@ export class Backend {
   ): Promise<Omit<RunResult, "argvDisplay" | "folder" | "durationMs">> {
     let client: ServeClient;
     const generation = this.generation;
+    // The backoff after a crash (the supervisor's Schedule): a cancel during it ends the request before it starts.
+    const wait = this.serve?.isRunning ? 0 : this.restartAt - (this.deps.now ?? Date.now)();
+    if (wait > 0 && !(await waitUnlessCancelled(wait, options.cancellation)))
+      return { document: cancelledEnvelope(argv[0] ?? ""), exitCode: 130, via: "serve", cancelled: true };
     try {
       // Every caller, also one that arrived while another request was starting serve, waits on the
       // same start here, so a start that fails sends each of them to spawn.
@@ -361,20 +410,38 @@ export class Backend {
     };
     let result: Awaited<ReturnType<ServeClient["run"]>>;
     try {
-      result = await client.run(
-        { argv, cwd: folder, env },
+      // Cancel-then-kill: a cancel sends `$/cancelRequest`; a serve that does not answer within the grace is killed.
+      const supervisor = loadSupervisor();
+      const graceMs = this.deps.supervision?.cancelGraceMs ?? supervisor.CANCEL_GRACE_MS;
+      const settled = await supervisor.runWithGrace(
+        (token) =>
+          client.run(
+            { argv, cwd: folder, env },
+            { token, ...(options.onProgress ? { onProgress: options.onProgress } : {}) },
+          ),
         {
           ...(options.cancellation ? { token: options.cancellation } : {}),
-          ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+          graceMs,
+          kill: () => {
+            this.killed.add(client);
+            this.deps.log("warn", `opentide serve did not answer a cancel within ${graceMs} ms: stopping it`);
+            // Forget it before it exits, so the next request (the writer this one held up) starts a new serve.
+            this.dropServe(client);
+            client.kill();
+          },
         },
       );
+      if (settled.kind === "killed")
+        return { document: cancelledEnvelope(argv[0] ?? ""), exitCode: 130, via: "serve", cancelled: true };
+      if (settled.kind === "failed") throw settled.error;
+      result = settled.value;
     } catch (error) {
       if (error instanceof BackendError && error.code === "shut-down") {
         // The runtime restarted while this request was on its way: the old serve refused it without
         // running it, so it runs again on the backend there is now, whatever its class. A serve that
         // shut down without our stop() waits for `exit`: stop it, or its process outlives the client.
         this.dropServe(client);
-        void client.stop();
+        void this.closeLane(client);
         return this.rerun(folder, argv, credentials, options, error);
       }
       if (error instanceof BackendError && error.code === "crashed") this.dropServe(client);
@@ -464,7 +531,51 @@ export class Backend {
     this.serveRuntime = undefined;
     this.serveReady = undefined;
     this.serveBrokenFor = undefined;
-    await serve?.stop();
+    this.serveGivenUpFor = undefined;
+    this.crashes = undefined;
+    this.restartAt = 0;
+    if (serve) await this.closeLane(serve);
+  }
+
+  /** Stop a serve process through its lane. */
+  private closeLane(client: ServeClient): Promise<void> {
+    return this.lanes.get(client)?.close() ?? client.stop();
+  }
+
+  /**
+   * A serve crashed (it exited on its own, not stopped or killed by us): the supervisor's Schedule says how long
+   * before the next start, or that the ceiling is reached. Then a native runtime spawns its commands, and a WASI
+   * runtime, which cannot, refuses them with one notice until restart().
+   */
+  private recordCrash(runtime: Runtime): void {
+    const now = (this.deps.now ?? Date.now)();
+    if (this.crashes?.runtime !== runtime) {
+      const supervision = this.deps.supervision;
+      this.crashes = {
+        runtime,
+        budget: loadSupervisor().makeCrashBudget({
+          ...(supervision?.crashBackoffMs !== undefined ? { baseMs: supervision.crashBackoffMs } : {}),
+          ...(supervision?.crashWindowMs !== undefined ? { windowMs: supervision.crashWindowMs } : {}),
+        }),
+      };
+    }
+    const next = this.crashes.budget.crashed(now);
+    if (next) {
+      this.restartAt = now + next.delayMs;
+      return;
+    }
+    if (!isWasi(runtime)) {
+      this.serveBrokenFor = runtime;
+      this.deps.log(
+        "warn",
+        "opentide serve keeps crashing: running each command in a process of its own instead",
+      );
+      return;
+    }
+    if (this.serveGivenUpFor === runtime) return;
+    this.serveGivenUpFor = runtime;
+    this.deps.log("error", SERVE_GIVEN_UP);
+    this.deps.notify?.(SERVE_GIVEN_UP);
   }
 
   async dispose(): Promise<void> {
@@ -473,4 +584,20 @@ export class Backend {
     this.runEmitter.dispose();
     this.serveEmitter.dispose();
   }
+}
+
+/** Wait `ms`, unless `token` is cancelled first: whether the wait ran out. */
+function waitUnlessCancelled(ms: number, token: CancellationToken | undefined): Promise<boolean> {
+  if (token?.isCancellationRequested) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      subscription?.dispose();
+      resolve(true);
+    }, ms);
+    const subscription = token?.onCancellationRequested(() => {
+      clearTimeout(timer);
+      subscription?.dispose();
+      resolve(false);
+    });
+  });
 }
