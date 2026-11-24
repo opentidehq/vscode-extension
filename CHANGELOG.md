@@ -9,6 +9,9 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **A panel that opens blank loads again on its own.** After you closed the graph while it was still
+  loading, the next one could stay empty. A panel whose page has not loaded after 10 seconds on
+  screen is now opened again in its place, once.
 - **The language server starts again after a crash on Windows.** When it ended abruptly, VS Code
   could report the connection as broken before it closed, and the server then stayed stopped until
   **opentide: Restart Server**. It now restarts as it does elsewhere.

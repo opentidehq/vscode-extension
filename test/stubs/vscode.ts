@@ -303,7 +303,16 @@ export const panelSerializers = new Map<
   { deserializeWebviewPanel(panel: unknown, state: unknown): Thenable<void> }
 >();
 
+/** What `window.createWebviewPanel` makes: a test sets `create` to hand out its own fake panels. */
+export const webviewPanels: {
+  create?: (viewType: string, title: string, show: unknown, options: unknown) => unknown;
+} = {};
+
 export const window = {
+  createWebviewPanel(viewType: string, title: string, show: unknown, options: unknown): unknown {
+    if (!webviewPanels.create) throw new Error("this test makes no webview panels");
+    return webviewPanels.create(viewType, title, show, options);
+  },
   registerWebviewPanelSerializer(
     viewType: string,
     serializer: { deserializeWebviewPanel(panel: unknown, state: unknown): Thenable<void> },

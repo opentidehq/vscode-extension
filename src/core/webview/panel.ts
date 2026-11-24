@@ -8,6 +8,7 @@ import { nonce, renderHtml } from "./html";
 import { pickResult, pickToHost, quickPickEntries, type PickRequest, type QuickPickEntry } from "./pick";
 import { placement } from "./placement";
 import { acceptMessage, type Protocol, type Validators } from "./protocol";
+import { LoadWatchdog, SILENT_PAGE_MS } from "./watchdog";
 
 /** The host's end of a webview's message channel. */
 export interface HostChannel<P extends Protocol> extends vscode.Disposable {
@@ -56,7 +57,13 @@ export function objectPanelColumn(): { viewColumn: vscode.ViewColumn; preserveFo
 }
 
 export interface OpentidePanel<P extends Protocol> extends vscode.Disposable {
+  /**
+   * The panel, as the core keeps it: if its page never runs, the core replaces the VS Code panel underneath with a new
+   * one in the same place (watchdog.ts). Its title, reveal, view state and `onDidDispose` follow; `onDidDispose`
+   * fires when the panel is closed, not when it is replaced.
+   */
   readonly panel: vscode.WebviewPanel;
+  /** The page's channel: its handlers stay when the panel is replaced, and hear the new page (which says `ready`). */
   readonly channel: HostChannel<P>;
 }
 
@@ -90,7 +97,8 @@ export interface PageEvent {
   readonly at: number;
   readonly id: number;
   readonly viewType: string;
-  readonly event: "wired" | "first message" | "ready" | "disposed";
+  /** `recreated`: its page said nothing, and a new panel took its place (`detail` names the new page). */
+  readonly event: "wired" | "first message" | "ready" | "recreated" | "disposed";
   readonly detail?: string;
 }
 
@@ -134,6 +142,8 @@ export interface WebviewHelpers {
 export function createWebviewHelpers(
   extensionUri: vscode.Uri,
   log: (message: string) => void,
+  /** Tests only: how long a visible page may say nothing before its panel is replaced (watchdog.ts). */
+  silentPageMs = SILENT_PAGE_MS,
 ): WebviewHelpers {
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
   const restorers = new Map<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>();
@@ -175,57 +185,16 @@ export function createWebviewHelpers(
       validators: Validators<P["toHost"]>,
       onRaw?: (raw: unknown) => void,
     ): HostChannel<P> {
-      const handlers = new Map<string, Set<(payload: unknown) => void | Promise<void>>>();
-      const subscription = webview.onDidReceiveMessage((raw: unknown) => {
-        onRaw?.(raw);
-        // A pick from a list is answered here for every webview: VS Code's QuickPick, not a <select>.
-        const pick = acceptMessage(raw, pickToHost);
-        if (pick) {
-          void answerPick(webview, pick.payload as PickRequest, log);
-          return;
-        }
-        const message = acceptMessage(raw, validators);
-        if (!message) {
-          log(`webview: dropped an invalid message ${JSON.stringify(raw)?.slice(0, 200)}`);
-          return;
-        }
-        for (const handler of handlers.get(message.type) ?? []) {
-          Promise.resolve(handler(message.payload)).catch((error: unknown) =>
-            log(`webview handler failed: ${String(error)}`),
-          );
-        }
-      });
-      return {
-        post: (type, payload) => webview.postMessage({ type, payload }),
-        on(type, handler) {
-          let set = handlers.get(type);
-          if (!set) {
-            set = new Set();
-            handlers.set(type, set);
-          }
-          const entry = handler as (payload: unknown) => void | Promise<void>;
-          set.add(entry);
-          return new vscode.Disposable(() => set.delete(entry));
-        },
-        dispose: () => {
-          subscription.dispose();
-          handlers.clear();
-        },
-      };
+      return channelOver<P>(webview, validators, log, onRaw);
     },
     adoptPanel<P extends Protocol>(panel: vscode.WebviewPanel, options: PanelOptions<P>): OpentidePanel<P> {
-      // A revived panel has no options of its own: scripts and resource roots are set again, as for a new one.
-      panel.webview.options = helpers.webviewOptions();
-      panel.webview.html = helpers.html(panel.webview, options.entry, options.title, {
-        kit: options.kit ?? false,
-      });
-      const page: { -readonly [K in keyof PageState]: PageState[K] } = {
-        viewType: options.viewType,
-        ready: false,
-        id: nextPage++,
-        messages: 0,
-      };
-      const channel = helpers.connect<P>(panel.webview, options.validators, (raw) => {
+      const live = new LivePanel(panel);
+      // The page in the panel now (a replacement has its own), its lifecycle and the listeners on its VS Code panel.
+      let page: { -readonly [K in keyof PageState]: PageState[K] };
+      let wiring: vscode.Disposable[] = [];
+      let closed = false;
+      const channel = channelOver<P>(panel.webview, options.validators, log, (raw) => {
+        watchdog.heard();
         page.messages += 1;
         if (page.messages === 1) {
           const type = (raw as { type?: unknown } | undefined)?.type;
@@ -238,33 +207,92 @@ export function createWebviewHelpers(
           );
         }
       });
-      pages.set(panel, page);
-      record(page, "wired");
       // Through the validated channel (no second listener on the page): every opentide page says `ready` once loaded.
       const loaded = (channel as unknown as HostChannel<ReadyProtocol>).on("ready", () => {
         page.ready = true;
         record(page, "ready");
       });
-      let forgotten = false;
-      const forget = (): void => {
-        if (forgotten) return;
-        forgotten = true;
-        loaded.dispose();
-        pages.delete(panel);
-        record(page, "disposed");
+      /** Wire `current`: its options, its page, and the listeners that follow its view state and its close. */
+      const wire = (current: vscode.WebviewPanel): void => {
+        // A revived panel has no options of its own: scripts and resource roots are set again, as for a new one.
+        current.webview.options = helpers.webviewOptions();
+        current.webview.html = helpers.html(current.webview, options.entry, options.title, {
+          kit: options.kit ?? false,
+        });
+        page = { viewType: options.viewType, ready: false, id: nextPage++, messages: 0 };
+        pages.set(current, page);
+        record(page, "wired");
+        wiring = [
+          current.onDidChangeViewState(() => {
+            watchdog.visibilityChanged();
+            live.viewStateChanged.fire({ webviewPanel: live });
+          }),
+          current.onDidDispose(() => close()),
+        ];
       };
-      const disposeChannel = panel.onDidDispose(() => {
+      const unwire = (current: vscode.WebviewPanel): void => {
+        for (const listener of wiring) listener.dispose();
+        wiring = [];
+        pages.delete(current);
+      };
+      const close = (): void => {
+        if (closed) return;
+        closed = true;
+        watchdog.dispose();
+        loaded.dispose();
         channel.dispose();
-        forget();
-      });
+        unwire(live.current);
+        record(page, "disposed");
+        live.closed();
+      };
+      // A page that says nothing while visible gets a new panel in its place, once (watchdog.ts: a VS Code webview
+      // behaviour; setting its HTML again does not wake it). The new one opens before the silent one closes, in its
+      // column, with its title: closing a page that is loading just before opening the next is what loses the page.
+      const replace = (): void => {
+        const silent = live.current;
+        let next: vscode.WebviewPanel;
+        try {
+          next = vscode.window.createWebviewPanel(
+            options.viewType,
+            silent.title,
+            { viewColumn: silent.viewColumn ?? vscode.ViewColumn.Active, preserveFocus: !silent.active },
+            {
+              ...helpers.webviewOptions(),
+              retainContextWhenHidden: options.retainContextWhenHidden ?? false,
+              enableFindWidget: options.enableFindWidget ?? true,
+            },
+          );
+        } catch (error) {
+          // The silent panel stays as it is: no worse than before.
+          log(`webview: could not open ${options.viewType} again: ${String(error)}`);
+          return;
+        }
+        if (silent.iconPath) next.iconPath = silent.iconPath;
+        const was = page;
+        unwire(silent);
+        live.current = next;
+        channel.rebind(next.webview);
+        wire(next);
+        record(was, "recreated", `by #${page.id}`);
+        silent.dispose();
+      };
+      const watchdog = new LoadWatchdog(
+        options.viewType,
+        {
+          visible: () => live.current.visible,
+          replace,
+          log: (_level, message) => log(`webview: ${message}`),
+        },
+        silentPageMs,
+      );
+      wire(panel);
       return {
-        panel,
+        panel: live,
         channel,
         dispose: () => {
-          disposeChannel.dispose();
-          channel.dispose();
-          forget();
-          panel.dispose();
+          const current = live.current;
+          close();
+          current.dispose();
         },
       };
     },
@@ -312,6 +340,120 @@ export function createWebviewHelpers(
     },
   };
   return helpers;
+}
+
+/** A channel that can move to another webview (a replaced panel's), keeping its handlers. */
+interface MovableChannel<P extends Protocol> extends HostChannel<P> {
+  rebind(webview: vscode.Webview): void;
+}
+
+function channelOver<P extends Protocol>(
+  first: vscode.Webview,
+  validators: Validators<P["toHost"]>,
+  log: (message: string) => void,
+  onRaw?: (raw: unknown) => void,
+): MovableChannel<P> {
+  const handlers = new Map<string, Set<(payload: unknown) => void | Promise<void>>>();
+  let webview = first;
+  const listen = (target: vscode.Webview): vscode.Disposable =>
+    target.onDidReceiveMessage((raw: unknown) => {
+      onRaw?.(raw);
+      // A pick from a list is answered here for every webview: VS Code's QuickPick, not a <select>.
+      const pick = acceptMessage(raw, pickToHost);
+      if (pick) {
+        void answerPick(target, pick.payload as PickRequest, log);
+        return;
+      }
+      const message = acceptMessage(raw, validators);
+      if (!message) {
+        log(`webview: dropped an invalid message ${JSON.stringify(raw)?.slice(0, 200)}`);
+        return;
+      }
+      for (const handler of handlers.get(message.type) ?? []) {
+        Promise.resolve(handler(message.payload)).catch((error: unknown) =>
+          log(`webview handler failed: ${String(error)}`),
+        );
+      }
+    });
+  let subscription = listen(webview);
+  return {
+    post: (type, payload) => webview.postMessage({ type, payload }),
+    on(type, handler) {
+      let set = handlers.get(type);
+      if (!set) {
+        set = new Set();
+        handlers.set(type, set);
+      }
+      const entry = handler as (payload: unknown) => void | Promise<void>;
+      set.add(entry);
+      return new vscode.Disposable(() => set.delete(entry));
+    },
+    rebind(next) {
+      subscription.dispose();
+      webview = next;
+      subscription = listen(next);
+    },
+    dispose: () => {
+      subscription.dispose();
+      handlers.clear();
+    },
+  };
+}
+
+/**
+ * The panel a feature holds: VS Code's panel underneath can be replaced (when its page never runs), and this one
+ * follows it. Its `onDidDispose` is the panel being closed, by the user or the feature, never the replacement.
+ */
+class LivePanel implements vscode.WebviewPanel {
+  readonly disposed = new vscode.EventEmitter<void>();
+  readonly viewStateChanged = new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
+  readonly onDidDispose = this.disposed.event;
+  readonly onDidChangeViewState = this.viewStateChanged.event;
+
+  constructor(public current: vscode.WebviewPanel) {}
+
+  get viewType(): string {
+    return this.current.viewType;
+  }
+  get title(): string {
+    return this.current.title;
+  }
+  set title(value: string) {
+    this.current.title = value;
+  }
+  get iconPath(): vscode.WebviewPanel["iconPath"] {
+    return this.current.iconPath;
+  }
+  set iconPath(value: vscode.WebviewPanel["iconPath"]) {
+    this.current.iconPath = value;
+  }
+  get webview(): vscode.Webview {
+    return this.current.webview;
+  }
+  get options(): vscode.WebviewPanelOptions {
+    return this.current.options;
+  }
+  get viewColumn(): vscode.ViewColumn | undefined {
+    return this.current.viewColumn;
+  }
+  get active(): boolean {
+    return this.current.active;
+  }
+  get visible(): boolean {
+    return this.current.visible;
+  }
+  reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
+    this.current.reveal(viewColumn, preserveFocus);
+  }
+  dispose(): void {
+    this.current.dispose();
+  }
+  /** The panel was closed: say so once, then let go of the listeners. */
+  closed(): void {
+    this.disposed.fire();
+    this.disposed.dispose();
+    this.viewStateChanged.dispose();
+  }
 }
 
 /** Show a webview's list in VS Code's QuickPick and post what was chosen (null when it was dismissed). */
