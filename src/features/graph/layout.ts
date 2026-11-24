@@ -1,6 +1,7 @@
 // Layered left-to-right layout (dagre), and keeping positions stable across refreshes so the graph does
 // not jump while you work (SPEC §10.1 "Layout"). vscode-free and DOM-free: the webview imports it.
 import type { GraphEdge, GraphNode, NodeKind } from "./model";
+import type { GraphMode } from "./view";
 
 // The part of dagre this uses. dagre ships ESM-only declarations next to the CommonJS build that this
 // CommonJS module (and esbuild's bundle of it) loads, so its API is declared here and loaded by require.
@@ -72,14 +73,25 @@ export function largeView(nodes: number, wasLarge: boolean): boolean {
   return wasLarge ? nodes >= LARGE_VIEW_LEAVE : nodes > HUGE_LAYOUT;
 }
 
+/**
+ * Catalogue mode lays out with `layeredLayout` from this many core nodes: dagre takes 80 ms at 200
+ * objects, 0.5 s at 1,000 and 0.7 s at 1,400, on the webview's thread. Focus mode stays on dagre.
+ */
+export const CATALOGUE_LAYERED = 350;
+
 const RANK_SEP = 70;
 const NODE_SEP = 8;
 const MARGIN = 20;
 
-export function layout(nodes: readonly GraphNode[], edges: readonly GraphEdge[]): Map<string, Point> {
+export function layout(
+  nodes: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+  mode?: GraphMode,
+): Map<string, Point> {
   const satellite = new Set<NodeKind>(SATELLITE_KINDS);
   const core = nodes.filter((node) => !satellite.has(node.kind));
-  const positions = core.length > HUGE_LAYOUT ? layeredLayout(core, edges) : dagreLayout(core, edges);
+  const layered = core.length > (mode === "catalogue" ? CATALOGUE_LAYERED : HUGE_LAYOUT);
+  const positions = layered ? layeredLayout(core, edges) : dagreLayout(core, edges);
   placeSatellites(
     positions,
     nodes.filter((node) => satellite.has(node.kind)),

@@ -7,6 +7,12 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **The graph opens without a pause on catalogues of 500–1,500 objects.** The Catalogue view used to block the
+  panel for up to 0.7 s while it was laid out; it now takes a few milliseconds. Small catalogues and Focus
+  keep the layout they had.
+
 ### Fixed
 
 - **CQL, Exabeam, YARA and YARA-L queries are fully coloured in every theme.** Fields, functions and types
