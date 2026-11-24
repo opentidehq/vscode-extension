@@ -52,6 +52,18 @@ async function pageReady(panel: vscode.WebviewPanel, received: readonly string[]
   process.stdout.write(`PANEL-RESTORE ${panel.viewType} page ready after ${Date.now() - began} ms\n`);
 }
 
+/** The view type's page events, oldest first, timed from the first: which page was wired, disposed, ready, when. */
+function lifecycleOf(api: Required<ExtensionApi>, viewType: string, since = 0): string {
+  const events = api.ctx.webview.lifecycle.slice(since).filter((event) => event.viewType === viewType);
+  const start = events[0]?.at ?? 0;
+  return events
+    .map(
+      (event) =>
+        `+${Math.round(event.at - start)} #${event.id} ${event.event}${event.detail ? ` (${event.detail})` : ""}`,
+    )
+    .join(", ");
+}
+
 /** Where a panel is, or that it is gone: what a timeout says, so a page that never loads is diagnosable. */
 function panelState(panel: vscode.WebviewPanel): string {
   try {
@@ -71,10 +83,14 @@ async function openedPageReady(api: Required<ExtensionApi>, viewType: string, wh
   try {
     await waitFor(() => (pages().some(([, page]) => page.ready) ? true : undefined), 30_000);
   } catch {
-    const states = pages().map(([panel, page]) => `${panelState(panel)} ready=${page.ready}`);
+    const states = pages().map(
+      ([panel, page]) =>
+        `page ${page.id} ${panelState(panel)} ready=${page.ready} messages=${page.messages}` +
+        (page.firstType ? ` first=${page.firstType}` : ""),
+    );
     throw new Error(
       `the page of ${what} sent no "ready" in ${Math.round((Date.now() - began) / 1000)} s: ` +
-        `${states.join("; ") || "no such panel"}; tabs ${tabsOf(viewType).length}`,
+        `${states.join("; ") || "no such panel"}; tabs ${tabsOf(viewType).length}; lifecycle ${lifecycleOf(api, viewType)}`,
     );
   }
   process.stdout.write(`PANEL-RESTORE ${what} page ready after ${Date.now() - began} ms\n`);
@@ -91,19 +107,48 @@ describe("panels restored after a window reload", () => {
     assert.ok(api.ctx.webview.restorers.has(MATRIX), "matrix");
   });
 
-  // A graph closed while its page (1.2 MB) still loads, then opened again: the new page loads. Panels of one view type
-  // share their webview origin, so a load cut short could hold up the next one's; this says whether it does.
-  it("a graph closed before its page loaded does not keep the next one from loading", async () => {
-    const api = await activated();
-    for (let round = 1; round <= 3; round += 1) {
-      await vscode.commands.executeCommand("opentide.graph.open");
-      await waitFor(() => tabsOf(GRAPH)[0]);
-      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-      await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
-    }
+  // A graph closed while its page (1.2 MB) still loads, then opened again: the new page loads. It stalled in CI, most
+  // often (perhaps only) when the cut-short load was the window's first graph. Two tests tell those apart, and each
+  // prints the pages' lifecycle: whether the closed panel's dispose came before the next one was wired, and whether
+  // a page that never said `ready` sent anything at all (the graph's page says "script started" first).
+  const cutShort = async (api: Required<ExtensionApi>, what: string): Promise<number> => {
     await vscode.commands.executeCommand("opentide.graph.open");
-    await openedPageReady(api, GRAPH, "the graph opened after three closed while loading");
-    assert.equal(api.ctx.webview.pages.size, 1, "the closed panels are forgotten");
+    await waitFor(() => tabsOf(GRAPH)[0]);
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
+    const began = Date.now();
+    await vscode.commands.executeCommand("opentide.graph.open");
+    await openedPageReady(api, GRAPH, what);
+    const took = Date.now() - began;
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
+    return took;
+  };
+
+  it("the window's first graph, closed while it loads, does not keep the next one from loading", async () => {
+    const api = await activated();
+    const before = api.ctx.webview.lifecycle.filter(
+      (e) => e.viewType === GRAPH && e.event === "wired",
+    ).length;
+    const mark = api.ctx.webview.lifecycle.length;
+    const took = await cutShort(api, "the graph opened after the window's first was closed while loading");
+    process.stdout.write(
+      `PANEL-RESTORE first-load cut short (graphs wired before: ${before}): next ready after ${took} ms; ` +
+        `lifecycle ${lifecycleOf(api, GRAPH, mark)}\n`,
+    );
+  });
+
+  it("a graph closed while it loads, after one that loaded fully, does not keep the next one from loading (10 cycles)", async () => {
+    const api = await activated();
+    await vscode.commands.executeCommand("opentide.graph.open");
+    await openedPageReady(api, GRAPH, "a graph opened and left to load");
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await waitFor(() => (tabsOf(GRAPH).length === 0 ? true : undefined));
+    const cycles: number[] = [];
+    for (let cycle = 1; cycle <= 10; cycle += 1)
+      cycles.push(await cutShort(api, `the graph opened after one closed while loading (cycle ${cycle})`));
+    process.stdout.write(`PANEL-RESTORE close-mid-load cycles ready after ${cycles.join(", ")} ms\n`);
+    assert.equal(api.ctx.webview.pages.size, 0, "the closed panels are forgotten");
   });
 
   it("the graph: a revived panel is wired, shows the graph page and is the one panel", async () => {
