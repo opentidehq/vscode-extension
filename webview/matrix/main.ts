@@ -26,6 +26,7 @@ import { type MatrixProtocol, type MatrixState, webviewValidators } from "../../
 import { restoreUi, type UiState } from "../../src/features/matrix/uistate";
 import { addStyles, announce, h, mount, replace, setClass, setText } from "../panels-kit/dom";
 import { hideHoverCard, hoverCard } from "../panels-kit/menu";
+import { PickButton } from "../panels-kit/pick";
 import { createChannel, vscodeApi } from "../shared/channel";
 
 const channel = createChannel<MatrixProtocol>(webviewValidators);
@@ -189,20 +190,7 @@ function notReady(s: MatrixState) {
 function renderHeader(s: MatrixState): void {
   const view = s.view;
   const context = [
-    s.folders.length > 1
-      ? h(
-          "select",
-          {
-            attrs: { "aria-label": "Folder", "data-focus": "folder" },
-            on: { change: (event) => channel.post("folder", (event.target as HTMLSelectElement).value) },
-          },
-          s.folders.map((f) =>
-            h("option", { text: f.name, attrs: { value: f.path, selected: f.path === s.folder?.path } }),
-          ),
-        )
-      : s.folder
-        ? chip({ text: s.folder.name, icon: "folder" })
-        : null,
+    s.folders.length > 1 ? pickFolder(s) : s.folder ? chip({ text: s.folder.name, icon: "folder" }) : null,
     view
       ? chip({
           text: `${view.covered} of ${view.techniques} techniques covered`,
@@ -243,6 +231,22 @@ function renderHeader(s: MatrixState): void {
   );
 }
 
+/** The folder choice: a pick button whose items are the folders, described by their paths. */
+function pickFolder(s: MatrixState): HTMLElement {
+  const pick = new PickButton({
+    label: "Folder",
+    title: "Folder",
+    placeHolder: "Choose the opentide folder",
+    focusKey: "folder",
+    onChange: (path) => channel.post("folder", path),
+  });
+  pick.setItems(
+    s.folders.map((f) => ({ value: f.path, label: f.name, description: f.path })),
+    s.folder?.path ?? "",
+  );
+  return pick.element;
+}
+
 function setFilters(change: Partial<MatrixFilters>): void {
   if (!state) return;
   const next: MatrixFilters = { ...state.filters, ...change };
@@ -253,6 +257,7 @@ function setFilters(change: Partial<MatrixFilters>): void {
   channel.post("filters", clean);
 }
 
+/** A choice from a list: a button that opens VS Code's own picker (see panels-kit/pick.ts). */
 function select(
   label: string,
   value: string,
@@ -260,17 +265,19 @@ function select(
   onChange: (value: string) => void,
   disabled = false,
 ) {
-  return h("label", {}, [
-    label,
-    h(
-      "select",
-      {
-        attrs: { disabled, "data-focus": `select:${label}` },
-        on: { change: (event) => onChange((event.target as HTMLSelectElement).value) },
-      },
-      options.map(([v, text]) => h("option", { text, attrs: { value: v, selected: v === value } })),
-    ),
-  ]);
+  const name = label.trim();
+  const pick = new PickButton({
+    label: name,
+    title: name,
+    focusKey: `select:${label}`,
+    onChange,
+  });
+  pick.setItems(
+    options.map(([v, text]) => ({ value: v, label: text })),
+    value,
+  );
+  pick.element.disabled = disabled;
+  return h("span", { class: "ot-pick-field" }, [label, pick.element]);
 }
 
 function toggle(label: string, checked: boolean, onChange: (checked: boolean) => void, title?: string) {

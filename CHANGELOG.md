@@ -9,6 +9,8 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The ATT&CK coverage panel's folder, platform and tenant choices open VS Code's own picker.** They were
+  native drop-downs whose popup looked unlike the rest of VS Code; the folder list shows each folder's path.
 - **The results table's "in column" choice opens VS Code's own picker.** It was a native drop-down whose popup
   looked unlike the rest of VS Code; it is now a button that opens the Quick Pick, with the current column
   marked, and Escape keeps the choice.
