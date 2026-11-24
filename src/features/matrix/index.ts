@@ -107,7 +107,7 @@ class MatrixPanel implements vscode.Disposable {
       // page of its own in the active group.
       beside: args.technique !== undefined,
       kit: true,
-      retainContextWhenHidden: true,
+      retainContextWhenHidden: false,
     });
     const { channel, panel } = this.view;
     this.disposables.push(
