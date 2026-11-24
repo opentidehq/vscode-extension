@@ -2,6 +2,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { objectFolders } from "../engine/pathsToml";
+
 export { DEFAULT_OBJECT_FOLDERS, objectFolders, readTomlTable } from "../engine/pathsToml";
 
 export interface DirEntry {
@@ -39,6 +41,41 @@ export function isOpentideFolder(
   return list(folder).some(
     (entry) => entry.directory && (entry.name === ".opentide" || entry.name === "objects"),
   );
+}
+
+/** `listDir` without blocking the thread: a folder's entries (symlinks followed), or none when it cannot be read. */
+export async function listDirAsync(folder: string): Promise<DirEntry[]> {
+  let entries: fs.Dirent[];
+  try {
+    entries = await fs.promises.readdir(folder, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return Promise.all(
+    entries.map(async (entry) => {
+      let directory = entry.isDirectory();
+      if (entry.isSymbolicLink()) {
+        directory = await fs.promises.stat(path.join(folder, entry.name)).then(
+          (stat) => stat.isDirectory(),
+          () => false,
+        );
+      }
+      return { name: entry.name, directory };
+    }),
+  );
+}
+
+/**
+ * What the window needs to know of a workspace folder, read without blocking: whether it is an opentide folder,
+ * and the object folders its paths.toml names (undefined when it is not one).
+ */
+export async function scanFolder(
+  folder: string,
+): Promise<{ objectFolders: Record<string, string> } | undefined> {
+  const entries = await listDirAsync(folder);
+  if (!isOpentideFolder(folder, () => entries)) return undefined;
+  const toml = await fs.promises.readFile(pathsTomlFile(folder), "utf8").catch(() => undefined);
+  return { objectFolders: objectFolders(toml) };
 }
 
 export function pathsTomlFile(folder: string): string {

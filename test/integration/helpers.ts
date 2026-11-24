@@ -23,6 +23,8 @@ export async function activated(): Promise<Required<ExtensionApi>> {
   const api = await extension.activate();
   assert.ok(api.ctx, "the test API exposes the feature context");
   await api.started;
+  // The folders are scanned without blocking activation; the tests read them as the window knows them.
+  await api.ctx.folders.ready();
   return api as Required<ExtensionApi>;
 }
 
