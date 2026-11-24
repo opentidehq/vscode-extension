@@ -8,6 +8,7 @@ import { nonce, renderHtml } from "./html";
 import { pickResult, pickToHost, quickPickEntries, type PickRequest, type QuickPickEntry } from "./pick";
 import { placement } from "./placement";
 import { acceptMessage, type Protocol, type Validators } from "./protocol";
+import { LoadWatchdog, SILENT_PAGE_MS } from "./watchdog";
 
 /** The host's end of a webview's message channel. */
 export interface HostChannel<P extends Protocol> extends vscode.Disposable {
@@ -90,7 +91,7 @@ export interface PageEvent {
   readonly at: number;
   readonly id: number;
   readonly viewType: string;
-  readonly event: "wired" | "first message" | "ready" | "disposed";
+  readonly event: "wired" | "first message" | "ready" | "reloaded" | "disposed";
   readonly detail?: string;
 }
 
@@ -134,6 +135,8 @@ export interface WebviewHelpers {
 export function createWebviewHelpers(
   extensionUri: vscode.Uri,
   log: (message: string) => void,
+  /** Tests only: how long a visible page may say nothing before it is loaded again (watchdog.ts). */
+  silentPageMs = SILENT_PAGE_MS,
 ): WebviewHelpers {
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
   const restorers = new Map<string, (panel: vscode.WebviewPanel, saved: SavedState) => Thenable<void>>();
@@ -225,7 +228,24 @@ export function createWebviewHelpers(
         id: nextPage++,
         messages: 0,
       };
+      // A page that says nothing while visible is loaded again, once (watchdog.ts: a VS Code webview behaviour).
+      const watchdog = new LoadWatchdog(
+        options.viewType,
+        {
+          visible: () => panel.visible,
+          reload: () => {
+            panel.webview.html = helpers.html(panel.webview, options.entry, options.title, {
+              kit: options.kit ?? false,
+            });
+            record(page, "reloaded");
+          },
+          log: (_level, message) => log(`webview: ${message}`),
+        },
+        silentPageMs,
+      );
+      const shown = panel.onDidChangeViewState(() => watchdog.visibilityChanged());
       const channel = helpers.connect<P>(panel.webview, options.validators, (raw) => {
+        watchdog.heard();
         page.messages += 1;
         if (page.messages === 1) {
           const type = (raw as { type?: unknown } | undefined)?.type;
@@ -249,6 +269,8 @@ export function createWebviewHelpers(
       const forget = (): void => {
         if (forgotten) return;
         forgotten = true;
+        watchdog.dispose();
+        shown.dispose();
         loaded.dispose();
         pages.delete(panel);
         record(page, "disposed");

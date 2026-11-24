@@ -29,9 +29,15 @@ function revivedPanel() {
     },
     postMessage: async () => true,
   };
+  const viewState: (() => void)[] = [];
   const panel = {
     title: "opentide graph",
     webview,
+    visible: false,
+    onDidChangeViewState: (listener: () => void) => {
+      viewState.push(listener);
+      return { dispose: () => void viewState.splice(viewState.indexOf(listener), 1) };
+    },
     onDidDispose: (listener: () => void) => {
       disposed.push(listener);
       return { dispose: () => void (disposed = disposed.filter((d) => d !== listener)) };
@@ -40,7 +46,12 @@ function revivedPanel() {
       for (const listener of disposed) listener();
     },
   };
-  return { panel, webview, messages, isDisposed: () => disposed.length === 0 };
+  /** VS Code shows or hides the panel. */
+  const setVisible = (visible: boolean) => {
+    panel.visible = visible;
+    for (const listener of [...viewState]) listener();
+  };
+  return { panel, webview, messages, setVisible, isDisposed: () => disposed.length === 0 };
 }
 
 describe("registerPanelSerializer", () => {
@@ -167,5 +178,28 @@ describe("registerPanelSerializer", () => {
     assert.equal(opened.panel, revived.panel as unknown);
     opened.dispose();
     assert.ok(revived.isDisposed());
+  });
+
+  it("loads a visible page that said nothing again, once, in the same panel (the watchdog)", async () => {
+    const quick = createWebviewHelpers(vscode.Uri.file("/ext"), (message) => logs.push(message), 20);
+    quick.registerPanelSerializer<TestProtocol>(options, () => undefined);
+    const revived = revivedPanel();
+    revived.panel.visible = true;
+    await panelSerializers.get("opentide.test")?.deserializeWebviewPanel(revived.panel, undefined);
+    const first = revived.webview.html;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.notEqual(revived.webview.html, first, "the page was set again (a fresh nonce)");
+    assert.ok(
+      logs.includes("webview: the page of opentide.test sent nothing in 0 s: loading it again"),
+      logs.join(" | "),
+    );
+    const id = quick.pages.get(revived.panel as unknown as vscode.WebviewPanel)?.id;
+    assert.ok(quick.lifecycle.some((event) => event.id === id && event.event === "reloaded"));
+    assert.ok(!revived.isDisposed(), "the panel stays: only its page loads again");
+    for (const listener of revived.messages) listener({ type: "ready" });
+    const reloaded = revived.webview.html;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(revived.webview.html, reloaded, "a page that speaks is left alone");
+    revived.panel.dispose();
   });
 });
