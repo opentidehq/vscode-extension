@@ -70,6 +70,52 @@ const ENUMS = [
 
 const CAPTURE = (name) => ({ name });
 
+export const QUOTE_BEGIN = "string.quoted.tide punctuation.definition.string.begin.tide";
+export const QUOTE_END = "string.quoted.tide punctuation.definition.string.end.tide";
+/** The zip grammar's comment scope (its `capture:comment` rule). */
+const COMMENT = "comment.line.opentide";
+
+/**
+ * An inline query value from capture group `n` on: `'…'` or `"…"` with its quotes apart and the text between them
+ * embedded, or a plain value, then a trailing comment. Embedding the quotes too would let the query
+ * grammar's string rule take the whole value, so the query would be one string token.
+ */
+function inlineQuery(n, embedded, scope) {
+  const query = { name: embedded, patterns: [{ include: scope }] };
+  return {
+    regex: `(?:(['"])(.*?)(\\${n})|(.+?))(?:[ \\t]+(#.*))?[ \\t]*$`,
+    captures: {
+      [n]: CAPTURE(QUOTE_BEGIN),
+      [n + 1]: query,
+      [n + 2]: CAPTURE(QUOTE_END),
+      [n + 3]: query,
+      [n + 4]: CAPTURE(COMMENT),
+    },
+  };
+}
+
+/** The opentide inline query rules (#171): `^(\s+)(key)\s*(:)\s+(?![|>])(.+)$` with group 4 embedded. */
+const ZIP_INLINE = "\\s+(?![|>])(.+)$";
+
+function splitInlineQueries(configurations, Failure) {
+  let count = 0;
+  for (const platform of configurations.patterns) {
+    for (const rule of platform.patterns ?? []) {
+      const embedded = rule.captures?.[4];
+      if (typeof rule.match !== "string" || !embedded?.name?.startsWith("meta.embedded.block.")) continue;
+      if (!rule.match.endsWith(ZIP_INLINE))
+        fail(Failure, `inline query rule ${rule.match} does not end with ${ZIP_INLINE}`);
+      const scope = embedded.patterns?.[0]?.include;
+      if (!scope) fail(Failure, `inline query rule ${rule.match} includes no grammar`);
+      const inline = inlineQuery(4, embedded.name, scope);
+      rule.match = `${rule.match.slice(0, -"(.+)$".length)}${inline.regex}`;
+      rule.captures = { 2: rule.captures[2], 3: rule.captures[3], ...inline.captures };
+      count += 1;
+    }
+  }
+  if (count === 0) fail(Failure, "no inline query rule under configurations");
+}
+
 function fail(Failure, message) {
   throw new Failure(
     `tide.tmLanguage.json: ${message}; the highlights zip changed, update scripts/tide-align.mjs`,
@@ -242,11 +288,11 @@ function languageRule({ key, value, scope, embedded }) {
           patterns: [{ include: scope }],
         }
       : {
-          match: "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(.+?)(?=[ \\t]+#|[ \\t]*$)",
+          match: `^(\\s+)(query)(\\s*)(:)\\s+(?![|>])${inlineQuery(5, embedded, scope).regex}`,
           captures: {
             2: CAPTURE(PROPERTY),
             4: CAPTURE(OPERATOR),
-            5: { name: embedded, patterns: [{ include: scope }] },
+            ...inlineQuery(5, embedded, scope).captures,
           },
         }),
   });
@@ -333,6 +379,7 @@ export function alignTide(grammar, Failure = Error) {
   if (!configurations?.begin?.startsWith("^(configurations)"))
     fail(Failure, "the first rule is not configurations");
   splitColons([configurations], Failure);
+  splitInlineQueries(configurations, Failure);
 
   // 3. Elastic: the language of the query, once `type:` or `language:` has said it.
   const last = configurations.patterns.at(-1);

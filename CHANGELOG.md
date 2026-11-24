@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A query written on one line in quotes is coloured as a query.** `query: '…'` was painted as a single
+  string until the language server answered. A comment after it is coloured as a comment.
+
 ## [0.4.0] - 2026-11-23
 
 opentide 1.0.0-rc.4 inside the extension. Completion and hover know ATT&CK 20.1 and current MISP threat actors.

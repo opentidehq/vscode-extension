@@ -71,7 +71,16 @@ const TIDE_PATTERNS = [
         begin: "^(\\s+)(sentinel)\\s*:\\s*(?:#.*)?$",
         beginCaptures: { 2: { name: "variable.other.property.tide" } },
         end: "^(?!\\1\\s+\\S|\\s*$)",
-        patterns: [{ include: "source.kql" }],
+        patterns: [
+          {
+            match: "^(\\s+)(query)\\s*:\\s+(?![|>])(.+)$",
+            captures: {
+              2: { name: "variable.other.property.tide" },
+              3: { name: "meta.embedded.block.kql", patterns: [{ include: "source.kql" }] },
+            },
+          },
+          { include: "source.kql" },
+        ],
       },
       { include: "$self" },
     ],
