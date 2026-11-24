@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Inline code in a rule's description is readable in dark themes.** It was dark grey on dark, at a contrast
+  of 3:1 in Dark+ and Dark Modern; it now takes the theme's constant colour (8:1).
+
 ## [0.4.0] - 2026-11-23
 
 opentide 1.0.0-rc.4 inside the extension. Completion and hover know ATT&CK 20.1 and current MISP threat actors.

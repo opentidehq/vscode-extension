@@ -237,6 +237,12 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     assert.ok(underType(lastScope(esql, "# What it finds", "# What it finds"), "type"));
     assert.ok(scopesOf(esql, "# What it finds", "What").includes("string.unquoted.block.tide"));
     assert.ok(underType(lastScope(esql, "Elastic ESQL with", "`code`"), "regexp"));
+    // not `constant.regexp`, which Dark+ and Dark Modern colour #646695 (3.0:1)
+    assert.equal(lastScope(esql, "Elastic ESQL with", "`code`"), "variable.other.constant.markdown.tide");
+    assert.ok(
+      !tokenTypeScopes.regexp.some((scope) => scope.startsWith("constant.regexp")),
+      tokenTypeScopes.regexp,
+    );
     assert.ok(underType(lastScope(esql, "- one", "- "), "operator"));
   });
 
