@@ -70,19 +70,17 @@ export function which(
   return pathCandidates(name, envPath, platform, pathExt).find(exists);
 }
 
-/** The first of `candidates` that exists, in order, a few stats at a time. */
-async function firstExisting(
-  candidates: readonly string[],
-  exists: (file: string) => Promise<boolean>,
-  width = 16,
-): Promise<string | undefined> {
-  for (let at = 0; at < candidates.length; at += width) {
-    const chunk = candidates.slice(at, at + width);
-    const hits = await Promise.all(chunk.map(exists));
-    const hit = hits.indexOf(true);
-    if (hit >= 0) return chunk[hit];
+/**
+ * The names in `dir`, for a PATH lookup: none when it does not exist (or is no folder), undefined when it cannot be
+ * listed (no read permission: its files may still be found by name, so the lookup stats them instead).
+ */
+export async function listDirAsync(dir: string): Promise<readonly string[] | undefined> {
+  try {
+    return await fs.promises.readdir(dir);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR" ? [] : undefined;
   }
-  return undefined;
 }
 
 /**
@@ -97,9 +95,13 @@ export class PathLookup {
   private found = new Map<string, string | undefined>();
   private pending = new Map<string, Promise<string | undefined>>();
 
+  /** The names in each PATH folder, by folder, for the async lookups: one listing serves every name looked up. */
+  private listings = new Map<string, Promise<ReadonlySet<string> | undefined>>();
+
   constructor(
     private readonly exists: (file: string) => boolean = isFile,
     private readonly existsAsync: (file: string) => Promise<boolean> = isFileAsync,
+    private readonly listAsync: (dir: string) => Promise<readonly string[] | undefined> = listDirAsync,
   ) {}
 
   which(
@@ -118,7 +120,7 @@ export class PathLookup {
     return result;
   }
 
-  /** `which`, with every stat off the calling thread. Concurrent lookups of one name share their stats. */
+  /** `which`, with every file system call off the calling thread. Concurrent lookups of one name share one search. */
   async whichAsync(
     name: string,
     envPath: string | undefined,
@@ -133,11 +135,9 @@ export class PathLookup {
     const pending = this.pending;
     let lookup = pending.get(name);
     if (!lookup) {
-      lookup = firstExisting(pathCandidates(name, envPath, platform, pathExt), this.existsAsync).finally(
-        () => {
-          if (pending.get(name) === lookup) pending.delete(name);
-        },
-      );
+      lookup = this.search(name, envPath, platform, pathExt).finally(() => {
+        if (pending.get(name) === lookup) pending.delete(name);
+      });
       pending.set(name, lookup);
     }
     const result = await lookup;
@@ -151,6 +151,40 @@ export class PathLookup {
     this.key = undefined;
     this.found = new Map();
     this.pending = new Map();
+    this.listings = new Map();
+  }
+
+  /**
+   * The first candidate that is a file, in PATH order. Every PATH folder is listed at once (one `readdir` each, all in
+   * parallel, kept for the next names), and only a name a listing has is checked with a stat: on Windows that is about
+   * a hundred listings instead of a stat for every folder and PATHEXT extension, one after another.
+   */
+  private async search(
+    name: string,
+    envPath: string | undefined,
+    platform: NodeJS.Platform,
+    pathExt: string | undefined,
+  ): Promise<string | undefined> {
+    const fold = (file: string) => (platform === "win32" ? file.toLowerCase() : file);
+    const candidates = pathCandidates(name, envPath, platform, pathExt);
+    const listings = this.listings;
+    const listing = (dir: string): Promise<ReadonlySet<string> | undefined> => {
+      let names = listings.get(dir);
+      if (!names) {
+        names = this.listAsync(dir).then((entries) => entries && new Set(entries.map(fold)));
+        listings.set(dir, names);
+      }
+      return names;
+    };
+    const dirs = [...new Set(candidates.map((file) => path.dirname(file)))];
+    const listed = new Map(await Promise.all(dirs.map(async (dir) => [dir, await listing(dir)] as const)));
+    for (const file of candidates) {
+      const names = listed.get(path.dirname(file));
+      // A folder that could not be listed: its files are checked one by one, as the synchronous lookup does.
+      if (names && !names.has(fold(path.basename(file)))) continue;
+      if (await this.existsAsync(file)) return file;
+    }
+    return undefined;
   }
 
   private entries(

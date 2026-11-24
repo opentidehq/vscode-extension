@@ -19,7 +19,9 @@ function fakeFs(files: Iterable<string>, platform: NodeJS.Platform) {
     return platform === "win32" ? slashed.toLowerCase() : slashed;
   };
   const present = new Set([...files].map(fold));
-  const counts = { stats: 0 };
+  const counts = { stats: 0, lists: 0 };
+  /** Folders that refuse a listing (no read permission), by their folded name. */
+  const unlistable = new Set<string>();
   const exists = (file: string) => {
     counts.stats += 1;
     return present.has(fold(file));
@@ -31,6 +33,16 @@ function fakeFs(files: Iterable<string>, platform: NodeJS.Platform) {
       await new Promise((resolve) => setImmediate(resolve));
       return exists(file);
     },
+    listAsync: async (dir: string): Promise<readonly string[] | undefined> => {
+      counts.lists += 1;
+      await new Promise((resolve) => setImmediate(resolve));
+      const folder = fold(dir).replace(/\/+$/, "");
+      if (unlistable.has(folder)) return undefined;
+      return [...present]
+        .filter((file) => file.slice(0, file.lastIndexOf("/")) === folder)
+        .map((file) => file.slice(file.lastIndexOf("/") + 1));
+    },
+    unlistable: (dir: string) => void unlistable.add(fold(dir)),
     add: (file: string) => void present.add(fold(file)),
     remove: (file: string) => void present.delete(fold(file)),
   };
@@ -85,7 +97,7 @@ describe("PATH lookup", () => {
   describe("the cache", () => {
     it("answers a missing program again without a stat, until PATH changes", async () => {
       const disk = fakeFs([], "win32");
-      const lookup = new PathLookup(disk.exists, disk.existsAsync);
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
       assert.equal(lookup.which("opentide", WIN_PATH, "win32", PATHEXT), undefined);
       assert.equal(disk.counts.stats, 12);
       assert.equal(lookup.which("opentide", WIN_PATH, "win32", PATHEXT), undefined);
@@ -107,7 +119,7 @@ describe("PATH lookup", () => {
 
     it("forgets everything on clear (a runtime restart, after the user installed the program)", () => {
       const disk = fakeFs([], "linux");
-      const lookup = new PathLookup(disk.exists, disk.existsAsync);
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
       assert.equal(lookup.which("opentide", "/usr/bin", "linux"), undefined);
       disk.add("/usr/bin/opentide");
       assert.equal(lookup.which("opentide", "/usr/bin", "linux"), undefined, "still remembered as missing");
@@ -117,7 +129,7 @@ describe("PATH lookup", () => {
 
     it("checks a program it found again (one stat), and looks again when it is gone", () => {
       const disk = fakeFs(["/a/opentide", "/b/opentide"], "linux");
-      const lookup = new PathLookup(disk.exists, disk.existsAsync);
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
       assert.equal(lookup.which("opentide", "/a:/b", "linux"), path.join("/a", "opentide"));
       disk.counts.stats = 0;
       assert.equal(lookup.which("opentide", "/a:/b", "linux"), path.join("/a", "opentide"));
@@ -128,7 +140,7 @@ describe("PATH lookup", () => {
 
     it("keys by name: another program is looked up on its own", () => {
       const disk = fakeFs(["/usr/bin/python3"], "linux");
-      const lookup = new PathLookup(disk.exists, disk.existsAsync);
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
       assert.equal(lookup.which("opentide", "/usr/bin", "linux"), undefined);
       assert.equal(lookup.which("python3", "/usr/bin", "linux"), path.join("/usr/bin", "python3"));
     });
@@ -138,7 +150,7 @@ describe("PATH lookup", () => {
     it("answers as the synchronous lookup does, in PATH order, on Windows and Linux", async () => {
       const files = ["C:\\tools\\opentide.CMD", "C:\\Python\\opentide.exe"];
       const disk = fakeFs(files, "win32");
-      const lookup = new PathLookup(disk.exists, disk.existsAsync);
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
       assert.equal(
         await lookup.whichAsync("opentide", WIN_PATH, "win32", PATHEXT),
         which("opentide", WIN_PATH, "win32", fakeFs(files, "win32").exists, PATHEXT),
@@ -150,28 +162,78 @@ describe("PATH lookup", () => {
       const long = Array.from({ length: 40 }, (_, i) => `/d${i}`).join(":");
       const unix = fakeFs(["/d33/opentide", "/d35/opentide"], "linux");
       assert.equal(
-        await new PathLookup(unix.exists, unix.existsAsync).whichAsync("opentide", long, "linux"),
+        await new PathLookup(unix.exists, unix.existsAsync, unix.listAsync).whichAsync(
+          "opentide",
+          long,
+          "linux",
+        ),
         path.join("/d33", "opentide"),
       );
       assert.equal(
-        await new PathLookup(unix.exists, unix.existsAsync).whichAsync("missing", long, "linux"),
+        await new PathLookup(unix.exists, unix.existsAsync, unix.listAsync).whichAsync(
+          "missing",
+          long,
+          "linux",
+        ),
         undefined,
       );
     });
 
     it("shares one lookup between concurrent callers of the same name", async () => {
       const disk = fakeFs([], "win32");
-      const lookup = new PathLookup(disk.exists, disk.existsAsync);
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
       const answers = await Promise.all(
         [1, 2, 3].map(() => lookup.whichAsync("opentide", WIN_PATH, "win32", PATHEXT)),
       );
       assert.deepEqual(answers, [undefined, undefined, undefined]);
-      assert.equal(disk.counts.stats, 12, "one set of stats for three callers");
+      assert.equal(disk.counts.lists, 3, "one listing per PATH folder for three callers");
+      assert.equal(disk.counts.stats, 0, "a name no listing has is not stat'ed");
+    });
+
+    it("lists each PATH folder once for every name looked up, and stats only the names a listing has", async () => {
+      const disk = fakeFs(["C:\\Python\\python.exe", "C:\\tools\\uv.EXE"], "win32");
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
+      assert.equal(
+        await lookup.whichAsync("python", WIN_PATH, "win32", PATHEXT),
+        path.join("C:\\Python", "python.exe"),
+      );
+      assert.equal(
+        await lookup.whichAsync("uv", WIN_PATH, "win32", PATHEXT),
+        path.join("C:\\tools", "uv.exe"),
+      );
+      assert.equal(await lookup.whichAsync("opentide", WIN_PATH, "win32", PATHEXT), undefined);
+      assert.equal(disk.counts.lists, 3, "three folders, listed once for three names");
+      assert.equal(disk.counts.stats, 2, "one stat per name found, none for the missing one");
+      lookup.clear();
+      await lookup.whichAsync("opentide", WIN_PATH, "win32", PATHEXT);
+      assert.equal(disk.counts.lists, 6, "a clear lists again: the user may have installed something");
+    });
+
+    it("stats the candidates of a folder it cannot list, as the synchronous lookup does", async () => {
+      const disk = fakeFs(["/locked/opentide"], "linux");
+      disk.unlistable("/locked");
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
+      assert.equal(
+        await lookup.whichAsync("opentide", "/usr/bin:/locked", "linux"),
+        path.join("/locked", "opentide"),
+      );
+      assert.equal(disk.counts.stats, 1, "only the unlisted folder's candidate");
+    });
+
+    it("does not take a folder of that name for the program", async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "which-"));
+      try {
+        // A folder with exactly the name a candidate has: `tool` here, `tool.cmd` on Windows.
+        fs.mkdirSync(path.join(dir, process.platform === "win32" ? "tool.cmd" : "tool"));
+        assert.equal(await new PathLookup().whichAsync("tool", dir, process.platform, ".CMD"), undefined);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it("does not keep an answer for a PATH that changed (or a clear) while it looked", async () => {
       const disk = fakeFs([], "linux");
-      const lookup = new PathLookup(disk.exists, disk.existsAsync);
+      const lookup = new PathLookup(disk.exists, disk.existsAsync, disk.listAsync);
       const pending = lookup.whichAsync("opentide", "/usr/bin", "linux");
       lookup.clear();
       assert.equal(await pending, undefined, "it answers its caller");

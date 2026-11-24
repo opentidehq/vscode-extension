@@ -5,7 +5,7 @@ import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import { performance } from "node:perf_hooks";
 
-import { isFile, isFileAsync, PathLookup, which } from "../../src/core/runtime/process";
+import { isFile, isFileAsync, listDirAsync, PathLookup, which } from "../../src/core/runtime/process";
 
 const say = (line: string): void => {
   process.stdout.write(`${line}\n`);
@@ -38,6 +38,7 @@ describe("PATH lookup", () => {
   it("says what the extension host's lookups cost: remembered, and off its thread", async () => {
     const envPath = process.env.PATH ?? "";
     let stats = 0;
+    let lists = 0;
     const lookup = new PathLookup(
       (file) => {
         stats += 1;
@@ -46,6 +47,10 @@ describe("PATH lookup", () => {
       (file) => {
         stats += 1;
         return isFileAsync(file);
+      },
+      (dir) => {
+        lists += 1;
+        return listDirAsync(dir);
       },
     );
     // Off the thread: what the call holds the thread for (until its first await), and the whole lookup.
@@ -60,7 +65,7 @@ describe("PATH lookup", () => {
     assert.equal(lookup.which("opentide-not-installed", envPath, process.platform), undefined);
     const cachedMs = performance.now() - began;
     say(
-      `WHICH platform=${process.platform} async: stats=${asyncStats} ms=${asyncMs.toFixed(1)} ` +
+      `WHICH platform=${process.platform} async: listings=${lists} stats=${asyncStats} ms=${asyncMs.toFixed(1)} ` +
         `thread held ${heldMs.toFixed(2)} ms; again (cached): stats=${stats - asyncStats} ms=${cachedMs.toFixed(2)}`,
     );
     assert.equal(stats, asyncStats, "the second lookup is remembered");
