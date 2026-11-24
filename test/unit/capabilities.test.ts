@@ -1,6 +1,7 @@
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
+import { BackendError } from "../../src/core/backend/types";
 import { Capabilities, cacheable } from "../../src/core/capabilities/capabilities";
 import { COMMAND_CLASSES, classify, splitCommandPath } from "../../src/core/capabilities/classification";
 import { CommandTree, stripGlobalOptions } from "../../src/core/capabilities/tree";
@@ -131,5 +132,75 @@ describe("capabilities", () => {
     assert.ok(cacheable("0.20.1"));
     assert.ok(!cacheable("0.21.0.dev3"));
     assert.ok(!cacheable("0.21.0+g1234"));
+  });
+});
+
+describe("reading the command tree again after a failed read", () => {
+  const failing = () =>
+    new BackendError("bad-output", "commands printed no JSON document (exit 1)", "Traceback…\nOSError: busy");
+  const make = (answers: (() => unknown)[], logs: string[]) => {
+    let calls = 0;
+    const capabilities = new Capabilities({
+      fetch: async () => {
+        const answer = answers[Math.min(calls, answers.length - 1)];
+        calls += 1;
+        return answer?.();
+      },
+      cache: { read: async () => undefined, write: async () => {} },
+      log: (level, message) => logs.push(`${level}: ${message}`),
+      retryDelayMs: 10,
+    });
+    return { capabilities, calls: () => calls };
+  };
+
+  it("tries once more, and has the tree when the second read answers", async () => {
+    const logs: string[] = [];
+    const { capabilities, calls } = make(
+      [
+        () => {
+          throw failing();
+        },
+        () => fixture(),
+      ],
+      logs,
+    );
+    const tree = await capabilities.load(fakeRuntime({ version: "0.20.1.dev1" }));
+    assert.ok(tree, "a tree after the retry");
+    assert.equal(calls(), 2);
+    assert.match(logs[0] ?? "", /exit 1\); stderr: Traceback…\nOSError: busy; trying again$/);
+    assert.ok(capabilities.hasCommand(["validate"]));
+  });
+
+  it("gives up after the second failure, saying what opentide printed both times", async () => {
+    const logs: string[] = [];
+    const { capabilities, calls } = make(
+      [
+        () => {
+          throw failing();
+        },
+      ],
+      logs,
+    );
+    assert.equal(await capabilities.load(fakeRuntime({ version: "0.20.1.dev1" })), undefined);
+    assert.equal(calls(), 2);
+    assert.equal(logs.filter((line) => line.includes("stderr: Traceback")).length, 2);
+    assert.ok(!(logs[1] ?? "").includes("trying again"));
+  });
+
+  it("does not read again for a runtime that is no longer the current one", async () => {
+    const logs: string[] = [];
+    const { capabilities, calls } = make(
+      [
+        () => {
+          throw failing();
+        },
+        () => fixture(),
+      ],
+      logs,
+    );
+    const first = capabilities.load(fakeRuntime({ version: "0.20.1.dev1" }));
+    void capabilities.load(undefined);
+    assert.equal(await first, undefined);
+    assert.equal(calls(), 1, "the runtime changed while it waited: no second read");
   });
 });

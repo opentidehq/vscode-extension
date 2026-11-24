@@ -15,6 +15,9 @@ pre-releases odd ones.
 - **The opentide status keeps saying why the engine serves the editor.** When the language server
   keeps crashing and the opentide engine (WASM) takes over, the status tooltip and the output
   said why, until the window got the focus back. Now they keep saying it.
+- **opentide tasks and commands stay available after you switch runtimes.** A command cut short by
+  the switch now runs on the opentide you switched to, and a failed read of opentide's commands is
+  tried again instead of leaving tasks empty until the next restart.
 
 ## [0.4.1] - 2026-11-24
 

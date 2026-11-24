@@ -38,6 +38,7 @@ import { runShutdown, type ShutdownResult } from "./shutdown";
 import { menuSections, problemsText } from "./statusText";
 import { editorOnlyText, INSTALL_URL } from "./unavailable";
 import { Emitter } from "./util/event";
+import { SettleGate } from "./util/gate";
 import { serialized } from "./util/serial";
 import { type Step, Steps } from "./util/steps";
 import type { WasiHostKind } from "./wasi/hostChoice";
@@ -146,8 +147,12 @@ export function createCore(context: vscode.ExtensionContext): Core {
   );
   subscriptions.push(wasiHost);
 
+  // Open again once the restart in progress, if any, has resolved the runtime it lands on (doRestart).
+  const settling = new SettleGate();
   const backend = new Backend({
     runtime: () => runtime.current,
+    // A restart in progress settles once it has resolved the runtime (below); until then a cut-off request waits.
+    settledRuntime: () => settling.settled().then(() => runtime.current),
     commands: () => capabilities.ready(),
     classify: (argv) => capabilities.classify(argv),
     serveMode: () => (readSetting<string>("opentide.backend.serve") === "never" ? "never" : "auto"),
@@ -266,6 +271,15 @@ export function createCore(context: vscode.ExtensionContext): Core {
   // Restarts run one at a time; a restart asked for during one runs once more afterwards, and its
   // caller waits for that run, not the one it arrived during.
   const doRestart = async (reason: string): Promise<void> => {
+    settling.close();
+    try {
+      await restartSteps(reason);
+    } finally {
+      // A step that failed before the runtime resolved: nothing waits for ever.
+      settling.open();
+    }
+  };
+  const restartSteps = async (reason: string): Promise<void> => {
     log.info(`restart: ${reason}`);
     status.update({ runtime: runtime.current, resolving: true, pin: runtime.pin, trusted: trust.isTrusted });
     await step("stopping the language server", () => client.stop());
@@ -279,6 +293,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
       reason === "activation" ? runtime.ready() : runtime.resolveAgain(),
     );
     void capabilities.load(rt);
+    // The runtime this restart lands on is known: requests it cut off run again on it.
+    settling.open();
     status.update({ runtime: rt, resolving: false, pin: runtime.pin, trusted: trust.isTrusted });
     const cwd = trust.isTrusted ? primaryFolder()?.uri.fsPath : context.globalStorageUri.fsPath;
     if (!trust.isTrusted)
