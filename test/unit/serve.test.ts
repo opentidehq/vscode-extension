@@ -3,7 +3,9 @@ import * as cp from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+import { mock } from "node:test";
 
+import type { ServeProcess } from "../../src/core/backend/process";
 import { isShutDown, ServeClient } from "../../src/core/backend/serve";
 import { BackendError, type ProgressEvent } from "../../src/core/backend/types";
 import { CancellationTokenSource } from "../../src/core/util/cancellation";
@@ -128,5 +130,58 @@ describe("opentide serve client (against a fake server implementing CONTRACTS.md
     await serve.stop();
     assert.equal(serve.isRunning, false);
     assert.equal(expected, true);
+  });
+});
+
+describe("opentide serve client: a process that will not go", () => {
+  beforeEach(() => mock.timers.enable({ apis: ["setTimeout"] }));
+  afterEach(() => mock.timers.reset());
+  const settle = (): Promise<void> => new Promise<void>((resolve) => setImmediate(resolve));
+  const advance = async (ms: number): Promise<void> => {
+    await settle();
+    mock.timers.tick(ms);
+    await settle();
+  };
+
+  /** Answers `initialize`, ignores `shutdown`, and survives `kill`: a WASI process that never exits, say. */
+  function stubborn() {
+    const out: ((chunk: string) => void)[] = [];
+    let killed = 0;
+    const process: ServeProcess = {
+      write: (text) => {
+        for (const line of text.split("\n").filter(Boolean)) {
+          const message = JSON.parse(line) as { id?: number; method?: string };
+          if (message.method === "initialize")
+            queueMicrotask(() =>
+              out.forEach((emit) =>
+                emit(
+                  `${JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { protocol: 1, version: "1.0.0", commands_digest: "d" } })}\n`,
+                ),
+              ),
+            );
+        }
+      },
+      onStdout: (listener) => void out.push(listener),
+      onStderr: () => undefined,
+      onError: () => undefined,
+      onClose: () => undefined,
+      kill: () => void killed++,
+    };
+    return { process, killed: () => killed };
+  }
+
+  it("kills it after the shutdown limit and gives up waiting after that: stop() returns", async () => {
+    const { process, killed } = stubborn();
+    const serve = new ServeClient({ start: () => process, shutdownTimeoutMs: 2000 });
+    await serve.start();
+    let stopped = false;
+    const stopping = serve.stop().then(() => (stopped = true));
+    await advance(2000); // no answer to `shutdown`: `exit` is sent, and the kill timer starts
+    await advance(2000); // the kill
+    assert.equal(killed(), 1, "it was killed once");
+    assert.equal(stopped, false, "still waiting for the exit it was promised");
+    await advance(2000); // the last limit
+    await stopping;
+    assert.equal(stopped, true, "stop() returned although the process never exited");
   });
 });

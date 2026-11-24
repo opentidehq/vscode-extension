@@ -191,8 +191,17 @@ export class ServeClient {
       // the process is going away either way
     }
     const timer = setTimeout(() => this.kill(), timeoutMs);
-    await exited;
+    // The kill is the last resort, and a process that does not go after it is given up on: waiting for ever would hold
+    // whoever awaits the stop (a restart, the shutdown). Its exit, if it comes, is still handled.
+    let giveUp: NodeJS.Timeout | undefined;
+    await Promise.race([
+      exited,
+      new Promise<void>((resolve) => {
+        giveUp = setTimeout(resolve, 2 * timeoutMs);
+      }),
+    ]);
     clearTimeout(timer);
+    clearTimeout(giveUp);
   }
 
   kill(): void {
