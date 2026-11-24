@@ -30,6 +30,12 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **A command that hangs can be cancelled.** Cancelling it stops it within 5 seconds, even when
+  opentide does not answer, and the commands queued behind it run. A command still waiting its turn
+  is cancelled at once.
+- **opentide stops restarting when it keeps crashing.** After four crashes in two minutes, commands
+  run in a process of their own; with the bundled opentide they stop, with a notice, until you run
+  "opentide: Restart Server".
 - **CQL, Exabeam, YARA and YARA-L queries are fully coloured in every theme.** Fields, functions and types
   were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
 - **A query written on one line in quotes is coloured as a query.** `query: '…'` was painted as a single

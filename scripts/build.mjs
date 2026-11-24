@@ -2,6 +2,7 @@
 // Bundles the extension host code and every webview entry.
 //   src/extension.ts        -> dist/extension.js     (node, CommonJS, `vscode` external)
 //   src/core/lsp/client.ts  -> dist/lsp.js          (node, CommonJS: vscode-languageclient, loaded on the first client start)
+//   src/core/backend/supervisor.ts -> dist/backend.js (node, CommonJS: the serve supervisor and Effect, loaded with the first command)
 //   src/web/extension.ts    -> dist/web/extension.js (browser, CommonJS, `vscode` external; package.json `browser`)
 //   src/web/engineWorker.ts -> dist/web/engine-worker.js (browser, classic script: the engine in a Web Worker)
 //   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE)
@@ -31,6 +32,7 @@ import {
   copiedAssets,
   extensionOptions,
   lspOptions,
+  backendOptions,
   mergeMetafiles,
   thirdPartyNotices,
   webEngineWorkerOptions,
@@ -48,6 +50,7 @@ const common = commonOptions(production);
 
 const extension = extensionOptions(root, common);
 const lsp = lspOptions(root, common);
+const backend = backendOptions(root, common);
 
 const web = webExtensionOptions(root, common);
 
@@ -131,6 +134,7 @@ const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), comm
 const configs = [
   extension,
   lsp,
+  backend,
   mcpBridge,
   mcpLauncher,
   web,

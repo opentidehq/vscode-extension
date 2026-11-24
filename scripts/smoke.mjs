@@ -19,6 +19,7 @@ import { PackageError, zipEntries, zipRead } from "./package-lib.mjs";
 import {
   checkEngineInitialize,
   checkKnowledgePackage,
+  checkBackendBundle,
   checkLspBundle,
   checkMcpBridge,
   checkWasiPackage,
@@ -41,6 +42,17 @@ process.stdout.write(JSON.stringify({
   CloseAction: typeof m.CloseAction, ErrorAction: typeof m.ErrorAction,
   RevealOutputChannelOn: typeof m.RevealOutputChannelOn, State: typeof m.State,
   running: m.State?.Running, restart: m.CloseAction?.Restart, never: m.RevealOutputChannelOn?.Never,
+}));
+`;
+
+/** dist/backend.js required as the extension does: what it exports, and its crash ceiling's Schedule, run. */
+const BACKEND_PROBE = `
+const m = require(process.argv[1]);
+const budget = typeof m.makeCrashBudget === "function" ? m.makeCrashBudget() : undefined;
+process.stdout.write(JSON.stringify({
+  runWithGrace: typeof m.runWithGrace, makeWriteLock: typeof m.makeWriteLock, makeCrashBudget: typeof m.makeCrashBudget,
+  openLane: typeof m.openLane, isWaitCancelled: typeof m.isWaitCancelled, graceMs: m.CANCEL_GRACE_MS,
+  budget: budget ? [0, 0, 0, 0].map(() => budget.crashed(0) !== undefined) : null,
 }));
 `;
 
@@ -241,6 +253,12 @@ async function smoke(vsix) {
       ? runWithStandIn(LSP_PROBE, join(extension, "dist", "lsp.js"))
       : { status: 1, stdout: "", stderr: "" };
     errors.push(...checkLspBundle(lspExists, lsp.status === 0 ? lsp.stdout : failure(lsp)));
+
+    step("serve supervisor: dist/backend.js, as the extension loads it with the first command");
+    const backend = lspExists("dist/backend.js")
+      ? runWithStandIn(BACKEND_PROBE, join(extension, "dist", "backend.js"))
+      : { status: 1, stdout: "", stderr: "" };
+    errors.push(...checkBackendBundle(lspExists, backend.status === 0 ? backend.stdout : failure(backend)));
 
     step("MCP bridge: initialize and tools/list");
     const mcp = await mcpBridge(extension);

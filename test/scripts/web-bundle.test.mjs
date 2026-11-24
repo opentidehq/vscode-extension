@@ -45,6 +45,14 @@ describe("web bundle", function () {
     assert.deepEqual([...new Set(required)], ["vscode"]);
   });
 
+  it("holds no Effect: the serve supervisor is the desktop's, in dist/backend.js", () => {
+    const sources = Object.keys(built.metafile.inputs).map((input) => input.replaceAll("\\", "/"));
+    assert.deepEqual(
+      sources.filter((source) => source.startsWith("node_modules/effect/")),
+      [],
+    );
+  });
+
   it("bundles src/web/, the shared src/engine/ and npm packages, never the core", () => {
     const sources = Object.keys(built.metafile.inputs).map((input) => input.replaceAll("\\", "/"));
     assert.ok(sources.some((source) => source.startsWith("src/web/")));
