@@ -8,7 +8,7 @@ import type { CommandTree } from "../capabilities/tree";
 import { displayArgv, processEnv, redact } from "../runtime/env";
 import { cliCommand, hasCli, isWasi, type Runtime } from "../runtime/types";
 import { editorOnlyText } from "../unavailable";
-import type { CancellationToken } from "../util/cancellation";
+import { type CancellationToken, CancellationTokenSource } from "../util/cancellation";
 import { Emitter, type Event } from "../util/event";
 import { loadSupervisor } from "./load";
 import type { ServeProcess } from "./process";
@@ -97,6 +97,10 @@ export interface BackendDeps {
   /** The supervisor's timings (supervisor.ts has the defaults); tests shorten them. */
   readonly supervision?: {
     readonly cancelGraceMs?: number;
+    /** The interactive lane's deadline (INTERACTIVE_TIMEOUT_MS). */
+    readonly interactiveTimeoutMs?: number;
+    /** How long the long lane's serve stays up idle (LONG_IDLE_MS). */
+    readonly longIdleMs?: number;
     readonly crashBackoffMs?: number;
     readonly crashWindowMs?: number;
   };
@@ -106,21 +110,67 @@ export interface BackendDeps {
 export const SERVE_GIVEN_UP =
   "opentide serve stopped working: it crashed 4 times within 2 minutes. Run \u201copentide: Restart Server\u201d to try again.";
 
-export class Backend {
-  private serve: ServeClient | undefined;
+/**
+ * A serve lane: one `opentide serve` process and its supervision. `interactive` answers what the editor asks while you
+ * work (validate, the catalogue, explain); `long` runs the commands that contact a tenant or would be a process of their
+ * own natively (a query, a deploy dry run, doctor), so one of those never holds the others up behind serve's one request
+ * at a time (CONTRACTS.md). `long` starts with the first such command.
+ */
+export type LaneName = "interactive" | "long";
+
+interface ServeLane {
+  readonly name: LaneName;
+  serve: ServeClient | undefined;
   /** The runtime `serve` was started for: a run for another runtime replaces the process. */
-  private serveRuntime: Runtime | undefined;
+  serveRuntime: Runtime | undefined;
   /** Settles when `serve` answered `initialize`: every caller waits on the same start. */
-  private serveReady: Promise<ServeClient> | undefined;
+  serveReady: Promise<ServeClient> | undefined;
+  serveBrokenFor: Runtime | undefined;
+  /** A WASI runtime whose serve crashed past the ceiling: its commands are refused until restart(). */
+  serveGivenUpFor: Runtime | undefined;
+  /** The crash ceiling of the runtime whose serve last crashed. */
+  crashes: { readonly runtime: Runtime; readonly budget: CrashBudget } | undefined;
+  /** No serve starts before this time: the backoff after a crash. */
+  restartAt: number;
+  /** Requests on the lane's serve right now. */
+  inFlight: number;
+  /** The long lane stops its serve once it has been idle this long (LONG_IDLE_MS). */
+  idleTimer: NodeJS.Timeout | undefined;
+}
+
+const newLane = (name: LaneName): ServeLane => ({
+  name,
+  serve: undefined,
+  serveRuntime: undefined,
+  serveReady: undefined,
+  serveBrokenFor: undefined,
+  serveGivenUpFor: undefined,
+  crashes: undefined,
+  restartAt: 0,
+  inFlight: 0,
+  idleTimer: undefined,
+});
+
+/** How long the interactive lane waits for an answer before it cancels the command (then kills, after the grace). */
+export const INTERACTIVE_TIMEOUT_MS = 60_000;
+
+/**
+ * How long the long lane's serve stays up after its last command: a second serve costs about 100–180 MB (SPEC §14), so it
+ * is there while long commands come, not for the window's life.
+ */
+export const LONG_IDLE_MS = 120_000;
+
+/** The lane a command runs on, when it runs through serve. */
+export function laneFor(classification: Classification): LaneName {
+  return classification.spawn || classification.contactsTenant ? "long" : "interactive";
+}
+
+export class Backend {
+  private readonly interactive = newLane("interactive");
+  /** Made with the first long command. */
+  private long: ServeLane | undefined;
   /** Bumped by restart(), so a start it overtook does not mark the new runtime broken. */
   private generation = 0;
-  private serveBrokenFor: Runtime | undefined;
-  /** A WASI runtime whose serve crashed past the ceiling: its commands are refused until restart(). */
-  private serveGivenUpFor: Runtime | undefined;
-  /** The crash ceiling of the runtime whose serve last crashed. */
-  private crashes: { readonly runtime: Runtime; readonly budget: CrashBudget } | undefined;
-  /** No serve starts before this time: the backoff after a crash. */
-  private restartAt = 0;
   /** Serve processes killed on purpose (a cancel they did not answer): their exit is not a crash. */
   private readonly killed = new WeakSet<ServeClient>();
   /** Each serve process's lane: closing it stops the process (supervisor.ts openLane). */
@@ -151,8 +201,24 @@ export class Backend {
     return { available: true };
   }
 
+  /** Whether the interactive lane's serve is running (the one the status shows). */
   get serveRunning(): boolean {
-    return this.serve?.isRunning ?? false;
+    return this.interactive.serve?.isRunning ?? false;
+  }
+
+  /** Whether each lane's serve process is running: the long lane's only after a long command. */
+  get lanesRunning(): Readonly<Record<LaneName, boolean>> {
+    return { interactive: this.serveRunning, long: this.long?.serve?.isRunning ?? false };
+  }
+
+  private laneOf(classification: Classification): ServeLane {
+    if (laneFor(classification) === "interactive") return this.interactive;
+    this.long ??= newLane("long");
+    return this.long;
+  }
+
+  private allLanes(): ServeLane[] {
+    return this.long ? [this.interactive, this.long] : [this.interactive];
   }
 
   async run(folder: string, argv: readonly string[], options: RunOptions = {}): Promise<RunResult> {
@@ -234,13 +300,14 @@ export class Backend {
     try {
       // The WASI module has no network of its own: every command, the tenant ones too, goes through serve,
       // where the extension host makes the tenant requests (`opentide/fetch`).
+      const lane = this.laneOf(classification);
       const useServe =
         options.via !== "spawn" &&
         (isWasi(runtime) || !classification.spawn) &&
-        (await this.canServe(runtime));
+        (await this.canServe(runtime, lane));
       if (useServe) {
         try {
-          return finish(await this.viaServe(runtime, folder, argv, credentials, options));
+          return finish(await this.viaServe(lane, runtime, folder, argv, credentials, options));
         } catch (error) {
           if (!(error instanceof BackendError) || error.code !== "crashed") throw error;
           // The backend died under this request. One retry on a fresh process for a read-only command;
@@ -251,7 +318,7 @@ export class Backend {
             `opentide serve crashed: ${error.message}${error.detail ? `\n${error.detail}` : ""}`,
           );
           if (classification.writes) throw error;
-          return finish(await this.viaServe(runtime, folder, argv, credentials, options));
+          return finish(await this.viaServe(lane, runtime, folder, argv, credentials, options));
         }
       }
       return finish(await this.viaSpawn(runtime, folder, argv, credentials, options));
@@ -265,38 +332,44 @@ export class Backend {
     }
   }
 
-  private async canServe(runtime: Runtime): Promise<boolean> {
-    if (this.deps.serveMode() === "never" || this.serveBrokenFor === runtime) return false;
-    if (this.serve?.isRunning && this.serveRuntime === runtime) return true;
+  private async canServe(runtime: Runtime, lane: ServeLane): Promise<boolean> {
+    if (this.deps.serveMode() === "never" || lane.serveBrokenFor === runtime) return false;
+    if (lane.serve?.isRunning && lane.serveRuntime === runtime) return true;
     if (isWasi(runtime)) return this.deps.wasi !== undefined;
     const tree = await this.deps.commands();
     return tree?.hasCommand("serve") ?? false;
   }
 
   /** Forget `client` if it is still the current one (it exited, crashed or was replaced). */
-  private dropServe(client: ServeClient): void {
-    if (this.serve !== client) return;
-    this.serve = undefined;
-    this.serveRuntime = undefined;
-    this.serveReady = undefined;
+  private dropServe(lane: ServeLane, client: ServeClient): void {
+    if (lane.serve !== client) return;
+    lane.serve = undefined;
+    lane.serveRuntime = undefined;
+    lane.serveReady = undefined;
   }
 
   /**
    * The serve client for `runtime`, started once however many requests ask at the same time. A client
    * started for another runtime (a run that began while the runtime was switching) is stopped first.
    */
-  private ensureServe(runtime: Runtime, folder: string): Promise<ServeClient> {
-    const current = this.serve;
-    if (current && this.serveRuntime !== runtime) {
-      this.dropServe(current);
-      this.deps.log("info", "the opentide runtime changed: stopping the serve started for the previous one");
-      void this.closeLane(current);
+  private ensureServe(lane: ServeLane, runtime: Runtime, folder: string): Promise<ServeClient> {
+    // A serve started for another runtime (a run that began while the runtime was switching), on either lane.
+    for (const other of this.allLanes()) {
+      const current = other.serve;
+      if (current && other.serveRuntime !== runtime) {
+        this.dropServe(other, current);
+        this.deps.log(
+          "info",
+          `the opentide runtime changed: stopping the ${other.name} serve started for the previous one`,
+        );
+        void this.closeLane(current);
+      }
     }
-    if (this.serveBrokenFor === runtime) {
+    if (lane.serveBrokenFor === runtime) {
       return Promise.reject(new BackendError("protocol", "opentide serve is unavailable for this runtime"));
     }
-    if (this.serveGivenUpFor === runtime) return Promise.reject(new BackendError("crashed", SERVE_GIVEN_UP));
-    if (this.serve?.isRunning && this.serveReady) return this.serveReady;
+    if (lane.serveGivenUpFor === runtime) return Promise.reject(new BackendError("crashed", SERVE_GIVEN_UP));
+    if (lane.serve?.isRunning && lane.serveReady) return lane.serveReady;
 
     const env = processEnv(this.deps.baseEnv(), runtime, this.deps.platform, this.fixedEnv());
     const { command, args } = cliCommand(runtime, ["serve"]);
@@ -304,7 +377,7 @@ export class Backend {
     const wasi = isWasi(runtime) ? this.deps.wasi : undefined;
     const log = (level: "debug" | "info" | "warn", message: string) => this.deps.log(level, message);
     // The lane is the process's scope: closing it (a runtime switch, restart, dispose) stops the process.
-    const lane = loadSupervisor().openLane(
+    const scope = loadSupervisor().openLane(
       () =>
         new ServeClient(
           wasi
@@ -323,22 +396,23 @@ export class Backend {
         ),
       (client) => client.stop(),
     );
-    const client = lane.value;
-    this.lanes.set(client, lane);
+    const client = scope.value;
+    this.lanes.set(client, scope);
     const generation = this.generation;
-    this.serve = client;
-    this.serveRuntime = runtime;
+    lane.serve = client;
+    lane.serveRuntime = runtime;
     client.onDidExit(({ code, signal, expected }) => {
-      const wasCurrent = this.serve === client || this.serve === undefined;
-      this.dropServe(client);
+      const wasCurrent = lane.serve === client || lane.serve === undefined;
+      this.dropServe(lane, client);
       if (!expected && !this.killed.has(client)) {
         this.deps.log(
           "warn",
           `opentide serve exited (${signal ?? `code ${code}`}); the next request restarts it`,
         );
-        if (generation === this.generation) this.recordCrash(runtime);
+        if (generation === this.generation) this.recordCrash(lane, runtime);
       }
-      if (wasCurrent) this.serveEmitter.fire({ running: false });
+      // The status shows the interactive serve; the long lane comes and goes with long commands.
+      if (wasCurrent && lane === this.interactive) this.serveEmitter.fire({ running: false });
     });
     // start() spawns synchronously, so `client.isRunning` holds before this returns: a concurrent
     // request finds this promise instead of starting a process of its own.
@@ -346,21 +420,22 @@ export class Backend {
       (init) => {
         this.deps.log(
           "info",
-          `opentide serve ${init.version} started (${client.pid === undefined ? "WASI, in the extension host" : `pid ${client.pid}`})`,
+          `opentide serve ${init.version} started${lane === this.interactive ? "" : ` for long commands`} (${client.pid === undefined ? "WASI, in the extension host" : `pid ${client.pid}`})`,
         );
-        this.serveEmitter.fire({ running: true, version: init.version, digest: init.commands_digest });
+        if (lane === this.interactive)
+          this.serveEmitter.fire({ running: true, version: init.version, digest: init.commands_digest });
         return client;
       },
       (error: unknown) => {
-        this.dropServe(client);
+        this.dropServe(lane, client);
         // A serve that cannot start falls back to spawning for this runtime, until the next restart.
-        if (generation === this.generation) this.serveBrokenFor = runtime;
+        if (generation === this.generation) lane.serveBrokenFor = runtime;
         const message = error instanceof Error ? error.message : String(error);
         this.deps.log("warn", `opentide serve unavailable, spawning instead: ${message}`);
         throw error;
       },
     );
-    this.serveReady = ready;
+    lane.serveReady = ready;
     return ready;
   }
 
@@ -372,6 +447,7 @@ export class Backend {
   }
 
   private async viaServe(
+    lane: ServeLane,
     runtime: Runtime,
     folder: string,
     argv: readonly string[],
@@ -381,34 +457,52 @@ export class Backend {
     let client: ServeClient;
     const generation = this.generation;
     // The backoff after a crash (the supervisor's Schedule): a cancel during it ends the request before it starts.
-    const wait = this.serve?.isRunning ? 0 : this.restartAt - (this.deps.now ?? Date.now)();
+    const wait = lane.serve?.isRunning ? 0 : lane.restartAt - (this.deps.now ?? Date.now)();
     if (wait > 0 && !(await waitUnlessCancelled(wait, options.cancellation)))
       return { document: cancelledEnvelope(argv[0] ?? ""), exitCode: 130, via: "serve", cancelled: true };
     try {
       // Every caller, also one that arrived while another request was starting serve, waits on the
       // same start here, so a start that fails sends each of them to spawn.
-      client = await this.ensureServe(runtime, folder);
+      client = await this.ensureServe(lane, runtime, folder);
     } catch (error) {
-      if (this.serveBrokenFor === runtime) return this.viaSpawn(runtime, folder, argv, credentials, options);
+      if (lane.serveBrokenFor === runtime) return this.viaSpawn(runtime, folder, argv, credentials, options);
       // restart() stopped the serve this request was waiting for: it never reached a serve, so it runs
       // on the current backend whatever its class (a writer included), not as a crash.
-      if (this.generation !== generation) return this.rerun(folder, argv, credentials, options, error);
+      if (this.generation !== generation) return this.rerun(lane, folder, argv, credentials, options, error);
       throw error;
     }
     if (this.generation !== generation || !client.isRunning)
       return this.rerun(
+        lane,
         folder,
         argv,
         credentials,
         options,
         new BackendError("crashed", "opentide serve stopped"),
       );
+    this.busy(lane);
     const env: Record<string, string> = {
       OPENTIDE_REPO_ROOT: folder,
       ...credentials,
       ...(options.env ?? {}),
     };
     let result: Awaited<ReturnType<ServeClient["run"]>>;
+    // The interactive lane gives a command a deadline, which cancels it as the user would; the long lane has none
+    // (a tenant query runs until it answers or is cancelled).
+    const timeoutMs =
+      lane.name === "interactive"
+        ? (this.deps.supervision?.interactiveTimeoutMs ?? INTERACTIVE_TIMEOUT_MS)
+        : undefined;
+    const deadline = new CancellationTokenSource();
+    let timedOut = false;
+    const timer =
+      timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            timedOut = true;
+            deadline.cancel();
+          }, timeoutMs);
+    const forward = options.cancellation?.onCancellationRequested(() => deadline.cancel());
     try {
       // Cancel-then-kill: a cancel sends `$/cancelRequest`; a serve that does not answer within the grace is killed.
       const supervisor = loadSupervisor();
@@ -420,17 +514,26 @@ export class Backend {
             { token, ...(options.onProgress ? { onProgress: options.onProgress } : {}) },
           ),
         {
-          ...(options.cancellation ? { token: options.cancellation } : {}),
+          token: deadline.token,
           graceMs,
           kill: () => {
             this.killed.add(client);
             this.deps.log("warn", `opentide serve did not answer a cancel within ${graceMs} ms: stopping it`);
             // Forget it before it exits, so the next request (the writer this one held up) starts a new serve.
-            this.dropServe(client);
+            this.dropServe(lane, client);
             client.kill();
           },
         },
       );
+      const userCancelled = options.cancellation?.isCancellationRequested === true;
+      // A command that answered anyway, just as the deadline passed, keeps its answer.
+      const cut =
+        settled.kind === "killed" || (settled.kind === "answered" && settled.value.exit_code === 130);
+      if (timedOut && !userCancelled && cut)
+        throw new BackendError(
+          "timed-out",
+          `opentide serve did not answer \`${argv[0] ?? ""}\` within ${Math.round((timeoutMs ?? 0) / 1000)} s: it was cancelled`,
+        );
       if (settled.kind === "killed")
         return { document: cancelledEnvelope(argv[0] ?? ""), exitCode: 130, via: "serve", cancelled: true };
       if (settled.kind === "failed") throw settled.error;
@@ -440,12 +543,17 @@ export class Backend {
         // The runtime restarted while this request was on its way: the old serve refused it without
         // running it, so it runs again on the backend there is now, whatever its class. A serve that
         // shut down without our stop() waits for `exit`: stop it, or its process outlives the client.
-        this.dropServe(client);
+        this.dropServe(lane, client);
         void this.closeLane(client);
-        return this.rerun(folder, argv, credentials, options, error);
+        return this.rerun(lane, folder, argv, credentials, options, error);
       }
-      if (error instanceof BackendError && error.code === "crashed") this.dropServe(client);
+      if (error instanceof BackendError && error.code === "crashed") this.dropServe(lane, client);
       throw error;
+    } finally {
+      if (timer) clearTimeout(timer);
+      forward?.dispose();
+      deadline.dispose();
+      this.idle(lane, client);
     }
     return {
       document: result.document,
@@ -457,6 +565,7 @@ export class Backend {
 
   /** Run a request that never reached a serve on the backend there is now (after a restart). */
   private async rerun(
+    lane: ServeLane,
     folder: string,
     argv: readonly string[],
     credentials: Readonly<Record<string, string>>,
@@ -466,8 +575,8 @@ export class Backend {
     const runtime = this.deps.runtime();
     if (this.disposed || !hasCli(runtime)) throw error;
     this.deps.log("info", "opentide serve restarted before the request reached it: running it again");
-    return (await this.canServe(runtime))
-      ? this.viaServe(runtime, folder, argv, credentials, options)
+    return (await this.canServe(runtime, lane))
+      ? this.viaServe(lane, runtime, folder, argv, credentials, options)
       : this.viaSpawn(runtime, folder, argv, credentials, options);
   }
 
@@ -518,23 +627,42 @@ export class Backend {
     return this.deps.credentials(folder);
   }
 
-  /** Forward file changes to `opentide serve` (absolute paths). No-op when it is not running. */
+  /** Forward file changes to every running `opentide serve` (absolute paths): both lanes read the workspace. */
   invalidate(paths: readonly string[]): void {
-    this.serve?.invalidate(paths);
+    for (const lane of this.allLanes()) lane.serve?.invalidate(paths);
   }
 
-  /** Stop the serve process; the next request starts a new one. */
+  /** Stop every lane's serve process, together; the next request on a lane starts a new one. */
   async restart(): Promise<void> {
-    const serve = this.serve;
     this.generation++;
-    this.serve = undefined;
-    this.serveRuntime = undefined;
-    this.serveReady = undefined;
-    this.serveBrokenFor = undefined;
-    this.serveGivenUpFor = undefined;
-    this.crashes = undefined;
-    this.restartAt = 0;
-    if (serve) await this.closeLane(serve);
+    const serves: ServeClient[] = [];
+    for (const lane of this.allLanes()) {
+      if (lane.serve) serves.push(lane.serve);
+      if (lane.idleTimer) clearTimeout(lane.idleTimer);
+      Object.assign(lane, newLane(lane.name));
+    }
+    await Promise.all(serves.map((serve) => this.closeLane(serve)));
+  }
+
+  private busy(lane: ServeLane): void {
+    lane.inFlight += 1;
+    if (lane.idleTimer) clearTimeout(lane.idleTimer);
+    lane.idleTimer = undefined;
+  }
+
+  /** A request on `lane` settled: once the long lane has nothing to do for LONG_IDLE_MS, its serve stops. */
+  private idle(lane: ServeLane, client: ServeClient): void {
+    lane.inFlight = Math.max(0, lane.inFlight - 1);
+    if (lane.name !== "long" || lane.inFlight > 0) return;
+    const idleMs = this.deps.supervision?.longIdleMs ?? LONG_IDLE_MS;
+    lane.idleTimer = setTimeout(() => {
+      lane.idleTimer = undefined;
+      if (lane.serve !== client || lane.inFlight > 0) return;
+      this.deps.log("info", `stopping the serve for long commands: idle for ${Math.round(idleMs / 1000)} s`);
+      this.dropServe(lane, client);
+      void this.closeLane(client);
+    }, idleMs);
+    lane.idleTimer.unref?.();
   }
 
   /** Stop a serve process through its lane. */
@@ -547,11 +675,11 @@ export class Backend {
    * before the next start, or that the ceiling is reached. Then a native runtime spawns its commands, and a WASI
    * runtime, which cannot, refuses them with one notice until restart().
    */
-  private recordCrash(runtime: Runtime): void {
+  private recordCrash(lane: ServeLane, runtime: Runtime): void {
     const now = (this.deps.now ?? Date.now)();
-    if (this.crashes?.runtime !== runtime) {
+    if (lane.crashes?.runtime !== runtime) {
       const supervision = this.deps.supervision;
-      this.crashes = {
+      lane.crashes = {
         runtime,
         budget: loadSupervisor().makeCrashBudget({
           ...(supervision?.crashBackoffMs !== undefined ? { baseMs: supervision.crashBackoffMs } : {}),
@@ -559,21 +687,21 @@ export class Backend {
         }),
       };
     }
-    const next = this.crashes.budget.crashed(now);
+    const next = lane.crashes.budget.crashed(now);
     if (next) {
-      this.restartAt = now + next.delayMs;
+      lane.restartAt = now + next.delayMs;
       return;
     }
     if (!isWasi(runtime)) {
-      this.serveBrokenFor = runtime;
+      lane.serveBrokenFor = runtime;
       this.deps.log(
         "warn",
         "opentide serve keeps crashing: running each command in a process of its own instead",
       );
       return;
     }
-    if (this.serveGivenUpFor === runtime) return;
-    this.serveGivenUpFor = runtime;
+    if (lane.serveGivenUpFor === runtime) return;
+    lane.serveGivenUpFor = runtime;
     this.deps.log("error", SERVE_GIVEN_UP);
     this.deps.notify?.(SERVE_GIVEN_UP);
   }

@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import type { Perform } from "@opentide/wasi-host";
 import * as vscode from "vscode";
 
 import { ActivityLog } from "./activity";
@@ -45,6 +46,8 @@ export interface Core {
   readonly ctx: FeatureContext;
   /** The host the bundled opentide last started on (launcher or @vscode/wasm-wasi); for the tests. */
   readonly wasiHost: () => WasiHostKind | undefined;
+  /** For the tests: answer the WASI module's tenant requests with `perform` in the serve processes started next. */
+  readonly stubWasiFetch: (perform: Perform | undefined) => void;
   /** Resolve the runtime and start the language server, in the background. */
   start(): Promise<void>;
   /**
@@ -439,6 +442,9 @@ export function createCore(context: vscode.ExtensionContext): Core {
   return {
     ctx,
     wasiHost: () => wasiHost.host,
+    stubWasiFetch: (perform) => {
+      wasiHost.fetchPerform = perform;
+    },
     start,
     shutdown: async (deadlineMs = 4000) => {
       // In order: stop what would start more (a resolution in flight), then the language server and `serve` together

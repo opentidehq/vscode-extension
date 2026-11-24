@@ -22,6 +22,8 @@ export interface ExtensionApi {
   readonly ctx?: FeatureContext;
   /** Only in tests: the host the bundled opentide last started on (the launcher or @vscode/wasm-wasi). */
   readonly wasiHost?: () => WasiHostKind | undefined;
+  /** Only in tests: answer the WASI module's tenant requests with `perform` (a stub) in the serve processes started next. */
+  readonly stubWasiFetch?: Core["stubWasiFetch"];
   /** Only in tests: how long `activate` took, and where the time went (SPEC §14: under 300 ms). */
   readonly activation?: ActivationTimes;
   /** Resolves when the first runtime resolution and language server start finished. */
@@ -80,7 +82,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     startMs: startDone - featuresDone,
     features: outcomes.map((outcome) => ({ id: outcome.id, ms: outcome.ms })),
   };
-  return { ctx: core.ctx, wasiHost: core.wasiHost, activation, started };
+  return { ctx: core.ctx, wasiHost: core.wasiHost, stubWasiFetch: core.stubWasiFetch, activation, started };
 }
 
 /**

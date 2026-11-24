@@ -32,6 +32,9 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **A slow tenant query no longer holds up the sidebar, the problems list or the coverage panel.** With the
+  bundled opentide, queries, deploy previews and other commands that reach a tenant run beside the editor's own
+  checks instead of in front of them. An editor command that gets no answer within 60 seconds is cancelled.
 - **A command that hangs can be cancelled.** Cancelling it stops it within 5 seconds, even when
   opentide does not answer, and the commands queued behind it run. A command still waiting its turn
   is cancelled at once.
