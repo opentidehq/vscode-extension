@@ -12,8 +12,12 @@ const PATHEXT = ".COM;.EXE;.BAT;.CMD";
 
 /** A filesystem that holds `files`, matched without case on Windows as NTFS does, and counts its stats. */
 function fakeFs(files: Iterable<string>, platform: NodeJS.Platform) {
-  // Case-insensitive on Windows; either separator, as the candidates are joined with this host's.
-  const fold = (file: string) => (platform === "win32" ? file.toLowerCase().replaceAll("\\", "/") : file);
+  // Case-insensitive on Windows. Either separator on every platform: the candidates are joined with the separator of
+  // the host the tests run on (a Windows runner too), as the lookup does.
+  const fold = (file: string) => {
+    const slashed = file.replaceAll("\\", "/");
+    return platform === "win32" ? slashed.toLowerCase() : slashed;
+  };
   const present = new Set([...files].map(fold));
   const counts = { stats: 0 };
   const exists = (file: string) => {
