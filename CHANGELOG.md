@@ -9,6 +9,8 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The graph's platform, status and hops choices open VS Code's own picker.** They were native drop-downs
+  whose popup looked unlike the rest of VS Code.
 - **The ATT&CK coverage panel's folder, platform and tenant choices open VS Code's own picker.** They were
   native drop-downs whose popup looked unlike the rest of VS Code; the folder list shows each folder's path.
 - **The results table's "in column" choice opens VS Code's own picker.** It was a native drop-down whose popup
