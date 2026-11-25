@@ -69,7 +69,54 @@ export function summarize(results) {
       `| ${os} | ${version} | ${arm} | ${row.windows} | ${row.stalled} | ${rate} | ${row.silent} | ${arm === "cut-inline" ? row.inline : "–"} | ${row.recreated > 0 ? `${row.recreated} → ${row.recovered}` : "–"} | ${row.notCut} | ${row.errors} | ${median(row.startedMs) ?? "n/a"} |`,
     );
   }
-  return [lines.join("\n"), probeDetails(results)].filter(Boolean).join("\n\n");
+  return [lines.join("\n"), latencies(results), probeDetails(results)].filter(Boolean).join("\n\n");
+}
+
+const percentile = (sorted, p) =>
+  sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
+
+/**
+ * How long healthy pages take to send their first message, from the moment their panel was created: what a
+ * watchdog threshold must stay above. A page that started at all, in an arm that never replaces it (a recreate arm
+ * would cut the slow ones short), counts; one slower than a threshold is a recreation that threshold would have made
+ * for nothing.
+ */
+function latencies(results) {
+  const rows = new Map();
+  for (const result of results) {
+    if (result.error || !result.arm || result.arm.startsWith("cut-recreate")) continue;
+    if (result.arm.startsWith("cut") && (result.firstMessagesAtClose ?? []).length > 0) continue;
+    const started = result.secondMessages?.find((m) => m.type === "started");
+    if (!started) continue;
+    const group = result.arm === "control" ? "control" : "cut, cut-inline, cut-delay";
+    const key = `${OS[result.platform] ?? result.platform}|${result.vscode}|${group}`;
+    const list = rows.get(key) ?? [];
+    list.push(started.afterMs);
+    rows.set(key, list);
+  }
+  if (rows.size === 0) return "";
+  const lines = [
+    "### First message of healthy pages (ms from the panel's creation)",
+    "",
+    "| OS | VS Code | arms | pages | median | p99 | slowest | over 3 s | over 5 s | over 10 s |",
+    "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
+  ];
+  const all = [];
+  for (const [key, list] of [...rows].sort(([a], [b]) => a.localeCompare(b))) {
+    const [os, version, group] = key.split("|");
+    const sorted = [...list].sort((a, b) => a - b);
+    all.push(...sorted);
+    const over = (ms) => sorted.filter((value) => value > ms).length;
+    lines.push(
+      `| ${os} | ${version} | ${group} | ${sorted.length} | ${percentile(sorted, 50)} | ${percentile(sorted, 99)} | ${sorted[sorted.length - 1]} | ${over(3000)} | ${over(5000)} | ${over(10000)} |`,
+    );
+  }
+  const sorted = all.sort((a, b) => a - b);
+  const over = (ms) => sorted.filter((value) => value > ms).length;
+  lines.push(
+    `| **all** | | | ${sorted.length} | ${percentile(sorted, 50)} | ${percentile(sorted, 99)} | ${sorted[sorted.length - 1]} | ${over(3000)} | ${over(5000)} | ${over(10000)} |`,
+  );
+  return lines.join("\n");
 }
 
 /** One frame or worker of a probe, on one line. */

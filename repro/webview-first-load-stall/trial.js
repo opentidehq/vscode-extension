@@ -8,7 +8,8 @@
 //   document was written but whose script never arrived is told apart from one whose document never was.
 // - `cut-delay`: as `cut`, waiting REPRO_DELAY_MS (1 s) between closing the first panel and opening the second.
 // - `cut-recreate`: as `cut`; if the second page says nothing for 10 s, it is disposed and a third panel of the same
-//   view type opens in its column (what opentide's watchdog does), which gets 30 s.
+//   view type opens in its column (what opentide's watchdog does), which gets 30 s. `cut-recreate-3s` and
+//   `cut-recreate-5s` do the same after 3 s and 5 s.
 //
 // The page's first statement posts `started`, its last `ready`: a page that sends nothing never ran. When a page
 // has said nothing for 10 s, the trial writes `<REPRO_OUT>.silent` and waits (up to 15 s) for the runner to probe the
@@ -131,22 +132,25 @@ async function trial(arm, out) {
     }
   }
   const second = open("second", media, { inline });
-  let ok = await waitFor(() => started(second), SILENT_MS);
+  const recreateAfter = /^cut-recreate(?:-(\d+)s)?$/.exec(arm);
+  const silentMs = recreateAfter?.[1] ? Number(recreateAfter[1]) * 1000 : SILENT_MS;
+  let ok = await waitFor(() => started(second), silentMs);
   result.secondVisible = second.panel.visible;
   if (!ok) {
     await probe(out, "second");
-    if (arm === "cut-recreate") {
+    if (recreateAfter) {
       // opentide's watchdog: a new panel of the same view type in the silent one's column, then the silent one closes.
       const column = second.panel.viewColumn;
       const third = open("third", media, { viewColumn: column ?? vscode.ViewColumn.Active });
       second.panel.dispose();
       result.recreated = true;
+      result.recreatedAfterMs = silentMs;
       ok = await waitFor(() => started(third), WAIT_MS);
       if (!ok) await probe(out, "third");
       result.thirdMessages = third.messages;
       third.panel.dispose();
     } else {
-      ok = await waitFor(() => started(second), WAIT_MS - SILENT_MS);
+      ok = await waitFor(() => started(second), WAIT_MS - silentMs);
     }
   }
   if (ok && !result.recreated) await waitFor(() => second.messages.some((m) => m.type === "ready"), 5000);

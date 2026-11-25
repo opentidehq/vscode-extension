@@ -25,7 +25,10 @@ const { values } = parseArgs({
   options: {
     version: { type: "string", default: "stable" },
     windows: { type: "string", default: "40" },
-    arms: { type: "string", default: "cut,control,cut-inline,cut-delay,cut-recreate" },
+    arms: {
+      type: "string",
+      default: "cut,control,cut-inline,cut-delay,cut-recreate,cut-recreate-5s,cut-recreate-3s",
+    },
     port: { type: "string", default: "9333" },
     label: { type: "string" },
   },

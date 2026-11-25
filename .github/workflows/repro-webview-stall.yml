@@ -16,8 +16,8 @@ on:
         description: Fresh windows per arm, per OS and VS Code version
         default: "40"
       arms:
-        description: Arms, comma-separated (cut, control, cut-inline, cut-delay, cut-recreate)
-        default: cut,control,cut-inline,cut-delay,cut-recreate
+        description: Arms, comma-separated (cut, control, cut-inline, cut-delay, cut-recreate, cut-recreate-5s, cut-recreate-3s)
+        default: cut,control,cut-inline,cut-delay,cut-recreate,cut-recreate-5s,cut-recreate-3s
   pull_request:
     paths:
       - repro/webview-first-load-stall/**
@@ -34,7 +34,7 @@ env:
   NODE_VERSION: "22"
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
   WINDOWS: ${{ inputs.windows || '40' }}
-  ARMS: ${{ inputs.arms || 'cut,control,cut-inline,cut-delay,cut-recreate' }}
+  ARMS: ${{ inputs.arms || 'cut,control,cut-inline,cut-delay,cut-recreate,cut-recreate-5s,cut-recreate-3s' }}
 
 jobs:
   repro:
