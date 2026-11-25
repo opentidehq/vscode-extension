@@ -14,7 +14,13 @@ export interface WatchdogDeps {
   clearTimer?(timer: unknown): void;
 }
 
-/** How long a visible page may say nothing before its panel is replaced: a 1.2 MB page on a loaded machine is slow. */
+/**
+ * How long a visible page may say nothing before its panel is replaced. A page that is merely slow must not be
+ * replaced. Measured in repro/webview-first-load-stall, on fresh windows on GitHub's runners: the slowest of 955
+ * healthy pages sent its first message after 4.7 s (Windows; p99 2.6 s there, 2.1 s at most on macOS, 0.7 s on Linux),
+ * so 3 s would have replaced one, and 5 s leaves too thin a margin. opentide's own graph page took 0.7 s at most in CI.
+ * A stuck page never speaks, and a new panel recovered every one of them at 3, 5 and 10 s alike.
+ */
 export const SILENT_PAGE_MS = 10_000;
 
 export class LoadWatchdog {
