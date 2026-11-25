@@ -7,23 +7,19 @@
 import * as fs from "node:fs";
 
 import * as vscode from "vscode";
-import {
-  CloseAction,
-  ErrorAction,
-  type ErrorHandler,
-  type Executable,
+import type {
+  ErrorHandler,
+  Executable,
   LanguageClient,
-  type LanguageClientOptions,
-  type MessageTransports,
-  RevealOutputChannelOn,
-  State,
+  LanguageClientOptions,
+  MessageTransports,
 } from "vscode-languageclient/node";
 
 import { type FeedFolder, WorkspaceFeed } from "../../engine/feed";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../../engine/protocol";
 import { directThenHost } from "../../engine/reader";
 import { EngineSync, initializationOptions, type SyncAction } from "../../engine/sync";
-import { type EnginePort, engineTransports } from "../../engine/transport";
+import type { EnginePort } from "../../engine/transport";
 import type { WorkspaceDelta } from "../../engine/workspace";
 import { SERVER_CATALOG_CHANGED } from "../catalog/serverCatalog";
 import type { LanguageClientService, Logger, OpentideServerInfo } from "../context";
@@ -34,8 +30,10 @@ import {
   forwardNotification,
   readServerInfo,
 } from "../lsp";
+import { disposeBounded, startBounded, stopBounded } from "../lsp/bounds";
 import { CrashSupervisor } from "../lsp/crashSupervisor";
-import { CRASH_WINDOW_MS } from "../lsp/restartPolicy";
+import { type LspModule, loadLsp } from "../lsp/load";
+import { connectionErrorAction, CRASH_WINDOW_MS } from "../lsp/restartPolicy";
 import { skipWorkspacePull, workspacePullSetting } from "../runtime/diagnostics";
 import { processEnv } from "../runtime/env";
 import { type Fallback, type ServerStart, startWithFallback } from "../runtime/fallback";
@@ -67,6 +65,11 @@ export function serverExecutable(
       ...(cwd ? { cwd } : {}),
     },
   };
+}
+
+/** One start of a server: `givenUp` once the manager has abandoned it or its time ran out. */
+interface Attempt {
+  givenUp: boolean;
 }
 
 export class LanguageClientManager implements LanguageClientService, vscode.Disposable {
@@ -111,6 +114,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   private wasiServer: WasiLanguageServer | undefined;
   /** The crashes of the running start, and the waits before its restarts (restartPolicy.ts). */
   private supervisor: CrashSupervisor | undefined;
+  /** Gives up on the start that is going (a stop or a new start was asked for), so the queue is not held by it. */
+  private abandonStart: (() => void) | undefined;
   private readonly fellBack = new Emitter<void>();
   /**
    * Fires when the engine (WASM) took over from a language server that kept crashing, or could not: read
@@ -183,6 +188,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     cwd: string | undefined,
     reuseWorkspace: boolean,
   ): Promise<LanguageClient | undefined> {
+    // A start still going is stale: this one replaces it. Waiting for it (it may never answer) would hold this one.
+    this.abandonStart?.();
     const starting = this.lifecycle.run(() => this.doStart(runtime, cwd, reuseWorkspace));
     this.starting = starting;
     void starting.finally(() => {
@@ -282,44 +289,62 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     cwd: string | undefined,
     reuseWorkspace: boolean,
   ): Promise<ServerStart> {
+    // The package comes from dist/lsp.js, on the first start (lsp/load.ts).
+    let lsp: LspModule;
+    try {
+      lsp = loadLsp();
+    } catch (error) {
+      const message = `the language client could not be loaded (${error instanceof Error ? error.message : String(error)})`;
+      this.log.error(`language server failed to start: ${message}`);
+      return { ok: false, error: message };
+    }
     this.supervisor?.cancel();
     const supervisor = new CrashSupervisor();
     this.supervisor = supervisor;
     const started: { client?: LanguageClient } = {};
+    // Set when this start is given up on: a server that comes up after that (the WASI host starts asynchronously) is ended.
+    const attempt: Attempt = { givenUp: false };
     const clientOptions: LanguageClientOptions = {
       documentSelector: DOCUMENT_SELECTOR,
-      errorHandler: this.errorHandler(runtime, cwd, supervisor, started),
+      errorHandler: this.errorHandler(lsp, runtime, cwd, supervisor, started),
       outputChannel: this.outputChannel,
       traceOutputChannel: this.traceChannel,
-      revealOutputChannelOn: RevealOutputChannelOn.Never,
+      revealOutputChannelOn: lsp.RevealOutputChannelOn.Never,
       synchronize: { fileEvents: this.watcher() },
       middleware: this.diagnosticsMiddleware(runtime),
     };
     const began = Date.now();
     const client =
       runtime.kind === "engine"
-        ? await this.engineClient(runtime, clientOptions, reuseWorkspace)
+        ? await this.engineClient(runtime, clientOptions, reuseWorkspace, attempt)
         : runtime.wasi && this.wasi
-          ? this.wasiClient(this.wasi, runtime, clientOptions)
+          ? this.wasiClient(this.wasi, runtime, clientOptions, attempt)
           : this.processClient(runtime, cwd, clientOptions);
     started.client = client;
-    try {
-      await client.start();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.log.error(`language server failed to start: ${message}`);
-      await client.dispose().then(undefined, () => undefined);
+    const abandoned = new Promise<void>((resolve) => {
+      this.abandonStart = resolve;
+    });
+    const result = await startBounded(client, { abandoned });
+    this.abandonStart = undefined;
+    if (!result.ok) {
+      // No restart of a client that is being given up on: its closed connection is no crash (errorHandler).
+      supervisor.cancel();
+      attempt.givenUp = true;
+      if (result.abandoned)
+        this.log.info("language server: the start was abandoned: a stop or a new start was asked for");
+      else this.log.error(`language server failed to start: ${result.error}`);
+      await this.disposeClient(client);
       this.endEngine();
       this.endWasi();
-      return { ok: false, error: message };
+      return { ok: false, error: result.error, ...(result.abandoned ? { abandoned: true } : {}) };
     }
     this.client = client;
     // A server that stops on its own (an engine trap ends its worker; a process that exits) is not
     // running: the status says so, with Restart. The client restarts it under its crash ceiling.
     client.onDidChangeState(({ newState }) => {
-      if (newState === State.Stopped && this.client === client) {
+      if (newState === lsp.State.Stopped && this.client === client) {
         this.serverDown(client, "stopped; the client restarts it, or use opentide: Restart Server");
-      } else if (newState === State.Running && this.client === client && !this.running) {
+      } else if (newState === lsp.State.Running && this.client === client && !this.running) {
         this.running = true;
         this.log.info("language server: running again");
         if (this.engine) void this.apply(this.sync.ready(this.engine.updates));
@@ -358,12 +383,13 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   }
 
   /**
-   * The client's handler for a connection that errors or closes. `error` is vscode-languageclient's own: carry on
-   * through the first three errors in a row, then shut down. `closed` replaces its restart at once and its five
+   * The client's handler for a connection that errors or closes. `error` carries on through a read error (the close
+   * that follows decides) and the first three write errors in a row, then shuts down (restartPolicy.ts). `closed` replaces its restart at once and its five
    * crashes in three minutes (the server then stays dead, whatever tier it was) with a growing wait before each
    * restart (restartPolicy.ts) and, at the ceiling, the engine (WASM) in its place when the extension carries one.
    */
   private errorHandler(
+    lsp: LspModule,
     runtime: Runtime,
     cwd: string | undefined,
     supervisor: CrashSupervisor,
@@ -371,8 +397,12 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   ): ErrorHandler {
     return {
       error: (_error, _message, count) =>
-        count && count <= 3 ? { action: ErrorAction.Continue } : { action: ErrorAction.Shutdown },
+        connectionErrorAction(count) === "continue"
+          ? { action: lsp.ErrorAction.Continue }
+          : { action: lsp.ErrorAction.Shutdown },
       closed: async () => {
+        // Stopped or replaced on purpose, or a start given up on: nothing to restart, and no crash to count.
+        if (supervisor.isCancelled) return { action: lsp.CloseAction.DoNotRestart, handled: true };
         const decision = supervisor.crashed();
         const minutes = CRASH_WINDOW_MS / 60_000;
         if ("giveUp" in decision) {
@@ -387,7 +417,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
           if (engine && started.client)
             this.fallBackToEngine(started.client, { from: runtime, reason, crashed: true }, engine, cwd);
           return {
-            action: CloseAction.DoNotRestart,
+            action: lsp.CloseAction.DoNotRestart,
             message: `The ${runtime.kind === "engine" ? "opentide engine (WASM)" : "opentide language server"} ${reason}. It will not be restarted: use opentide: Restart Server.`,
             // The core says so itself when the engine takes over.
             handled: engine !== undefined,
@@ -400,8 +430,8 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
         if (started.client) this.serverDown(started.client, "stopped; restarting");
         // A stop or a new start meanwhile cancels the wait: the client must not bring back a server that was dropped.
         if (!(await supervisor.wait(decision.restartAfterMs)))
-          return { action: CloseAction.DoNotRestart, handled: true };
-        return { action: CloseAction.Restart, handled: true };
+          return { action: lsp.CloseAction.DoNotRestart, handled: true };
+        return { action: lsp.CloseAction.Restart, handled: true };
       },
     };
   }
@@ -455,7 +485,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
   ): LanguageClient {
     const executable = serverExecutable(runtime, cwd);
     this.log.info(`language server: ${executable.command} ${(executable.args ?? []).join(" ")}`);
-    return new LanguageClient("opentide", "opentide Language Server", executable, clientOptions);
+    return new (loadLsp().LanguageClient)("opentide", "opentide Language Server", executable, clientOptions);
   }
 
   /**
@@ -463,17 +493,28 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
    * system, so the watcher's events go to the server as they do to a native one, and the transports map
    * the folders' URIs to guest URIs and back (src/core/wasi/paths.ts).
    */
-  private wasiClient(wasi: WasiHost, runtime: Runtime, clientOptions: LanguageClientOptions): LanguageClient {
+  private wasiClient(
+    wasi: WasiHost,
+    runtime: Runtime,
+    clientOptions: LanguageClientOptions,
+    attempt: Attempt,
+  ): LanguageClient {
     this.log.info(`language server: opentide lsp start in the WASI module (${runtime.version})`);
     const transports = async (): Promise<MessageTransports> => {
       this.endWasi();
       const server = await wasi.startLanguageServer((text) => {
         for (const line of text.split(/\r?\n/)) if (line) this.outputChannel.debug(line);
       });
+      if (attempt.givenUp) {
+        // The start was given up on while the module was starting: nothing waits for this server, and it must not
+        // be taken for the next start's.
+        server.terminate();
+        throw new Error("the start was given up on");
+      }
       this.wasiServer = server;
       return server.transports;
     };
-    return new LanguageClient("opentide", "opentide Language Server", transports, clientOptions);
+    return new (loadLsp().LanguageClient)("opentide", "opentide Language Server", transports, clientOptions);
   }
 
   private endWasi(): void {
@@ -489,6 +530,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     runtime: Runtime,
     clientOptions: LanguageClientOptions,
     reuseWorkspace: boolean,
+    attempt: Attempt,
   ): Promise<LanguageClient> {
     if (!reuseWorkspace || !this.feed.snapshot()) {
       const { report } = await this.feed.collect();
@@ -501,11 +543,12 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     this.engine = engine;
     this.log.info(`language server: ${runtime.command} in a worker thread (engine ${runtime.version})`);
     const transports = async (): Promise<MessageTransports> => {
+      if (attempt.givenUp) throw new Error("the start was given up on");
       const port = startEngineWorker(runtime.command);
       engine.port = port;
-      return engineTransports(port);
+      return loadLsp().engineTransports(port);
     };
-    return new LanguageClient("opentide", "opentide Language Server", transports, {
+    return new (loadLsp().LanguageClient)("opentide", "opentide Language Server", transports, {
       ...clientOptions,
       synchronize: {},
       // Read at each initialize, the client's own restarts included: the workspace as it stands then.
@@ -564,6 +607,7 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
 
   /** Stop the running client, after any start or stop queued before. */
   stop(): Promise<void> {
+    this.abandonStart?.();
     return this.lifecycle.run(() => this.doStop());
   }
 
@@ -585,14 +629,16 @@ export class LanguageClientManager implements LanguageClientService, vscode.Disp
     this.emitter.fire(undefined);
     // The server's exit that `stop` brings about is expected (a WASI host may report a code of 1 for it, #99).
     this.wasiServer?.expectExit();
-    try {
-      await client.stop(5000);
-    } catch (error) {
-      this.log.warn(`language server did not stop cleanly: ${String(error)}`);
-    }
-    await client.dispose().then(undefined, () => undefined);
+    // Bounded: a server that cannot answer `shutdown` must not hold every restart behind this stop. Whatever the
+    // client did, the process or worker behind it is ended below.
+    for (const problem of await stopBounded(client)) this.log.warn(`language server ${problem}`);
     this.endEngine();
     this.endWasi();
+  }
+
+  /** Dispose a client that did not start, within a limit; the caller ends the process or worker behind it. */
+  private async disposeClient(client: LanguageClient): Promise<void> {
+    for (const problem of await disposeBounded(client)) this.log.warn(`language server ${problem}`);
   }
 
   private async showReferences(args: unknown[]): Promise<void> {

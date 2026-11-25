@@ -3,12 +3,13 @@ import * as assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+import { performance } from "node:perf_hooks";
 
 import { ACTIVITY_LIMIT, ActivityLog } from "../../src/core/activity";
 import type { RunRecord } from "../../src/core/backend/backend";
 import { CredentialStore } from "../../src/core/credentials";
 import { defineFeature } from "../../src/core/feature";
-import { activateFeatures } from "../../src/core/featureHost";
+import { activateFeatures, activationSummary } from "../../src/core/featureHost";
 import {
   isFamilyFile,
   isObjectFile,
@@ -386,5 +387,88 @@ describe("status item: one clear opentide item", () => {
       menuSections([{ label: "x", order: 100 }]).map((s) => s.label),
       ["opentide"],
     );
+  });
+});
+
+describe("feature activation summary", () => {
+  const outcome = (id: string, ms: number, ok = true) => ({ id, ok, ms, at: 0 });
+
+  it("says how many activated in how long, with the slowest three", () => {
+    const text = activationSummary(
+      [
+        outcome("sidebar", 40),
+        outcome("graph", 22),
+        outcome("matrix", 9),
+        outcome("agents", 3),
+        outcome("x", 1),
+      ],
+      83,
+    );
+    assert.equal(text, "features: 5 activated in 83 ms (slowest: sidebar 40 ms, graph 22 ms, matrix 9 ms)");
+  });
+
+  it("counts a failed feature apart and leaves it out of the slowest", () => {
+    const text = activationSummary([outcome("a", 5), outcome("bad", 900, false)], 12);
+    assert.equal(text, "features: 1 activated in 12 ms (slowest: a 5 ms); 1 failed");
+  });
+
+  it("has nothing to list for no features", () => {
+    assert.equal(activationSummary([], 0), "features: 0 activated in 0 ms");
+  });
+
+  it("times each feature's own activate, not the time until it settled (the ones after it do not count)", async () => {
+    const busy = (ms: number): void => {
+      const until = performance.now() + ms;
+      while (performance.now() < until);
+    };
+    const outcomes = await activateFeatures(
+      [
+        defineFeature({ id: "slow", activate: () => busy(40) }),
+        defineFeature({ id: "quick", activate: () => undefined }),
+        defineFeature({ id: "slow-too", activate: () => busy(40) }),
+      ],
+      { subscriptions: [], log: { info: () => {}, error: () => {} } },
+    );
+    const ms = Object.fromEntries(outcomes.map((o) => [o.id, o.ms]));
+    assert.ok((ms.slow ?? 0) >= 35 && (ms.slow ?? 0) < 75, `slow ${ms.slow}`);
+    assert.ok((ms.quick ?? 99) < 20, `quick ${ms.quick}: it ran before the third, so it must not include it`);
+    assert.ok((ms["slow-too"] ?? 0) >= 35 && (ms["slow-too"] ?? 0) < 75, `slow-too ${ms["slow-too"]}`);
+  });
+
+  it("takes each feature's CPU time from the clock it is given, over the same stretch as its wall time", async () => {
+    // A fake clock: each feature's activate spends 7 ms of "CPU" (the quick one none).
+    let cpu = 100;
+    const outcomes = await activateFeatures(
+      [
+        defineFeature({ id: "busy", activate: () => void (cpu += 7) }),
+        defineFeature({ id: "quick", activate: () => undefined }),
+      ],
+      { subscriptions: [], log: { info: () => {}, error: () => {} } },
+      () => cpu,
+    );
+    assert.deepEqual(
+      outcomes.map((o) => [o.id, o.cpuMs]),
+      [
+        ["busy", 7],
+        ["quick", 0],
+      ],
+    );
+    for (const o of outcomes)
+      assert.ok(o.at > 0 && o.at <= performance.now(), `${o.id} starts on the timeline`);
+    const [plain] = await activateFeatures([defineFeature({ id: "x", activate: () => undefined })], {
+      subscriptions: [],
+      log: { info: () => {}, error: () => {} },
+    });
+    assert.equal(plain?.cpuMs, undefined, "no clock, no CPU time (production)");
+  });
+
+  it("is logged at debug level by activateFeatures, when the log has it", async () => {
+    const lines: string[] = [];
+    await activateFeatures([defineFeature({ id: "one", activate: () => undefined })], {
+      subscriptions: [],
+      log: { info: () => {}, error: () => {}, debug: (m: string) => void lines.push(m) },
+    });
+    assert.equal(lines.length, 1);
+    assert.match(lines[0] ?? "", /^features: 1 activated in \d+ ms \(slowest: one \d+ ms\)$/);
   });
 });

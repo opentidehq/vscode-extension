@@ -102,6 +102,52 @@ export function checkKnowledgePackage(pkg, exists) {
   return errors;
 }
 
+/**
+ * dist/lsp.js, the language client package that dist/extension.js loads on the first client start: in the package, and,
+ * when loaded (`loaded` is its stdout, JSON, from a run with a stand-in for `vscode`), exporting what the extension uses.
+ */
+export function checkLspBundle(exists, loaded) {
+  if (!exists("dist/lsp.js"))
+    return ["the package has no dist/lsp.js (the language client, loaded on the first start)"];
+  let answer;
+  try {
+    answer = JSON.parse(loaded);
+  } catch {
+    return [`dist/lsp.js did not load: ${String(loaded).slice(0, 200)}`];
+  }
+  const errors = [];
+  if (answer.client !== "function") errors.push("dist/lsp.js does not export LanguageClient");
+  for (const name of ["CloseAction", "ErrorAction", "RevealOutputChannelOn", "State"])
+    if (answer[name] !== "object") errors.push(`dist/lsp.js does not export ${name}`);
+  // The extension names these values (lsp.State.Running, lsp.CloseAction.Restart, lsp.RevealOutputChannelOn.Never).
+  for (const name of ["running", "restart", "never"])
+    if (typeof answer[name] !== "number") errors.push(`dist/lsp.js lacks the enum value ${name}: ${loaded}`);
+  return errors;
+}
+
+/**
+ * dist/backend.js, the serve supervisor with Effect, which dist/extension.js loads with the first command: in the
+ * package, and, when loaded (`loaded` is its stdout, JSON), exporting what backend.ts calls, its Effect code working.
+ */
+export function checkBackendBundle(exists, loaded) {
+  if (!exists("dist/backend.js"))
+    return ["the package has no dist/backend.js (the serve supervisor, loaded with the first command)"];
+  let answer;
+  try {
+    answer = JSON.parse(loaded);
+  } catch {
+    return [`dist/backend.js did not load: ${String(loaded).slice(0, 200)}`];
+  }
+  const errors = [];
+  for (const name of ["runWithGrace", "makeWriteLock", "makeCrashBudget", "openLane", "isWaitCancelled"])
+    if (answer[name] !== "function") errors.push(`dist/backend.js does not export ${name}`);
+  if (typeof answer.graceMs !== "number") errors.push("dist/backend.js does not export CANCEL_GRACE_MS");
+  // The Schedule ran: three backoffs, then the ceiling.
+  if (JSON.stringify(answer.budget) !== "[true,true,true,false]")
+    errors.push(`dist/backend.js's crash ceiling answered ${JSON.stringify(answer.budget)}`);
+  return errors;
+}
+
 /** The WASI module's files in an unpacked package (`exists` takes a path relative to the extension folder). */
 export function checkWasiPackage(exists) {
   // The licence set ships with the module it belongs to (pins.json wasi.licences).

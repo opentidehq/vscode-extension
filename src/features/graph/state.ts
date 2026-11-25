@@ -238,3 +238,11 @@ export interface GraphPanelStatus {
   /** The node id the graph is on, or the file, before the catalogue has loaded. */
   readonly target?: string;
 }
+
+/** The folder a graph revived after a window reload shows: the one it last showed, else the first. */
+export function restoredFolder<T extends { readonly path: string }>(
+  folders: readonly T[],
+  remembered: string | undefined,
+): T | undefined {
+  return folders.find((folder) => folder.path === remembered) ?? folders[0];
+}

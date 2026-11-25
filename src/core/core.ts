@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import type { Perform } from "@opentide/wasi-host";
 import * as vscode from "vscode";
 
 import { ActivityLog } from "./activity";
@@ -37,7 +38,9 @@ import { runShutdown, type ShutdownResult } from "./shutdown";
 import { menuSections, problemsText } from "./statusText";
 import { editorOnlyText, INSTALL_URL } from "./unavailable";
 import { Emitter } from "./util/event";
+import { SettleGate } from "./util/gate";
 import { serialized } from "./util/serial";
+import { type Step, Steps } from "./util/steps";
 import type { WasiHostKind } from "./wasi/hostChoice";
 import { createWebviewHelpers } from "./webview/panel";
 
@@ -45,6 +48,10 @@ export interface Core {
   readonly ctx: FeatureContext;
   /** The host the bundled opentide last started on (launcher or @vscode/wasm-wasi); for the tests. */
   readonly wasiHost: () => WasiHostKind | undefined;
+  /** For the tests: where `createCore`'s synchronous time went, step by step. */
+  readonly steps: readonly Step[];
+  /** For the tests: answer the WASI module's tenant requests with `perform` in the serve processes started next. */
+  readonly stubWasiFetch: (perform: Perform | undefined) => void;
   /** Resolve the runtime and start the language server, in the background. */
   start(): Promise<void>;
   /**
@@ -92,16 +99,18 @@ function envFileVariables(folder: string, log: Logger): Record<string, string> {
 }
 
 export function createCore(context: vscode.ExtensionContext): Core {
+  const steps = new Steps();
   const log = createLogger();
   const subscriptions = context.subscriptions;
   subscriptions.push(log);
 
   const folders = new FolderManager();
   const fileEvents = new FileEvents(folders);
+  steps.mark("folders");
   subscriptions.push(folders, fileEvents, registerLanguageAssociation(folders));
 
   const primaryFolder = () => folders.all[0]?.folder ?? vscode.workspace.workspaceFolders?.[0];
-  const runtime = new RuntimeManager(context, log, primaryFolder);
+  const runtime = new RuntimeManager(context, log, primaryFolder, () => folders.ready());
   subscriptions.push(runtime);
 
   const capabilities = new Capabilities({
@@ -138,8 +147,12 @@ export function createCore(context: vscode.ExtensionContext): Core {
   );
   subscriptions.push(wasiHost);
 
+  // Open again once the restart in progress, if any, has resolved the runtime it lands on (doRestart).
+  const settling = new SettleGate();
   const backend = new Backend({
     runtime: () => runtime.current,
+    // A restart in progress settles once it has resolved the runtime (below); until then a cut-off request waits.
+    settledRuntime: () => settling.settled().then(() => runtime.current),
     commands: () => capabilities.ready(),
     classify: (argv) => capabilities.classify(argv),
     serveMode: () => (readSetting<string>("opentide.backend.serve") === "never" ? "never" : "auto"),
@@ -149,6 +162,11 @@ export function createCore(context: vscode.ExtensionContext): Core {
     platform: process.platform,
     log: (level, message) => log[level](message),
     wasi: { start: () => wasiHost.startServe(), initializeParams: WASI_INITIALIZE_PARAMS },
+    notify: (message) =>
+      void vscode.window.showWarningMessage(message, "Restart Server", "Show Output").then((choice) => {
+        if (choice === "Restart Server") void vscode.commands.executeCommand("opentide.restartServer");
+        else if (choice) log.show();
+      }),
   });
   subscriptions.push({ dispose: () => void backend.dispose() });
 
@@ -170,6 +188,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
     wasiHost,
   );
   subscriptions.push({ dispose: () => void client.dispose() });
+  steps.mark("services");
 
   const catalog = new CatalogStore({
     availability: () => backend.availability(),
@@ -202,6 +221,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
 
   const status = new StatusManager();
   subscriptions.push(status);
+  steps.mark("status");
 
   const grant = new Emitter<void>();
   const trust: TrustService = {
@@ -234,25 +254,52 @@ export function createCore(context: vscode.ExtensionContext): Core {
   };
   subscriptions.push(client.onDidFallBack(announceServer));
 
+  // A marker before and after each wait of a restart: one that hangs names the step it is in (the log's last line).
+  const step = async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+    log.info(`restart: ${name}…`);
+    const began = Date.now();
+    try {
+      const result = await work();
+      log.info(`restart: ${name} done (${Date.now() - began} ms)`);
+      return result;
+    } catch (error) {
+      log.info(`restart: ${name} failed after ${Date.now() - began} ms`);
+      throw error;
+    }
+  };
+
   // Restarts run one at a time; a restart asked for during one runs once more afterwards, and its
   // caller waits for that run, not the one it arrived during.
   const doRestart = async (reason: string): Promise<void> => {
+    settling.close();
+    try {
+      await restartSteps(reason);
+    } finally {
+      // A step that failed before the runtime resolved: nothing waits for ever.
+      settling.open();
+    }
+  };
+  const restartSteps = async (reason: string): Promise<void> => {
     log.info(`restart: ${reason}`);
     status.update({ runtime: runtime.current, resolving: true, pin: runtime.pin, trusted: trust.isTrusted });
-    await client.stop();
-    await backend.restart();
+    await step("stopping the language server", () => client.stop());
+    await step("stopping opentide serve", () => backend.restart());
     // Which host runs the module is asked again: the WASM WASI Core extension may have been installed.
     wasiHost.reset();
     // From scratch, now: a resolution still running (a stale uv probe) is cancelled, not waited for. The one at
     // activation is the exception: a feature that asked for the runtime a moment ago started a resolution with
     // the same inputs, and a second one would log the same line twice.
-    const rt = reason === "activation" ? await runtime.ready() : await runtime.resolveAgain();
+    const rt = await step("resolving the runtime", () =>
+      reason === "activation" ? runtime.ready() : runtime.resolveAgain(),
+    );
     void capabilities.load(rt);
+    // The runtime this restart lands on is known: requests it cut off run again on it.
+    settling.open();
     status.update({ runtime: rt, resolving: false, pin: runtime.pin, trusted: trust.isTrusted });
     const cwd = trust.isTrusted ? primaryFolder()?.uri.fsPath : context.globalStorageUri.fsPath;
     if (!trust.isTrusted)
       await fs.promises.mkdir(context.globalStorageUri.fsPath, { recursive: true }).catch(() => undefined);
-    await client.start(rt, cwd);
+    await step("starting the language server", () => client.start(rt, cwd));
     announceServer();
   };
   const restart = serialized((reason) =>
@@ -260,7 +307,14 @@ export function createCore(context: vscode.ExtensionContext): Core {
   );
   runtime.restartHandler = restart;
 
-  let lastPrimary = folders.all[0]?.path;
+  // The first scan of the folders (it does not block activation) is where the window starts, not a change: the
+  // folder handler below takes its primary folder as the starting point once it is known.
+  let lastPrimary: string | undefined;
+  let foldersKnown = false;
+  void folders.ready().then(() => {
+    lastPrimary = folders.all[0]?.path;
+    foldersKnown = true;
+  });
 
   // Keep the serve digest per version: a different digest for the same version re-reads the commands.
   const digests = new Map<string, string>();
@@ -291,6 +345,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
     folders.onDidChange((all) => {
       // A removed folder's catalogue goes, so a restart's refreshAll does not run `info catalog` there.
       catalog.retain(all.map((folder) => folder.path));
+      // The first scan filling the folders is the window starting (`start` handles it), not a change.
+      if (!foldersKnown) return;
       // A new primary folder changes the runtime; a paths.toml edit only changes object folders, which
       // the engine (WASM) is given as files: it reads them again (a fresh read, not the mirror).
       const primary = all[0]?.path;
@@ -344,10 +400,15 @@ export function createCore(context: vscode.ExtensionContext): Core {
     if (!isBundled(runtime.current)) return;
     lastRecheck = now;
     const attempts = runtime.attempts;
-    const rt = await runtime.resolveAgain();
+    // Nothing restarts unless a user's own opentide appeared, so a language server's fallback to the engine is still
+    // in effect: its attempts stay in the new resolution's, from the moment it is heard of (the status tooltip).
+    const rt = await runtime.resolveAgain({ keepNotes: true });
     // A user's own opentide (tiers 1-3) replaces what the extension carries; anything else changes nothing.
-    if (rt && rt.tier <= 3) await restart(reason);
-    else if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
+    if (rt && rt.tier <= 3) {
+      await restart(reason);
+      return;
+    }
+    if (JSON.stringify(attempts) !== JSON.stringify(runtime.attempts))
       log.debug(`runtime: looked again (${reason}); still ${rt ? describeRuntime(rt) : "no runtime"}`);
   };
   // Anything created under a .venv, a second after the last: a file made right after its new folder
@@ -371,6 +432,7 @@ export function createCore(context: vscode.ExtensionContext): Core {
       void restart("Python environment changed");
   }).then((disposable) => subscriptions.push(disposable));
 
+  steps.mark("commands and listeners");
   const ctx: FeatureContext = {
     extension: context,
     subscriptions,
@@ -415,6 +477,8 @@ export function createCore(context: vscode.ExtensionContext): Core {
       vscode.workspace.textDocuments.map((document) => document.languageId),
     );
   const start = async (): Promise<void> => {
+    // Whether the window has opentide folders is known once their first scan is done.
+    await folders.ready();
     if (withContent()) return restart("activation");
     status.setDormant(true);
     log.info("activation: no opentide content in this window: the runtime starts when some appears");
@@ -431,13 +495,19 @@ export function createCore(context: vscode.ExtensionContext): Core {
     subscriptions.push(...waiting);
   };
 
+  steps.mark("feature context");
   return {
     ctx,
+    steps: steps.all,
     wasiHost: () => wasiHost.host,
+    stubWasiFetch: (perform) => {
+      wasiHost.fetchPerform = perform;
+    },
     start,
     shutdown: async (deadlineMs = 4000) => {
-      // In order: stop what would start more (a resolution in flight), then the language server, `serve`, and last
-      // what is left of the WASI processes. Each is awaited: `subscriptions` disposes them without waiting.
+      // In order: stop what would start more (a resolution in flight), then the language server and `serve` together
+      // (each can take a couple of seconds and a kill after that, and neither waits on the other), and last what is
+      // left of the WASI processes. Each is awaited: `subscriptions` disposes them without waiting.
       const result = await runShutdown(
         [
           {
@@ -446,8 +516,10 @@ export function createCore(context: vscode.ExtensionContext): Core {
               runtime.cancelResolution();
             },
           },
-          { name: "language server", run: () => client.dispose() },
-          { name: "opentide serve", run: () => backend.dispose() },
+          [
+            { name: "language server", run: () => client.dispose() },
+            { name: "opentide serve", run: () => backend.dispose() },
+          ],
           { name: "WASI processes", run: () => wasiHost.shutdown() },
         ],
         {

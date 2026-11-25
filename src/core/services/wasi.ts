@@ -15,25 +15,20 @@
 import * as cp from "node:child_process";
 import * as fs from "node:fs";
 
+import type { Perform } from "@opentide/wasi-host";
 import type { RootFileSystem, Wasm, WasmProcess } from "@vscode/wasm-wasi/v1";
-import { Wasm as WasmApi } from "@vscode/wasm-wasi/v1";
 import * as vscode from "vscode";
-import {
-  Emitter,
-  type MessageReader,
-  type MessageWriter,
-  ReadableStreamMessageReader,
-  WriteableStreamMessageWriter,
-} from "vscode-jsonrpc";
-import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
+import type { MessageReader, MessageWriter } from "vscode-jsonrpc";
 import type { MessageTransports } from "vscode-languageclient/node";
 
 import { fromChildProcess, type ServeProcess } from "../backend/process";
 import { terminateChild } from "../backend/terminate";
 import type { Logger } from "../context";
+import { loadLsp } from "../lsp/load";
 import { cliCommand, type Runtime } from "../runtime/types";
 import { Buffered } from "../wasi/buffered";
 import { GUEST_HOME, wasiEnv } from "../wasi/env";
+import { watchExit } from "../wasi/exit";
 import { chooseWasiHost, exitNote, type WasiHostKind, wasiHostSetting } from "../wasi/hostChoice";
 import { GuestPaths, guestPathOf, launcherMounts, type Mount } from "../wasi/paths";
 import { wasiServeWire } from "../wasi/wire";
@@ -141,7 +136,7 @@ export class WasiHost implements vscode.Disposable {
         return undefined;
       }
       try {
-        const wasm = await WasmApi.load();
+        const wasm = await loadLsp().WasmApi.load();
         record("wasm-wasi");
         this.log.info(
           `WASI: running under @vscode/wasm-wasi (${WASM_WASI_CORE} ${wasm.versions.extension}): ${choice.note}`,
@@ -264,22 +259,39 @@ export class WasiHost implements vscode.Disposable {
     return { child, paths: new GuestPaths(mounts) };
   }
 
+  /**
+   * Only in tests (ExtensionApi `stubWasiFetch`): what answers the module's `opentide/fetch` in the serve processes
+   * started from now on, in place of Node's HTTP stack.
+   */
+  fetchPerform: Perform | undefined;
+
   /** `opentide serve`: the process `ServeClient` drives, with paths mapped and `opentide/fetch` answered. */
   async startServe(): Promise<ServeProcess> {
     // The package is ESM only: loaded when the first server starts, not at activation.
     const { FetchHost } = await import("@opentide/wasi-host");
+    const perform = this.fetchPerform;
+    const fetchHost = (send: (message: object) => void) =>
+      new FetchHost(send, perform ? { perform } : undefined);
     const wasm = await this.wasmWasi();
     if (!wasm) {
       const { child, paths } = this.startChild(["serve"]);
-      return wasiServeWire(fromChildProcess(child), paths, (send) => new FetchHost(send));
+      return wasiServeWire(fromChildProcess(child), paths, fetchHost);
     }
     const started = await this.startWasm(wasm, ["serve"]);
     const raw = this.rawProcess(started.process, "serve");
-    return wasiServeWire(raw, started.paths, (send) => new FetchHost(send));
+    return wasiServeWire(raw, started.paths, fetchHost);
   }
 
   /** `opentide lsp start`: the language client's transports, with URIs and paths mapped. */
   async startLanguageServer(onStderr: (text: string) => void): Promise<WasiLanguageServer> {
+    // vscode-jsonrpc comes with the language client, from dist/lsp.js (lsp/load.ts).
+    const {
+      Emitter,
+      ReadableStreamMessageReader,
+      StreamMessageReader,
+      StreamMessageWriter,
+      WriteableStreamMessageWriter,
+    } = loadLsp();
     const wasm = await this.wasmWasi();
     if (!wasm) {
       const { child, paths } = this.startChild(["lsp", "start"]);
@@ -307,19 +319,18 @@ export class WasiHost implements vscode.Disposable {
     proc.stdout?.onData((chunk) => dataEmitter.fire(chunk));
     const stderrDecoder = new TextDecoder();
     proc.stderr?.onData((chunk) => onStderr(stderrDecoder.decode(chunk, { stream: true })));
-    void proc.run().then(
-      (code) => {
-        this.live.delete(proc);
-        const note = exitNote("opentide lsp start", code, this.endedByUs.has(proc));
+    // The pipe closes when the process ends: by its own exit, or, for one this extension ended, once `terminate` has
+    // settled (`run()` does not, then: wasi/exit.ts), so the client and whoever waits on it hear it either way.
+    const watcher = watchExit(proc, (exit) => {
+      this.live.delete(proc);
+      if (exit.kind === "exited") {
+        const note = exitNote("opentide lsp start", exit.code, this.endedByUs.has(proc));
         if (note) this.log[note.level](note.text);
-        closeEmitter.fire();
-      },
-      (error: unknown) => {
-        this.live.delete(proc);
-        this.log.warn(`WASI: opentide lsp start ended: ${String(error)}`);
-        closeEmitter.fire();
-      },
-    );
+      } else if (exit.kind === "failed") {
+        this.log.warn(`WASI: opentide lsp start ended: ${String(exit.error)}`);
+      }
+      closeEmitter.fire();
+    });
 
     const inner = new ReadableStreamMessageReader({
       onData: (listener) => dataEmitter.event(listener),
@@ -343,7 +354,7 @@ export class WasiHost implements vscode.Disposable {
       terminate: () => {
         this.endedByUs.add(proc);
         this.live.delete(proc);
-        void proc.terminate().catch(() => undefined);
+        void watcher.terminate();
       },
     };
   }
@@ -359,17 +370,16 @@ export class WasiHost implements vscode.Disposable {
     proc.stdout?.onData((chunk) => out.push(decoder.decode(chunk, { stream: true })));
     const errDecoder = new TextDecoder();
     proc.stderr?.onData((chunk) => err.push(errDecoder.decode(chunk, { stream: true })));
-    void proc.run().then(
-      (code) => {
-        this.live.delete(proc);
-        close.push([code, null]);
-      },
-      (error: unknown) => {
-        this.live.delete(proc);
-        this.log.warn(`WASI: opentide ${name} ended: ${String(error)}`);
+    // `run()` never settles for a process that `terminate` ended, so the exit is also reported once the terminate has
+    // settled (wasi/exit.ts): `kill` then ends whoever waits for it.
+    const watcher = watchExit(proc, (exit) => {
+      this.live.delete(proc);
+      if (exit.kind === "exited") close.push([exit.code, null]);
+      else if (exit.kind === "failed") {
+        this.log.warn(`WASI: opentide ${name} ended: ${String(exit.error)}`);
         close.push([null, null]);
-      },
-    );
+      } else close.push([null, "SIGKILL"]);
+    });
     return {
       write: (text) => {
         void proc.stdin
@@ -383,7 +393,7 @@ export class WasiHost implements vscode.Disposable {
       kill: () => {
         this.endedByUs.add(proc);
         this.live.delete(proc);
-        void proc.terminate().catch(() => undefined);
+        void watcher.terminate();
       },
     };
   }

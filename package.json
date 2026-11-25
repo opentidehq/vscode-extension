@@ -2,7 +2,7 @@
   "name": "opentide",
   "displayName": "opentide",
   "description": "The opentide workbench for detection engineering: live checks for Tide objects and their KQL, SPL, ES|QL, EQL, Kibana KQL, Lucene and Falco queries, templates, catalogue, ATT&CK coverage, query results and deploy previews.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "opentidehq",
   "license": "EUPL-1.2",
   "icon": "images/icon.png",
@@ -91,7 +91,9 @@
     "onLanguage:lucene",
     "onLanguage:falco",
     "onMcpCollection:opentide",
+    "onWebviewPanel:opentide.graph",
     "onStartupFinished",
+    "onWebviewPanel:opentide.matrix",
     "onTaskType:opentide",
     "onTerminalProfile:opentide.terminal"
   ],
@@ -2250,7 +2252,6 @@
             "variable.other.constant"
           ],
           "operator": [
-            "keyword.operator.key-value.tide",
             "keyword.operator"
           ],
           "decorator": [
@@ -2869,10 +2870,11 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.3",
-    "@opentide/wasi-host": "1.0.0-rc.4",
+    "@opentide/wasi-host": "1.0.0-rc.5",
     "@vscode/codicons": "0.0.45",
     "@vscode/wasm-wasi": "1.0.1",
     "cytoscape": "3.34.4",
+    "effect": "4.1.5",
     "vscode-jsonrpc": "10.0.0",
     "vscode-languageclient": "11.0.0"
   },

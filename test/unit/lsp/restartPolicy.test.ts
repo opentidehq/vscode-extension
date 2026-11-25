@@ -3,9 +3,11 @@ import * as assert from "node:assert/strict";
 import {
   BACKOFF_MS,
   CRASH_CEILING,
+  connectionErrorAction,
   CRASH_WINDOW_MS,
   recentCrashes,
   restartDecision,
+  WRITE_ERRORS_TOLERATED,
 } from "../../../src/core/lsp/restartPolicy";
 
 describe("restartDecision", () => {
@@ -61,5 +63,19 @@ describe("recentCrashes", () => {
   it("drops the crashes a window or more old", () => {
     assert.deepEqual(recentCrashes([0, 1000, CRASH_WINDOW_MS], CRASH_WINDOW_MS), [1000, CRASH_WINDOW_MS]);
     assert.deepEqual(recentCrashes([1, 2], 3), [1, 2]);
+  });
+});
+
+describe("connectionErrorAction", () => {
+  // Regression: a stream error (no count) shut the client down, which skips its close handler, so a language server
+  // that crashed on Windows was never started again (the launcher's crash test, CI).
+  it("carries on through a stream error, which has no count: the close that follows decides", () => {
+    assert.equal(connectionErrorAction(undefined), "continue");
+  });
+
+  it("carries on through the first three failed writes in a row, then shuts down", () => {
+    const actions = [1, 2, 3, 4, 5].map((count) => connectionErrorAction(count));
+    assert.deepEqual(actions, ["continue", "continue", "continue", "shutdown", "shutdown"]);
+    assert.equal(WRITE_ERRORS_TOLERATED, 3);
   });
 });

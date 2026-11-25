@@ -103,6 +103,62 @@ export function thirdPartyNotices(packages, readFile) {
  * dist/web/extension.js, CommonJS for the web worker extension host, with only `vscode` external. The
  * browser platform makes a Node built-in fail to resolve instead of being bundled.
  */
+/** The extension host bundle: dist/extension.js. It holds no vscode-languageclient: that is dist/lsp.js (lspOptions). */
+export function extensionOptions(root, common = {}) {
+  return {
+    ...common,
+    entryPoints: { extension: join(root, "src", "extension.ts") },
+    outdir: join(root, "dist"),
+    platform: "node",
+    format: "cjs",
+    target: "node20",
+    external: ["vscode"],
+    mainFields: ["module", "main"],
+    // Where src/core/lsp/load.ts and src/core/backend/load.ts find their bundles, next to this one.
+    define: {
+      OPENTIDE_LSP_FILE: JSON.stringify("lsp.js"),
+      OPENTIDE_BACKEND_FILE: JSON.stringify("backend.js"),
+    },
+    metafile: true,
+  };
+}
+
+/**
+ * vscode-languageclient, on its own: dist/lsp.js, which the extension loads when the first language client starts
+ * (src/core/lsp/load.ts). Requiring it costs about 53 ms that a window with no client never pays.
+ */
+export function lspOptions(root, common = {}) {
+  return {
+    ...common,
+    entryPoints: { lsp: join(root, "src", "core", "lsp", "client.ts") },
+    outdir: join(root, "dist"),
+    platform: "node",
+    format: "cjs",
+    target: "node20",
+    external: ["vscode"],
+    mainFields: ["module", "main"],
+    metafile: true,
+  };
+}
+
+/**
+ * The serve supervisor and Effect, on their own: dist/backend.js, which the extension loads with the first command
+ * (src/core/backend/load.ts), so a window that runs none never loads Effect.
+ */
+export function backendOptions(root, common = {}) {
+  return {
+    ...common,
+    entryPoints: { backend: join(root, "src", "core", "backend", "supervisor.ts") },
+    outdir: join(root, "dist"),
+    platform: "node",
+    format: "cjs",
+    target: "node20",
+    external: ["vscode"],
+    mainFields: ["module", "main"],
+    metafile: true,
+  };
+}
+
 export function webExtensionOptions(root, common = {}) {
   return {
     ...common,

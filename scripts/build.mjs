@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Bundles the extension host code and every webview entry.
 //   src/extension.ts        -> dist/extension.js     (node, CommonJS, `vscode` external)
+//   src/core/lsp/client.ts  -> dist/lsp.js          (node, CommonJS: vscode-languageclient, loaded on the first client start)
+//   src/core/backend/supervisor.ts -> dist/backend.js (node, CommonJS: the serve supervisor and Effect, loaded with the first command)
 //   src/web/extension.ts    -> dist/web/extension.js (browser, CommonJS, `vscode` external; package.json `browser`)
 //   src/web/engineWorker.ts -> dist/web/engine-worker.js (browser, classic script: the engine in a Web Worker)
 //   webview/<name>/main.ts  -> dist/webview/<name>.js (browser, IIFE)
@@ -28,6 +30,9 @@ import {
   COPIED_PACKAGES,
   commonOptions,
   copiedAssets,
+  extensionOptions,
+  lspOptions,
+  backendOptions,
   mergeMetafiles,
   thirdPartyNotices,
   webEngineWorkerOptions,
@@ -43,17 +48,9 @@ const watch = process.argv.includes("--watch");
 
 const common = commonOptions(production);
 
-const extension = {
-  ...common,
-  entryPoints: { extension: join(root, "src", "extension.ts") },
-  outdir: join(root, "dist"),
-  platform: "node",
-  format: "cjs",
-  target: "node20",
-  external: ["vscode"],
-  mainFields: ["module", "main"],
-  metafile: true,
-};
+const extension = extensionOptions(root, common);
+const lsp = lspOptions(root, common);
+const backend = backendOptions(root, common);
 
 const web = webExtensionOptions(root, common);
 
@@ -136,6 +133,8 @@ writeFileSync(join(wasiOut, "wasi.json"), `${JSON.stringify(wasi.manifest, null,
 const webEngineWorker = webEngineWorkerOptions(root, join(engineDir, GLUE), common);
 const configs = [
   extension,
+  lsp,
+  backend,
   mcpBridge,
   mcpLauncher,
   web,

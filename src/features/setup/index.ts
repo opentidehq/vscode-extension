@@ -103,6 +103,8 @@ export default defineFeature({
 /** A notification once per workspace, for an empty folder (SPEC §8 "Triggers"). */
 async function promptOnce(ctx: FeatureContext): Promise<void> {
   const state = ctx.extension.workspaceState;
+  // The folders are scanned without blocking activation: an empty list before then is not "no folder".
+  await ctx.folders.ready();
   if (!ctx.trust.isTrusted || state.get<boolean>(PROMPTED_KEY) || ctx.folders.all.length > 0) return;
   const folder = vscode.workspace.workspaceFolders?.find((f) => f.uri.scheme === "file");
   if (!folder || !ctx.backend.availability().available) return;

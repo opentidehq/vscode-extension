@@ -1,0 +1,13 @@
+{
+  "name": "webview-first-load-stall",
+  "displayName": "Repro: a webview page that never runs after the first one was closed mid-load",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "repro",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "activationEvents": [],
+  "contributes": {}
+}

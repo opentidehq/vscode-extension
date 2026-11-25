@@ -68,6 +68,7 @@ import {
   type ViewOptions,
 } from "../../src/features/graph/view";
 import { NODE_ICONS, themeVar } from "../../src/features/graph/words";
+import { PickButton } from "../panels-kit/pick";
 import { createChannel, vscodeApi } from "../shared/channel";
 import { paneContent, paneSkeleton } from "./detailsPane";
 import { CSS_ESCAPE, h, icon, iconButton, reducedMotion } from "./dom";
@@ -85,6 +86,8 @@ document.head.append(style);
 // The codicon font comes with every opentide page (codicons/codicon.css, linked by createPanel).
 
 const channel = createChannel<GraphProtocol>(webviewValidators);
+// First thing the page says: its script ran (the host logs it at debug level). A page that never says it never ran.
+channel.post("log", "script started");
 
 interface Persisted {
   depth: number;
@@ -202,16 +205,43 @@ const modeGroup = h(
   modeButtons.catalogue,
   modeButtons.chains,
 );
-const depthSelect = h(
-  "select",
-  { "aria-label": "Hops around the focus", title: "Hops around the focus" },
-  h("option", { value: "1", text: "1 hop" }),
-  h("option", { value: "2", text: "2 hops" }),
-  h("option", { value: "3", text: "3 hops" }),
-);
+const HOP_ITEMS = [
+  { value: "1", label: "1 hop" },
+  { value: "2", label: "2 hops" },
+  { value: "3", label: "3 hops" },
+];
+const depthPick = new PickButton({
+  label: "Hops around the focus",
+  title: "Hops around the focus",
+  placeHolder: "Hops around the focus",
+  onChange: (value) => {
+    settings.depth = clampDepth(Number(value));
+    save();
+    render({ fit: true });
+  },
+});
+depthPick.setItems(HOP_ITEMS);
 const kindsBox = h("div", { role: "group", "aria-label": "Kinds of node to show" });
-const platformSelect = h("select", { "aria-label": "Platform" });
-const statusSelect = h("select", { "aria-label": "Status" });
+const platformPick = new PickButton({
+  label: "Platform",
+  title: "Platform",
+  placeHolder: "Choose a platform",
+  onChange: (value) => {
+    platform = value;
+    render();
+  },
+});
+const statusPick = new PickButton({
+  label: "Status",
+  title: "Status",
+  placeHolder: "Choose a status",
+  onChange: (value) => {
+    status = value;
+    render();
+  },
+});
+platformPick.setItems([{ value: "", label: "All platforms" }]);
+statusPick.setItems([{ value: "", label: "All statuses" }]);
 const problemsBox = h("input", { type: "checkbox" });
 const clearFiltersButton = h("button", { type: "button", class: "item", text: "Clear filters" });
 const filtersBadge = h("span", { class: "badge", hidden: true });
@@ -221,8 +251,8 @@ const filtersPopup = h(
   h("span", { class: "heading", text: "Kinds" }),
   kindsBox,
   h("span", { class: "heading", text: "Rules" }),
-  platformSelect,
-  statusSelect,
+  platformPick.element,
+  statusPick.element,
   h("label", {}, problemsBox, "Problems only"),
   clearFiltersButton,
 );
@@ -274,7 +304,7 @@ const toolbar = h(
   { class: "toolbar", role: "toolbar", "aria-label": "Graph" },
   h("span", { class: "group", role: "group", "aria-label": "History" }, backButton, forwardButton),
   h("span", { class: "group" }, target),
-  h("span", { class: "group", role: "group", "aria-label": "Scope" }, modeGroup, depthSelect),
+  h("span", { class: "group", role: "group", "aria-label": "Scope" }, modeGroup, depthPick.element),
   h("span", { class: "group" }, filtersMenu, search),
   h("span", { class: "spacer" }),
   h(
@@ -365,17 +395,10 @@ function renderKinds(): void {
   );
 }
 
-function fillSelect(
-  select: HTMLSelectElement,
-  all: string,
-  values: readonly string[],
-  current: string,
-): void {
-  select.replaceChildren(
-    h("option", { value: "", text: all }),
-    ...values.map((value) => h("option", { value, text: value })),
-  );
-  select.value = values.includes(current) ? current : "";
+/** The pick's items: `all`, then the values (only when the facets changed); it shows `current` if it is one. */
+function fillPick(pick: PickButton, all: string, values: readonly string[], current: string): void {
+  if (pick.itemCount !== values.length + 1)
+    pick.setItems([{ value: "", label: all }, ...values.map((value) => ({ value, label: value }))], current);
 }
 
 // ------------------------------------------------------------------------------------------ colours
@@ -1805,8 +1828,8 @@ function updateToolbar(): void {
     modeButtons[kind].setAttribute("aria-pressed", String(mode === kind));
     modeButtons[kind].disabled = !ready;
   }
-  depthSelect.value = String(settings.depth);
-  depthSelect.disabled = !ready || mode !== "focus";
+  depthPick.setValue(String(settings.depth));
+  depthPick.element.disabled = !ready || mode !== "focus";
   problemsBox.checked = settings.problemsOnly;
   listButton.setAttribute("aria-pressed", String(settings.list));
   const listLabel = settings.list ? "View as graph" : "View as list";
@@ -1822,10 +1845,8 @@ function updateToolbar(): void {
   kindsBox.toggleAttribute("aria-disabled", mode === "chains");
   if (model) {
     const known = facets(model);
-    if (platformSelect.options.length !== known.platforms.length + 1)
-      fillSelect(platformSelect, "All platforms", known.platforms, platform);
-    if (statusSelect.options.length !== known.statuses.length + 1)
-      fillSelect(statusSelect, "All statuses", known.statuses, status);
+    fillPick(platformPick, "All platforms", known.platforms, platform);
+    fillPick(statusPick, "All statuses", known.statuses, status);
   }
   const active =
     (platform ? 1 : 0) +
@@ -1898,8 +1919,8 @@ function clearFilters(): void {
   status = "";
   settings.problemsOnly = false;
   settings.kinds = [...new Set([...settings.kinds, ...OBJECT_KINDS])];
-  platformSelect.value = "";
-  statusSelect.value = "";
+  platformPick.setValue("");
+  statusPick.setValue("");
   save();
   renderKinds();
   renderLegend();
@@ -1908,19 +1929,6 @@ function clearFilters(): void {
 
 for (const kind of Object.keys(modeButtons) as GraphMode[])
   modeButtons[kind].addEventListener("click", () => setMode(kind));
-depthSelect.addEventListener("change", () => {
-  settings.depth = clampDepth(Number(depthSelect.value));
-  save();
-  render({ fit: true });
-});
-platformSelect.addEventListener("change", () => {
-  platform = platformSelect.value;
-  render();
-});
-statusSelect.addEventListener("change", () => {
-  status = statusSelect.value;
-  render();
-});
 problemsBox.addEventListener("change", () => {
   settings.problemsOnly = problemsBox.checked;
   save();

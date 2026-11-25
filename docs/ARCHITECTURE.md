@@ -10,6 +10,8 @@ package.json            manifest; `contributes` and `activationEvents` are GENER
 contrib/                manifest fragments: core.json, grammars.json (generated), <feature>.json
 pins.json               the opentide CI tests against, the WASI module, highlights and engine (+SHA-256), VSIX size budget (PACKAGING.md)
 src/extension.ts        activate(): the core, then every feature (a virtual workspace gets src/web/ instead)
+src/core/backend/      the backend (below): backend.ts and serve.ts, and supervisor.ts, the entry of dist/backend.js (the serve supervisor with Effect, loaded with the first command by load.ts)
+src/core/lsp/          the language client's pieces: client.ts is the entry of dist/lsp.js (vscode-languageclient, loaded on the first client start by load.ts; extension.js imports its types only), restartPolicy.ts, crashSupervisor.ts
 src/mcp-wasi/           the MCP bridge, bundled to dist/mcp-wasi.js (run by the editor's own Node)
 src/web/                web mode (vscode.dev, github.dev, virtual workspaces): the engine, its views; no Node built-ins
 src/core/               the core (below); vscode-free modules unless under core/services/ or core/webview/panel.ts
@@ -250,14 +252,15 @@ run(folder: string, argv: string[], options?: {
   tree has `serve` and `opentide.backend.serve` is `auto`; otherwise, and for commands classified
   `spawn` (setup, generate, query, deploy, doctor, migrate), `opentide --json <argv>` as its own process.
   A WASI runtime serves all of them (above). A serve that dies under a read-only request is restarted and
-  the request retried once.
+  the request retried once (below: the supervisor).
 - **Concurrency:** commands classified as writing run one at a time, in order; read-only ones run
-  concurrently.
+  concurrently. A writer cancelled while it waits leaves the line without running.
 - **Environment:** `OPENTIDE_REPO_ROOT=<folder>`, `NO_COLOR=1`, `http.proxy` as `OPENTIDE_PROXY`,
   `OPENTIDE_PROGRESS=json` with `onProgress`; credentials (SecretStorage, then `opentide.envFile`
   underneath) only for tenant-contacting runs.
-- **Cancellation:** `$/cancelRequest` under serve; SIGINT on POSIX; a process-tree kill on Windows. A
-  cancelled run resolves with exit code 130 and `cancelled: true`.
+- **Cancellation:** `$/cancelRequest` under serve, and a serve that has not answered 5 s later is killed;
+  SIGINT on POSIX; a process-tree kill on Windows. A cancelled run resolves with exit code 130 and
+  `cancelled: true`.
 - `onDidRun` fires when a run starts (`status: "running"`) and ends (`ok`, `failed`, `cancelled`,
   `error`). After a writing command the core refreshes that folder's catalogue.
 - `invalidate(paths)` is done for you: the core forwards object and `.opentide/` file events.
@@ -265,6 +268,40 @@ run(folder: string, argv: string[], options?: {
   `opentide.envFile`), for a process the extension starts itself, such as a task or a terminal running
   `query`. Empty when commands cannot run. Never log or show the values.
 
+
+### The serve supervisor (`src/core/backend/supervisor.ts`)
+
+`opentide serve` answers one request at a time, and on tier 4 (the WASI module, the default) every command goes
+through it. So a serve that hangs or keeps crashing stops every command. The supervisor keeps that bounded:
+
+- **Crash ceiling.** A serve that exits on its own is a crash. Its restarts follow a `Schedule`:
+  `Schedule.max([Schedule.jittered(Schedule.exponential("500 millis")), Schedule.recurs(3)])`, counted within two
+  minutes. The next request waits the backoff (about 0.5, 1 and 2 s); after the fourth start, serve is given up on.
+  A native runtime (tiers 1 to 3) then spawns `opentide --json` per command, and a WASI runtime, which cannot,
+  refuses commands with one notice until "opentide: Restart Server".
+- **Cancel-then-kill.** A cancel sends `$/cancelRequest`. A serve that answers within 5 s (exit 130) is kept; one
+  that does not is killed, the run resolves as cancelled, and the next request starts a new serve. That kill is
+  not a crash.
+- **Writers** take a `Semaphore` permit, one at a time, in order. A writer cancelled while it waits leaves the line
+  and never runs; once it runs, it holds the permit until it settles (or is killed).
+- **Lanes.** Each serve process is a scoped resource (`Effect.acquireRelease`): closing its scope stops it, on a
+  runtime switch, a restart or dispose.
+- **Two lanes on tier 4** (`backend.ts`, `laneFor`). Commands that contact a tenant or would be a process of their
+  own natively (`classification.contactsTenant || classification.spawn`: a query, a deploy dry run, doctor) run on
+  the `long` lane, everything else on `interactive`, so a tenant that takes a minute never holds up validate-on-save
+  or the catalogue behind serve's one request at a time. `interactive` gives a command 5 minutes, then cancels it
+  (`timed-out`); `long` has no deadline (cancel-driven), starts with its first command and stops after 2 minutes
+  idle. Each lane has its own process, crash ceiling and backoff; `invalidate`, a runtime change, restart and dispose
+  reach both, and dispose closes them together (one step of the shutdown's group with the language server). Natively
+  those commands spawn, so `long` stays empty.
+
+backend.ts keeps the Promise API and the `BackendError` codes. It calls the supervisor and maps what comes back:
+a kill becomes a cancelled result, the ceiling `crashed`. Effect is used here and nowhere else, because
+interruption, timeouts, schedules and scoped release are what this code is made of, and hand-written versions of
+those are where the hangs came from. It is not used in features, webviews, the web extension or the MCP bridge.
+The supervisor is its own bundle, `dist/backend.js` (about 44 KiB gzipped with Effect), required by
+`src/core/backend/load.ts` with the first command, as `dist/lsp.js` is with the first language client, so a
+window that runs no command never loads Effect (`test/scripts/lazy-client.test.mjs`).
 ### `ctx.capabilities`
 
 The active opentide's `opentide --json commands`, read once per version (cached under global storage).

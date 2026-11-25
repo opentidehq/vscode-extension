@@ -86,6 +86,11 @@ export interface FolderService {
   /** Workspace folders with `.opentide/` or `objects/`, in workspace order. */
   readonly all: readonly OpentideFolder[];
   readonly onDidChange: Event<readonly OpentideFolder[]>;
+  /**
+   * Resolves once the folders are known: the first scan runs while the window activates without blocking it, so
+   * `all` is empty until then (onDidChange fires when it fills). Await it before deciding there is no folder.
+   */
+  ready(): Promise<void>;
   /** The opentide folder that contains `uri`. */
   folderOf(uri: vscode.Uri): OpentideFolder | undefined;
   /** The folder an action is about: the active editor's, else the only one, else ask. */

@@ -195,6 +195,50 @@ describe("backend", () => {
     assert.ok(result.via === "serve" || result.via === "spawn");
   });
 
+  it("runs a request a restart cut off on the runtime the restart lands on, not the one it leaves", async () => {
+    const before = fakeRuntime({ env: { FAKE_VERSION: "0.21.0", FAKE_SERVE_INIT_DELAY_MS: "300" } });
+    const after = fakeRuntime({ version: "0.22.0", env: { FAKE_VERSION: "0.22.0" } });
+    let current = before;
+    let settle = (): void => undefined;
+    const settling = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const { instance, logs } = make({
+      runtime: () => current,
+      settledRuntime: () => settling.then(() => current),
+    });
+    // A request waits on a serve start; a restart overtakes it while the runtime still resolves (still the old one).
+    const request = instance.run(REPO, ["echo"]);
+    await sleep(100);
+    await instance.restart();
+    await sleep(50);
+    current = after;
+    settle();
+    const result = await request;
+    assert.equal(result.exitCode, 0);
+    const again = logs.findIndex((line) => line.includes("running it again"));
+    assert.match(logs[again] ?? "", /running it again on 0\.22\.0/, logs.join(" | "));
+    // The serve the overtaken start was bringing up may still say it started; after the rerun, only the new one does.
+    const startedAfter = logs.slice(again).filter((line) => /opentide serve \S+ started/.test(line));
+    assert.deepEqual(
+      startedAfter.map((line) => /opentide serve (\S+) started/.exec(line)?.[1]),
+      ["0.22.0"],
+      logs.join(" | "),
+    );
+  });
+
+  it("says which serve it stops on a restart, and why", async () => {
+    const { instance, logs } = make();
+    await instance.run(REPO, ["echo"]);
+    await instance.restart();
+    assert.ok(
+      logs.some((line) =>
+        /stopping opentide serve \(pid \d+, interactive lane, 0\.21\.0 \(path\)\): restart/.test(line),
+      ),
+      logs.filter((line) => line.includes("stopping")).join(" | "),
+    );
+  });
+
   it("falls back to spawning when serve cannot start", async () => {
     const { instance, logs } = make({}, { FAKE_SERVE_BROKEN: "1" });
     const result = await instance.run(process.cwd(), ["echo"]);

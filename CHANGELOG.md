@@ -14,6 +14,47 @@ pre-releases odd ones.
   one-line summary. Opening a change shows what is deployed against what the plan would send (the request alone
   when the plan has no deployed state). Options, filter, "Open Rule", "Copy Request" and the copy commands are in
   the view's toolbar and menus; the summary cards and the lock that kept several plans open are gone.
+
+### Fixed
+
+- **A panel that opens blank loads again on its own.** After you closed the graph while it was still
+  loading, the next one could stay empty. A panel whose page has not loaded after 10 seconds on
+  screen is now opened again in its place, once.
+- **The language server starts again after a crash on Windows.** When it ended abruptly, VS Code
+  could report the connection as broken before it closed, and the server then stayed stopped until
+  **opentide: Restart Server**. It now restarts as it does elsewhere.
+- **Faster startup on Windows.** Looking for `opentide`, `python` and `uv` on your PATH no longer
+  holds up other extensions, and each is looked up once. A program you install while VS Code is
+  open is found after **opentide: Restart Server**.
+- **The opentide status keeps saying why the engine serves the editor.** When the language server
+  keeps crashing and the opentide engine (WASM) takes over, the status tooltip and the output
+  said why, until the window got the focus back. Now they keep saying it.
+- **opentide tasks and commands stay available after you switch runtimes.** A command cut short by
+  the switch now runs on the opentide you switched to, and a failed read of opentide's commands is
+  tried again instead of leaving tasks empty until the next restart.
+
+## [0.4.1] - 2026-11-24
+
+Tenant queries no longer hold up the editor, and panels come back after a reload. Runs on opentide 1.0.0-rc.5.
+
+### Added
+
+- **The graph and the ATT&CK coverage panel come back after you reload the window.** They reopen where they
+  were, with the choices you had made in them, and show a loading state until opentide has answered.
+
+### Changed
+
+- **The bundled opentide (WASI) and the opentide engine (WASM) are 1.0.0-rc.5.** Editor features with no
+  opentide installed, and in Restricted Mode, come from this release
+  ([opentide 1.0.0-rc.5](https://github.com/opentidehq/opentide/releases/tag/v1.0.0-rc.5)).
+- **Most query languages are coloured more fully as soon as a file opens.** The grammars colour fields,
+  functions and constants before the language server answers, so less of a query changes colour once it does.
+- **Closing a window stops the language server and `opentide serve` together.** A slow stop of one no
+  longer uses up the time VS Code gives the other, so neither is left running behind a closed window.
+- **Windows that never need the language server start faster.** The extension loads its language client the
+  first time a server starts, not in every window as it opens.
+- **The graph's platform, status and hops choices open VS Code's own picker.** They were native drop-downs
+  whose popup looked unlike the rest of VS Code.
 - **The ATT&CK coverage panel's folder, platform and tenant choices open VS Code's own picker.** They were
   native drop-downs whose popup looked unlike the rest of VS Code; the folder list shows each folder's path.
 - **The results table's "in column" choice opens VS Code's own picker.** It was a native drop-down whose popup
@@ -31,6 +72,22 @@ pre-releases odd ones.
 
 ### Fixed
 
+- **A restart no longer hangs when the bundled opentide is busy (VS Code's WASI host).** Stopping the bundled
+  opentide while it was working could wait for ever for an exit that VS Code's WASI host never reported, and
+  every restart after it waited too.
+- **The editor features no longer stay stuck when the language server is restarted while it is still
+  starting.** A start that gets no answer is given up on after 30 seconds and the opentide engine (WASM) takes
+  over; a stop that gets no answer is cut short, so `opentide: Restart Server` always comes back.
+- **A slow tenant query no longer holds up the sidebar, the problems list or the coverage panel.** With the
+  bundled opentide, queries, deploy previews and other commands that reach a tenant run beside the editor's
+  own checks instead of in front of them. An editor command that answers nothing for 5 minutes is cancelled
+  with `timed-out`.
+- **A command that hangs can be cancelled.** Cancelling it stops it within 5 seconds, even when
+  opentide does not answer, and the commands queued behind it run. A command still waiting its turn
+  is cancelled at once.
+- **opentide stops restarting when it keeps crashing.** After four crashes in two minutes, commands
+  run in a process of their own; with the bundled opentide they stop, with a notice, until you run
+  "opentide: Restart Server".
 - **CQL, Exabeam, YARA and YARA-L queries are fully coloured in every theme.** Fields, functions and types
   were left plain in themes that do not turn on semantic highlighting, such as High Contrast Light.
 - **A query written on one line in quotes is coloured as a query.** `query: '…'` was painted as a single

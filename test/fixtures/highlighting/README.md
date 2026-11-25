@@ -3,10 +3,10 @@
 The data of `test/scripts/highlighting-contrast.test.mjs`. `scripts/highlighting-contrast.mjs` writes what is generated.
 
 - `samples/query/corpus.<language>`: the `*__valid` files of opentide's `crates/testdata/corpus/<language>` at
-  v1.0.0-rc.4, one after the other, without their `prod:` header lines (EUPL-1.2, opentidehq/opentide).
+  v1.0.0-rc.5, one after the other, without their `prod:` header lines (EUPL-1.2, opentidehq/opentide).
 - `samples/yaml/`: opentide's golden rules (`tests/golden/payloads/corpus/objects/rules`: sentinel-full,
   defender-full, splunk-full, elastic-*, crowdstrike-full, sysdig-full, carbon-black-full, s1-single,
-  harfanglab-yara) and a Falco workspace rule (`crates/testdata/workspaces/falco`) at v1.0.0-rc.4 (EUPL-1.2); this
+  harfanglab-yara) and a Falco workspace rule (`crates/testdata/workspaces/falco`) at v1.0.0-rc.5 (EUPL-1.2); this
   repository's `suspicious-lsass-access.yaml` and `coretide-rule.yaml`; `markdown-rich.yaml`, a description in
   Markdown and inline queries, written for this test.
 - `semantic-tokens.json`: the semantic tokens `opentide lsp start` gives each sample, `[line, character, length,

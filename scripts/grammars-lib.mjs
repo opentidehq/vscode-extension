@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
 
-import { alignTide, EMBEDDED } from "./tide-align.mjs";
+import { alignCql, alignTide, EMBEDDED } from "./tide-align.mjs";
 
 export class GrammarError extends Error {}
 
@@ -90,6 +90,7 @@ export function transformHighlights(files) {
     const grammar = JSON.parse(raw.toString("utf8"));
     if (stem === "esql" && grammar.scopeName === ESQL_FROM) grammar.scopeName = ESQL_TO;
     if (stem === "tide") alignTide(grammar, GrammarError);
+    if (stem === "cql") alignCql(grammar, GrammarError);
     const text = `${JSON.stringify(grammar, null, 2)}\n`;
     outputs.set(`${stem}.tmLanguage.json`, text);
     const entry = {

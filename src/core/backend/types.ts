@@ -58,6 +58,8 @@ export type BackendErrorCode =
   | "shut-down"
   /** A JSON-RPC protocol error from `opentide serve`. */
   | "protocol"
+  /** `opentide serve` did not answer an editor command within the interactive lane's deadline; it was cancelled. */
+  | "timed-out"
   /** The backend was disposed. */
   | "disposed";
 

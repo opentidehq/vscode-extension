@@ -83,6 +83,10 @@ export class PickButton {
     this.paint();
   }
 
+  get itemCount(): number {
+    return this.items.length;
+  }
+
   get value(): string {
     return this.current;
   }

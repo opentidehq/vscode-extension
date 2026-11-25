@@ -33,8 +33,21 @@ import {
   parseOpenArgs,
   parseRevealArgs,
   problemsFor,
+  restoredFolder,
 } from "./state";
 import type { GraphMode } from "./view";
+
+/** The panel's identity and webview, for a new one and for one VS Code revives after a window reload. */
+const PANEL = {
+  viewType: "opentide.graph",
+  entry: "graph",
+  validators: hostValidators,
+  retainContextWhenHidden: true,
+  enableFindWidget: false,
+} as const;
+
+/** The folder the graph last showed, kept per workspace so a reload shows the same one. */
+const FOLDER_KEY = "opentide.graph.folder";
 
 class GraphPanel implements vscode.Disposable {
   private opened: OpentidePanel<GraphProtocol> | undefined;
@@ -88,6 +101,7 @@ class GraphPanel implements vscode.Disposable {
   ): Promise<GraphPanelStatus> {
     const switched = this.folder?.path !== folder.path;
     this.folder = folder;
+    void this.ctx.extension.workspaceState.update(FOLDER_KEY, folder.path);
     const editor = vscode.window.activeTextEditor;
     const plan = showPlan({
       ...(editor?.viewColumn !== undefined ? { editorColumn: editor.viewColumn } : {}),
@@ -96,14 +110,10 @@ class GraphPanel implements vscode.Disposable {
     if (!this.opened) {
       this.ready = false;
       this.opened = this.ctx.webview.createPanel<GraphProtocol>({
-        viewType: "opentide.graph",
+        ...PANEL,
         title: this.title(),
-        entry: "graph",
-        validators: hostValidators,
         column: plan.column,
         preserveFocus: plan.preserveFocus,
-        retainContextWhenHidden: true,
-        enableFindWidget: false,
       });
       this.wire(this.opened);
     } else {
@@ -137,6 +147,24 @@ class GraphPanel implements vscode.Disposable {
       this.flushFocus();
     }
     return this.status();
+  }
+
+  /**
+   * After a window reload: the panel VS Code revived, wired as a new one. It shows the folder it last showed (the first
+   * when that is gone), starts following the editor, and fills in when its page says it is ready; until the
+   * runtime has resolved and the catalogue loaded, the page shows its loading state.
+   */
+  restore(opened: OpentidePanel<GraphProtocol>): void {
+    // The revived panel is the one VS Code kept: a graph already known (one that is closing, or one opened in the
+    // moment before) gives way to it.
+    this.opened?.dispose();
+    const remembered = this.ctx.extension.workspaceState.get<string>(FOLDER_KEY);
+    this.folder = restoredFolder(this.ctx.folders.all, remembered);
+    this.ready = false;
+    this.opened = opened;
+    opened.panel.title = this.title();
+    if (this.follower.following) this.pendingFocus = this.editorFocus(vscode.window.activeTextEditor, false);
+    this.wire(opened);
   }
 
   private title(): string {
@@ -183,6 +211,9 @@ class GraphPanel implements vscode.Disposable {
     ];
     panel.onDidDispose(() => {
       for (const subscription of subscriptions) subscription.dispose();
+      // A panel that closes later than another took its place (a reload revives one while the closing one is still
+      // known) leaves the newer one alone.
+      if (this.opened !== opened) return;
       this.follower.reset();
       this.opened = undefined;
       this.ready = false;
@@ -411,6 +442,10 @@ export default defineFeature({
 
     ctx.subscriptions.push(
       graph,
+      // A reload brings the panel back (the page's own state, its mode and filters, comes with it).
+      ctx.webview.registerPanelSerializer<GraphProtocol>({ ...PANEL, title: "opentide graph" }, (opened) =>
+        graph.restore(opened),
+      ),
       vscode.commands.registerCommand("opentide.graph.open", async (args?: unknown) => {
         const parsed = parseOpenArgs(args);
         return reveal(parsed.uuids ?? [], parsed.folder, parsed.mode);

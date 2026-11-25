@@ -7,7 +7,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { FeatureContext } from "../../core/context";
-import { which } from "../../core/runtime/process";
+import { pathLookup } from "../../core/runtime/process";
 import { hasCli, type Runtime } from "../../core/runtime/types";
 import { readRestricted } from "../../core/services/settings";
 import { launcherDir, launcherFiles, prependPath, runsAsModule, shouldAddToPath } from "./launcher";
@@ -76,7 +76,8 @@ export class TerminalIntegration implements vscode.Disposable {
       module: runsAsModule(runtime?.args) || runtime?.wasi !== undefined,
       restricted: !this.ctx.trust.isTrusted || runtime?.restricted === true,
       setting: readRestricted<boolean>("opentide.terminal.addToPath"),
-      opentideOnPath: which("opentide", process.env.PATH, process.platform) !== undefined,
+      opentideOnPath:
+        (await pathLookup.whichAsync("opentide", process.env.PATH, process.platform)) !== undefined,
     });
     if (!add) {
       collection.clear();

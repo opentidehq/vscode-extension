@@ -3,6 +3,7 @@ import * as assert from "node:assert/strict";
 import type { CatalogState } from "../../../src/core/catalog/store";
 import { hostValidators, webviewValidators } from "../../../src/features/graph/protocol";
 import {
+  restoredFolder,
   ChangedOnly,
   exportBytes,
   folderWithNode,
@@ -121,6 +122,20 @@ describe("graph host state", () => {
     assert.deepEqual([...exportBytes("png", png)], [0x89, 0x50, 0x4e, 0x47]);
     assert.deepEqual([...exportBytes("png", `data:image/png;base64,${png}`)], [0x89, 0x50, 0x4e, 0x47]);
     assert.equal(new TextDecoder().decode(exportBytes("svg", "<svg>é</svg>")), "<svg>é</svg>");
+  });
+});
+
+describe("graph: the folder of a panel revived after a window reload", () => {
+  const folders = [{ path: "/a" }, { path: "/b" }];
+  it("is the folder it last showed", () => {
+    assert.equal(restoredFolder(folders, "/b"), folders[1]);
+  });
+  it("is the first when it showed none, or that one is gone", () => {
+    assert.equal(restoredFolder(folders, undefined), folders[0]);
+    assert.equal(restoredFolder(folders, "/gone"), folders[0]);
+  });
+  it("is none when there are no folders", () => {
+    assert.equal(restoredFolder([], "/a"), undefined);
   });
 });
 
