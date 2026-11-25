@@ -83,7 +83,7 @@ Resolve the live structure in this order, stopping at the first that answers:
    cause, not a missing object type.
 
 Then read a neighbouring object of the same family for local convention, and
-`opentide --json info threats` to see what already exists before adding
+`opentide --json info threats` (it holds only that section; `--platform` with a section is a usage error) to see what already exists before adding
 something that overlaps.
 
 Repository layout is not fixed either. A CoreTide-era corpus uses different
@@ -156,6 +156,7 @@ Chaining models relationships between TVMs using a controlled vocabulary:
 2. Include a `description` narrative explaining the relationship.
 3. Verify the target TVM exists in the corpus before adding a chain.
 4. Multiple chains per TVM are normal (2-3 typical for complex threats).
+5. A chain never points at its own threat, and its keys are exactly `relation`, `vector` and `description`: `validate` refuses a self-link and a misspelt `vector`/`relation` key.
 
 ```yaml
 chaining:

@@ -1,6 +1,6 @@
 # Defender Multi-Query Correlation Patterns
 
-Worked correlation queries for Microsoft Defender for Endpoint Advanced Hunting. Each pattern is a complete, runnable KQL block. Column names still defer to the tenant schema reference — see the column-authority rule in `SKILL.md`.
+Worked correlation queries for Microsoft Defender Advanced Hunting. Each pattern is a complete, runnable KQL block. Column names still defer to the tenant schema reference — see the column-authority rule in `SKILL.md`.
 
 ## Pattern 1 — Sequential: process → network
 

@@ -9,6 +9,8 @@ This skill encodes the discipline of mapping adversary behaviour to ATT&CK and b
 
 **Current baseline**: ATT&CK **v19** (April 2026, Enterprise domain: 15 tactics, 222 techniques, 475 sub-techniques).
 
+> **opentide's vocabulary is newer.** opentide 1.0.0's bundled `att&ck` vocabulary follows ATT&CK **20.1**, and that vocabulary is what `opentide validate` checks ids against. When this skill's v19 index and the vocabulary disagree, the vocabulary wins: look the id up with `opentide info vocab` or the MCP resource `opentide://vocabularies/att&ck`.
+
 > **v19 breaking change**: Defense Evasion was split into **Stealth** (TA0005) and **Defense Impairment** (TA0112). Any existing mappings referencing TA0005 as "Defense Evasion" must be reviewed and re-assigned.
 
 > **Online version check**: If this skill may be outdated, verify the current ATT&CK version at:
@@ -117,8 +119,10 @@ Deprecated techniques have no replacement. Remove the mapping and document the g
 
 | Field | ATT&CK content |
 |---|---|
-| Rule metadata / `configurations.*.mitre` | Technique IDs for the platform rule |
+| `techniques` / `configurations.*` technique fields | Technique IDs for the rule; a block's own list (Sentinel `alert.techniques`/`alert.tactics`, Defender `alert.techniques`) is sent when set, otherwise the objective's, never merged |
 | `description` | Technique context in prose |
+
+Deploy adapts the ids per platform: Sentinel is aligned to ATT&CK v18 (a newer id is sent as the v18 id it replaced, else its v18 parent, else left out, with `technique_newer_than_sentinel_attack`); Defender sends Enterprise ids only (`technique_not_enterprise_left_out`); CrowdStrike's one-value `details.tactic`/`details.technique` are never inherited. Read a platform's warnings in `deploy --dry-run`, and see its skill.
 
 **Quality bar**: The MDR technique mapping must match what the query actually detects. A KQL query filtering on `FileName =~ "ntdsutil.exe"` maps to `T1003.003`, not the parent `T1003`.
 

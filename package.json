@@ -2764,7 +2764,7 @@
         "when": "!opentide.skillsFromPlugin"
       },
       {
-        "path": "./skills/microsoft-defender-endpoint/SKILL.md",
+        "path": "./skills/microsoft-defender/SKILL.md",
         "when": "!opentide.skillsFromPlugin"
       },
       {

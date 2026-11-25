@@ -5,7 +5,7 @@ description: Threat hunting hypothesis discipline using the ABLE framework (Acto
 
 # Threat hunting — hypothesis discipline
 
-This skill encodes the rigour of hypothesis-driven hunting (ABLE framework, scoring, anti-pattern checks) and the conversion path from validated hunts into opentide content. For language- or platform-level mechanics see the relevant skills (`kusto-query-language`, `microsoft-sentinel`, `microsoft-defender-endpoint`, `splunk-spl-processing`, etc.). For converting validated hunts into deployable rules, see `detection-engineering`.
+This skill encodes the rigour of hypothesis-driven hunting (ABLE framework, scoring, anti-pattern checks) and the conversion path from validated hunts into opentide content. For language- or platform-level mechanics see the relevant skills (`kusto-query-language`, `microsoft-sentinel`, `microsoft-defender`, `splunk-spl-processing`, etc.). For converting validated hunts into deployable rules, see `detection-engineering`.
 
 > **opentide bridge**:
 > - Hunt **hypothesis** ↔ TVM `chaining`/`terrain` narrative + DOM analytic intent.
@@ -82,7 +82,7 @@ Map each behavioural component to the telemetry domain and platform family that 
 | OS security events | SIEM / EDR | Security event logs (Windows Security, auditd, etc.) |
 | DNS resolution | SIEM / DNS security | DNS query and response logs |
 
-> Consult platform skills for exact table/index names: `microsoft-sentinel`, `microsoft-defender-endpoint`, `splunk-spl-processing`, `crowdstrike-falcon`, `sentinelone-singularity`, `carbon-black-cloud`, `harfanglab`.
+> Consult platform skills for exact table/index names: `microsoft-sentinel`, `microsoft-defender`, `splunk-spl-processing`, `crowdstrike-falcon`, `sentinelone-singularity`, `carbon-black-cloud`, `harfanglab`.
 
 **Cross-platform hypotheses** are valid: a single hypothesis may reference evidence on **both** an EDR and a SIEM platform. Author **separate queries per platform** with the correct platform tag — never attempt cross-platform joins.
 
@@ -353,6 +353,6 @@ Confirmed hunts feed TVM `chaining` and `terrain` evidence. Use `opentide-threat
 
 - `kusto-query-language/references/Hypothesis-Anti-Patterns.md` (AP-H1–H5).
 - `detection-engineering/` for hunt-to-rule conversion (7-step process).
-- Platform skills for query authoring and table references: `microsoft-sentinel/`, `microsoft-defender-endpoint/`, `splunk-spl-processing/`, `crowdstrike-falcon/`, `carbon-black-cloud/`, `sentinelone-singularity/`, `harfanglab/`.
+- Platform skills for query authoring and table references: `microsoft-sentinel/`, `microsoft-defender/`, `splunk-spl-processing/`, `crowdstrike-falcon/`, `carbon-black-cloud/`, `sentinelone-singularity/`, `harfanglab/`.
 - opentide content skills: `opentide-threat/`, `opentide-objective/`, `opentide-rule/`.
 - `mitre-attack/` for technique selection and coverage analysis.
