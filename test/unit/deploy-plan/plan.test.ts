@@ -53,6 +53,9 @@ describe("deploy plan (#18)", () => {
   it("refuses an argv without --dry-run", () => {
     assert.throws(() => assertDryRun(["deploy", "--strategy", "PREVIEW"]), /only previews/);
     assert.throws(() => assertDryRun(["deploy", "migrate-state", "--dry-run"]));
+    // opentide 1.0.0's CI write-back, and any deploy subcommand to come
+    assert.throws(() => assertDryRun(["deploy", "replay-state", "HEAD", "--dry-run"]));
+    assert.throws(() => assertDryRun(["deploy", "next-thing", "--dry-run"]));
     assert.throws(() => assertDryRun(["query", "--dry-run"]));
     assert.doesNotThrow(() => assertDryRun(["deploy", "--dry-run"]));
   });

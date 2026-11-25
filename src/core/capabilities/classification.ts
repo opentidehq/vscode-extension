@@ -80,6 +80,7 @@ export const COMMAND_CLASSES: Readonly<Record<string, Rule>> = {
   "rules unreviewed": always(READ),
   deploy: (a) => (a.has("--dry-run") ? READ_SPAWN : DEPLOYS),
   "deploy migrate-state": always(DEPLOYS),
+  "deploy replay-state": always(DEPLOYS),
   share: always(SHARES),
   "share push": always(SHARES),
   "share retract": always(SHARES),
