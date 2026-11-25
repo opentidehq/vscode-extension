@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Upgrade
+
+- **Upgrade your own opentide to 1.0.0:** `pip install --upgrade opentide`. The extension names the
+  `microsoft_defender` platform, which earlier opentide releases do not have.
+
 ### Breaking
 
 - **Microsoft Defender replaces Defender for Endpoint.** The setup wizard, the Platforms view, the
@@ -16,6 +21,12 @@ pre-releases odd ones.
 
 ### Changed
 
+- **The bundled opentide (WASI) and the opentide engine (WASM) are 1.0.0.** Editor features with no
+  opentide installed, and in Restricted Mode, come from this release
+  ([opentide 1.0.0](https://github.com/opentidehq/opentide/releases/tag/v1.0.0)).
+- **The opentide skills for agents include Microsoft Defender.** VS Code's agents get the
+  `microsoft_defender` skill of the opentide skills
+  ([opentidehq/skills#42](https://github.com/opentidehq/skills/pull/42)).
 - **The deploy plan is a native view in the panel, and each change opens in VS Code's diff editor.** It lists
   platform → tenant → change with the counts of each, an icon per action, the number of changes as a badge and a
   one-line summary. Opening a change shows what is deployed against what the plan would send (the request alone

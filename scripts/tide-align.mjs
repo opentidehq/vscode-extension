@@ -144,24 +144,3 @@ export function alignTide(grammar, Failure = Error) {
   grammar.opentideHandoff = "the language of an Elastic rule's query";
   return grammar;
 }
-
-// TEMPORARY, until the extension pins opentide 1.0.0 (the upstream fix is in progress): the zip's CQL grammar of
-// opentide 1.0.0-rc.5 read the start of a block comment in an unquoted glob such as `repo.name=docker/* foo=1`, and
-// its multi-line block-comment rule never found an end, so the rest of the document was a comment until the language
-// server answered. This drops the multi-line rule and gives the single-line block comment the token-start lookbehind
-// the `//` comment already has. `alignCql` fails when the zip's rules are not the two it expects, so it is deleted
-// (with its call in scripts/grammars-lib.mjs and its tests) once the zip's grammar is fixed.
-const CQL_COMMENT_LINE = "(?:^|(?<=[\\s|(\\[{,;]))//.*$|/\\*[\\s\\S]*?\\*/";
-const CQL_COMMENT_LINE_FIXED = "(?:^|(?<=[\\s|(\\[{,;]))(?://.*$|/\\*[\\s\\S]*?\\*/)";
-
-export function alignCql(grammar, Failure = Error) {
-  const fails = (message) =>
-    new Failure(`cql.tmLanguage.json: ${message}; the highlights zip changed, update scripts/tide-align.mjs`);
-  const comments = grammar.patterns?.filter((pattern) => pattern.comment === "capture:comment") ?? [];
-  const line = comments.find((pattern) => pattern.match === CQL_COMMENT_LINE);
-  const block = comments.find((pattern) => pattern.begin === "/\\*" && pattern.end === "\\*/");
-  if (!line || !block) throw fails("the comment rules are not the line rule and the multi-line block rule");
-  line.match = CQL_COMMENT_LINE_FIXED;
-  grammar.patterns.splice(grammar.patterns.indexOf(block), 1);
-  return grammar;
-}
