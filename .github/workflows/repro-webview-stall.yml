@@ -81,7 +81,9 @@ jobs:
   summary:
     name: Stall rate per OS × VS Code × arm
     needs: repro
-    if: always()
+    # After the repro jobs, whatever their outcome (one OS failing still leaves the others' numbers), unless the run
+    # was cancelled (a newer push supersedes it), when there is nothing to summarize.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

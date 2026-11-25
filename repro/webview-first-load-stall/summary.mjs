@@ -1,7 +1,7 @@
 // The stall rate per OS × VS Code version × arm, as a Markdown table, from the windows' results (run.mjs).
 //
 //   node summary.mjs results-dir/   (every *.json in it, each an array of window results)
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -189,6 +189,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       else if (entry.name.endsWith(".json")) results.push(...JSON.parse(readFileSync(path, "utf8")));
     }
   };
+  if (!existsSync(dir)) {
+    // No repro job uploaded results: they failed before writing any (a run that was cancelled skips this job).
+    process.stderr.write(`no results in ${dir}: every repro job failed before writing any\n`);
+    process.exit(1);
+  }
   walk(dir);
   process.stdout.write(`${summarize(results)}\n`);
 }
