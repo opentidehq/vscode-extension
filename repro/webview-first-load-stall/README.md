@@ -144,8 +144,8 @@ https://github.com/opentidehq/vscode-extension/tree/main/repro/webview-first-loa
   script ran in none of them, so the document is never written.
 - **Waiting first:** waiting 1 s between the close and the second panel cut stalls to 1 / ~476, but did not remove
   them.
-- **A new panel recovers it:** disposing the silent panel after 10 s and creating a new one of the same view type
-  recovered 9 / 9.
+- **A new panel recovers it:** disposing the silent panel and creating a new one of the same view type recovered
+  every stuck page. That was 16 / 16 after 10 s over three runs, and 7 / 7 each after 5 s and after 3 s.
 
 **What the stalled frame looks like.** Observed over the DevTools protocol (`--remote-debugging-port`) 10 s into a
 stall. Every one of 13 stalls probed, on all three OSes and both versions, looked like this:

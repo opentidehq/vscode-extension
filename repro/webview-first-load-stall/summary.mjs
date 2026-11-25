@@ -58,7 +58,7 @@ export function summarize(results) {
     }
   }
   const lines = [
-    "| OS | VS Code | arm | windows | stalled | stall rate | silent at 10 s | of those, inline ran | recreated → recovered | not cut short | errors | median ms to first message |",
+    "| OS | VS Code | arm | windows | stalled | stall rate | silent at the threshold (10 s, or the arm's) | of those, inline ran | recreated → recovered | not cut short | errors | median ms to first message |",
     "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
   ];
   for (const [key, row] of [...rows].sort(([a], [b]) => a.localeCompare(b))) {
@@ -155,7 +155,11 @@ function probeDetails(results) {
         baselines.add(key);
       }
       const outcome =
-        probe.what === "healthy" ? "healthy baseline" : result.stalled ? "stalled" : "silent at 10 s, then";
+        probe.what === "healthy"
+          ? "healthy baseline"
+          : result.stalled
+            ? "stalled"
+            : `silent at ${(result.recreatedAfterMs ?? 10000) / 1000} s, then`;
       const later =
         probe.what !== "healthy" && !result.stalled
           ? result.recreated
