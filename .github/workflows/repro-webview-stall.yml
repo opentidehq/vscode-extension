@@ -1,7 +1,10 @@
 # The standalone repro of the webview first-load stall (repro/webview-first-load-stall/): in N fresh VS Code windows
 # per OS × version, a webview panel is closed while its page loads and a second one of the same view type is opened
-# (arm `cut`), or only the second one is opened (arm `control`); a page that sends nothing in 30 s stalled. The
-# summary job prints the stall rate per OS × version × arm.
+# (arm `cut`), or only the second one is opened (arm `control`); a page that sends nothing in 30 s stalled. Arms
+# `cut-inline` (an inline ping before the big script), `cut-delay` (1 s between the close and the next open) and
+# `cut-recreate` (a silent page's panel recreated after 10 s) tell the cause apart and measure the fixes; a page
+# silent for 10 s is probed over the DevTools protocol (its log lines `probe {…}`). The summary job prints the stall
+# rate per OS × version × arm.
 #
 # Actions are pinned by commit SHA with the version in a comment, as in ci.yml.
 name: Repro webview first-load stall
@@ -12,6 +15,9 @@ on:
       windows:
         description: Fresh windows per arm, per OS and VS Code version
         default: "40"
+      arms:
+        description: Arms, comma-separated (cut, control, cut-inline, cut-delay, cut-recreate)
+        default: cut,control,cut-inline,cut-delay,cut-recreate
   pull_request:
     paths:
       - repro/webview-first-load-stall/**
@@ -28,6 +34,7 @@ env:
   NODE_VERSION: "22"
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
   WINDOWS: ${{ inputs.windows || '40' }}
+  ARMS: ${{ inputs.arms || 'cut,control,cut-inline,cut-delay,cut-recreate' }}
 
 jobs:
   repro:
@@ -60,9 +67,9 @@ jobs:
           set -euo pipefail
           cd repro/webview-first-load-stall
           if [[ "${RUNNER_OS}" == "Linux" ]]; then
-            xvfb-run -a node run.mjs --version "${VSCODE}" --windows "${WINDOWS}" --label "${LABEL}"
+            xvfb-run -a node run.mjs --version "${VSCODE}" --windows "${WINDOWS}" --arms "${ARMS}" --label "${LABEL}"
           else
-            node run.mjs --version "${VSCODE}" --windows "${WINDOWS}" --label "${LABEL}"
+            node run.mjs --version "${VSCODE}" --windows "${WINDOWS}" --arms "${ARMS}" --label "${LABEL}"
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

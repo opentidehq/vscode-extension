@@ -15,6 +15,21 @@ Each trial runs in a fresh VS Code window, with its own empty user data and exte
   3. Open a second panel of the same view type.
   4. Wait 30 s for its first message.
 - **Arm `control`:** open only the second panel, the same way.
+- **Arm `cut-inline`:** as `cut`, with a nonce'd inline script that posts `inline` before the big script loads. It
+  shows whether a silent page's document was written at all.
+- **Arm `cut-delay`:** as `cut`, waiting 1 s between closing the first panel and opening the second.
+- **Arm `cut-recreate`:** as `cut`. If the second page has said nothing after 10 s, its panel is disposed and a third
+  panel of the same view type opens in its column, as opentide's watchdog does. That panel gets 30 s.
+
+**The probe.** A page that has said nothing for 10 s is probed over the DevTools protocol: VS Code runs with
+`--remote-debugging-port`, and the code is in `cdp.mjs`. The probe reads each `vscode-webview://` frame:
+- whether a service worker controls it;
+- its registration's workers;
+- VS Code's own performance marks (`content/started`, `content/workerReady`, …);
+- its child frames and loaded resources.
+
+It also reads the webview service worker's state and its clients. Each arm's first two healthy windows are probed
+too, as a baseline. The probes are in the log as `probe {…}` lines and in the results JSON.
 
 A window whose second page sends nothing in 30 s **stalled**. A `cut` window whose first page had already posted
 when it was closed did not cut a load short, so it is counted apart.
