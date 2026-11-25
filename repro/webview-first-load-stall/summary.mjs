@@ -69,7 +69,63 @@ export function summarize(results) {
       `| ${os} | ${version} | ${arm} | ${row.windows} | ${row.stalled} | ${rate} | ${row.silent} | ${arm === "cut-inline" ? row.inline : "–"} | ${row.recreated > 0 ? `${row.recreated} → ${row.recovered}` : "–"} | ${row.notCut} | ${row.errors} | ${median(row.startedMs) ?? "n/a"} |`,
     );
   }
-  return lines.join("\n");
+  return [lines.join("\n"), probeDetails(results)].filter(Boolean).join("\n\n");
+}
+
+/** One frame or worker of a probe, on one line. */
+function describeFrame(frame) {
+  if (frame.error) return `${frame.via}: error ${frame.error}`;
+  if (frame.worker) {
+    const workers = `installing=${frame.installing} waiting=${frame.waiting} active=${frame.active}`;
+    return `service worker: ${workers}; clients [${(frame.clients ?? []).join(", ")}]`;
+  }
+  const registration =
+    frame.registration && typeof frame.registration === "object"
+      ? `installing=${frame.registration.installing} waiting=${frame.registration.waiting} active=${frame.registration.active}`
+      : String(frame.registration);
+  const marks = (frame.marks ?? []).filter((mark) => /content|init|webview|ready/.test(mark));
+  const resources = (frame.resources ?? []).map((r) => `${r.name}:${r.status ?? "?"}/${r.ms}ms`);
+  return (
+    `${frame.path}${frame.id ? `?id=${String(frame.id).slice(0, 8)}` : ""} ${frame.readyState}; ` +
+    `controlled=${frame.controlled} (${frame.controller}); registration ${registration}; ` +
+    `child frames ${frame.frames}, scripts ${frame.scripts}; marks [${marks.join(" ")}]; resources [${resources.join(" ")}]`
+  );
+}
+
+/**
+ * Every silent page's probes (and one healthy baseline per OS and VS Code version), so that the job's log shows what
+ * the webview frames were doing without downloading the artifacts.
+ */
+function probeDetails(results) {
+  const lines = [];
+  const baselines = new Set();
+  for (const result of results) {
+    for (const probe of result.probes ?? []) {
+      const where = `${OS[result.platform] ?? result.platform} ${result.vscode} ${result.arm} window ${result.window}`;
+      if (probe.what === "healthy") {
+        const key = `${result.platform}|${result.vscode}`;
+        if (baselines.has(key)) continue;
+        baselines.add(key);
+      }
+      const outcome =
+        probe.what === "healthy" ? "healthy baseline" : result.stalled ? "stalled" : "silent at 10 s, then";
+      const later =
+        probe.what !== "healthy" && !result.stalled
+          ? result.recreated
+            ? " recovered by recreate"
+            : " started"
+          : "";
+      lines.push(`- **${where}** (${outcome}${later}; probed ${probe.what}, ${probe.ms} ms)`);
+      if (probe.error) lines.push(`  - error: ${probe.error}`);
+      for (const frame of probe.frames ?? []) lines.push(`  - ${describeFrame(frame)}`);
+      if ((probe.frames ?? []).length === 0 && !probe.error) {
+        lines.push(
+          `  - no webview frames; targets [${(probe.targets ?? []).map((t) => `${t.type} ${t.url}`).join(", ")}]`,
+        );
+      }
+    }
+  }
+  return lines.length > 0 ? `### Probes\n\n${lines.join("\n")}` : "";
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
