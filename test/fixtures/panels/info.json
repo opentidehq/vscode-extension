@@ -13,7 +13,7 @@
     },
     { "name": "crowdstrike", "enabled": false, "can_deploy": true, "can_validate": false, "can_query": true },
     {
-      "name": "defender_for_endpoint",
+      "name": "microsoft_defender",
       "enabled": false,
       "can_deploy": true,
       "can_validate": true,

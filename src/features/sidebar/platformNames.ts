@@ -11,7 +11,7 @@ interface PlatformName {
 
 const NAMES: Readonly<Record<string, PlatformName>> = {
   sentinel: { short: "Sentinel", long: "Microsoft Sentinel", languages: "KQL" },
-  defender_for_endpoint: { short: "Defender", long: "Microsoft Defender for Endpoint", languages: "KQL" },
+  microsoft_defender: { short: "Defender", long: "Microsoft Defender", languages: "KQL" },
   splunk: { short: "Splunk", long: "Splunk", languages: "SPL" },
   elastic: { short: "Elastic", long: "Elastic Security", languages: "Kuery, Lucene, EQL, ES|QL" },
   crowdstrike: { short: "CrowdStrike", long: "CrowdStrike Falcon", languages: "CQL" },
@@ -25,7 +25,7 @@ export function platformName(id: string): PlatformName {
   return NAMES[id] ?? { short: id, long: id };
 }
 
-/** `defender_for_endpoint` → `--defender-for-endpoint`: the flag `setup platforms` takes. */
+/** `microsoft_defender` → `--microsoft-defender`: the flag `setup platforms` takes. */
 export function platformFlag(id: string): string {
   return `--${id.replaceAll("_", "-")}`;
 }

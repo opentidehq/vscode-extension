@@ -262,9 +262,9 @@ describe("sidebar: platforms & tenants", () => {
   });
 
   it("names platforms and their setup flags and files", () => {
-    assert.equal(platformName("defender_for_endpoint").short, "Defender");
+    assert.equal(platformName("microsoft_defender").short, "Defender");
     assert.equal(platformName("new_thing").long, "new_thing");
-    assert.equal(platformFlag("defender_for_endpoint"), "--defender-for-endpoint");
+    assert.equal(platformFlag("microsoft_defender"), "--microsoft-defender");
     assert.equal(platformToml("sentinel"), ".opentide/configurations/platforms/sentinel.toml");
   });
 });

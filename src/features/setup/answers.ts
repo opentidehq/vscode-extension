@@ -47,7 +47,7 @@ export interface SetupSupport {
 
 export const DEFAULT_PLATFORMS = [
   "sentinel",
-  "defender_for_endpoint",
+  "microsoft_defender",
   "splunk",
   "elastic",
   "crowdstrike",

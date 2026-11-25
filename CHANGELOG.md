@@ -7,6 +7,13 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Breaking
+
+- **Microsoft Defender replaces Defender for Endpoint.** The setup wizard, the Platforms view, the
+  deploy plan and the query lenses name the `microsoft_defender` platform of opentide 1.0.0, a
+  Microsoft Defender custom detection rule. `defender_for_endpoint` is no longer listed
+  ([opentidehq/opentide#1856](https://github.com/opentidehq/opentide/pull/1856)).
+
 ### Changed
 
 - **The deploy plan is a native view in the panel, and each change opens in VS Code's diff editor.** It lists

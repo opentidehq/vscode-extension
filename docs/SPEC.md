@@ -431,7 +431,7 @@ A webview stepper. It is a form over `opentide setup` flags (D3), so it writes n
 │                                                                      │
 │  Platforms                              deploy  validate  query      │
 │  [x] Microsoft Sentinel                   ✓       ✓ KQL     ✓        │
-│  [x] Microsoft Defender for Endpoint      ✓       ✓ KQL     ✓        │
+│  [x] Microsoft Defender                   ✓       ✓ KQL     ✓        │
 │  [ ] Splunk                               ✓       ✓ SPL     ✓        │
 │  [ ] Elastic                              ✓       ✓ 4 lang  ✓        │
 │  [ ] CrowdStrike                          ✓       —         ✓ CQL    │

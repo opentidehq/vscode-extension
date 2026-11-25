@@ -72,7 +72,7 @@ export function ruleQueryTargets(
 
 /** Query-file languages (VS Code language ids) and the platforms that run them, in preference order. */
 export const QUERY_FILE_PLATFORMS: Readonly<Record<string, readonly string[]>> = {
-  kql: ["sentinel", "defender_for_endpoint"],
+  kql: ["sentinel", "microsoft_defender"],
   spl: ["splunk"],
   esql: ["elastic"],
   eql: ["elastic"],

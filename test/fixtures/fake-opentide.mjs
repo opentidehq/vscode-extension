@@ -137,9 +137,9 @@ const ENV_KEYS = [
 const PLATFORMS = [
   ["carbon_black_cloud", true, true],
   ["crowdstrike", false, true],
-  ["defender_for_endpoint", true, true],
   ["elastic", true, true],
   ["harfanglab", false, true],
+  ["microsoft_defender", true, true],
   ["sentinel", true, true],
   ["sentinel_one", true, true],
   ["splunk", true, true],

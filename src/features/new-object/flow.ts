@@ -117,7 +117,7 @@ export interface PlatformItem {
 
 const PLATFORM_NAMES: Record<string, string> = {
   sentinel: "Microsoft Sentinel",
-  defender_for_endpoint: "Microsoft Defender for Endpoint",
+  microsoft_defender: "Microsoft Defender",
   splunk: "Splunk",
   elastic: "Elastic",
   crowdstrike: "CrowdStrike",
