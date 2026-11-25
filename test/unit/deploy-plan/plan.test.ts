@@ -14,15 +14,8 @@ import {
   dryRunCommand,
   neededVariables,
 } from "../../../src/features/deploy-plan/argv";
-import { deployPanelTitle, parseTargetArgs, targetKey } from "../../../src/features/deploy-plan/index";
+import { parseTargetArgs } from "../../../src/features/deploy-plan/index";
 import { deployedRequest, payloadDocuments, planView } from "../../../src/features/deploy-plan/plan";
-import {
-  cancelledState,
-  type DeployPanelState,
-  hostValidators,
-  noPlanBox,
-  withoutPlan,
-} from "../../../src/features/deploy-plan/protocol";
 import { parsePlatforms } from "../../../src/features/sidebar/platforms";
 import { ROOT } from "../helpers";
 
@@ -170,47 +163,9 @@ describe("deploy plan (#18)", () => {
     );
   });
 
-  it("keeps the plan shown when a re-run is cancelled, and stops saying Planning after a cancelled first run", () => {
-    const plan = planView(REAL);
-    const running: DeployPanelState = {
-      phase: "running",
-      locked: false,
-      folder: "/repo",
-      folderName: "repo",
-      platformLabels: { splunk: "Splunk" },
-      strategies: ["PREVIEW"],
-      scope: "all",
-      platform: null,
-      selection: null,
-      canSelect: true,
-      focus: [],
-      platforms: ["splunk"],
-      argvDisplay: "opentide --json deploy --dry-run --all",
-      dryRunCommand: "",
-      deployCommand: "",
-      plan,
-      failure: null,
-      progress: "splunk 1/2",
-      note: null,
-      startedAt: 0,
-      durationMs: null,
-    };
-    // Retargeted to other rules, then cancelled: no plan of the previous rules under the new title.
-    const retargeted = cancelledState(withoutPlan(running), 300);
-    assert.equal(retargeted.plan, null);
-    assert.equal(noPlanBox(retargeted).title, "Cancelled");
-    assert.equal(withoutPlan({ ...running, failure: { code: "x", message: "y" } }).failure, null);
-    const cancelled = cancelledState(running, 1200);
-    assert.equal(cancelled.phase, "cancelled");
-    assert.equal(cancelled.plan, plan, "the previous plan, not the cancelled envelope's empty one");
-    assert.equal(cancelled.durationMs, 1200);
-    assert.equal(cancelled.progress, null);
-    // The cancelled envelope has no payloads: replacing them with it would empty the payload documents.
+  it("gives a cancelled run no payloads, so replacing them with it would empty the payload documents", () => {
     assert.equal(payloadDocuments(cancelledEnvelope("deploy")).size, 0);
     assert.ok(payloadDocuments(REAL).size > 0);
-    const first = cancelledState({ ...running, plan: null }, 300);
-    assert.equal(noPlanBox(first).kind, "info", "a cancelled first run is not still planning");
-    assert.equal(noPlanBox(running).kind, "loading");
   });
 
   it("matches opentide's changes: platform → tenant → rule → action, with counts", () => {
@@ -331,42 +286,5 @@ describe("deploy plan (#18)", () => {
       folder: "/w",
     });
     assert.deepEqual(parseTargetArgs(undefined, undefined), { uris: [], uuids: [], files: [] });
-  });
-
-  it("validates the webview's run requests", () => {
-    assert.ok(hostValidators.run({ strategies: ["PREVIEW"], scope: "all", platform: null }));
-    assert.ok(!hostValidators.run({ strategies: ["PRODUCTION"], scope: "all", platform: null }));
-    assert.ok(!hostValidators.run({ strategies: [], scope: "all", platform: null }));
-    assert.ok(!hostValidators.run({ strategies: ["PREVIEW"], scope: "everything", platform: null }));
-    assert.ok(!hostValidators.run({ strategies: ["PREVIEW"], scope: "all", platform: "x; rm" }));
-    assert.ok(hostValidators.copy("ci"));
-    assert.ok(!hostValidators.copy("deployNow"));
-  });
-});
-
-describe("deploy plan: one panel per kind, retargeted to the rules asked for", () => {
-  it("keys a preview by its folder and rules, in any order", () => {
-    const a = targetKey({ folder: "/r", uuids: ["B", "a"], files: ["objects/rules/x.yaml"] });
-    const b = targetKey({ folder: "/r", uuids: ["a", "b"], files: ["objects/rules/x.yaml"] });
-    assert.equal(a, b);
-    assert.notEqual(targetKey({ folder: "/r", uuids: [], files: [] }), a);
-    assert.notEqual(
-      targetKey({ folder: "/other", uuids: [], files: [] }),
-      targetKey({ folder: "/r", uuids: [], files: [] }),
-    );
-  });
-
-  it("names the rules in the tab title", () => {
-    assert.equal(deployPanelTitle(null), "Deploy Plan");
-    assert.equal(
-      deployPanelTitle("Suspicious LSASS access by an unsigned binary"),
-      "Deploy Plan · Suspicious LSASS access by…",
-    );
-    assert.equal(deployPanelTitle("3 rules"), "Deploy Plan · 3 rules");
-  });
-
-  it("validates the lock toggle", () => {
-    assert.equal(hostValidators.lock(true), true);
-    assert.equal(hostValidators.lock("yes"), false);
   });
 });

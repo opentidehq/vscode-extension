@@ -240,6 +240,13 @@
           "title": "opentide",
           "icon": "images/activity.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "opentideDeployPlan",
+          "title": "opentide Deploy Plan",
+          "icon": "$(rocket)"
+        }
       ]
     },
     "configurationDefaults": {
@@ -667,6 +674,65 @@
         "title": "Preview Deploy of Changed Rules",
         "category": "opentide",
         "icon": "$(rocket)"
+      },
+      {
+        "command": "opentide.deployPlan.refresh",
+        "title": "Run the Dry Run Again",
+        "category": "opentide",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "opentide.deployPlan.cancel",
+        "title": "Cancel the Dry Run",
+        "category": "opentide",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "opentide.deployPlan.filter",
+        "title": "Filter the Deploy Plan…",
+        "category": "opentide",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "opentide.deployPlan.options",
+        "title": "Deploy Plan Options…",
+        "category": "opentide",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "opentide.deployPlan.openChange",
+        "title": "Open Change",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "opentide.deployPlan.openRule",
+        "title": "Open Rule",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "opentide.deployPlan.copyRequest",
+        "title": "Copy Request",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "opentide.deployPlan.openConfiguration",
+        "title": "Open Platform Configuration",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "opentide.deployPlan.copyDryRun",
+        "title": "Copy Dry-Run Command",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.deployPlan.copyDeploy",
+        "title": "Copy Deploy Command (for a Terminal or CI)",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.deployPlan.copyCiStep",
+        "title": "Copy Deploy as a CI Step",
+        "category": "opentide"
       },
       {
         "command": "opentide.diagnostics.validateWorkspace",
@@ -1173,6 +1239,50 @@
           "when": "opentide.trusted && opentide.hasCli"
         },
         {
+          "command": "opentide.deployPlan.refresh",
+          "when": "opentide.deployPlan.active && !opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.cancel",
+          "when": "opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.filter",
+          "when": "opentide.deployPlan.hasPlan"
+        },
+        {
+          "command": "opentide.deployPlan.options",
+          "when": "opentide.deployPlan.active"
+        },
+        {
+          "command": "opentide.deployPlan.openChange",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.openRule",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.copyRequest",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.openConfiguration",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.copyDryRun",
+          "when": "opentide.deployPlan.active"
+        },
+        {
+          "command": "opentide.deployPlan.copyDeploy",
+          "when": "opentide.deployPlan.active"
+        },
+        {
+          "command": "opentide.deployPlan.copyCiStep",
+          "when": "opentide.deployPlan.active"
+        },
+        {
           "command": "opentide.diagnostics.validateWorkspace",
           "when": "isWorkspaceTrusted && opentide.hasCli"
         },
@@ -1489,85 +1599,42 @@
           "when": "opentide.relations.hasTarget"
         }
       ],
-      "editor/title": [
-        {
-          "command": "opentide.deployPlan.open",
-          "group": "navigation@60",
-          "when": "resourceLangId == opentide-yaml && resourcePath =~ /[\\\\/]rules[\\\\/]/ && opentide.trusted && opentide.hasCli"
-        },
-        {
-          "command": "opentide.diagnostics.validateFile",
-          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
-          "group": "navigation@50"
-        },
-        {
-          "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
-          "group": "navigation@20"
-        },
-        {
-          "command": "opentide.relations.show",
-          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
-          "group": "navigation@45"
-        }
-      ],
-      "explorer/context": [
-        {
-          "command": "opentide.deployPlan.open",
-          "group": "opentide@20",
-          "when": "resourceLangId == opentide-yaml && opentide.trusted && opentide.hasCli"
-        },
-        {
-          "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
-          "group": "opentide@10"
-        },
-        {
-          "command": "opentide.newObject",
-          "when": "explorerResourceIsFolder && isWorkspaceTrusted && opentide.hasCli && resourcePath in opentide.objectFolders",
-          "group": "navigation@9"
-        },
-        {
-          "command": "opentide.runner.sharePreview",
-          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml",
-          "group": "opentide@1"
-        }
-      ],
-      "editor/context": [
-        {
-          "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
-          "group": "opentide@10"
-        },
-        {
-          "command": "opentide.query.run",
-          "group": "opentide@10",
-          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(kql|spl|esql|eql|kuery|lucene)$/"
-        },
-        {
-          "command": "opentide.relations.show",
-          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
-          "group": "opentide@5"
-        }
-      ],
-      "file/newFile": [
-        {
-          "command": "opentide.newObject.newFile.threat",
-          "when": "isWorkspaceTrusted && opentide.hasCli",
-          "group": "file"
-        },
-        {
-          "command": "opentide.newObject.newFile.objective",
-          "when": "isWorkspaceTrusted && opentide.hasCli",
-          "group": "file"
-        },
-        {
-          "command": "opentide.newObject.newFile.rule",
-          "when": "isWorkspaceTrusted && opentide.hasCli",
-          "group": "file"
-        }
-      ],
       "view/title": [
+        {
+          "command": "opentide.deployPlan.cancel",
+          "group": "navigation@1",
+          "when": "view == opentide.deployPlan.view && opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.refresh",
+          "group": "navigation@1",
+          "when": "view == opentide.deployPlan.view && !opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.filter",
+          "group": "navigation@2",
+          "when": "view == opentide.deployPlan.view && opentide.deployPlan.hasPlan"
+        },
+        {
+          "command": "opentide.deployPlan.options",
+          "group": "1_options@1",
+          "when": "view == opentide.deployPlan.view"
+        },
+        {
+          "command": "opentide.deployPlan.copyDryRun",
+          "group": "2_copy@1",
+          "when": "view == opentide.deployPlan.view"
+        },
+        {
+          "command": "opentide.deployPlan.copyDeploy",
+          "group": "2_copy@2",
+          "when": "view == opentide.deployPlan.view"
+        },
+        {
+          "command": "opentide.deployPlan.copyCiStep",
+          "group": "2_copy@3",
+          "when": "view == opentide.deployPlan.view"
+        },
         {
           "command": "opentide.sidebar.newObject",
           "when": "view == opentide.sidebar.catalogue && isWorkspaceTrusted && opentide.hasCli && opentide.hasWorkspace",
@@ -1650,6 +1717,41 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "opentide.deployPlan.openChange",
+          "group": "inline@1",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /request/"
+        },
+        {
+          "command": "opentide.deployPlan.openConfiguration",
+          "group": "inline@1",
+          "when": "view == opentide.deployPlan.view && viewItem == missing"
+        },
+        {
+          "command": "opentide.deployPlan.openChange",
+          "group": "1_open@1",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /request/"
+        },
+        {
+          "command": "opentide.deployPlan.openRule",
+          "group": "1_open@2",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /change/"
+        },
+        {
+          "command": "opentide.deployPlan.copyRequest",
+          "group": "2_copy@1",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /request/"
+        },
+        {
+          "command": "opentide.deployPlan.openConfiguration",
+          "group": "1_open@3",
+          "when": "view == opentide.deployPlan.view && viewItem == missing"
+        },
+        {
+          "command": "opentide.deployPlan.refresh",
+          "group": "9_run@1",
+          "when": "view == opentide.deployPlan.view && !opentide.deployPlan.running"
+        },
         {
           "command": "opentide.relations.openToSide",
           "when": "(view == opentide.sidebar.catalogue || view == opentide.sidebar.coverage || view == opentide.sidebar.relations) && viewItem =~ /^object\\./",
@@ -1815,6 +1917,84 @@
           "when": "view == opentide.sidebar.activity && viewItem =~ /^run/",
           "group": "1_run@2"
         }
+      ],
+      "editor/title": [
+        {
+          "command": "opentide.deployPlan.open",
+          "group": "navigation@60",
+          "when": "resourceLangId == opentide-yaml && resourcePath =~ /[\\\\/]rules[\\\\/]/ && opentide.trusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.diagnostics.validateFile",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
+          "group": "navigation@50"
+        },
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
+          "group": "navigation@20"
+        },
+        {
+          "command": "opentide.relations.show",
+          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
+          "group": "navigation@45"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "opentide.deployPlan.open",
+          "group": "opentide@20",
+          "when": "resourceLangId == opentide-yaml && opentide.trusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
+          "group": "opentide@10"
+        },
+        {
+          "command": "opentide.newObject",
+          "when": "explorerResourceIsFolder && isWorkspaceTrusted && opentide.hasCli && resourcePath in opentide.objectFolders",
+          "group": "navigation@9"
+        },
+        {
+          "command": "opentide.runner.sharePreview",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml",
+          "group": "opentide@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opentide.graph.showInGraph",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
+          "group": "opentide@10"
+        },
+        {
+          "command": "opentide.query.run",
+          "group": "opentide@10",
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(kql|spl|esql|eql|kuery|lucene)$/"
+        },
+        {
+          "command": "opentide.relations.show",
+          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
+          "group": "opentide@5"
+        }
+      ],
+      "file/newFile": [
+        {
+          "command": "opentide.newObject.newFile.threat",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        },
+        {
+          "command": "opentide.newObject.newFile.objective",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        },
+        {
+          "command": "opentide.newObject.newFile.rule",
+          "when": "isWorkspaceTrusted && opentide.hasCli",
+          "group": "file"
+        }
       ]
     },
     "mcpServerDefinitionProviders": [
@@ -1864,6 +2044,58 @@
         }
       }
     ],
+    "views": {
+      "opentideDeployPlan": [
+        {
+          "id": "opentide.deployPlan.view",
+          "name": "Deploy Plan",
+          "contextualTitle": "opentide Deploy Plan",
+          "icon": "$(rocket)",
+          "when": "opentide.deployPlan.active"
+        }
+      ],
+      "opentide": [
+        {
+          "id": "opentide.sidebar.catalogue",
+          "name": "Catalogue",
+          "contextualTitle": "opentide",
+          "icon": "$(library)"
+        },
+        {
+          "id": "opentide.sidebar.relations",
+          "name": "Relations",
+          "contextualTitle": "opentide",
+          "icon": "$(references)"
+        },
+        {
+          "id": "opentide.sidebar.coverage",
+          "name": "Coverage",
+          "contextualTitle": "opentide",
+          "icon": "$(layers)"
+        },
+        {
+          "id": "opentide.sidebar.platforms",
+          "name": "Platforms & Tenants",
+          "contextualTitle": "opentide",
+          "icon": "$(server)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "opentide.sidebar.health",
+          "name": "Health",
+          "contextualTitle": "opentide",
+          "icon": "$(heart)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "opentide.sidebar.activity",
+          "name": "Activity",
+          "contextualTitle": "opentide",
+          "icon": "$(history)",
+          "visibility": "collapsed"
+        }
+      ]
+    },
     "grammars": [
       {
         "language": "cql",
@@ -2454,49 +2686,6 @@
         ]
       }
     ],
-    "views": {
-      "opentide": [
-        {
-          "id": "opentide.sidebar.catalogue",
-          "name": "Catalogue",
-          "contextualTitle": "opentide",
-          "icon": "$(library)"
-        },
-        {
-          "id": "opentide.sidebar.relations",
-          "name": "Relations",
-          "contextualTitle": "opentide",
-          "icon": "$(references)"
-        },
-        {
-          "id": "opentide.sidebar.coverage",
-          "name": "Coverage",
-          "contextualTitle": "opentide",
-          "icon": "$(layers)"
-        },
-        {
-          "id": "opentide.sidebar.platforms",
-          "name": "Platforms & Tenants",
-          "contextualTitle": "opentide",
-          "icon": "$(server)",
-          "visibility": "collapsed"
-        },
-        {
-          "id": "opentide.sidebar.health",
-          "name": "Health",
-          "contextualTitle": "opentide",
-          "icon": "$(heart)",
-          "visibility": "collapsed"
-        },
-        {
-          "id": "opentide.sidebar.activity",
-          "name": "Activity",
-          "contextualTitle": "opentide",
-          "icon": "$(history)",
-          "visibility": "collapsed"
-        }
-      ]
-    },
     "chatSkills": [
       {
         "path": "./skills/active-directory/SKILL.md",

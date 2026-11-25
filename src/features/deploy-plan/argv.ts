@@ -1,9 +1,11 @@
 // The deploy plan's command lines (SPEC §10.5, D6): the editor only ever runs `deploy --dry-run`; the
 // real deploy is a command line to copy into a terminal or CI. vscode-free.
 import { shellQuote } from "../../core/runtime/env";
-import type { Strategy } from "./protocol";
 
-export type { Strategy };
+export type Strategy = "PREVIEW" | "RELEASE";
+
+/** Which rules a preview is about: the changed ones, all of them, or the ones picked (`--uuid`/`--file`). */
+export type ScopeKind = "changed" | "all" | "selected";
 
 export type DeployScope =
   /** The CLI's default: the rule files the run changed (git diff). */

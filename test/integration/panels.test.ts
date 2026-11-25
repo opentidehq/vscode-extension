@@ -1,9 +1,37 @@
 // Query lenses (#17), the deploy plan (#18) and the ATT&CK matrix (#20) inside VS Code.
 import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import * as path from "node:path";
 
 import * as vscode from "vscode";
 
 import { activated, fixture, waitFor } from "./helpers";
+
+/** What `opentide.deployPlan._state` returns (a test-mode command). */
+interface PlanRow {
+  id: string;
+  kind: string;
+  label: string;
+  context: string;
+  children: PlanRow[];
+}
+interface PlanState {
+  phase: string;
+  message: string | null;
+  badge: number;
+  changes: number;
+  roots: PlanRow[];
+}
+const countRows = (rows: PlanRow[], kind: string): number =>
+  rows.reduce((sum, row) => sum + (row.kind === kind ? 1 : 0) + countRows(row.children, kind), 0);
+const findRow = (rows: PlanRow[], match: (row: PlanRow) => boolean): PlanRow | undefined => {
+  for (const row of rows) {
+    if (match(row)) return row;
+    const inside = findRow(row.children, match);
+    if (inside) return inside;
+  }
+  return undefined;
+};
 
 const panelOpen = (viewType: string) =>
   vscode.window.tabGroups.all.some((group) =>
@@ -77,12 +105,17 @@ describe("panels (#17, #18, #20)", () => {
     await waitFor(() => panelOpen("opentide.matrix") || undefined);
   });
 
-  it("opens the deploy plan for the active rule", async function () {
+  it("previews the deploy of the active rule into the Deploy Plan view", async function () {
     const api = await activated();
     if (!api.ctx.runtime.current || api.ctx.backend.availability().available !== true) this.skip();
     await vscode.window.showTextDocument(fixture("objects", "rules", "suspicious-lsass-access.yaml"));
     await vscode.commands.executeCommand("opentide.deployPlan.open");
-    await waitFor(() => panelOpen("opentide.deployPlan") || undefined);
+    const state = await waitFor(async () => {
+      const now = await vscode.commands.executeCommand<PlanState>("opentide.deployPlan._state");
+      return now.phase === "done" || now.phase === "failed" ? now : undefined;
+    });
+    // The dry run of the fixture may fail in an environment without the rule's platform: either way it ended.
+    assert.ok(["done", "failed"].includes(state.phase));
   });
 });
 
@@ -97,35 +130,62 @@ describe("panels open beside the object and reuse their panel (SPEC §10)", () =
   before(() => activated());
   afterEach(() => vscode.commands.executeCommand("workbench.action.closeAllEditors"));
 
-  it("deploy plan: beside the rule, keeping its focus; the next rule retargets the same panel", async () => {
-    const rule = fixture("objects", "rules", "suspicious-lsass-access.yaml");
-    const editor = await vscode.window.showTextDocument(rule);
-    await vscode.commands.executeCommand("opentide.deployPlan.open", rule);
-    const [tab] = await waitFor(() => {
-      const tabs = webviewTabs("opentide.deployPlan");
-      return tabs.length > 0 ? tabs : undefined;
+  it("deploy plan: the tree shows the plan's counts, and a change opens a diff on payload documents", async () => {
+    const root = path.join(__dirname, "..", "..", "..");
+    const captured = JSON.parse(
+      readFileSync(path.join(root, "test", "fixtures", "panels", "deploy-dry-run.json"), "utf8"),
+    ) as {
+      changes: { platform: string; uuid: string }[];
+      payloads: Record<string, Record<string, unknown>[]>;
+      counts?: unknown;
+    };
+    // opentide 0.21's plans carry no deployed state: give the first payload one, as a newer opentide would.
+    const first = captured.changes[0];
+    assert.ok(first);
+    const payloads = Object.fromEntries(
+      Object.entries(captured.payloads).map(([platform, rows]) => [
+        platform,
+        rows.map((row) =>
+          platform === first.platform && row.uuid === first.uuid
+            ? { ...row, deployed_request: { enabled: false, name: "the deployed one" } }
+            : row,
+        ),
+      ]),
+    );
+    const document = { ...captured, payloads };
+    const state = await vscode.commands.executeCommand<PlanState>("opentide.deployPlan._load", document);
+    assert.equal(state.phase, "done");
+    const changes = captured.changes.length;
+    assert.equal(countRows(state.roots, "change"), changes, "one row per change in the plan");
+    assert.ok(state.roots.some((r) => r.kind === "platform" && r.label === first.platform));
+    assert.ok(state.changes > 0 && state.badge === state.changes, "the badge is the number of changes");
+    assert.match(state.message ?? "", /^Dry run · PREVIEW · /);
+    const withDiff = findRow(state.roots, (n) => n.kind === "change" && n.context.includes("deployed"));
+    assert.ok(withDiff, "a change that can be diffed");
+
+    await vscode.commands.executeCommand("opentide.deployPlan.openChange", withDiff.id);
+    const diff = await waitFor(() => {
+      const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+      return input instanceof vscode.TabInputTextDiff ? input : undefined;
     });
-    assert.ok(tab);
-    assert.notEqual(tab.group.viewColumn, editor.viewColumn, "beside the rule, not over it");
-    assert.equal(
-      vscode.window.activeTextEditor?.document.uri.toString(),
-      rule.toString(),
-      "the rule keeps the focus",
+    assert.equal(diff.original.scheme, "opentide-payload", "what is deployed");
+    assert.equal(diff.modified.scheme, "opentide-payload", "what the plan would send");
+    assert.match(diff.original.path, /\.deployed\.json$/);
+    const original = await vscode.workspace.openTextDocument(diff.original);
+    assert.match(original.getText(), /the deployed one/);
+
+    // A change with no deployed state opens its request alone.
+    const requestOnly = findRow(
+      state.roots,
+      (n) => n.kind === "change" && n.context.includes("request") && !n.context.includes("deployed"),
     );
-    // The title names the rule (the tab model hears of a new title a moment later).
-    const first = await waitFor(
-      () => webviewTabs("opentide.deployPlan").find((t) => t.label.startsWith("Deploy Plan · "))?.label,
+    assert.ok(requestOnly);
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await vscode.commands.executeCommand("opentide.deployPlan.openChange", requestOnly.id);
+    const editor = await waitFor(() =>
+      vscode.window.visibleTextEditors.find((e) => e.document.uri.scheme === "opentide-payload"),
     );
-    await vscode.commands.executeCommand(
-      "opentide.deployPlan.open",
-      fixture("detections", "rules", "custom-folder-rule.yaml"),
-    );
-    const retargeted = await waitFor(() => {
-      const tabs = webviewTabs("opentide.deployPlan");
-      return tabs.length === 1 && tabs[0]?.label !== first ? tabs[0] : undefined;
-    });
-    assert.equal(webviewTabs("opentide.deployPlan").length, 1, "one plan panel, retargeted");
-    assert.equal(retargeted.group.viewColumn, tab.group.viewColumn);
+    assert.match(editor.document.getText(), /^\{/);
   });
 
   it("ATT&CK matrix: one panel; asked for a technique from an editor, it opens beside", async () => {

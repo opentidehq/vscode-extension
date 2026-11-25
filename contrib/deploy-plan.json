@@ -1,5 +1,5 @@
 {
-  "$comment": "The deploy plan (#18, SPEC §10.5): deploy --dry-run only (D6).",
+  "$comment": "The deploy plan (#18, SPEC §10.5): a native tree in the panel area; deploy --dry-run only (D6).",
   "contributes": {
     "commands": [
       {
@@ -13,12 +13,215 @@
         "title": "Preview Deploy of Changed Rules",
         "category": "opentide",
         "icon": "$(rocket)"
+      },
+      {
+        "command": "opentide.deployPlan.refresh",
+        "title": "Run the Dry Run Again",
+        "category": "opentide",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "opentide.deployPlan.cancel",
+        "title": "Cancel the Dry Run",
+        "category": "opentide",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "opentide.deployPlan.filter",
+        "title": "Filter the Deploy Plan…",
+        "category": "opentide",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "opentide.deployPlan.options",
+        "title": "Deploy Plan Options…",
+        "category": "opentide",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "opentide.deployPlan.openChange",
+        "title": "Open Change",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "opentide.deployPlan.openRule",
+        "title": "Open Rule",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "opentide.deployPlan.copyRequest",
+        "title": "Copy Request",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "opentide.deployPlan.openConfiguration",
+        "title": "Open Platform Configuration",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "opentide.deployPlan.copyDryRun",
+        "title": "Copy Dry-Run Command",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.deployPlan.copyDeploy",
+        "title": "Copy Deploy Command (for a Terminal or CI)",
+        "category": "opentide"
+      },
+      {
+        "command": "opentide.deployPlan.copyCiStep",
+        "title": "Copy Deploy as a CI Step",
+        "category": "opentide"
       }
     ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "opentideDeployPlan",
+          "title": "opentide Deploy Plan",
+          "icon": "$(rocket)"
+        }
+      ]
+    },
+    "views": {
+      "opentideDeployPlan": [
+        {
+          "id": "opentide.deployPlan.view",
+          "name": "Deploy Plan",
+          "contextualTitle": "opentide Deploy Plan",
+          "icon": "$(rocket)",
+          "when": "opentide.deployPlan.active"
+        }
+      ]
+    },
     "menus": {
       "commandPalette": [
-        { "command": "opentide.deployPlan.open", "when": "opentide.trusted && opentide.hasCli" },
-        { "command": "opentide.deployPlan.openChanged", "when": "opentide.trusted && opentide.hasCli" }
+        {
+          "command": "opentide.deployPlan.open",
+          "when": "opentide.trusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.deployPlan.openChanged",
+          "when": "opentide.trusted && opentide.hasCli"
+        },
+        {
+          "command": "opentide.deployPlan.refresh",
+          "when": "opentide.deployPlan.active && !opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.cancel",
+          "when": "opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.filter",
+          "when": "opentide.deployPlan.hasPlan"
+        },
+        {
+          "command": "opentide.deployPlan.options",
+          "when": "opentide.deployPlan.active"
+        },
+        {
+          "command": "opentide.deployPlan.openChange",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.openRule",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.copyRequest",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.openConfiguration",
+          "when": "false"
+        },
+        {
+          "command": "opentide.deployPlan.copyDryRun",
+          "when": "opentide.deployPlan.active"
+        },
+        {
+          "command": "opentide.deployPlan.copyDeploy",
+          "when": "opentide.deployPlan.active"
+        },
+        {
+          "command": "opentide.deployPlan.copyCiStep",
+          "when": "opentide.deployPlan.active"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "opentide.deployPlan.cancel",
+          "group": "navigation@1",
+          "when": "view == opentide.deployPlan.view && opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.refresh",
+          "group": "navigation@1",
+          "when": "view == opentide.deployPlan.view && !opentide.deployPlan.running"
+        },
+        {
+          "command": "opentide.deployPlan.filter",
+          "group": "navigation@2",
+          "when": "view == opentide.deployPlan.view && opentide.deployPlan.hasPlan"
+        },
+        {
+          "command": "opentide.deployPlan.options",
+          "group": "1_options@1",
+          "when": "view == opentide.deployPlan.view"
+        },
+        {
+          "command": "opentide.deployPlan.copyDryRun",
+          "group": "2_copy@1",
+          "when": "view == opentide.deployPlan.view"
+        },
+        {
+          "command": "opentide.deployPlan.copyDeploy",
+          "group": "2_copy@2",
+          "when": "view == opentide.deployPlan.view"
+        },
+        {
+          "command": "opentide.deployPlan.copyCiStep",
+          "group": "2_copy@3",
+          "when": "view == opentide.deployPlan.view"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "opentide.deployPlan.openChange",
+          "group": "inline@1",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /request/"
+        },
+        {
+          "command": "opentide.deployPlan.openConfiguration",
+          "group": "inline@1",
+          "when": "view == opentide.deployPlan.view && viewItem == missing"
+        },
+        {
+          "command": "opentide.deployPlan.openChange",
+          "group": "1_open@1",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /request/"
+        },
+        {
+          "command": "opentide.deployPlan.openRule",
+          "group": "1_open@2",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /change/"
+        },
+        {
+          "command": "opentide.deployPlan.copyRequest",
+          "group": "2_copy@1",
+          "when": "view == opentide.deployPlan.view && viewItem =~ /request/"
+        },
+        {
+          "command": "opentide.deployPlan.openConfiguration",
+          "group": "1_open@3",
+          "when": "view == opentide.deployPlan.view && viewItem == missing"
+        },
+        {
+          "command": "opentide.deployPlan.refresh",
+          "group": "9_run@1",
+          "when": "view == opentide.deployPlan.view && !opentide.deployPlan.running"
+        }
       ],
       "editor/title": [
         {

@@ -1,17 +1,16 @@
-// The deploy plan (#18, SPEC §10.5): a `deploy --dry-run` preview, never a real deploy (D6).
+// The deploy plan (#18, SPEC §10.5): a `deploy --dry-run` preview, never a real deploy (D6), shown as a
+// native tree in the panel area (platform → tenant → change), whose changes open in VS Code's diff editor.
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 import * as vscode from "vscode";
 
 import { BackendError } from "../../core/backend/types";
-import { findByUuid, loadedObjects } from "../../core/catalog/rows";
+import { findByUuid } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
 import { displayArgv } from "../../core/runtime/env";
 import { ensureSaved } from "../../core/util/saved";
-import type { OpentidePanel } from "../../core/webview/panel";
-import { fileColumnFrom, PanelPool, panelTitle } from "../../core/webview/placement";
 import { platformName } from "../sidebar/platformNames";
 import { parsePlatforms } from "../sidebar/platforms";
 import {
@@ -23,19 +22,14 @@ import {
   deployCommand,
   dryRunArgv,
   dryRunCommand,
+  type ScopeKind,
   type Strategy,
 } from "./argv";
 import { type PlanView, payloadDocuments, planView } from "./plan";
-import {
-  cancelledState,
-  type DeployPanelState,
-  type DeployPlanProtocol,
-  hostValidators,
-  type ScopeKind,
-  withoutPlan,
-} from "./protocol";
+import { filterChoices, type PlanFilter, type PlanTree, planMessage, planTree, type TreeNode } from "./tree";
 
 const PAYLOAD_SCHEME = "opentide-payload";
+const VIEW_ID = "opentide.deployPlan.view";
 const PLATFORMS = [
   "sentinel",
   "defender_for_endpoint",
@@ -48,6 +42,8 @@ const PLATFORMS = [
   "sysdig",
 ];
 const LAST_KEY = "opentide.deployPlan.last";
+/** The payload documents' namespace: the view holds one plan at a time. */
+const PLAN_ID = 1;
 
 /** The rules a preview is about. */
 export interface DeployTarget {
@@ -56,15 +52,11 @@ export interface DeployTarget {
   readonly files: readonly string[];
 }
 
-/** One key per set of rules in a folder: the pool's "same object". */
-export function targetKey(target: DeployTarget): string {
-  const rules = [...target.uuids.map((u) => `u:${u.toLowerCase()}`), ...target.files.map((f) => `f:${f}`)];
-  return `${target.folder}\u0000${rules.sort().join("|") || "changed"}`;
-}
-
-/** The plan's tab title: "Deploy Plan · Suspicious LSASS… " for rules, "Deploy Plan" for the changed set. */
-export function deployPanelTitle(selection: string | null): string {
-  return panelTitle("Deploy Plan", selection);
+/** What a run was asked: the strategies, which rules, and perhaps one platform. */
+export interface RunRequest {
+  readonly strategies: readonly Strategy[];
+  readonly scope: ScopeKind;
+  readonly platform: string | null;
 }
 
 /**
@@ -108,9 +100,7 @@ export default defineFeature({
   activate(ctx) {
     const payloads = new PayloadDocuments();
     const diagnostics = vscode.languages.createDiagnosticCollection("opentide deploy");
-    // One plan panel, retargeted to the rules asked for; a locked one keeps its rules and the next
-    // preview opens a panel of its own.
-    const pool = new PanelPool<string, DeployPanel>((a, b) => a === b);
+    const view = new DeployPlanView(ctx, payloads, diagnostics);
 
     const open = async (first?: unknown, second?: unknown, changedOnly = false) => {
       if (!ctx.trust.isTrusted) {
@@ -126,20 +116,12 @@ export default defineFeature({
       );
       const preview = { verb: "previews", action: "Preview" };
       if (!(await ensureSaved(documents, preview, warn))) return;
-      const choice = pool.choose(targetKey(target));
-      if (choice.kind !== "create") {
-        pool.touch(choice.entry);
-        choice.entry.show(target);
-        return;
-      }
-      const panel: DeployPanel = new DeployPanel(ctx, payloads, diagnostics, target, {
-        disposed: () => pool.remove(panel),
-        active: () => pool.touch(panel),
-      });
-      pool.add(panel);
+      await view.show(target);
     };
+    const node = (arg: unknown) => view.nodeOf(arg);
 
     ctx.subscriptions.push(
+      view,
       payloads,
       diagnostics,
       vscode.workspace.registerTextDocumentContentProvider(PAYLOAD_SCHEME, payloads),
@@ -149,12 +131,35 @@ export default defineFeature({
       vscode.commands.registerCommand("opentide.deployPlan.openChanged", () =>
         open(undefined, undefined, true),
       ),
-      {
-        dispose: () => {
-          for (const panel of [...pool.all()]) panel.dispose();
-        },
-      },
+      vscode.commands.registerCommand("opentide.deployPlan.refresh", () => view.rerun()),
+      vscode.commands.registerCommand("opentide.deployPlan.cancel", () => view.cancel()),
+      vscode.commands.registerCommand("opentide.deployPlan.filter", () => view.chooseFilter()),
+      vscode.commands.registerCommand("opentide.deployPlan.options", () => view.chooseOptions()),
+      vscode.commands.registerCommand("opentide.deployPlan.openChange", (arg?: unknown) =>
+        view.openChange(node(arg)),
+      ),
+      vscode.commands.registerCommand("opentide.deployPlan.openRule", (arg?: unknown) =>
+        view.openRule(node(arg)),
+      ),
+      vscode.commands.registerCommand("opentide.deployPlan.copyRequest", (arg?: unknown) =>
+        view.copyRequest(node(arg)),
+      ),
+      vscode.commands.registerCommand("opentide.deployPlan.openConfiguration", (arg?: unknown) =>
+        view.openConfiguration(node(arg)),
+      ),
+      vscode.commands.registerCommand("opentide.deployPlan.copyDryRun", () => view.copy("dryRun")),
+      vscode.commands.registerCommand("opentide.deployPlan.copyDeploy", () => view.copy("deploy")),
+      vscode.commands.registerCommand("opentide.deployPlan.copyCiStep", () => view.copy("ci")),
     );
+    // For the integration tests (ExtensionMode.Test): a plan document given instead of a dry run, and
+    // what the view shows. Not contributed, so no menu or palette lists them.
+    if (ctx.extension.extensionMode === vscode.ExtensionMode.Test)
+      ctx.subscriptions.push(
+        vscode.commands.registerCommand("opentide.deployPlan._load", (document: unknown, folder?: string) =>
+          view.load(document, folder),
+        ),
+        vscode.commands.registerCommand("opentide.deployPlan._state", () => view.snapshot()),
+      );
   },
 });
 
@@ -207,23 +212,27 @@ async function resolveTarget(
   return changedTarget(ctx);
 }
 
-let nextPanelId = 1;
+type Phase = "idle" | "running" | "done" | "failed" | "cancelled";
 
-class DeployPanel implements vscode.Disposable {
-  private readonly view: OpentidePanel<DeployPlanProtocol>;
-  /** This panel's payload documents' namespace. */
-  private readonly id = nextPanelId++;
-  /** Pinned to its rules: another preview opens its own panel. */
-  locked = false;
-  private readonly disposables: vscode.Disposable[] = [];
+/** The plan's tree view: one plan at a time, re-run in place, filtered by platform and tenant. */
+class DeployPlanView implements vscode.TreeDataProvider<TreeNode>, vscode.Disposable {
+  private readonly changed = new vscode.EventEmitter<TreeNode | undefined>();
+  readonly onDidChangeTreeData = this.changed.event;
+  private readonly treeView: vscode.TreeView<TreeNode>;
   private readonly planner: DeployPlanner<
     { cancellation: vscode.CancellationToken; onProgress: (step: string) => void },
     Awaited<ReturnType<FeatureContext["backend"]["run"]>>
   >;
-  private rules: DeployTarget;
-  private state: DeployPanelState | undefined;
+  private rules: DeployTarget | undefined;
+  private request: RunRequest = { strategies: ["PREVIEW"], scope: "changed", platform: null };
+  private phase: Phase = "idle";
   private plan: PlanView | null = null;
   private document: unknown;
+  private filter: PlanFilter = {};
+  private tree: PlanTree | undefined;
+  private note: string | null = null;
+  private progress: string | null = null;
+  private failure: string | null = null;
   private cts: vscode.CancellationTokenSource | undefined;
   private runId = 0;
 
@@ -231,10 +240,7 @@ class DeployPanel implements vscode.Disposable {
     private readonly ctx: FeatureContext,
     private readonly payloads: PayloadDocuments,
     private readonly diagnostics: vscode.DiagnosticCollection,
-    target: DeployTarget,
-    events: { disposed: () => void; active: () => void },
   ) {
-    this.rules = target;
     this.planner = new DeployPlanner((folder, argv, extra) =>
       ctx.backend.run(folder, argv, {
         cancellation: extra.cancellation,
@@ -251,52 +257,88 @@ class DeployPanel implements vscode.Disposable {
         },
       }),
     );
-    this.view = ctx.webview.createPanel<DeployPlanProtocol>({
-      viewType: "opentide.deployPlan",
-      title: deployPanelTitle(null),
-      entry: "deploy-plan",
-      validators: hostValidators,
-      // Beside the rule it previews, keeping the focus in its editor.
-      beside: true,
-      kit: true,
-      retainContextWhenHidden: false,
+    this.treeView = vscode.window.createTreeView<TreeNode>(VIEW_ID, {
+      treeDataProvider: this,
+      showCollapseAll: true,
     });
-    const { channel, panel } = this.view;
-    this.disposables.push(
-      panel.onDidChangeViewState((event) => {
-        if (event.webviewPanel.active) events.active();
-      }),
-      channel.on("lock", (locked) => {
-        this.locked = locked;
-        if (this.state) this.state = { ...this.state, locked };
-        this.post();
-      }),
-      channel.on("ready", () => {
-        if (this.state) void channel.post("state", this.state);
-      }),
-      channel.on("run", (request) =>
-        this.run({ strategies: request.strategies, scope: request.scope, platform: request.platform }),
-      ),
-      channel.on("cancel", () => this.cts?.cancel()),
-      channel.on("payload", (key) => this.openPayload(key)),
-      channel.on("diff", (key) => this.diffPayload(key)),
-      channel.on("open", (ref) => this.openRule(ref)),
-      channel.on("copy", (what) => this.copy(what)),
-      channel.on("action", async (id) => {
-        if (id === "output") ctx.log.show();
-        else if (id === "switchRuntime") await vscode.commands.executeCommand("opentide.switchRuntime");
-        else if (id.startsWith("configure:")) await this.openPlatformConfig(id.slice("configure:".length));
-      }),
-      panel.onDidDispose(() => {
-        this.cts?.cancel();
-        if (diagnosticsOwner === this.id) this.diagnostics.clear();
-        this.payloads.clear(this.id);
-        for (const d of this.disposables) d.dispose();
-        events.disposed();
-      }),
-    );
-    this.show(target);
   }
+
+  // --- the tree ---
+
+  getChildren(element?: TreeNode): TreeNode[] {
+    return [...(element ? element.children : (this.tree?.roots ?? []))];
+  }
+
+  getTreeItem(node: TreeNode): vscode.TreeItem {
+    const item = new vscode.TreeItem(
+      node.label,
+      node.children.length === 0
+        ? vscode.TreeItemCollapsibleState.None
+        : node.expanded
+          ? vscode.TreeItemCollapsibleState.Expanded
+          : vscode.TreeItemCollapsibleState.Collapsed,
+    );
+    item.id = node.id;
+    if (node.description !== undefined) item.description = node.description;
+    if (node.tooltip !== undefined) item.tooltip = node.tooltip;
+    item.iconPath = new vscode.ThemeIcon(
+      node.icon.id,
+      node.icon.color ? new vscode.ThemeColor(node.icon.color) : undefined,
+    );
+    item.contextValue = node.context;
+    if (node.kind === "change" && node.payloadKey)
+      item.command = { command: "opentide.deployPlan.openChange", title: "Open", arguments: [node] };
+    return item;
+  }
+
+  /** A command's argument: the tree node, or its id (the tests). */
+  nodeOf(arg: unknown): TreeNode | undefined {
+    if (typeof arg === "string") return this.tree?.byId.get(arg);
+    return typeof arg === "object" && arg !== null && "id" in arg && "kind" in arg
+      ? (arg as TreeNode)
+      : undefined;
+  }
+
+  private refreshView(): void {
+    this.tree = this.plan ? planTree(this.plan, this.filter) : undefined;
+    const changes = this.tree?.changes ?? 0;
+    this.treeView.badge =
+      this.plan && changes > 0
+        ? { value: changes, tooltip: `${changes} change${changes === 1 ? "" : "s"} in the plan` }
+        : undefined;
+    this.treeView.description = this.rules ? this.describeRules() : undefined;
+    this.treeView.message = this.message();
+    this.changed.fire(undefined);
+  }
+
+  private message(): string | undefined {
+    if (this.phase === "running") return `Planning…${this.progress ? ` ${this.progress}` : ""}`;
+    if (this.phase === "failed") return `The preview failed: ${this.failure ?? "unknown error"}`;
+    const lines: string[] = [];
+    if (this.plan) lines.push(planMessage(this.plan, this.request.strategies, this.filter));
+    if (this.phase === "cancelled")
+      lines.unshift(
+        this.plan
+          ? "Cancelled; the plan shown is the previous one."
+          : "Cancelled. Preview again to plan the deploy.",
+      );
+    if (this.note) lines.push(this.note);
+    return lines.length > 0 ? lines.join(" ") : undefined;
+  }
+
+  private describeRules(): string {
+    const rules = this.rules;
+    if (!rules) return "";
+    const what = this.selectionLabel() ?? (this.request.scope === "all" ? "all rules" : "changed rules");
+    return `${path.basename(rules.folder)} · ${what}`;
+  }
+
+  private async setContext(running: boolean, hasPlan: boolean): Promise<void> {
+    await vscode.commands.executeCommand("setContext", "opentide.deployPlan.running", running);
+    await vscode.commands.executeCommand("setContext", "opentide.deployPlan.hasPlan", hasPlan);
+  }
+
+  // --- running ---
 
   private get canSelect(): boolean {
     return (
@@ -305,18 +347,12 @@ class DeployPanel implements vscode.Disposable {
     );
   }
 
-  /** The rules this panel shows (its pool key). */
-  get target(): string {
-    return targetKey(this.rules);
-  }
-
-  show(target: DeployTarget): void {
-    const retargeted = targetKey(target) !== targetKey(this.rules);
+  /** Preview these rules: the view opens (the plan tab appears), and a dry run starts. */
+  async show(target: DeployTarget): Promise<void> {
+    const retargeted = JSON.stringify(target) !== JSON.stringify(this.rules);
     this.rules = target;
     if (retargeted) this.forgetPlan();
-    this.view.panel.title = deployPanelTitle(this.selectionLabel());
-    // Forward where it is; the focus stays in the editor the preview came from.
-    this.view.panel.reveal(undefined, true);
+    await vscode.commands.executeCommand("setContext", "opentide.deployPlan.active", true);
     const last = this.ctx.extension.workspaceState.get<{
       strategies?: Strategy[];
       scope?: ScopeKind;
@@ -324,41 +360,56 @@ class DeployPanel implements vscode.Disposable {
     }>(LAST_KEY);
     const selected = target.uuids.length + target.files.length > 0;
     const scope: ScopeKind = selected ? "selected" : last?.scope === "all" ? "all" : "changed";
-    void this.run({
+    // The view comes forward; the dry run continues in it.
+    void vscode.commands.executeCommand(`${VIEW_ID}.focus`);
+    await this.run({
       strategies: last?.strategies?.length ? last.strategies : ["PREVIEW"],
       scope,
       platform: last?.platform ?? null,
     });
   }
 
-  /** Retargeted to other rules: their plan, payloads and Problems entries are not these rules'. */
+  /** Run the last request again (the toolbar's refresh, the context menu's "Run the dry run again"). */
+  async rerun(): Promise<void> {
+    if (!this.rules) {
+      void vscode.window.showInformationMessage("Preview a deploy first: opentide: Preview Deploy.");
+      return;
+    }
+    await this.run(this.request);
+  }
+
+  cancel(): void {
+    this.cts?.cancel();
+  }
+
+  /** Another set of rules: their plan, payloads and Problems entries are not the previous rules'. */
   private forgetPlan(): void {
     this.plan = null;
     this.document = undefined;
-    this.payloads.clear(this.id);
-    if (diagnosticsOwner === this.id) this.diagnostics.clear();
-    if (this.state) this.state = withoutPlan(this.state);
+    this.filter = {};
+    this.failure = null;
+    this.payloads.clear(PLAN_ID);
+    this.diagnostics.clear();
   }
 
   /** The options for a scope; `selected` without `deploy --uuid` falls back to the changed rules. */
-  private options(request: { strategies: readonly Strategy[]; scope: ScopeKind; platform: string | null }): {
+  private options(request: RunRequest): {
     options: DeployPlanOptions;
     scope: ScopeKind;
     note: string | null;
   } {
-    const selected = this.rules.uuids.length + this.rules.files.length > 0;
+    const rules = this.rules ?? { folder: "", uuids: [], files: [] };
+    const selected = rules.uuids.length + rules.files.length > 0;
     let scope = request.scope;
     let note: string | null = null;
     if (scope === "selected" && (!selected || !this.canSelect)) {
       if (selected)
         note =
-          "Previewing one rule needs an opentide whose deploy has --uuid and --file. This plan shows the changed rules; choose All rules to include every rule.";
+          "Previewing one rule needs an opentide whose deploy has --uuid and --file. This plan shows the changed rules; choose All rules in the options to include every rule.";
       scope = "changed";
     }
     const deployScope: DeployScope =
-      scope === "selected"
-        ? { kind: "selected", uuids: this.rules.uuids, files: this.rules.files }
-        : { kind: scope };
+      scope === "selected" ? { kind: "selected", uuids: rules.uuids, files: rules.files } : { kind: scope };
     return {
       options: {
         strategies: request.strategies,
@@ -371,12 +422,14 @@ class DeployPanel implements vscode.Disposable {
   }
 
   private selectionLabel(): string | null {
-    const files = this.rules.files;
-    const total = this.rules.uuids.length + files.length;
+    const rules = this.rules;
+    if (!rules) return null;
+    const files = rules.files;
+    const total = rules.uuids.length + files.length;
     if (total === 0) return null;
     if (total === 1) {
-      const uuid = this.rules.uuids[0];
-      const catalog = this.ctx.catalog.get(this.rules.folder).catalog;
+      const uuid = rules.uuids[0];
+      const catalog = this.ctx.catalog.get(rules.folder).catalog;
       const byUuid = uuid && catalog ? findByUuid(catalog.objects, uuid)?.name : undefined;
       const byFile = files[0] ? catalog?.objects.find((o) => o.path === files[0])?.name : undefined;
       return byUuid ?? byFile ?? (files[0] ? path.basename(files[0]) : (uuid ?? ""));
@@ -384,25 +437,9 @@ class DeployPanel implements vscode.Disposable {
     return `${total} rules`;
   }
 
-  private focusUuids(): string[] {
-    const catalog = this.ctx.catalog.get(this.rules.folder).catalog;
-    const fromFiles = this.rules.files.flatMap((file) =>
-      loadedObjects(catalog?.objects ?? [])
-        .filter((o) => o.path === file)
-        .map((o) => o.uuid),
-    );
-    return [...this.rules.uuids, ...fromFiles];
-  }
-
-  private post(): void {
-    if (this.state) void this.view.channel.post("state", this.state);
-  }
-
-  async run(request: {
-    strategies: readonly Strategy[];
-    scope: ScopeKind;
-    platform: string | null;
-  }): Promise<void> {
+  async run(request: RunRequest): Promise<void> {
+    const rules = this.rules;
+    if (!rules) return;
     // Whether `deploy --uuid` exists is known once the command tree loaded.
     await this.ctx.capabilities.ready();
     this.cts?.cancel();
@@ -410,97 +447,114 @@ class DeployPanel implements vscode.Disposable {
     this.cts = cts;
     const id = ++this.runId;
     const { options, scope, note } = this.options(request);
+    this.request = { ...request, scope };
+    this.note = note;
     void this.ctx.extension.workspaceState.update(LAST_KEY, {
       strategies: request.strategies,
       scope: request.scope === "selected" ? undefined : request.scope,
       platform: request.platform ?? undefined,
     });
-    const folder = this.rules.folder;
+    this.phase = "running";
+    this.progress = null;
+    this.failure = null;
+    this.refreshView();
+    await this.setContext(true, this.plan !== null);
     const startedAt = Date.now();
-    this.view.panel.title = deployPanelTitle(this.selectionLabel());
-    this.state = {
-      phase: "running",
-      locked: this.locked,
-      folderName: path.basename(folder),
-      platformLabels: Object.fromEntries(PLATFORMS.map((p) => [p, platformName(p).long])),
-      folder,
-      strategies: [...request.strategies],
-      scope,
-      platform: request.platform,
-      selection: this.selectionLabel(),
-      canSelect: this.canSelect,
-      focus: this.focusUuids(),
-      platforms: PLATFORMS,
-      argvDisplay: displayArgv(dryRunArgv(options)),
-      dryRunCommand: dryRunCommand(options),
-      deployCommand: deployCommand(options),
-      plan: this.state?.plan ?? null,
-      failure: null,
-      progress: null,
-      note,
-      startedAt,
-      durationMs: null,
-    };
-    this.post();
     try {
-      const result = await this.planner.plan(folder, options, {
+      const result = await this.planner.plan(rules.folder, options, {
         cancellation: cts.token,
         onProgress: (step) => {
-          if (this.runId !== id || !this.state) return;
-          // Kept in the state too, so a panel shown again says where the plan is.
-          this.state = { ...this.state, progress: step };
-          void this.view.channel.post("progress", step);
+          if (this.runId !== id) return;
+          this.progress = step;
+          this.treeView.message = this.message();
         },
       });
       if (this.runId !== id) return;
       if (result.cancelled) {
         // The cancelled envelope has no plan: the plan shown, its payloads and Problems stay.
-        this.state = cancelledState(this.state, result.durationMs);
+        this.phase = "cancelled";
       } else {
         const plan = planView(result.document);
-        this.plan = plan;
-        this.document = result.document;
-        this.payloads.replace(this.id, payloadDocuments(result.document));
-        this.publishDiagnostics(plan);
         const unusable =
           result.exitCode === 2 ||
           (result.exitCode !== 0 && plan.platforms.length === 0 && plan.unmatched.length === 0);
-        this.state = {
-          ...this.state,
-          argvDisplay: result.argvDisplay,
-          phase: unusable ? "failed" : "done",
-          plan,
-          failure: unusable
-            ? { code: result.document.failure?.code ?? "failed", message: result.document.message }
-            : null,
-          durationMs: result.durationMs,
-        };
+        this.apply(result.document, plan);
+        if (unusable) {
+          this.phase = "failed";
+          this.failure = result.document.failure?.message ?? result.document.message;
+          void this.reportFailure(result.document.failure?.code ?? "failed", this.failure);
+        }
+        this.ctx.log.info(`deploy plan: ${displayArgv(dryRunArgv(options))} (${Date.now() - startedAt} ms)`);
       }
     } catch (error) {
       if (this.runId !== id) return;
-      this.state = {
-        ...this.state,
-        phase: "failed",
-        failure: {
-          code: error instanceof BackendError ? error.code : "error",
-          message: error instanceof Error ? error.message : String(error),
-        },
-        durationMs: Date.now() - startedAt,
-      };
+      this.phase = "failed";
+      this.failure = error instanceof Error ? error.message : String(error);
+      void this.reportFailure(error instanceof BackendError ? error.code : "error", this.failure);
     } finally {
       if (this.cts === cts) this.cts = undefined;
       cts.dispose();
     }
-    this.post();
+    this.refreshView();
+    await this.setContext(false, this.plan !== null);
+  }
+
+  /** Take a plan document as the plan shown (a finished run, or a test's). */
+  private apply(document: unknown, plan: PlanView): void {
+    this.plan = plan;
+    this.document = document;
+    this.phase = "done";
+    this.failure = null;
+    this.payloads.replace(PLAN_ID, payloadDocuments(document));
+    this.publishDiagnostics(plan);
+  }
+
+  private async reportFailure(code: string, message: string): Promise<void> {
+    const choice = await vscode.window.showErrorMessage(
+      `The deploy preview failed (${code}): ${message}`,
+      "Show Output",
+      "Switch Runtime…",
+    );
+    if (choice === "Show Output") this.ctx.log.show();
+    else if (choice === "Switch Runtime…") await vscode.commands.executeCommand("opentide.switchRuntime");
+  }
+
+  /** For the tests: show this plan document as if a dry run returned it. */
+  async load(document: unknown, folder?: string): Promise<unknown> {
+    this.rules ??= { folder: folder ?? this.ctx.folders.all[0]?.path ?? "", uuids: [], files: [] };
+    await vscode.commands.executeCommand("setContext", "opentide.deployPlan.active", true);
+    this.apply(document, planView(document));
+    this.refreshView();
+    await this.setContext(false, true);
+    return this.snapshot();
+  }
+
+  /** For the tests: what the view shows. */
+  snapshot(): unknown {
+    const rows = (nodes: readonly TreeNode[]): unknown[] =>
+      nodes.map((n) => ({
+        id: n.id,
+        kind: n.kind,
+        label: n.label,
+        description: n.description,
+        context: n.context,
+        children: rows(n.children),
+      }));
+    return {
+      phase: this.phase,
+      message: this.treeView.message ?? null,
+      badge: this.treeView.badge?.value ?? 0,
+      changes: this.tree?.changes ?? 0,
+      roots: rows(this.tree?.roots ?? []),
+    };
   }
 
   private publishDiagnostics(plan: PlanView): void {
-    // The Problems view shows the plan previewed last.
-    diagnosticsOwner = this.id;
     this.diagnostics.clear();
+    const folder = this.rules?.folder ?? "";
     const byFile = new Map<string, vscode.Diagnostic[]>();
     for (const d of plan.diagnostics) {
-      const file = d.filePath ?? (d.path ? path.join(this.rules.folder, d.path) : undefined);
+      const file = d.filePath ?? (d.path ? path.join(folder, d.path) : undefined);
       if (!file) continue;
       const diagnostic = new vscode.Diagnostic(
         new vscode.Range(0, 0, 0, 0),
@@ -516,64 +570,166 @@ class DeployPanel implements vscode.Disposable {
     for (const [file, list] of byFile) this.diagnostics.set(vscode.Uri.file(file), list);
   }
 
-  private async openPayload(key: string): Promise<void> {
-    const uri = this.payloads.uri(this.id, key, "request");
-    if (!uri) return;
-    const document = await vscode.workspace.openTextDocument(uri);
-    // Beside the plan, in preview (the next payload replaces it); the plan keeps the focus.
-    await vscode.window.showTextDocument(document, {
-      preview: true,
-      viewColumn: vscode.ViewColumn.Beside,
-      preserveFocus: true,
+  // --- choices ---
+
+  /** The toolbar's filter: all, one platform, or one tenant of one. */
+  async chooseFilter(): Promise<void> {
+    if (!this.plan) {
+      void vscode.window.showInformationMessage("There is no plan to filter yet.");
+      return;
+    }
+    const choices = filterChoices(this.plan);
+    type Item = vscode.QuickPickItem & { filter: PlanFilter };
+    const items: Item[] = [{ label: "$(clear-all) All platforms and tenants", filter: {} }];
+    for (const platform of choices.platforms) {
+      items.push({ label: platform, description: "platform", filter: { platform } });
+      for (const t of choices.tenants.filter((c) => c.platform === platform))
+        items.push({
+          label: `${platform} / ${t.tenant ?? "no tenant"}`,
+          description: "tenant",
+          filter: { platform, tenant: t.tenant },
+        });
+    }
+    const picked = await vscode.window.showQuickPick(items, {
+      title: "Filter the deploy plan",
+      placeHolder: "Show one platform, or one tenant of it",
+    });
+    if (!picked) return;
+    this.filter = picked.filter;
+    this.refreshView();
+  }
+
+  /** The strategies, which rules and which platform of the next run, one picker each. */
+  async chooseOptions(): Promise<void> {
+    if (!this.rules) {
+      void vscode.window.showInformationMessage("Preview a deploy first: opentide: Preview Deploy.");
+      return;
+    }
+    await this.ctx.capabilities.ready();
+    const selected = this.rules.uuids.length + this.rules.files.length > 0;
+    type Scope = vscode.QuickPickItem & { scope: ScopeKind };
+    const scopes: Scope[] = [
+      { label: "Changed rules", description: "the CLI's default, from the git diff", scope: "changed" },
+      { label: "All rules", description: "--all", scope: "all" },
+      ...(selected && this.canSelect
+        ? [
+            {
+              label: this.selectionLabel() ?? "Selected rules",
+              description: "--uuid / --file",
+              scope: "selected" as const,
+            },
+          ]
+        : []),
+    ];
+    const scope = await vscode.window.showQuickPick(
+      scopes.map((s) => ({ ...s, picked: s.scope === this.request.scope })),
+      { title: "Deploy plan: which rules", placeHolder: "The rules the dry run plans" },
+    );
+    if (!scope) return;
+    type Strat = vscode.QuickPickItem & { strategy: Strategy };
+    const strategies = await vscode.window.showQuickPick<Strat>(
+      (["PREVIEW", "RELEASE"] as const).map((strategy) => ({
+        label: strategy,
+        strategy,
+        picked: this.request.strategies.includes(strategy),
+      })),
+      { title: "Deploy plan: strategies", placeHolder: "The rule statuses to plan", canPickMany: true },
+    );
+    if (!strategies) return;
+    type Plat = vscode.QuickPickItem & { platform: string | null };
+    const platform = await vscode.window.showQuickPick<Plat>(
+      [
+        { label: "All platforms", platform: null },
+        ...PLATFORMS.map((p) => ({ label: platformName(p).long, description: p, platform: p })),
+      ],
+      { title: "Deploy plan: platform", placeHolder: "Plan one platform, or all of them" },
+    );
+    if (!platform) return;
+    await this.run({
+      strategies: strategies.length > 0 ? strategies.map((s) => s.strategy) : ["PREVIEW"],
+      scope: scope.scope,
+      platform: platform.platform,
     });
   }
 
-  private async diffPayload(key: string): Promise<void> {
-    const deployed = this.payloads.uri(this.id, key, "deployed");
-    const request = this.payloads.uri(this.id, key, "request");
-    if (!deployed || !request) return;
-    await vscode.commands.executeCommand(
-      "vscode.diff",
-      deployed,
-      request,
-      `${this.payloads.name(this.id, key)}: deployed ↔ planned`,
-      {
-        preview: true,
-        viewColumn: vscode.ViewColumn.Beside,
-        preserveFocus: true,
-      },
-    );
+  // --- a change ---
+
+  /** A change: a diff of what is deployed and what the plan would send, else the request alone. */
+  async openChange(node: TreeNode | undefined): Promise<void> {
+    const key = node?.payloadKey;
+    if (!key) return;
+    const request = this.payloads.uri(PLAN_ID, key, "request");
+    const deployed = this.payloads.uri(PLAN_ID, key, "deployed");
+    if (deployed && request) {
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        deployed,
+        request,
+        `${this.payloads.name(PLAN_ID, key)}: deployed ↔ planned`,
+        { preview: true },
+      );
+    } else if (request) {
+      const document = await vscode.workspace.openTextDocument(request);
+      await vscode.window.showTextDocument(document, { preview: true });
+    } else {
+      void vscode.window.showInformationMessage(
+        "This change has no request to show: the rule did not compile.",
+      );
+    }
   }
 
-  private async openRule(ref: string): Promise<void> {
-    const catalog = this.ctx.catalog.get(this.rules.folder).catalog;
+  async openRule(node: TreeNode | undefined): Promise<void> {
+    const rules = this.rules;
+    const ref = node?.uuid;
+    if (!rules || !ref) return;
+    const catalog = this.ctx.catalog.get(rules.folder).catalog;
     const object = catalog ? findByUuid(catalog.objects, ref) : undefined;
-    const fromPlan =
+    const file =
+      object?.file_path ??
+      node?.file ??
       this.plan?.platforms.flatMap((p) => p.payloads).find((p) => p.uuid === ref)?.file ??
       this.plan?.diagnostics.find((d) => d.uuid === ref)?.filePath ??
       undefined;
-    const file =
-      object?.file_path ??
-      fromPlan ??
-      (ref.endsWith(".yaml") || ref.endsWith(".yml") ? path.join(this.rules.folder, ref) : undefined);
     if (!file) {
       void vscode.window.showInformationMessage("The rule's file is not known until the catalogue loads.");
       return;
     }
     const line = Math.max(0, (object?.line ?? 1) - 1);
-    // The group left of the plan (where the rule's editor is), else beside it: the plan stays in view.
-    await vscode.window.showTextDocument(vscode.Uri.file(file), {
-      selection: new vscode.Range(line, 0, line, 0),
-      viewColumn: fileColumnFrom(this.view.panel.viewColumn) ?? vscode.ViewColumn.Beside,
-      preview: true,
-    });
+    await vscode.window.showTextDocument(
+      vscode.Uri.file(path.isAbsolute(file) ? file : path.join(rules.folder, file)),
+      {
+        selection: new vscode.Range(line, 0, line, 0),
+        preview: true,
+      },
+    );
   }
 
-  private async copy(what: "dryRun" | "deploy" | "ci"): Promise<void> {
-    const s = this.state;
-    if (!s) return;
-    const strategies = s.strategies;
-    const { options } = this.options({ strategies, scope: s.scope, platform: s.platform });
+  async copyRequest(node: TreeNode | undefined): Promise<void> {
+    const key = node?.payloadKey;
+    const request = key ? this.payloads.uri(PLAN_ID, key, "request") : undefined;
+    if (!request) {
+      void vscode.window.showInformationMessage("This change has no request to copy.");
+      return;
+    }
+    const document = await vscode.workspace.openTextDocument(request);
+    await vscode.env.clipboard.writeText(document.getText());
+    vscode.window.setStatusBarMessage("$(check) Copied the request", 2500);
+  }
+
+  async openConfiguration(node: TreeNode | undefined): Promise<void> {
+    const platform = node?.platform;
+    const rules = this.rules;
+    if (!platform || !rules || !/^[a-z_]+$/.test(platform)) return;
+    const file = path.join(rules.folder, ".opentide", "configurations", "platforms", `${platform}.toml`);
+    if (fs.existsSync(file)) await vscode.window.showTextDocument(vscode.Uri.file(file));
+  }
+
+  async copy(what: "dryRun" | "deploy" | "ci"): Promise<void> {
+    if (!this.rules) {
+      void vscode.window.showInformationMessage("Preview a deploy first: opentide: Preview Deploy.");
+      return;
+    }
+    const { options } = this.options(this.request);
     const text =
       what === "dryRun"
         ? dryRunCommand(options)
@@ -592,7 +748,7 @@ class DeployPanel implements vscode.Disposable {
 
   /** The CI step's secrets: the plan's tenants' variables from `info`, and what its warnings name. */
   private async ciVariables(options: DeployPlanOptions): Promise<string[]> {
-    const folder = this.rules.folder;
+    const folder = this.rules?.folder ?? "";
     // `info` reports each tenant's variable names; it needs no credential to name them.
     const info = await this.ctx.backend.run(folder, ["info"], { credentials: false }).then(
       (result) => parsePlatforms(result.document),
@@ -604,22 +760,17 @@ class DeployPanel implements vscode.Disposable {
     return ciVariables(options, info, this.plan?.platforms ?? [], this.plan?.warnings ?? []);
   }
 
-  private async openPlatformConfig(platform: string): Promise<void> {
-    if (!/^[a-z_]+$/.test(platform)) return;
-    const file = path.join(this.rules.folder, ".opentide", "configurations", "platforms", `${platform}.toml`);
-    if (fs.existsSync(file))
-      await vscode.window.showTextDocument(vscode.Uri.file(file), {
-        viewColumn: fileColumnFrom(this.view.panel.viewColumn) ?? vscode.ViewColumn.Beside,
-      });
-  }
-
   /** For tests: the last plan's document. */
   get lastDocument(): unknown {
     return this.document;
   }
 
   dispose(): void {
-    this.view.dispose();
+    this.cts?.cancel();
+    this.changed.dispose();
+    this.treeView.dispose();
+    this.diagnostics.clear();
+    this.payloads.clear(PLAN_ID);
   }
 }
 
@@ -674,9 +825,6 @@ class PayloadDocuments implements vscode.TextDocumentContentProvider, vscode.Dis
     this.plans.clear();
   }
 }
-
-/** The panel whose plan the Problems view shows (the one previewed last). */
-let diagnosticsOwner = 0;
 
 /** A warning with buttons, as `ensureSaved` asks. */
 function warn(message: string, ...items: string[]): Thenable<string | undefined> {
