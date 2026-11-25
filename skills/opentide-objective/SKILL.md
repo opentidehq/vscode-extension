@@ -46,7 +46,7 @@ Resolve the live structure in this order, stopping at the first that answers:
    cause, not a missing object type.
 
 Then read a neighbouring object of the same family for local convention, and
-`opentide --json info objectives` to see what already exists before adding
+`opentide --json info objectives` (it holds only that section; `--platform` with a section is a usage error) to see what already exists before adding
 something that overlaps.
 
 Repository layout is not fixed either. A CoreTide-era corpus uses different

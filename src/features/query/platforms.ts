@@ -29,7 +29,7 @@ export interface PlatformCaps {
 /** AGENTS.md's capability matrix, used when `info` cannot be read. */
 const FALLBACK: Readonly<Record<string, { canQuery: boolean; canValidate: boolean }>> = {
   sentinel: { canQuery: true, canValidate: true },
-  defender_for_endpoint: { canQuery: true, canValidate: true },
+  microsoft_defender: { canQuery: true, canValidate: true },
   elastic: { canQuery: true, canValidate: true },
   splunk: { canQuery: true, canValidate: true },
   sentinel_one: { canQuery: true, canValidate: true },

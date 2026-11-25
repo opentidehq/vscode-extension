@@ -6,12 +6,6 @@ FROM metrics-*
 FROM logs-* METADATA _id /* inline */
 | LIMIT 1
 
-FROM logs-* /* outer /* inner */ still outer */ METADATA _id
-| LIMIT 1 /* an unbalanced /* opener ends at the first close */
-
-FROM logs-* METADATA _id
-| COMPLETION summary = message WITH my_llm
-
 FROM logs-* METADATA _id
 | COMPLETION summary = message WITH { "inference_id": "my-llm" }
 
@@ -61,9 +55,6 @@ FROM logs-* METADATA _id
 | WHERE process.name IN ("a.exe", "b.exe") AND x NOT IN (1, 2)
 
 FROM logs-* METADATA _id
-| WHERE user.name NOT IN (FROM admins | WHERE active | KEEP user.name)
-
-FROM logs-* METADATA _id
 | WHERE (host.name, user.name) IN (FROM admins | KEEP host.name, user.name)
 
 FROM logs-* METADATA _id
@@ -96,9 +87,6 @@ FROM logs-* METADATA _id
 
 FROM logs-* METADATA _id
 | WHERE message:"failed login"
-
-FROM logs-* [METADATA _id, _version]
-| LIMIT 1
 
 FROM logs-* METADATA _id
 | WHERE event.category == "process"

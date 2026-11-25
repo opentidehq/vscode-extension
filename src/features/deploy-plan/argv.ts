@@ -45,9 +45,13 @@ export function dryRunArgv(options: DeployPlanOptions): string[] {
   return argv;
 }
 
-/** Throws unless `argv` is a `deploy --dry-run` (D6: nothing deploys for real from the editor). */
+/**
+ * Throws unless `argv` is a `deploy --dry-run` (D6: nothing deploys for real from the editor). `deploy` takes no
+ * positional argument, so a word after it is a subcommand (`migrate-state`, `replay-state`), never previewed.
+ */
 export function assertDryRun(argv: readonly string[]): void {
-  if (argv[0] !== "deploy" || !argv.includes("--dry-run") || argv[1] === "migrate-state") {
+  const subcommand = argv[1] !== undefined && !argv[1].startsWith("-");
+  if (argv[0] !== "deploy" || !argv.includes("--dry-run") || subcommand) {
     throw new Error(`refusing to run ${argv.join(" ")}: the editor only previews deploys (--dry-run)`);
   }
 }

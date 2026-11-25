@@ -141,7 +141,7 @@ See [§6](#6-diagnostics). The language server owns open files. `opentide valida
 `opentide deploy` sends at once: it has no confirmation, no `--yes` and no per-rule scope. In the opentide workflow, deployment is a reviewed CI step. So at 1.0:
 
 - **The editor previews.** It runs `deploy --dry-run` and `share preview`.
-- **CI executes.** A real deploy, `share push`, `share retract` and `deploy migrate-state` are not offered from any menu.
+- **CI executes.** A real deploy, `share push`, `share retract`, `deploy migrate-state` and `deploy replay-state` are not offered from any menu.
 - **The generic command runner** ([§11](#11-every-cli-command-has-a-home)) runs a deploy or share only as its dry run, behind a modal confirmation that names the platforms and tenants; a dry run plans and compiles locally and sends nothing. A command without a dry run is refused.
 - **MCP is opentide's own surface.** The MCP server the extension provides ([§12](#12-agents)) is `opentide mcp start` unchanged, so its `deploy_rule` tool still takes `dry_run: false`. That is by design: the agent host asks before each tool call, and opentide's server instructions tell agents to deploy for real only when a person asks. The extension does not filter opentide's tools.
 
@@ -431,7 +431,7 @@ A webview stepper. It is a form over `opentide setup` flags (D3), so it writes n
 │                                                                      │
 │  Platforms                              deploy  validate  query      │
 │  [x] Microsoft Sentinel                   ✓       ✓ KQL     ✓        │
-│  [x] Microsoft Defender for Endpoint      ✓       ✓ KQL     ✓        │
+│  [x] Microsoft Defender                   ✓       ✓ KQL     ✓        │
 │  [ ] Splunk                               ✓       ✓ SPL     ✓        │
 │  [ ] Elastic                              ✓       ✓ 4 lang  ✓        │
 │  [ ] CrowdStrike                          ✓       —         ✓ CQL    │

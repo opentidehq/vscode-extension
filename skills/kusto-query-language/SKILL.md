@@ -1,11 +1,11 @@
 ---
 name: kusto-query-language
-description: Platform-agnostic Kusto Query Language (KQL) patterns, optimisation rules, anti-patterns, and correlation techniques shared by Microsoft Sentinel and Microsoft Defender Advanced Hunting. Covers operator hierarchy, filter ordering, joins, summarise patterns, commenting discipline, false-positive engineering, IOC templates, and bug-class anti-patterns. Use when authoring or reviewing any KQL — pair with microsoft-sentinel or microsoft-defender-endpoint for table schemas, ingestion semantics, and platform-native rule constraints.
+description: Platform-agnostic Kusto Query Language (KQL) patterns, optimisation rules, anti-patterns, and correlation techniques shared by Microsoft Sentinel and Microsoft Defender Advanced Hunting. Covers operator hierarchy, filter ordering, joins, summarise patterns, commenting discipline, false-positive engineering, IOC templates, and bug-class anti-patterns. Use when authoring or reviewing any KQL — pair with microsoft-sentinel or microsoft-defender for table schemas, ingestion semantics, and platform-native rule constraints.
 ---
 
 # Kusto Query Language — platform-agnostic
 
-This skill encodes the language-level discipline shared across Microsoft Sentinel (Log Analytics) and Microsoft Defender Advanced Hunting (M365 Defender). For platform-specific table schemas, time-field names, NRT/scheduled-rule constraints, retention and execution surfaces, **always pair with `microsoft-sentinel` or `microsoft-defender-endpoint`**.
+This skill encodes the language-level discipline shared across Microsoft Sentinel (Log Analytics) and Microsoft Defender Advanced Hunting (M365 Defender). For platform-specific table schemas, time-field names, NRT/scheduled-rule constraints, retention and execution surfaces, **always pair with `microsoft-sentinel` or `microsoft-defender`**.
 
 > Note on time-field naming: Sentinel tables use `TimeGenerated`. Defender device/email tables use `Timestamp`. The optimisation principles in this skill are identical — always filter on the datetime index first.
 
@@ -207,7 +207,7 @@ let malicious_domains = dynamic(["evil.example", "c2.example.net"]);
 
 - **Inline IOCs** with `let` + `dynamic([...])`; avoid `externaldata()` for production rules unless your tenant explicitly supports it.
 - **Inline reference tables** via `datatable(...)` for known-good lists, Tier 0 groups, exclusion lookups.
-- **`materialize()`** when the same intermediate set feeds multiple downstream joins (e.g. TI feed dedup before joining against multiple log tables).
+- **`materialize()`** when the same intermediate set feeds multiple downstream joins (e.g. TI feed dedup before joining against multiple log tables). It takes a tabular expression: `extend x = materialize(y)` is a syntax error in Kusto, and `opentide validate` reports it.
 
 ```kql
 let active_ti = materialize(
@@ -373,4 +373,4 @@ When KQL is embedded in a record that carries a `rationale` field (hunt query ob
 
 For platform-specific anti-patterns, table schemas, and execution surfaces:
 - `microsoft-sentinel/references/Anti-Patterns.md`
-- `microsoft-defender-endpoint/references/Anti-Patterns.md`
+- `microsoft-defender/references/Anti-Patterns.md`

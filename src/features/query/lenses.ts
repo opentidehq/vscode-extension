@@ -35,7 +35,7 @@ export interface LensContext {
 
 const LABELS: Readonly<Record<string, string>> = {
   sentinel: "Sentinel",
-  defender_for_endpoint: "Defender",
+  microsoft_defender: "Defender",
   elastic: "Elastic",
   splunk: "Splunk",
   sentinel_one: "SentinelOne",

@@ -58,6 +58,8 @@ describe("command classification", () => {
     assert.equal(classify(["validate", "query", "--live"]).contactsTenant, true);
     assert.equal(classify(["deploy", "--dry-run"]).class, "read-only");
     assert.equal(classify(["deploy"]).class, "deploys");
+    // opentide 1.0.0: rewrites deployment state in the checkout, a CI step like migrate-state
+    assert.equal(classify(["deploy", "replay-state", "HEAD"]).class, "deploys");
     assert.equal(classify(["share", "push"]).class, "shares");
     assert.equal(classify(["doctor", "--offline"]).contactsTenant, false);
     assert.equal(

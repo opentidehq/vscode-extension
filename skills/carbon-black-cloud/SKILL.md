@@ -260,6 +260,7 @@ When CBC content lives in `configurations.carbon_black_cloud`:
 - **Identify the surface** (Watchlist Report / Scheduled Search / API IOC) in the configuration block.
 - **Watchlist Report metadata** (title, description, severity, MITRE tags) populated; the MDR `description` mirrors / extends with operational context.
 - **Sensor tier requirement** declared (Endpoint Standard vs Enterprise EDR) so reviewers can assess fitness.
+- **Retiring a rule.** `opentide deploy --prune` cannot remove a Carbon Black Cloud rule whose file was deleted; it says so, and the rule must be removed in the Carbon Black Cloud console by hand. Retire a rule through its `DELETION` status instead of deleting the file.
 - Coordinate with `opentide-rule` for placement and `detection-engineering` for lifecycle.
 
 ---

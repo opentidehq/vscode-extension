@@ -7,7 +7,7 @@ description: Detection engineering lifecycle across the opentide threat → obje
 
 This skill governs **how** detection content moves through its lifecycle. It pairs opentide's object lineage (Threat Vector → Detection Objective → Detection Rule) with the practical mechanics of converting validated hunting queries into production-grade detection rules on the platforms opentide deploys to.
 
-> Always pair with: language skills (`kusto-query-language`, `splunk-spl-processing`), platform skills (`microsoft-sentinel`, `microsoft-defender-endpoint`, `crowdstrike-falcon`, `carbon-black-cloud`, `sentinelone-singularity`, `harfanglab`, `elastic-security`, `sysdig-secure`, `bitdefender-gravityzone`, `graylog`, `exabeam-siem`, `google-secops`), and the opentide object skills (`opentide-threat`, `opentide-objective`, `opentide-rule`).
+> Always pair with: language skills (`kusto-query-language`, `splunk-spl-processing`), platform skills (`microsoft-sentinel`, `microsoft-defender`, `crowdstrike-falcon`, `carbon-black-cloud`, `sentinelone-singularity`, `harfanglab`, `elastic-security`, `sysdig-secure`, `bitdefender-gravityzone`, `graylog`, `exabeam-siem`, `google-secops`), and the opentide object skills (`opentide-threat`, `opentide-objective`, `opentide-rule`).
 
 ---
 
@@ -24,7 +24,7 @@ opentide's configuration keys, one per platform it deploys to:
 | Key | Platform | Pair with |
 |---|---|---|
 | `sentinel` | Microsoft Sentinel | `microsoft-sentinel` + `kusto-query-language` |
-| `defender_for_endpoint` | M365 Defender Advanced Hunting | `microsoft-defender-endpoint` + `kusto-query-language` |
+| `microsoft_defender` | Microsoft Defender XDR custom detection rules (Graph beta) | `microsoft-defender` + `kusto-query-language` |
 | `splunk` | Splunk Enterprise / ES | `splunk-spl-processing` |
 | `crowdstrike` | CrowdStrike Falcon | `crowdstrike-falcon` |
 | `carbon_black_cloud` | VMware Carbon Black Cloud | `carbon-black-cloud` |
@@ -81,7 +81,7 @@ A hunt may become a detection only after:
 
 | Technology family | Query expression | Skills |
 |---|---|---|
-| Microsoft Sentinel + Defender Advanced Hunting | KQL | Shared: `kusto-query-language`; platform-specific: `microsoft-sentinel`, `microsoft-defender-endpoint` |
+| Microsoft Sentinel + Defender Advanced Hunting | KQL | Shared: `kusto-query-language`; platform-specific: `microsoft-sentinel`, `microsoft-defender` |
 | Splunk Enterprise / ES | SPL | `splunk-spl-processing` |
 | CrowdStrike Falcon | FQL / NG-SIEM (LogScale) | `crowdstrike-falcon` |
 | SentinelOne Singularity | Star Custom Logic / Deep Visibility / PowerQuery | `sentinelone-singularity` |
@@ -118,7 +118,7 @@ Remove or replace the hunting time window with the platform's scheduling mechani
 | **Near-real-time / streaming rule** | Remove explicit time filters — the engine manages ingestion-time windowing |
 | **Continuous query / saved search** | Align the `earliest`/`latest` (SPL) or equivalent to the scheduled interval |
 
-> Platform-specific time-filter mechanics (field names, NRT semantics, ingestion-time functions) live in the relevant platform skill. Consult `microsoft-sentinel`, `microsoft-defender-endpoint`, `splunk-spl-processing`, `crowdstrike-falcon`, etc.
+> Platform-specific time-filter mechanics (field names, NRT semantics, ingestion-time functions) live in the relevant platform skill. Consult `microsoft-sentinel`, `microsoft-defender`, `splunk-spl-processing`, `crowdstrike-falcon`, etc.
 
 ### Step 2 — Add required output columns
 
@@ -290,7 +290,7 @@ Different platforms expose different rule types, response mechanisms, and constr
 | Platform family | Detection rule type | Skill |
 |---|---|---|
 | Microsoft Sentinel | Scheduled analytic rule, NRT rule | `microsoft-sentinel` |
-| Microsoft Defender | Custom detection rule, NRT | `microsoft-defender-endpoint` |
+| Microsoft Defender | Custom detection rule, NRT | `microsoft-defender` |
 | Splunk Enterprise / ES | Correlation search, scheduled search, real-time search | `splunk-spl-processing` |
 | CrowdStrike Falcon | Custom IOA, NG-SIEM rule, Fusion workflow | `crowdstrike-falcon` |
 | SentinelOne Singularity | STAR Custom Logic rule | `sentinelone-singularity` |
@@ -403,7 +403,7 @@ Map detections to attack simulation frameworks for continuous validation:
 
 - `kusto-query-language/SKILL.md` (+ `references/Best-Practices.md`, `references/Hypothesis-Anti-Patterns.md`)
 - `microsoft-sentinel/SKILL.md` (+ `references/Anti-Patterns.md`)
-- `microsoft-defender-endpoint/SKILL.md` (+ `references/Anti-Patterns.md`)
+- `microsoft-defender/SKILL.md` (+ `references/Anti-Patterns.md`)
 - `splunk-spl-processing/SKILL.md`
 - `crowdstrike-falcon/SKILL.md`, `carbon-black-cloud/SKILL.md`, `sentinelone-singularity/SKILL.md`, `harfanglab/SKILL.md`
 - `opentide-threat/SKILL.md`, `opentide-objective/SKILL.md`, `opentide-rule/SKILL.md`

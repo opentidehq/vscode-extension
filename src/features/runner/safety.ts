@@ -86,8 +86,8 @@ export function platformsOf(argv: readonly string[]): string[] | undefined {
   if (named.length > 0) return named;
   const extract = argv.indexOf("extract");
   if (argv[0] === "generate" && extract === 1 && argv[2] && !argv[2].startsWith("-")) {
-    // `generate extract defender` is the Defender for Endpoint platform.
-    return [argv[2] === "defender" ? "defender_for_endpoint" : argv[2]];
+    // `generate extract defender` is the Microsoft Defender platform.
+    return [argv[2] === "defender" ? "microsoft_defender" : argv[2]];
   }
   return undefined;
 }

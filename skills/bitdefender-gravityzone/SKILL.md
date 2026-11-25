@@ -179,6 +179,7 @@ What no offline check can tell you: whether the rule fires on real telemetry, ho
 - **Drift.** A recorded rule missing on update is created again (`bitdefender_rule_recreated`), or under disablement just forgotten (`bitdefender_rule_missing`).
 - **Kind changes.** `updateCustomRule` takes no `subtype`; turning a Basic rule into YARA or back is refused (`bitdefender_kind_changed`). Deploy the rule with its deletion status first, then deploy the new kind.
 - **Pacing and failures.** Creates and deletes are paced at five per rolling minute per API key; rate limits are waited out. A create with no answer is retried once and, if still unconfirmed, reported (`bitdefender_create_unconfirmed`) for a human to resolve in the console. A failed rule does not stop the run; a refused key stops that tenant.
+- **50 YARA rules per company.** GravityZone holds at most 50 YARA rules per company. A deploy that would leave a tenant more than 50 (those deployment state records there plus those it creates) refuses each YARA create on that tenant before anything is sent (`bitdefender_yara_rule_limit`, with the counts); updates, deletions and Basic rules go on. Retire rules in one run to make room for creates in the next.
 - **Exclusion rules** (`type: 2`) are never sent, read or removed. Tuning by exclusion stays a console decision outside opentide; document expected false positives in the rule's description.
 
 ---

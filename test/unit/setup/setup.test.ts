@@ -109,7 +109,7 @@ describe("setup: answers → commands", () => {
     const old = setupSupport(source(released()));
     assert.equal(old.plan, false);
     assert.equal(old.setupFlags.mcp, false);
-    assert.ok(old.platforms.includes("defender_for_endpoint"));
+    assert.ok(old.platforms.includes("sentinel"));
     assert.deepEqual(old.ciProviders, ["github", "gitlab", "azure", "none"]);
     assert.deepEqual(old.mcpHosts, ["vscode", "cursor", "claude-code", "generic"]);
     assert.equal(old.plugin, true);
@@ -189,7 +189,7 @@ describe("setup: answers → commands", () => {
   it("adds only what an existing repository lacks, with subcommands", () => {
     const commands = setupCommands(
       answers({
-        platforms: ["sentinel", "defender_for_endpoint"],
+        platforms: ["sentinel", "microsoft_defender"],
         ci: "gitlab",
         hooks: false,
         env: false,
@@ -202,7 +202,7 @@ describe("setup: answers → commands", () => {
     assert.deepEqual(
       commands.map((c) => c.argv.join(" ")),
       [
-        "setup platforms --defender-for-endpoint --yes",
+        "setup platforms --microsoft-defender --yes",
         "setup ci gitlab --staging --inflight --no-sharing --default-branch trunk --yes",
       ],
     );

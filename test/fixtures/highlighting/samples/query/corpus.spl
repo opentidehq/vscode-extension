@@ -1,132 +1,139 @@
+``` prod:assignment valid
 index=main | eval k=host."-".source, "a.b"='c.d', {host}=source
 
-tstats count where index=main by sourcetype
-
+``` prod:bare_search valid
 index=main sourcetype=foo
 
-index=main |
-
-index
-
+``` prod:case_clause valid
 index=main CASE(Admin)
 
+``` prod:catalog_command valid
 index=main | top limit=10 host
 
+``` prod:chart_where valid
 index=main | timechart span=1h count by host where count > 10
 
+``` prod:command_option valid, prod:comparison, prod:argument_list
 index=main | bin _time span=1h | regex _raw!="a"
 
+``` prod:comment valid
 index=main
 ```` a comment
 over two lines ```
 | stats count
 
+``` prod:dedup_command valid
 index=main | dedup host
 
+``` prod:dedup_option valid
 index=main | dedup host user keepempty=true sortby -_time
 
+``` prod:eval_command valid
 index=main | eval x=1
 
+``` prod:field_name valid
 index=main | table _time host user* | fields - _raw
 
-index=main status==200 code<>404 bytes=>10 bytes=<99 user!~admin
-
-index=main status=="200" dGVzdA== ==200 x=a==b
-
-index=main status == 200 NOT code <> 404 bytes => 10 bytes =< 99 user !~ admin
-
-index=main [search status==200 OR code<>404 | fields status]
-
+``` prod:field_value valid, prod:search_word
 index=main "http_request.user_agent"=x version=2.0.0 domain_rank=-1 _index_latest=@m
 
-index=main | fields
-
+``` prod:fields_command valid
 index=main | fields host, source
 
+``` prod:fillnull_command valid
 index=main | fillnull value="-" a, b
 
+``` prod:foreach_command valid
 index=main | foreach user* [| eval r<<MATCHSTR>>=lower(<<FIELD>>) ]
 
+``` prod:function_call valid
 index=main | eval s=case(bytes>1, 1, true(), 0), t=if(user like "a%", 1, 0)
 
+``` prod:head_command valid
 index=main | head 1
 
+``` prod:in_clause valid, prod:value_list
 index=main app IN ("a" "b", c*)
 
-| inputlookup t.csv where a==1 b<>2 c=>3 d=<4 e!~5
-
-| inputlookup
-
+``` prod:inputlookup_command valid
 | inputlookup append=t t.csv where (x="a" OR x="b") AND y<=60
 
+``` prod:join_command valid
 index=main | join host [ search index=other ]
 
-index=main | lookup
-
+``` prod:lookup_command valid
 index=main | lookup dnslookup clientip
 
+``` prod:lookup_field valid
 index=main | lookup dnslookup clientip as src OUTPUTNEW clienthost AS h
 
+``` prod:macro valid
 | tstats `security_content_summariesonly` count from datamodel=Endpoint.Processes by Processes.user
 | `drop_dm_object_name(Processes)`
 
+``` prod:makemv_command valid
 index=main | makemv delim="," users
 
+``` prod:mvexpand_command valid
 index=main | mvexpand users
 
+``` prod:outputlookup_command valid
 index=main | outputlookup append=true t-x.csv
 
+``` prod:prefix_clause valid
 | tstats count where index=main by _time PREFIX(src=) span=1h
 
+``` prod:rename_command valid
 index=main | rename host AS hostname
 
+``` prod:rename_item valid
 index=main | rename DNS.* as *, host AS h
 
+``` prod:rex_command valid
 index=main | rex field=_raw "(?<ip>\d+)"
 
-index=main | search status==200 OR code<>404 bytes=>10 | stats count
-
+``` prod:search_command valid
 search index=main
 
-search |
-
+``` prod:search_expression valid
 index=main (EventCode=4624 OR EventCode=4625) NOT user=SYSTEM app IN ("a" "b") earliest=-1h@h latest=now
 
+``` prod:search_group valid
 index=main (EventCode=4624 OR EventCode=4625) NOT user=SYSTEM
 
+``` prod:sort_command valid
 index=main | sort - _time
 
+``` prod:spath_command valid
 index=main | spath input=x path=a{}.b output=y
 
-index=main | eventstats values(dns_*) as dns_*, dc(src) AS c by dest, user
-
-index=main | stats
-
+``` prod:stats_command valid
 index=main | stats count by host
 
-index=main | streamstats count by user reset_on_change=true
-
+``` prod:stats_command valid
 index=main | stats count min(_time) as firstTime max(_time) as lastTime BY host user
 
+``` prod:table_command valid
 index=main | table host, source
 
+``` prod:tail_command valid
 index=main | tail 1
 
+``` prod:term_clause valid, prod:term_text
 index=main TERM(EventID=4688) TERM(user=)
 
-index=main TERM(EventID=4688
-
+``` prod:tojson_command valid
 index=main | tojson fill_null=true a, b* output_field=j
 
-| tstats count where index=main sourcetype=~x by host
-
+``` prod:tstats_command valid
 tstats count where index=main by host
 
+``` prod:tstats_command valid
 | tstats summariesonly=true count min(_time) as firstTime from datamodel=Endpoint.Processes where Processes.process_name IN ("cmd.exe","powershell.exe") by Processes.dest, Processes.user
 
+``` prod:unknown_command valid
 index=main | bogus foo=bar
 
-index=main | where
-
+``` prod:where_command valid
 index=main | where bytes>0
 

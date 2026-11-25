@@ -43,7 +43,7 @@ The `name` must match the parent directory name (lowercase, hyphens, max 64 char
 | `mitre-attack` | ATT&CK mapping discipline (v19 baseline) |
 
 ### Languages & platforms (20)
-`kusto-query-language`, `microsoft-sentinel`, `microsoft-defender-endpoint`, `entra-id`, `windows-event-logs`, `splunk-spl-processing`, `crowdstrike-falcon`, `carbon-black-cloud`, `sentinelone-singularity`, `harfanglab`, `elastic-security`, `sysdig-secure`, `bitdefender-gravityzone`, `graylog`, `exabeam-siem`, `google-secops`, `okta-identity`, `amazon-web-services`, `microsoft-azure`, `google-cloud-platform`
+`kusto-query-language`, `microsoft-sentinel`, `microsoft-defender`, `entra-id`, `windows-event-logs`, `splunk-spl-processing`, `crowdstrike-falcon`, `carbon-black-cloud`, `sentinelone-singularity`, `harfanglab`, `elastic-security`, `sysdig-secure`, `bitdefender-gravityzone`, `graylog`, `exabeam-siem`, `google-secops`, `okta-identity`, `amazon-web-services`, `microsoft-azure`, `google-cloud-platform`
 
 Every opentide platform (`configurations.<key>`) has a skill; [`coverage.json`](../coverage.json) is the map.
 

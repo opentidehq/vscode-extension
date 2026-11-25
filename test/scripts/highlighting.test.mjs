@@ -505,7 +505,8 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     }
   });
 
-  // TEMPORARY with alignCql (scripts/tide-align.mjs): delete when the extension pins opentide 1.0.0.
+  // opentide 1.0.0-rc.5's CQL grammar read the `/*` of an unquoted glob as a block comment that never ended
+  // (the extension bridged it until opentide 1.0.0 fixed the zip's grammar, opentide#1854).
   describe("CQL comments", () => {
     const isComment = (token) => token.scopes.some((scope) => scope.startsWith("comment"));
 

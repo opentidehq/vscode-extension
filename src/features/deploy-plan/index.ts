@@ -32,7 +32,7 @@ const PAYLOAD_SCHEME = "opentide-payload";
 const VIEW_ID = "opentide.deployPlan.view";
 const PLATFORMS = [
   "sentinel",
-  "defender_for_endpoint",
+  "microsoft_defender",
   "elastic",
   "splunk",
   "sentinel_one",

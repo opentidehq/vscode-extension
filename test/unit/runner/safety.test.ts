@@ -92,7 +92,7 @@ describe("runner safety (D6)", () => {
   it("reads platforms and rule selections from the argv", () => {
     assert.deepEqual(flagValues(["deploy", "--platform", "a", "--platform=b"], "--platform"), ["a", "b"]);
     assert.deepEqual(platformsOf(["query", "--platform", "splunk"]), ["splunk"]);
-    assert.deepEqual(platformsOf(["generate", "extract", "defender"]), ["defender_for_endpoint"]);
+    assert.deepEqual(platformsOf(["generate", "extract", "defender"]), ["microsoft_defender"]);
     assert.deepEqual(platformsOf(["generate", "extract", "sentinel"]), ["sentinel"]);
     assert.equal(platformsOf(["doctor"]), undefined);
     assert.equal(selectedRuleCount(["deploy", "--uuid", "a", "--file", "b"]), 2);

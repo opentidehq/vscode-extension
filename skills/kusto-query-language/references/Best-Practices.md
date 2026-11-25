@@ -1,6 +1,6 @@
 # KQL Best Practices — platform-agnostic
 
-Authoritative performance and correctness guidelines for KQL queries across Microsoft security platforms (Defender Advanced Hunting, Microsoft Sentinel). Only platform-neutral rules are included here. For platform-specific constraints (rate limits, max rows, timeouts, retention, table schemas), see the `microsoft-sentinel` and `microsoft-defender-endpoint` skills.
+Authoritative performance and correctness guidelines for KQL queries across Microsoft security platforms (Defender Advanced Hunting, Microsoft Sentinel). Only platform-neutral rules are included here. For platform-specific constraints (rate limits, max rows, timeouts, retention, table schemas), see the `microsoft-sentinel` and `microsoft-defender` skills.
 
 > **Sources**: Adapted from [Kusto query best practices](https://learn.microsoft.com/en-us/azure/kusto/query/best-practices) and [Advanced hunting query best practices](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-best-practices).
 

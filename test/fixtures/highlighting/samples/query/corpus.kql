@@ -39,6 +39,14 @@ SecurityEvent | where ago(1d) < TimeGenerated
 let Logs = (tableName: string, lookback: timespan = 1d) { table(tableName) | where TimeGenerated > ago(lookback) };
 Logs("SigninLogs")
 
+DeviceNetworkEvents | make-graph DeviceName --> RemoteIP | graph-mark-components kind=weak with_component_id=cid
+
+DeviceNetworkEvents | make-graph DeviceName --> RemoteIP | graph-match cycles=none (a)-[e*1..3]->(b)<-[f]-(c), ()-->(d)--(g)<--(h) where a.DeviceName == "x" and e.Port > 80 project src = a.DeviceName, c.DeviceName
+
+DeviceNetworkEvents | make-graph DeviceName --> RemoteIP | graph-shortest-paths output=any (a)-[e*1..5]->(b) where a.DeviceName == "x" and b.RemoteIP == "1.2.3.4" project a.DeviceName, b.RemoteIP
+
+DeviceNetworkEvents | make-graph DeviceName --> RemoteIP | graph-to-table nodes as N with_node_id=id, edges as E with_source_id=s with_target_id=t
+
 SecurityEvent | summarize hint.shufflekey=Computer count() by Computer
 
 SecurityEvent | extend Process = split(NewProcessName, "\\")[-1], Key = todynamic(EventData)["Key"]
@@ -51,6 +59,8 @@ SecurityEvent | take 1
 SecurityEvent | limit 10
 
 SecurityEvent | lookup Identity on EventID
+
+DeviceNetworkEvents | make-graph DeviceName --> RemoteIP with Hosts on DeviceName, (Ips | where Risk > 1) on RemoteIP partitioned-by TenantId (graph-match (a)-[e]->(b) project a.DeviceName, b.RemoteIP)
 
 SecurityEvent | make-series Logons = count() on TimeGenerated from ago(7d) to now() step 1h by Computer
 

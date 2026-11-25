@@ -1,6 +1,6 @@
 # Defender Query Anti-Patterns (AP-Q1 — AP-Q16)
 
-A catalogue of common anti-patterns in KQL query design for Microsoft Defender for Endpoint Advanced Hunting. Use as a rejection checklist.
+A catalogue of common anti-patterns in KQL query design for Microsoft Defender Advanced Hunting. Use as a rejection checklist.
 
 > **Hypothesis anti-patterns** (AP-H1–H5): see `kusto-query-language/references/Hypothesis-Anti-Patterns.md`.
 
