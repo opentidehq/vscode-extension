@@ -3,6 +3,7 @@ import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
 
 import { overlapMs } from "../../src/core/activationClock";
+import { activationVerdict } from "./activationBudget";
 import { activated } from "./helpers";
 
 const say = (line: string): void => {
@@ -32,6 +33,17 @@ const BUDGET_MS = process.platform === "win32" ? 750 : 300;
  */
 const INSIDERS_BUDGET_MS = 2000;
 const budgetMs = (): number => (vscode.version.includes("insider") ? INSIDERS_BUDGET_MS : BUDGET_MS);
+
+/**
+ * Where this thread's CPU time is known (Node 22.19 and later), the budget above judges CPU time, our own code, and
+ * wall time only has to stay under this ceiling. A GitHub macOS runner descheduled the host for 454 ms inside one
+ * feature that makes no synchronous call (554 ms wall, 37 ms CPU; another run, 389 ms wall, 72 ms CPU), so wall time
+ * alone fails on the runner, not on us. But a blocking synchronous call is off the CPU too, and catching one is what
+ * this test is for, so wall time keeps a ceiling. The worst healthy wall time CI has shown is 1429 ms (Insiders on
+ * Windows; 820 ms on stable), and a process start or a synchronous read of the workspace costs seconds: 2 s sits
+ * between them. Without a CPU clock (VS Code 1.91's Node), wall time is judged against the budget, as before.
+ */
+const WALL_CEILING_MS = 2000;
 
 describe("activation (#2)", () => {
   it("activates on workspaceContains:.opentide/** and registers the core commands", async () => {
@@ -87,8 +99,18 @@ describe("activation (#2)", () => {
         .join(", ")}`,
     );
     const budget = budgetMs();
-    say(`ACTIVATION vscode=${vscode.version} budget=${budget} ms`);
-    assert.ok(times.totalMs < budget, `activate took ${ms(times.totalMs)}, the budget is ${budget} ms`);
+    const verdict = activationVerdict(
+      { wallMs: times.totalMs, ...(times.cpuMs !== undefined ? { cpuMs: times.cpuMs } : {}) },
+      { budgetMs: budget, wallCeilingMs: WALL_CEILING_MS },
+    );
+    say(
+      `ACTIVATION vscode=${vscode.version} budget=${budget} ms` +
+        (times.cpuMs !== undefined
+          ? ` of CPU, wall ceiling ${WALL_CEILING_MS} ms`
+          : " of wall time (no CPU clock)") +
+        `: ${verdict.reason}`,
+    );
+    assert.ok(verdict.ok, verdict.reason);
   });
 
   it("restarts the language server and the backend on opentide: Restart Server", async () => {
