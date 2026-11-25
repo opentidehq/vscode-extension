@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-25
+
+Microsoft Defender replaces Defender for Endpoint, for opentide 1.0.0. The deploy plan is a native view with
+VS Code's diff editor.
+
 ### Upgrade
 
 - **Upgrade your own opentide to 1.0.0:** `pip install --upgrade opentide`. The extension names the
