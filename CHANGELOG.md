@@ -12,6 +12,8 @@ pre-releases odd ones.
 - **Rules look like YAML in every colour theme.** Keys, values and enumerations take your theme's
   YAML colours. In GitHub, Dracula, Monokai and Catppuccin, keys were plain text, and so were
   `true`, `false` and other fixed values in Dracula and Monokai.
+- **Object and configuration files have an opentide icon.** Tabs, the Explorer and breadcrumbs show
+  it in place of the icon theme's plain-text icon.
 
 ## [0.6.0] - 2026-11-25
 

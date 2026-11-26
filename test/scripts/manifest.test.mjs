@@ -200,6 +200,21 @@ describe("package.json", () => {
     for (const grammar of pkg.contributes.grammars) assert.ok(ids.has(grammar.language), grammar.language);
   });
 
+  it("gives object and configuration files an opentide icon of their own, shipped in the package", () => {
+    // Without one, Seti and most icon themes draw an opentide-yaml file with their plain-text icon.
+    const byId = Object.fromEntries(pkg.contributes.languages.map((l) => [l.id, l]));
+    const shipped = readFileSync(join(root, ".vscodeignore"), "utf8");
+    for (const id of ["opentide-yaml", "opentide-config"]) {
+      const { icon } = byId[id];
+      assert.ok(icon, id);
+      for (const path of [icon.light, icon.dark]) {
+        assert.ok(existsSync(join(root, path)), path);
+        assert.match(path, /^\.\/images\/languages\//);
+      }
+    }
+    assert.match(shipped, /^!images\/languages\/\*\*$/m);
+  });
+
   it("associates opentide-yaml with objects/** and opentide-config with .opentide/configurations/**", () => {
     const byId = Object.fromEntries(pkg.contributes.languages.map((l) => [l.id, l]));
     assert.deepEqual(byId["opentide-yaml"].filenamePatterns, ["**/objects/**/*.yaml", "**/objects/**/*.yml"]);

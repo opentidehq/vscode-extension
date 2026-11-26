@@ -60,11 +60,13 @@ Licence: CC-BY-4.0 AND MIT: the icon font (codicon.ttf) is under CC BY 4.0, "Cod
          Corporation (https://creativecommons.org/licenses/by/4.0/); the stylesheet (codicon.css) is MIT,
          Copyright (c) Microsoft Corporation. Both licence texts are in dist/THIRD-PARTY-NOTICES.txt.
 
-images/activity.svg, images/icon.png
-------------------------------------
+images/activity.svg, images/icon.png, images/languages/*.svg
+------------------------------------------------------------
 Source:  opentidehq/.github assets/svg/icon-normal.svg and assets/png/icon-normal-256px.png, built on
-         the "Tsunami" glyph of Google's Material Symbols (https://github.com/google/material-design-icons).
-Change:  activity.svg keeps the glyph's path only, filled with currentColor for VS Code's theming.
+         the "Tsunami" glyph of Google's Material Symbols (https://github.com/google/material-design-icons);
+         images/languages/opentide-config-*.svg on its "Settings" glyph (rounded, filled).
+Change:  activity.svg keeps the glyph's path only, filled with currentColor for VS Code's theming. The
+         file icons in images/languages/ draw a glyph in white on the icon's disc.
 Licence: Apache-2.0
 
 

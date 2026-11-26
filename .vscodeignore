@@ -7,6 +7,7 @@
 !THIRD-PARTY-LICENSES
 !images/icon.png
 !images/activity.svg
+!images/languages/**
 !dist/**
 !syntaxes/**
 !skills/**
