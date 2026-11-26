@@ -3,7 +3,8 @@
 //   node scripts/highlighting-contrast.mjs capture <opentide>   the server's semantic tokens for the samples, from a real
 //                                                                `opentide lsp start` (rerun when pins.json's highlights move)
 //   node scripts/highlighting-contrast.mjs baseline             write the grammar-only plain share the gate ratchets on
-//   node scripts/highlighting-contrast.mjs report               print every theme x language x token type
+//   node scripts/highlighting-contrast.mjs report               print every theme x language x token type, VS Code's
+//                                                                default themes then the popular ones
 import { spawn } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -16,7 +17,9 @@ import {
   mainColour,
   measure,
   plainShare,
+  POPULAR_THEMES,
   semanticFailures,
+  yamlFailures,
 } from "./highlighting-contrast-lib.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -121,14 +124,15 @@ async function capture(bin) {
   );
 }
 
-export async function measureDefaults() {
+/** Every sample under `themes` (VS Code's default themes unless given), with the extension's package.json. */
+export async function measureDefaults(themes = DEFAULT_THEMES) {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8"));
   return measure({
     root,
     pkg,
     themesDir: join(fixtures, "themes"),
-    themes: DEFAULT_THEMES,
+    themes,
     samples,
     snapshot,
   });
@@ -153,7 +157,8 @@ async function main() {
   }
   if (command === "report") {
     const rows = await measureDefaults();
-    for (const r of rows) {
+    const popular = await measureDefaults(POPULAR_THEMES);
+    for (const r of [...rows, ...popular]) {
       const tm = mainColour(r.textmate);
       const sem = mainColour(r.semantic);
       console.log(
@@ -167,7 +172,7 @@ async function main() {
         ].join(" | "),
       );
     }
-    const failures = semanticFailures(rows);
+    const failures = [...semanticFailures(rows), ...yamlFailures(popular)];
     console.log(`\n${failures.length} failure(s)`);
     for (const f of failures) console.log(f);
     return;

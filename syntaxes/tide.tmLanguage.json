@@ -6,7 +6,7 @@
       "begin": "^(configurations)(\\s*)(:)\\s*(?:#.*)?$",
       "beginCaptures": {
         "1": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "3": {
           "name": "punctuation.separator.key-value.tide"
@@ -19,7 +19,7 @@
           "begin": "^(\\s+)(sentinel|microsoft_defender)(\\s*)(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
-              "name": "variable.other.property.tide"
+              "name": "entity.name.tag.yaml.tide"
             },
             "4": {
               "name": "punctuation.separator.key-value.tide"
@@ -32,7 +32,7 @@
               "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -49,7 +49,7 @@
             {
               "captures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -93,7 +93,7 @@
           "begin": "^(\\s+)(splunk)(\\s*)(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
-              "name": "variable.other.property.tide"
+              "name": "entity.name.tag.yaml.tide"
             },
             "4": {
               "name": "punctuation.separator.key-value.tide"
@@ -106,7 +106,7 @@
               "begin": "^(\\s+)(query|search)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -123,7 +123,7 @@
             {
               "captures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -167,7 +167,7 @@
           "begin": "^(\\s+)(carbon_black_cloud|graylog)(\\s*)(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
-              "name": "variable.other.property.tide"
+              "name": "entity.name.tag.yaml.tide"
             },
             "4": {
               "name": "punctuation.separator.key-value.tide"
@@ -180,7 +180,7 @@
               "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -197,7 +197,7 @@
             {
               "captures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -241,7 +241,7 @@
           "begin": "^(\\s+)(sysdig)(\\s*)(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
-              "name": "variable.other.property.tide"
+              "name": "entity.name.tag.yaml.tide"
             },
             "4": {
               "name": "punctuation.separator.key-value.tide"
@@ -254,7 +254,7 @@
               "begin": "^(\\s+)(condition)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -271,7 +271,7 @@
             {
               "captures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -315,7 +315,7 @@
           "begin": "^(\\s+)(crowdstrike)(\\s*)(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
-              "name": "variable.other.property.tide"
+              "name": "entity.name.tag.yaml.tide"
             },
             "4": {
               "name": "punctuation.separator.key-value.tide"
@@ -328,7 +328,7 @@
               "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -345,7 +345,7 @@
             {
               "captures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -389,7 +389,7 @@
           "begin": "^(\\s+)(google_secops)(\\s*)(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
-              "name": "variable.other.property.tide"
+              "name": "entity.name.tag.yaml.tide"
             },
             "4": {
               "name": "punctuation.separator.key-value.tide"
@@ -402,7 +402,7 @@
               "begin": "^(\\s+)(setup|events|outcome|condition|export)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -419,7 +419,7 @@
             {
               "captures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
@@ -464,7 +464,7 @@
           "begin": "^(\\s+)(elastic)(\\s*)(:)\\s*(?:#.*)?$",
           "beginCaptures": {
             "2": {
-              "name": "variable.other.property.tide"
+              "name": "entity.name.tag.yaml.tide"
             },
             "4": {
               "name": "punctuation.separator.key-value.tide"
@@ -477,13 +477,13 @@
               "begin": "^(\\s+)(type)(\\s*)(:)(\\s*)(esql)(\\s*)(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
                 },
                 "6": {
-                  "name": "variable.other.enummember.tide"
+                  "name": "variable.other.enummember.tide support.constant.enum.tide"
                 }
               },
               "end": "^(?!\\1|\\s*$)",
@@ -493,7 +493,7 @@
                   "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
                   "beginCaptures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -512,7 +512,7 @@
                   "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*)(\\5)|(.+?))(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -556,13 +556,13 @@
               "begin": "^(\\s+)(type)(\\s*)(:)(\\s*)(eql)(\\s*)(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
                 },
                 "6": {
-                  "name": "variable.other.enummember.tide"
+                  "name": "variable.other.enummember.tide support.constant.enum.tide"
                 }
               },
               "end": "^(?!\\1|\\s*$)",
@@ -572,7 +572,7 @@
                   "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
                   "beginCaptures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -591,7 +591,7 @@
                   "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*)(\\5)|(.+?))(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -635,13 +635,13 @@
               "begin": "^(\\s+)(language)(\\s*)(:)(\\s*)(kuery)(\\s*)(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
                 },
                 "6": {
-                  "name": "variable.other.enummember.tide"
+                  "name": "variable.other.enummember.tide support.constant.enum.tide"
                 }
               },
               "end": "^(?!\\1|\\s*$)",
@@ -651,7 +651,7 @@
                   "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
                   "beginCaptures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -670,7 +670,7 @@
                   "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*)(\\5)|(.+?))(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -714,13 +714,13 @@
               "begin": "^(\\s+)(language)(\\s*)(:)(\\s*)(lucene)(\\s*)(?:#.*)?$",
               "beginCaptures": {
                 "2": {
-                  "name": "variable.other.property.tide"
+                  "name": "entity.name.tag.yaml.tide"
                 },
                 "4": {
                   "name": "punctuation.separator.key-value.tide"
                 },
                 "6": {
-                  "name": "variable.other.enummember.tide"
+                  "name": "variable.other.enummember.tide support.constant.enum.tide"
                 }
               },
               "end": "^(?!\\1|\\s*$)",
@@ -730,7 +730,7 @@
                   "begin": "^(\\s+)(query)(\\s*)(:)\\s*[|>][-+0-9]*\\s*(?:#.*)?$",
                   "beginCaptures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -749,7 +749,7 @@
                   "match": "^(\\s+)(query)(\\s*)(:)\\s+(?![|>])(?:(['\"])(.*)(\\5)|(.+?))(?=[ \\t]+#|[ \\t]*$)",
                   "captures": {
                     "2": {
-                      "name": "variable.other.property.tide"
+                      "name": "entity.name.tag.yaml.tide"
                     },
                     "4": {
                       "name": "punctuation.separator.key-value.tide"
@@ -807,14 +807,14 @@
       "begin": "^(\\s*)(description|signature|analysis|sighting)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
       "beginCaptures": {
         "2": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "4": {
           "name": "punctuation.separator.key-value.tide"
         }
       },
       "comment": "tide:block-scalar:markdown",
-      "contentName": "string.unquoted.block.tide",
+      "contentName": "string.unquoted.block.yaml.tide",
       "end": "^(?!\\1\\s+\\S|\\s*$)",
       "patterns": [
         {
@@ -858,7 +858,7 @@
       "begin": "^(\\s*)(condition|output|search|query)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
       "beginCaptures": {
         "2": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "4": {
           "name": "punctuation.separator.key-value.tide"
@@ -872,14 +872,14 @@
       "begin": "^(\\s*)([A-Za-z0-9_][A-Za-z0-9_.-]*)(\\s*)(:)(\\s*)[|>][-+0-9]*\\s*(?:#.*)?$",
       "beginCaptures": {
         "2": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "4": {
           "name": "punctuation.separator.key-value.tide"
         }
       },
       "comment": "tide:block-scalar",
-      "contentName": "string.unquoted.block.tide",
+      "contentName": "string.unquoted.block.yaml.tide",
       "end": "^(?!\\1\\s+\\S|\\s*$)",
       "patterns": []
     },
@@ -890,14 +890,14 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         }
       },
       "comment": "tide:block-scalar:markdown:item",
-      "contentName": "string.unquoted.block.tide",
+      "contentName": "string.unquoted.block.yaml.tide",
       "end": "^(?!\\1\\s\\s\\s+\\S|\\s*$)",
       "patterns": [
         {
@@ -944,7 +944,7 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
@@ -961,14 +961,14 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         }
       },
       "comment": "tide:block-scalar:item",
-      "contentName": "string.unquoted.block.tide",
+      "contentName": "string.unquoted.block.yaml.tide",
       "end": "^(?!\\1\\s\\s\\s+\\S|\\s*$)",
       "patterns": []
     },
@@ -978,13 +978,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:alert_severity",
@@ -996,13 +996,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:antimalware_scan",
@@ -1014,13 +1014,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:criticality",
@@ -1032,13 +1032,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:direction",
@@ -1050,13 +1050,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:function",
@@ -1068,13 +1068,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:impact",
@@ -1086,13 +1086,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:isolation_type",
@@ -1104,13 +1104,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:killchain",
@@ -1122,13 +1122,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:leverage",
@@ -1140,13 +1140,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:methodology",
@@ -1158,13 +1158,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:missing_fields_strategy",
@@ -1176,13 +1176,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:mitre_attack",
@@ -1194,13 +1194,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:namespace_type",
@@ -1212,13 +1212,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:run_frequency",
@@ -1230,13 +1230,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:strategy",
@@ -1248,13 +1248,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:surface",
@@ -1266,13 +1266,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:tlp",
@@ -1284,13 +1284,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:treat_as_threat",
@@ -1302,13 +1302,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:enum:viability",
@@ -1320,13 +1320,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:technique",
@@ -1338,7 +1338,7 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.enummember.tide"
+          "name": "variable.other.enummember.tide support.constant.enum.tide"
         }
       },
       "comment": "tide:technique:item",
@@ -1350,13 +1350,13 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "variable.other.property.tide"
+          "name": "entity.name.tag.yaml.tide"
         },
         "6": {
           "name": "punctuation.separator.key-value.tide"
         },
         "8": {
-          "name": "string.unquoted.plain.tide"
+          "name": "string.unquoted.plain.out.yaml.tide"
         }
       },
       "comment": "capture:tide.property",
@@ -1368,7 +1368,7 @@
           "name": "punctuation.definition.list.begin.tide"
         },
         "4": {
-          "name": "string.unquoted.plain.tide"
+          "name": "string.unquoted.plain.out.yaml.tide"
         }
       },
       "comment": "tide:sequence-item",
@@ -1387,12 +1387,12 @@
     {
       "comment": "capture:boolean",
       "match": "(?<![A-Za-z0-9_])(?:true|false)(?![A-Za-z0-9_])",
-      "name": "variable.other.enummember.tide"
+      "name": "variable.other.enummember.tide support.constant.enum.tide"
     },
     {
       "comment": "capture:string",
       "match": "\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'",
-      "name": "string.quoted.opentide"
+      "name": "string.quoted.opentide string.unquoted.plain.out.yaml.tide"
     },
     {
       "comment": "capture:number",

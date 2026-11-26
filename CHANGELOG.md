@@ -7,6 +7,12 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+### Changed
+
+- **Rules look like YAML in every colour theme.** Keys, values and enumerations take your theme's
+  YAML colours. In GitHub, Dracula, Monokai and Catppuccin, keys were plain text, and so were
+  `true`, `false` and other fixed values in Dracula and Monokai.
+
 ## [0.6.0] - 2026-11-25
 
 Microsoft Defender replaces Defender for Endpoint, for opentide 1.0.0. The deploy plan is a native view with

@@ -2210,10 +2210,11 @@
             "entity.name.variable"
           ],
           "property": [
-            "variable.other.property.tide",
+            "entity.name.tag.yaml.tide",
             "variable.other.property"
           ],
           "enumMember": [
+            "support.constant.enum.tide",
             "variable.other.enummember.tide",
             "variable.other.enummember"
           ],
@@ -2241,7 +2242,7 @@
             "comment"
           ],
           "string": [
-            "string.unquoted.plain.tide",
+            "string.unquoted.plain.out.yaml.tide",
             "string"
           ],
           "number": [

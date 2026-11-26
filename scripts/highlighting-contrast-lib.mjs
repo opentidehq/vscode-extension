@@ -19,6 +19,29 @@ export const DEFAULT_THEMES = [
   { label: "High Contrast Light", file: "hc_light.json", uiTheme: "hc-light" },
 ];
 
+/**
+ * Popular themes of the Marketplace (test/fixtures/highlighting/themes/popular). Their palettes are their authors'
+ * choice, contrast included: a rule is held to look no plainer than a YAML file in the same theme (yamlFailures).
+ */
+export const POPULAR_THEMES = [
+  { label: "GitHub Dark Default", file: "popular/github-dark-default.json", uiTheme: "vs-dark" },
+  { label: "GitHub Light Default", file: "popular/github-light-default.json", uiTheme: "vs" },
+  { label: "One Dark Pro", file: "popular/one-dark-pro.json", uiTheme: "vs-dark" },
+  { label: "Dracula", file: "popular/dracula.json", uiTheme: "vs-dark" },
+  { label: "Catppuccin Mocha", file: "popular/catppuccin-mocha.json", uiTheme: "vs-dark" },
+  { label: "Monokai", file: "popular/monokai-color-theme.json", uiTheme: "vs-dark" },
+  { label: "Solarized Dark", file: "popular/solarized-dark-color-theme.json", uiTheme: "vs-dark" },
+  { label: "Solarized Light", file: "popular/solarized-light-color-theme.json", uiTheme: "vs" },
+];
+
+/** The scope VS Code's own YAML grammar gives what a token type is in a rule: a key, a plain value, `true`, `1`. */
+export const YAML_SCOPES = {
+  property: "entity.name.tag.yaml",
+  string: "string.unquoted.plain.out.yaml",
+  enumMember: "constant.language.boolean.yaml",
+  number: "constant.numeric.integer.yaml",
+};
+
 /** The server's token types that carry meaning, so must be coloured; `operator` is punctuation as much as operators. */
 export const MEANINGFUL = [
   "keyword",
@@ -505,10 +528,74 @@ export function plainShare(rows, view) {
   return share;
 }
 
+/** The colour `theme` gives `type` in a plain YAML file (YAML_SCOPES). */
+export function yamlColour(theme, type) {
+  return resolveScopes(theme, [YAML_SCOPES[type]])?.foreground ?? theme.foreground;
+}
+
+/** A rule's structure or a query in a rule: where `property` is a YAML key's colour. */
+const inRule = (group) => group === "opentide-yaml" || group.startsWith("yaml>");
+
+/**
+ * How far apart `a` and `b` must be. Where both are YAML (a key, a value, `true`, a number) in a rule, no further
+ * than the theme sets them in a YAML file: High Contrast Light gives keys and values one colour, Light+ 7.5 apart.
+ */
+function minDeltaE(theme, group, a, b) {
+  if (!inRule(group) || !YAML_SCOPES[a] || !YAML_SCOPES[b]) return MIN_DELTA_E;
+  return Math.min(MIN_DELTA_E, deltaE(yamlColour(theme, a), yamlColour(theme, b), theme.background));
+}
+
+/** Rows by theme and group, then by token type. */
+function cellsOf(rows) {
+  const cells = new Map();
+  for (const r of rows) {
+    const key = `${r.theme.label}\u0000${r.group}`;
+    if (!cells.has(key)) cells.set(key, {});
+    cells.get(key)[r.type] = r;
+  }
+  return cells.values();
+}
+
+function distinctFailures(byType, pairs) {
+  const failures = [];
+  for (const [a, b] of pairs) {
+    if (!byType[a] || !byType[b]) continue;
+    const { theme, group } = byType[a];
+    const [ca, cb] = [mainColour(byType[a].semantic), mainColour(byType[b].semantic)];
+    const d = deltaE(ca, cb, theme.background);
+    const min = minDeltaE(theme, group, a, b);
+    if (d < min - 1e-9)
+      failures.push(
+        `${theme.label} | ${group} | ${a} ${ca} and ${b} ${cb}: ΔE ${d.toFixed(1)} (< ${min.toFixed(1)})`,
+      );
+  }
+  return failures;
+}
+
+/**
+ * Every way a rule looks plainer than a YAML file in the same theme: a key, value, enumeration or number in the
+ * default foreground where the theme colours its YAML counterpart, or two of them closer than the theme sets those.
+ */
+export function yamlFailures(rows) {
+  const failures = [];
+  for (const r of rows) {
+    if (!inRule(r.group) || !YAML_SCOPES[r.type]) continue;
+    const colour = mainColour(r.semantic);
+    const yaml = yamlColour(r.theme, r.type);
+    if (isPlain(r.theme, colour) && !isPlain(r.theme, yaml))
+      failures.push(
+        `${r.theme.label} | ${r.group} | ${r.type}: ${colour} is the default foreground for ${r.n} token(s), a YAML file's is ${yaml}`,
+      );
+  }
+  const pairs = DISTINCT.filter(([a, b]) => YAML_SCOPES[a] && YAML_SCOPES[b]);
+  for (const byType of cellsOf(rows.filter((r) => inRule(r.group))))
+    failures.push(...distinctFailures(byType, pairs));
+  return failures;
+}
+
 /** Every way the semantic view (what users see once the server answers) breaks the thresholds. */
 export function semanticFailures(rows) {
   const failures = [];
-  const cells = new Map();
   for (const r of rows) {
     const where = `${r.theme.label} | ${r.group} | ${r.type}`;
     const min = r.type === "comment" ? MIN_CONTRAST_COMMENT : MIN_CONTRAST;
@@ -520,21 +607,8 @@ export function semanticFailures(rows) {
     const colour = mainColour(r.semantic);
     if (MEANINGFUL.includes(r.type) && isPlain(r.theme, colour))
       failures.push(`${where}: ${colour} is the default foreground for ${r.n} token(s)`);
-    const key = `${r.theme.label}\u0000${r.group}`;
-    if (!cells.has(key)) cells.set(key, {});
-    cells.get(key)[r.type] = r;
   }
-  for (const byType of cells.values()) {
-    for (const [a, b] of DISTINCT) {
-      if (!byType[a] || !byType[b]) continue;
-      const [ca, cb] = [mainColour(byType[a].semantic), mainColour(byType[b].semantic)];
-      const d = deltaE(ca, cb, byType[a].theme.background);
-      if (d < MIN_DELTA_E)
-        failures.push(
-          `${byType[a].theme.label} | ${byType[a].group} | ${a} ${ca} and ${b} ${cb}: ΔE ${d.toFixed(1)} (< ${MIN_DELTA_E})`,
-        );
-    }
-  }
+  for (const byType of cellsOf(rows)) failures.push(...distinctFailures(byType, DISTINCT));
   for (const r of rows)
     if (r.yamlStrings.length > 0)
       failures.push(
