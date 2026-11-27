@@ -1,0 +1,10 @@
+{
+  "name": "opentide opentide-threat",
+  "scopeName": "source.opentide-threat",
+  "comment": "opentide-threat is opentide-yaml with an icon of its own: the same grammar (scripts/grammars-lib.mjs)",
+  "patterns": [
+    {
+      "include": "source.opentide-yaml"
+    }
+  ]
+}

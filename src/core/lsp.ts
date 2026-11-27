@@ -1,8 +1,14 @@
 // Pure pieces of the language client: the document selector, `experimental.opentide`, and the
 // `opentide.showReferences` argument conversion. vscode-free (types only).
-import { LANGUAGES } from "../engine/languages";
+import { LANGUAGES, OBJECT_LANGUAGES } from "../engine/languages";
 
-export { LANGUAGES } from "../engine/languages";
+export {
+  isObjectLanguage,
+  LANGUAGES,
+  OBJECT_LANGUAGES,
+  OBJECT_TYPE_LANGUAGES,
+  objectLanguageOf,
+} from "../engine/languages";
 export { convertShowReferencesArgs, readServerInfo } from "../engine/lsp";
 
 export const DOCUMENT_SELECTOR: ({ language: string } | { scheme: string; pattern: string })[] =
@@ -10,6 +16,11 @@ export const DOCUMENT_SELECTOR: ({ language: string } | { scheme: string; patter
     { language: language.id },
     ...language.patterns.map((pattern) => ({ scheme: "file", pattern })),
   ]);
+
+/** A selector of every object language (opentide-yaml and each type's), with `extra` fields (a scheme). */
+export function objectSelector(extra: { scheme?: string } = {}): { language: string; scheme?: string }[] {
+  return OBJECT_LANGUAGES.map((language) => ({ language, ...extra }));
+}
 
 export const LANGUAGE_IDS = LANGUAGES.map((language) => language.id);
 

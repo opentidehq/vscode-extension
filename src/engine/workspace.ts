@@ -65,6 +65,19 @@ export function isSuppliedPath(relative: string, objectFolders: Readonly<Record<
   return objectRoots(objectFolders).some((root) => relative.startsWith(root));
 }
 
+/**
+ * The object type of a workspace-relative YAML path (forward slashes): the type whose object folder holds it, at
+ * any depth, the longest folder first; undefined for a path in none.
+ */
+export function objectTypeAt(
+  relative: string,
+  objectFolders: Readonly<Record<string, string>>,
+): string | undefined {
+  if (!/\.ya?ml$/i.test(relative)) return undefined;
+  const byLength = Object.entries(objectFolders).sort(([, a], [, b]) => b.length - a.length);
+  return byLength.find(([, dir]) => relative.startsWith(dir))?.[0];
+}
+
 export interface CollectOptions {
   /** Files read at once. */
   readonly concurrency?: number;

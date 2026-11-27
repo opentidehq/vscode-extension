@@ -46,8 +46,8 @@ background. Nothing on that path starts a process (SPEC §14: activation < 300 m
 
 The extension also activates on `onStartupFinished`, in every window (the `knowledge` feature sets the
 `opentide.skillsFromPlugin` context key its skills' `when` clause reads, which has to happen in windows with no
-opentide content too). A window with **no opentide content** (no opentide folder, no `opentide-yaml` or
-`opentide-config` file open) is **dormant** (`src/core/dormant.ts`): `start()` does not resolve the runtime or
+opentide content too). A window with **no opentide content** (no opentide folder, no object file
+(`opentide-yaml`, `opentide-threat`, `opentide-objective`, `opentide-rule`) or `opentide-config` file open) is **dormant** (`src/core/dormant.ts`): `start()` does not resolve the runtime or
 start the language server, the status item is hidden, and nothing else starts a process. The runtime still
 resolves on demand (`runtime.ready()`: a command, an MCP agent, a task), and everything starts when an opentide
 folder or file appears. Not measured in a real VS Code yet: the dormant path adds no process and no file read of

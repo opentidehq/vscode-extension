@@ -73,7 +73,10 @@ extension runs `python -m opentide` with the same interpreter.
 
 | Language | Files | Id |
 |----------|-------|----|
-| Tide YAML | `objects/**/*.yaml`, and the object folders `paths.toml` names | `opentide-yaml` |
+| opentide threat | `objects/threats/**/*.yaml`, and the threat folder `paths.toml` names | `opentide-threat` |
+| opentide objective | `objects/objectives/**/*.yaml`, and the objective folder `paths.toml` names | `opentide-objective` |
+| opentide rule | `objects/rules/**/*.yaml`, and the rule folder `paths.toml` names | `opentide-rule` |
+| opentide object (Tide YAML) | the rest of `objects/**/*.yaml` | `opentide-yaml` |
 | opentide configuration | `.opentide/configurations/**/*.toml` | `opentide-config` |
 | KQL (Microsoft) | `.kql` | `kql` |
 | SPL | `.spl` | `spl` |
@@ -178,7 +181,7 @@ with a warning icon.
 - **opentide: Show Relations** (Command Palette, the editor title, the editor's context menu) shows the
   view on the active object without taking the focus from the editor. It has no default key; bind
   `opentide.relations.show` in Keyboard Shortcuts, for example to `Ctrl+Shift+Alt+R`
-  (`Cmd+Shift+Alt+R` on macOS) with `when` `editorLangId == opentide-yaml`.
+  (`Cmd+Shift+Alt+R` on macOS) with `when` `editorLangId =~ /^opentide-(yaml|threat|objective|rule)$/`.
 - A CodeLens on each object's `name:` line sums up its relations both ways, for example `Implements →
   Detect LSASS memory access · ← Implemented by 3 rules`; click it to show the view. It needs `info
   catalog`, and `opentide.relations.codeLens` turns it off. The language server's own lens on

@@ -72,6 +72,9 @@ describe("language client pieces", () => {
   it("selects every server language by id and by pattern", () => {
     assert.deepEqual(LANGUAGE_IDS, [
       "opentide-yaml",
+      "opentide-threat",
+      "opentide-objective",
+      "opentide-rule",
       "opentide-config",
       "kql",
       "spl",
@@ -84,6 +87,7 @@ describe("language client pieces", () => {
     assert.ok(
       DOCUMENT_SELECTOR.some((f) => "pattern" in f && f.pattern === "**/.opentide/configurations/**/*.toml"),
     );
+    assert.ok(DOCUMENT_SELECTOR.some((f) => "pattern" in f && f.pattern === "**/objects/rules/**/*.yaml"));
     assert.ok(!LANGUAGE_IDS.includes("sql"));
   });
 

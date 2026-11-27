@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { objectFolders } from "../engine/pathsToml";
+import { objectTypeAt } from "../engine/workspace";
 
 export { DEFAULT_OBJECT_FOLDERS, objectFolders, readTomlTable } from "../engine/pathsToml";
 
@@ -96,6 +97,20 @@ export function isObjectFile(
 }
 
 /**
+ * The object type of `file` (absolute): the type whose object folder (`objects/rules/`, or what paths.toml names)
+ * holds it, at any depth; undefined for a file in none (another folder under `objects/`, or not an object).
+ */
+export function objectTypeOf(
+  folder: string,
+  file: string,
+  folders: Readonly<Record<string, string>>,
+): string | undefined {
+  const relative = path.relative(folder, file).split(path.sep).join("/");
+  if (relative.startsWith("../") || path.isAbsolute(relative)) return undefined;
+  return objectTypeAt(relative, folders);
+}
+
+/**
  * Is `file` (absolute) a YAML file directly in one of the folder's family folders (`objects/rules/`, or
  * what paths.toml names)? Those are the only files `validate --file` and `lint --file` accept: a file in a
  * subfolder fails `lint --file` and matches nothing in `validate --file`.
@@ -114,7 +129,7 @@ export function isFamilyFile(
 }
 
 /**
- * Whether `file` gets `opentide-yaml` from the static objects-folder glob in contrib/core.json only because VS Code
+ * Whether `file` gets an object language (`opentide-yaml`, `opentide-rule`…) from the static objects-folder globs in contrib/core.json only because VS Code
  * matches glob patterns without case: a folder of its path is `Objects` (CoreTIDE's layout) or another
  * spelling, and none is `objects`.
  */

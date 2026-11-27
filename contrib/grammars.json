@@ -64,6 +64,54 @@
         }
       },
       {
+        "language": "opentide-threat",
+        "scopeName": "source.opentide-threat",
+        "path": "./syntaxes/opentide-threat.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
+          "meta.embedded.block.falco": "falco",
+          "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
+          "meta.embedded.block.lucene": "lucene",
+          "meta.embedded.block.spl": "spl",
+          "meta.embedded.block.yaral": "yaral"
+        }
+      },
+      {
+        "language": "opentide-objective",
+        "scopeName": "source.opentide-objective",
+        "path": "./syntaxes/opentide-objective.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
+          "meta.embedded.block.falco": "falco",
+          "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
+          "meta.embedded.block.lucene": "lucene",
+          "meta.embedded.block.spl": "spl",
+          "meta.embedded.block.yaral": "yaral"
+        }
+      },
+      {
+        "language": "opentide-rule",
+        "scopeName": "source.opentide-rule",
+        "path": "./syntaxes/opentide-rule.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
+          "meta.embedded.block.falco": "falco",
+          "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
+          "meta.embedded.block.lucene": "lucene",
+          "meta.embedded.block.spl": "spl",
+          "meta.embedded.block.yaral": "yaral"
+        }
+      },
+      {
         "language": "yara",
         "scopeName": "source.opentide.yara",
         "path": "./syntaxes/yara.tmLanguage.json"

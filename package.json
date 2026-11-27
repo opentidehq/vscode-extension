@@ -82,6 +82,9 @@
     "workspaceContains:.opentide/**",
     "workspaceContains:objects/**",
     "onLanguage:opentide-yaml",
+    "onLanguage:opentide-threat",
+    "onLanguage:opentide-objective",
+    "onLanguage:opentide-rule",
     "onLanguage:opentide-config",
     "onLanguage:kql",
     "onLanguage:spl",
@@ -102,6 +105,7 @@
       {
         "id": "opentide-yaml",
         "aliases": [
+          "opentide object",
           "Tide YAML",
           "opentide-yaml"
         ],
@@ -113,6 +117,54 @@
         "icon": {
           "light": "./images/languages/opentide-yaml-light.svg",
           "dark": "./images/languages/opentide-yaml-dark.svg"
+        }
+      },
+      {
+        "id": "opentide-threat",
+        "aliases": [
+          "opentide threat",
+          "opentide-threat"
+        ],
+        "filenamePatterns": [
+          "**/objects/threats/**/*.yaml",
+          "**/objects/threats/**/*.yml"
+        ],
+        "configuration": "./language-configuration/opentide-yaml.json",
+        "icon": {
+          "light": "./images/objects/threat-light.svg",
+          "dark": "./images/objects/threat-dark.svg"
+        }
+      },
+      {
+        "id": "opentide-objective",
+        "aliases": [
+          "opentide objective",
+          "opentide-objective"
+        ],
+        "filenamePatterns": [
+          "**/objects/objectives/**/*.yaml",
+          "**/objects/objectives/**/*.yml"
+        ],
+        "configuration": "./language-configuration/opentide-yaml.json",
+        "icon": {
+          "light": "./images/objects/objective-light.svg",
+          "dark": "./images/objects/objective-dark.svg"
+        }
+      },
+      {
+        "id": "opentide-rule",
+        "aliases": [
+          "opentide rule",
+          "opentide-rule"
+        ],
+        "filenamePatterns": [
+          "**/objects/rules/**/*.yaml",
+          "**/objects/rules/**/*.yml"
+        ],
+        "configuration": "./language-configuration/opentide-yaml.json",
+        "icon": {
+          "light": "./images/objects/rule-light.svg",
+          "dark": "./images/objects/rule-dark.svg"
         }
       },
       {
@@ -259,6 +311,30 @@
     },
     "configurationDefaults": {
       "[opentide-yaml]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        },
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+      },
+      "[opentide-threat]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        },
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+      },
+      "[opentide-objective]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.opentide": "never"
+        },
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+      },
+      "[opentide-rule]": {
         "editor.semanticHighlighting.enabled": true,
         "editor.codeActionsOnSave": {
           "source.fixAll.opentide": "never"
@@ -2167,6 +2243,54 @@
         }
       },
       {
+        "language": "opentide-threat",
+        "scopeName": "source.opentide-threat",
+        "path": "./syntaxes/opentide-threat.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
+          "meta.embedded.block.falco": "falco",
+          "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
+          "meta.embedded.block.lucene": "lucene",
+          "meta.embedded.block.spl": "spl",
+          "meta.embedded.block.yaral": "yaral"
+        }
+      },
+      {
+        "language": "opentide-objective",
+        "scopeName": "source.opentide-objective",
+        "path": "./syntaxes/opentide-objective.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
+          "meta.embedded.block.falco": "falco",
+          "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
+          "meta.embedded.block.lucene": "lucene",
+          "meta.embedded.block.spl": "spl",
+          "meta.embedded.block.yaral": "yaral"
+        }
+      },
+      {
+        "language": "opentide-rule",
+        "scopeName": "source.opentide-rule",
+        "path": "./syntaxes/opentide-rule.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.cql": "cql",
+          "meta.embedded.block.eql": "eql",
+          "meta.embedded.block.esql": "esql",
+          "meta.embedded.block.falco": "falco",
+          "meta.embedded.block.kql": "kql",
+          "meta.embedded.block.kuery": "kuery",
+          "meta.embedded.block.lucene": "lucene",
+          "meta.embedded.block.spl": "spl",
+          "meta.embedded.block.yaral": "yaral"
+        }
+      },
+      {
         "language": "yara",
         "scopeName": "source.opentide.yara",
         "path": "./syntaxes/yara.tmLanguage.json"
@@ -2185,6 +2309,264 @@
     "semanticTokenScopes": [
       {
         "language": "opentide-yaml",
+        "scopes": {
+          "namespace": [
+            "entity.name.namespace"
+          ],
+          "type": [
+            "entity.name.type.schema.tide",
+            "entity.name.type",
+            "support.type"
+          ],
+          "class": [
+            "entity.name.type.class",
+            "support.class"
+          ],
+          "enum": [
+            "entity.name.type.enum"
+          ],
+          "interface": [
+            "entity.name.type.interface"
+          ],
+          "struct": [
+            "entity.name.type.struct"
+          ],
+          "typeParameter": [
+            "entity.name.type.parameter"
+          ],
+          "parameter": [
+            "variable.parameter"
+          ],
+          "variable": [
+            "variable.other.readwrite",
+            "entity.name.variable"
+          ],
+          "property": [
+            "entity.name.tag.yaml.tide",
+            "variable.other.property"
+          ],
+          "enumMember": [
+            "support.constant.enum.tide",
+            "variable.other.enummember.tide",
+            "variable.other.enummember"
+          ],
+          "event": [
+            "variable.other.event"
+          ],
+          "function": [
+            "entity.name.function",
+            "support.function"
+          ],
+          "method": [
+            "entity.name.function.member",
+            "support.function"
+          ],
+          "macro": [
+            "entity.name.function.preprocessor"
+          ],
+          "keyword": [
+            "keyword.control"
+          ],
+          "modifier": [
+            "storage.modifier"
+          ],
+          "comment": [
+            "comment"
+          ],
+          "string": [
+            "string.unquoted.plain.out.yaml.tide",
+            "string"
+          ],
+          "number": [
+            "constant.numeric"
+          ],
+          "regexp": [
+            "variable.other.constant.markdown.tide",
+            "variable.other.constant"
+          ],
+          "operator": [
+            "keyword.operator"
+          ],
+          "decorator": [
+            "entity.name.decorator",
+            "entity.name.function"
+          ]
+        }
+      },
+      {
+        "language": "opentide-threat",
+        "scopes": {
+          "namespace": [
+            "entity.name.namespace"
+          ],
+          "type": [
+            "entity.name.type.schema.tide",
+            "entity.name.type",
+            "support.type"
+          ],
+          "class": [
+            "entity.name.type.class",
+            "support.class"
+          ],
+          "enum": [
+            "entity.name.type.enum"
+          ],
+          "interface": [
+            "entity.name.type.interface"
+          ],
+          "struct": [
+            "entity.name.type.struct"
+          ],
+          "typeParameter": [
+            "entity.name.type.parameter"
+          ],
+          "parameter": [
+            "variable.parameter"
+          ],
+          "variable": [
+            "variable.other.readwrite",
+            "entity.name.variable"
+          ],
+          "property": [
+            "entity.name.tag.yaml.tide",
+            "variable.other.property"
+          ],
+          "enumMember": [
+            "support.constant.enum.tide",
+            "variable.other.enummember.tide",
+            "variable.other.enummember"
+          ],
+          "event": [
+            "variable.other.event"
+          ],
+          "function": [
+            "entity.name.function",
+            "support.function"
+          ],
+          "method": [
+            "entity.name.function.member",
+            "support.function"
+          ],
+          "macro": [
+            "entity.name.function.preprocessor"
+          ],
+          "keyword": [
+            "keyword.control"
+          ],
+          "modifier": [
+            "storage.modifier"
+          ],
+          "comment": [
+            "comment"
+          ],
+          "string": [
+            "string.unquoted.plain.out.yaml.tide",
+            "string"
+          ],
+          "number": [
+            "constant.numeric"
+          ],
+          "regexp": [
+            "variable.other.constant.markdown.tide",
+            "variable.other.constant"
+          ],
+          "operator": [
+            "keyword.operator"
+          ],
+          "decorator": [
+            "entity.name.decorator",
+            "entity.name.function"
+          ]
+        }
+      },
+      {
+        "language": "opentide-objective",
+        "scopes": {
+          "namespace": [
+            "entity.name.namespace"
+          ],
+          "type": [
+            "entity.name.type.schema.tide",
+            "entity.name.type",
+            "support.type"
+          ],
+          "class": [
+            "entity.name.type.class",
+            "support.class"
+          ],
+          "enum": [
+            "entity.name.type.enum"
+          ],
+          "interface": [
+            "entity.name.type.interface"
+          ],
+          "struct": [
+            "entity.name.type.struct"
+          ],
+          "typeParameter": [
+            "entity.name.type.parameter"
+          ],
+          "parameter": [
+            "variable.parameter"
+          ],
+          "variable": [
+            "variable.other.readwrite",
+            "entity.name.variable"
+          ],
+          "property": [
+            "entity.name.tag.yaml.tide",
+            "variable.other.property"
+          ],
+          "enumMember": [
+            "support.constant.enum.tide",
+            "variable.other.enummember.tide",
+            "variable.other.enummember"
+          ],
+          "event": [
+            "variable.other.event"
+          ],
+          "function": [
+            "entity.name.function",
+            "support.function"
+          ],
+          "method": [
+            "entity.name.function.member",
+            "support.function"
+          ],
+          "macro": [
+            "entity.name.function.preprocessor"
+          ],
+          "keyword": [
+            "keyword.control"
+          ],
+          "modifier": [
+            "storage.modifier"
+          ],
+          "comment": [
+            "comment"
+          ],
+          "string": [
+            "string.unquoted.plain.out.yaml.tide",
+            "string"
+          ],
+          "number": [
+            "constant.numeric"
+          ],
+          "regexp": [
+            "variable.other.constant.markdown.tide",
+            "variable.other.constant"
+          ],
+          "operator": [
+            "keyword.operator"
+          ],
+          "decorator": [
+            "entity.name.decorator",
+            "entity.name.function"
+          ]
+        }
+      },
+      {
+        "language": "opentide-rule",
         "scopes": {
           "namespace": [
             "entity.name.namespace"
