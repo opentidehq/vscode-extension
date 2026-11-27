@@ -1,4 +1,6 @@
 import * as assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   countOf,
@@ -37,6 +39,22 @@ describe("object icons", () => {
     const objectRows = [OBJECT_ICONS.threat, OBJECT_ICONS.objective, OBJECT_ICONS.rule].map((i) => i.codicon);
     for (const kind of ["implements", "covers", "parent", "chains"] as const)
       assert.ok(!objectRows.includes(RELATION_WORDS[kind].icon), kind);
+  });
+
+  it("gives threats, objectives and rules a file icon, light and dark, shipped in the package", () => {
+    const root = join(__dirname, "..", "..", "..", "..");
+    const shipped = readFileSync(join(root, ".vscodeignore"), "utf8");
+    assert.match(shipped, /^!images\/objects\/\*\*$/m);
+    for (const kind of ["threat", "objective", "rule"] as const) {
+      assert.equal(OBJECT_ICONS[kind].file, `objects/${kind}`);
+      for (const theme of ["light", "dark"]) {
+        const svg = readFileSync(join(root, "images", `objects/${kind}-${theme}.svg`), "utf8");
+        assert.match(svg, /^<svg [^>]*viewBox="0 0 16 16"/, `${kind}-${theme}`);
+        assert.doesNotMatch(svg, /<script|href=/, `${kind}-${theme}`);
+      }
+    }
+    for (const kind of ["signal", "technique", "logsource"] as const)
+      assert.equal(OBJECT_ICONS[kind].file, undefined);
   });
 
   it("falls back for a type it does not know, and names kinds and counts", () => {

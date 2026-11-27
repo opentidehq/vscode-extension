@@ -25,7 +25,7 @@ describe("graph words and icons", () => {
   it("gives every node kind an icon and a colour, the sidebar's for objects", () => {
     for (const kind of ALL_KINDS) assert.ok(NODE_ICONS[kind].codicon && NODE_ICONS[kind].themeColor, kind);
     assert.equal(NODE_ICONS.rule, OBJECT_ICONS.rule);
-    assert.equal(NODE_ICONS.threat.codicon, "flame");
+    assert.equal(NODE_ICONS.threat.codicon, "bug");
     assert.equal(NODE_ICONS.missing.codicon, MISSING_ICON);
     assert.equal(themeVar("charts.red"), "--vscode-charts-red");
     assert.equal(themeVar("terminal.ansiCyan"), "--vscode-terminal-ansiCyan");

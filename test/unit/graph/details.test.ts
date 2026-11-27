@@ -12,7 +12,7 @@ describe("graph details pane", () => {
   it("describes a rule: its icon, kind, and what it implements, with the shared words and arrows", () => {
     const rule = index.details(UUID.rule);
     assert.equal(rule?.kindLabel, "Rule");
-    assert.equal(rule?.icon, "shield");
+    assert.equal(rule?.icon, "bell");
     assert.equal(rule?.themeColor, "charts.green");
     assert.deepEqual(headers(UUID.rule, "outgoing"), ["Implements 1 →", "Technique 1 →", "On platform 2 →"]);
     assert.deepEqual(

@@ -1,6 +1,8 @@
 // The icon and colour of each kind of thing the catalogue holds, the same in every surface: the sidebar's
-// tree views, the graph, hovers and CodeLens. vscode-free: a codicon id and a theme colour id, which a
-// tree item turns into a ThemeIcon and a webview into `--vscode-<id with . as ->`.
+// tree views, the graph, Find Detection, hovers and CodeLens. vscode-free: a codicon id and a theme colour
+// id, which a tree item turns into a ThemeIcon and a webview into `--vscode-<id with . as ->`. An object
+// type also has a file icon (`images/objects/<type>-{light,dark}.svg`: a disc of its colour, its glyph on
+// opentide's waves), which a tree row draws in place of the codicon when nothing is wrong with the object.
 
 /** Something a surface draws with an icon: an object type, a signal, a technique or a log source. */
 export type IconKind = "threat" | "objective" | "rule" | "signal" | "technique" | "logsource";
@@ -10,13 +12,18 @@ export interface ObjectIcon {
   readonly codicon: string;
   /** A theme colour id (`charts.red`); in a webview, `var(--vscode-charts-red)`. */
   readonly themeColor: string;
+  /** An object type's file icon: `images/<file>-light.svg` and `images/<file>-dark.svg`. */
+  readonly file?: string;
 }
 
-/** Threat, objective, signal and rule colours are the graph's (`webview/graph`). */
+/**
+ * Threat, objective, signal and rule colours are the graph's (`webview/graph`). A threat is a hazard (the
+ * file icon's biohazard; `bug` among codicons), an objective a target, a rule an alarm (a siren; `bell`).
+ */
 export const OBJECT_ICONS: Readonly<Record<IconKind, ObjectIcon>> = {
-  threat: { codicon: "flame", themeColor: "charts.red" },
-  objective: { codicon: "target", themeColor: "charts.blue" },
-  rule: { codicon: "shield", themeColor: "charts.green" },
+  threat: { codicon: "bug", themeColor: "charts.red", file: "objects/threat" },
+  objective: { codicon: "target", themeColor: "charts.blue", file: "objects/objective" },
+  rule: { codicon: "bell", themeColor: "charts.green", file: "objects/rule" },
   signal: { codicon: "pulse", themeColor: "charts.purple" },
   technique: { codicon: "symbol-event", themeColor: "charts.orange" },
   logsource: { codicon: "database", themeColor: "terminal.ansiCyan" },
