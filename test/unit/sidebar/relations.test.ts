@@ -45,6 +45,7 @@ describe("Relations view", () => {
     assert.deepEqual(labels(covers?.children), ["Credential Dumping"]);
     assert.equal(covers?.children?.[0]?.description, "objects/threats/credential-dumping.yaml");
     assert.equal(covers?.children?.[0]?.icon, "bug");
+    assert.equal(covers?.children?.[0]?.iconFile, "objects/threat");
     assert.equal(covers?.children?.[0]?.contextValue, "object.threat");
     assert.deepEqual(labels(signals?.children), ["LSASS handle opened", "LSASS handle with VM_READ"]);
     assert.equal(signals?.children?.[0]?.description, "← Implemented by 1");

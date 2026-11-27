@@ -12,8 +12,11 @@ pre-releases odd ones.
 - **Rules look like YAML in every colour theme.** Keys, values and enumerations take your theme's
   YAML colours. In GitHub, Dracula, Monokai and Catppuccin, keys were plain text, and so were
   `true`, `false` and other fixed values in Dracula and Monokai.
-- **Object and configuration files have an opentide icon.** Tabs, the Explorer and breadcrumbs show
-  it in place of the icon theme's plain-text icon.
+- **Object and configuration files have opentide icons.** Tabs, the Explorer and breadcrumbs show
+  opentide's wave for objects and a gear for configurations, in place of a plain-text icon.
+- **Threats, objectives and rules have icons of their own.** A biohazard, a target and a siren, in
+  red, blue and green, mark them in the Catalogue, Relations and Find Detection. Elsewhere they show
+  as a bug, a target and a bell.
 
 ## [0.6.0] - 2026-11-25
 

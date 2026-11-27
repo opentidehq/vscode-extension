@@ -63,6 +63,11 @@ export interface TreeNode {
   readonly icon?: string;
   /** A theme colour id for the icon. */
   readonly iconColor?: string;
+  /**
+   * An object type's file icon (`objects/rule`: `images/objects/rule-{light,dark}.svg`), drawn in place of
+   * `icon` (which the tree falls back to before it knows the extension's folder).
+   */
+  readonly iconFile?: string;
   readonly contextValue?: string;
   /** Undefined: a leaf. */
   readonly collapsed?: "collapsed" | "expanded";
@@ -167,6 +172,7 @@ function face(node: TreeNode): string {
     node.tooltipMarkdown,
     node.icon,
     node.iconColor,
+    node.iconFile,
     node.contextValue,
     node.collapsed === undefined,
     node.open,

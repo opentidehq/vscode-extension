@@ -223,6 +223,7 @@ function objectNode(
       : "",
   ]);
   const icon = objectIcon(object.type);
+  const flagged = !!problems && (problems.errors > 0 || problems.warnings > 0);
   const node: Omit<TreeNode, "children" | "collapsed"> = {
     id,
     label: object.name || object.path,
@@ -235,6 +236,8 @@ function objectNode(
         : problems && problems.warnings > 0
           ? "problemsWarningIcon.foreground"
           : icon.themeColor,
+    // An object with problems keeps the codicon, in the problem's colour, so that it stands out.
+    ...(icon.file && !flagged ? { iconFile: icon.file } : {}),
     contextValue: `object.${object.type}`,
     open: { path: object.file_path, line: Math.max(0, object.line - 1) },
     // The description carries the problem counts as text; file decorations would repeat them and
@@ -253,12 +256,20 @@ function objectNode(
   return extra.children ? branch(node, extra.children) : node;
 }
 
-function group(id: string, label: string, icon: string, children: TreeNode[], tooltip?: string): TreeNode {
+function group(
+  id: string,
+  label: string,
+  icon: string,
+  children: TreeNode[],
+  tooltip?: string,
+  iconFile?: string,
+): TreeNode {
   return branch(
     {
       id,
       label,
       icon,
+      ...(iconFile ? { iconFile } : {}),
       group: true,
       description: String(children.length),
       ...(tooltip ? { tooltip } : {}),
@@ -319,6 +330,8 @@ function fromCatalog(doc: CatalogDocument, folder: string, input: ScopedInput, p
             .filter((o) => o.type === type)
             .sort(byName)
             .map((o) => objectNode(o, folder, input, `${id}/${o.uuid}`)),
+          undefined,
+          objectIcon(type).file,
         );
       }),
       ...failedGroup,
@@ -475,7 +488,7 @@ function chain(
       group(
         id,
         "Rules without an objective",
-        "shield",
+        objectIcon("rule").codicon,
         orphanRules.map((r) => objectNode(r, folder, input, `${id}/${r.uuid}`)),
         "Rules whose detection_model names no objective or signal that exists",
       ),
@@ -506,12 +519,13 @@ export function fromSymbols(symbols: readonly CatalogSymbol[], prefix = ""): Tre
           label: s.name,
           icon: objectIcon(s.family).codicon,
           iconColor: objectIcon(s.family).themeColor,
+          ...(objectIcon(s.family).file ? { iconFile: objectIcon(s.family).file } : {}),
           contextValue: `symbol.${s.family || "other"}`,
           open: { uri: s.uri, line: s.line, character: s.character },
           tooltip: decodeURIComponent(s.uri.replace(/^file:\/\//, "")),
           search: s.name.toLowerCase(),
         }));
-      return group(id, label, icon, items);
+      return group(id, label, icon, items, undefined, objectIcon(family).file);
     })
     .filter((node) => (node.children?.length ?? 0) > 0);
 }
