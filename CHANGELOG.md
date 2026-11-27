@@ -7,6 +7,24 @@ opentide release it ships, and every release is stable.
 
 ## [Unreleased]
 
+### Upgrade
+
+- **If you set `[opentide-yaml]` settings, copy them to `[opentide-threat]`, `[opentide-objective]` and
+  `[opentide-rule]`.** Language settings do not carry over to the new languages. The same goes for
+  keybindings whose `when` names `opentide-yaml`.
+
+### Breaking
+
+- **Threats, objectives and rules have languages of their own:** `opentide-threat`,
+  `opentide-objective` and `opentide-rule`. `opentide-yaml` is now the language of other object files
+  only. Settings, keybindings and `when` clauses that name `opentide-yaml` no longer cover the three.
+
+### Changed
+
+- **Threats, objectives and rules show their own icons in the Explorer and tabs.** A red biohazard, a
+  blue target and a green siren, as in the Catalogue, also in breadcrumbs and Quick Open. A file in a
+  folder only `paths.toml` names shows its icon once opened.
+
 ## [1.1.0] - 2026-11-27
 
 The extension now shares opentide's version: 1.1.0 ships opentide 1.1.0. Rules look like YAML in every
