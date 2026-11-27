@@ -1376,7 +1376,7 @@
         },
         {
           "command": "opentide.diagnostics.validateFile",
-          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml"
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/"
         },
         {
           "command": "opentide.diagnostics.explain",
@@ -2010,7 +2010,7 @@
         },
         {
           "command": "opentide.diagnostics.validateFile",
-          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && resourceScheme == file",
           "group": "navigation@50"
         },
         {
