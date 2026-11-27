@@ -3,6 +3,24 @@ import * as vscode from "vscode";
 
 import { changedNodes, type TreeNode, uniqueIds, type ViewModel, walk } from "./node";
 
+/** The extension's `images/` folder, where a node's `iconFile` is (set when the feature activates). */
+let images: vscode.Uri | undefined;
+
+export function setImagesFolder(folder: vscode.Uri): void {
+  images = folder;
+}
+
+/** A node's icon: its file icon when it has one, its codicon otherwise. */
+export function iconOf(node: TreeNode): vscode.TreeItem["iconPath"] {
+  if (node.iconFile && images)
+    return {
+      light: vscode.Uri.joinPath(images, `${node.iconFile}-light.svg`),
+      dark: vscode.Uri.joinPath(images, `${node.iconFile}-dark.svg`),
+    };
+  if (!node.icon) return undefined;
+  return new vscode.ThemeIcon(node.icon, node.iconColor ? new vscode.ThemeColor(node.iconColor) : undefined);
+}
+
 export function openTargetUri(node: TreeNode): vscode.Uri | undefined {
   if (!node.open) return undefined;
   if (node.open.uri) return vscode.Uri.parse(node.open.uri);
@@ -23,11 +41,8 @@ export function toTreeItem(node: TreeNode): vscode.TreeItem {
     const markdown = new vscode.MarkdownString(node.tooltipMarkdown, true);
     item.tooltip = markdown;
   } else if (node.tooltip) item.tooltip = node.tooltip;
-  if (node.icon)
-    item.iconPath = new vscode.ThemeIcon(
-      node.icon,
-      node.iconColor ? new vscode.ThemeColor(node.iconColor) : undefined,
-    );
+  const icon = iconOf(node);
+  if (icon) item.iconPath = icon;
   if (node.contextValue) item.contextValue = node.contextValue;
   const uri = openTargetUri(node);
   if (uri && node.decorate !== false) item.resourceUri = uri;

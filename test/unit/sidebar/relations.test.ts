@@ -44,7 +44,8 @@ describe("Relations view", () => {
     assert.equal(covers?.icon, RELATION_WORDS.covers.icon);
     assert.deepEqual(labels(covers?.children), ["Credential Dumping"]);
     assert.equal(covers?.children?.[0]?.description, "objects/threats/credential-dumping.yaml");
-    assert.equal(covers?.children?.[0]?.icon, "flame");
+    assert.equal(covers?.children?.[0]?.icon, "bug");
+    assert.equal(covers?.children?.[0]?.iconFile, "objects/threat");
     assert.equal(covers?.children?.[0]?.contextValue, "object.threat");
     assert.deepEqual(labels(signals?.children), ["LSASS handle opened", "LSASS handle with VM_READ"]);
     assert.equal(signals?.children?.[0]?.description, "← Implemented by 1");
@@ -322,7 +323,7 @@ describe("relations tooltips", () => {
       relationIndexOf(doc),
     );
     const lines = text.split("\n\n");
-    assert.equal(lines[0], "$(shield) **Suspicious \\*LSASS\\* \\$\\(x\\)**");
+    assert.equal(lines[0], "$(bell) **Suspicious \\*LSASS\\* \\$\\(x\\)**");
     assert.equal(lines[1], "Rule · `objects/rules/suspicious-lsass-access.yaml`");
     assert.equal(lines[2], "`Sentinel` DESIGN (inert) · `defender` PRODUCTION");
     assert.equal(lines[3], "Implements 1 → · Technique 1 →");

@@ -1,8 +1,10 @@
 // NodeTree against the vscode stub: which elements a refresh names.
 import * as assert from "node:assert/strict";
 
+import * as vscode from "vscode";
+
 import type { TreeNode } from "../../../src/features/sidebar/node";
-import { NodeTree } from "../../../src/features/sidebar/tree";
+import { iconOf, NodeTree, setImagesFolder } from "../../../src/features/sidebar/tree";
 
 const node = (id: string, extra: Partial<TreeNode> = {}): TreeNode => ({ id, label: id, ...extra });
 const model = (child: Partial<TreeNode> = {}) => ({
@@ -55,5 +57,19 @@ describe("NodeTree refreshes", () => {
     tree.set(model());
     tree.set({ nodes: [node("b")] });
     assert.deepEqual(fired, [undefined, undefined]);
+  });
+});
+
+describe("NodeTree icons", () => {
+  it("draws a node's file icon, light and dark, from the extension's images folder, else its codicon", () => {
+    const rule = node("r", { icon: "bell", iconColor: "charts.green", iconFile: "objects/rule" });
+    setImagesFolder(vscode.Uri.file("/ext/images"));
+    const icon = iconOf(rule) as { light: vscode.Uri; dark: vscode.Uri };
+    assert.equal(icon.light.path, "/ext/images/objects/rule-light.svg");
+    assert.equal(icon.dark.path, "/ext/images/objects/rule-dark.svg");
+    const codicon = iconOf(node("g", { icon: "folder" }));
+    assert.ok(codicon instanceof vscode.ThemeIcon);
+    assert.equal(codicon.id, "folder");
+    assert.equal(iconOf(node("plain")), undefined);
   });
 });

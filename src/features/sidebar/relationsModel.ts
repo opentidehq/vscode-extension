@@ -403,6 +403,7 @@ function header(graph: RelationGraph, uuid: string, folderName: string | undefin
     description,
     icon: icon.codicon,
     iconColor: icon.themeColor,
+    ...(icon.file ? { iconFile: icon.file } : {}),
   };
   if (object)
     return {
@@ -516,6 +517,7 @@ function relationRow(graph: RelationGraph, relation: Relation, parentId: string)
       tooltipMarkdown: objectTooltip(object, graph.index),
       icon: icon.codicon,
       iconColor: icon.themeColor,
+      ...(icon.file ? { iconFile: icon.file } : {}),
       contextValue: `object.${object.type}`,
       open: { path: object.file, line: object.line },
       decorate: false,
@@ -614,6 +616,7 @@ export function relationsViewModel(state: RelationsState, pinned: boolean): View
         label: `${kindName(state.family)} · ${state.name}`,
         icon: icon.codicon,
         iconColor: icon.themeColor,
+        ...(icon.file ? { iconFile: icon.file } : {}),
         ...(state.file ? { open: { path: state.file, line: 0 }, decorate: false } : {}),
       });
     }

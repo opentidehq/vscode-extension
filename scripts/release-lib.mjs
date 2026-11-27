@@ -64,17 +64,13 @@ export function unreleasedEntries(changelog) {
     .filter((line) => line && !line.startsWith("#"));
 }
 
-/** Stable releases use even minor versions and pre-releases odd ones (SPEC §3). */
-export function isPreRelease(version) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-  if (!match) throw new ReleaseError(`${version} is not a release version (x.y.z)`);
-  return Number(match[2]) % 2 === 1;
-}
-
 /**
  * What keeps `tag` from being released from this tree; empty when nothing does. Reads CHANGELOG.md and
  * package.json's version; whether the tag already exists is the workflow's check (it needs git).
  */
+/** The first version released in lockstep with opentide: extension x.y.z ships opentide x.y.z. */
+export const LOCKSTEP_FROM = "1.1.0";
+
 export function problems({ changelog, packageVersion, tag, pins }) {
   const found = [];
   // The WASI module's digest is a placeholder until opentide releases it: a package built from it would
@@ -104,6 +100,16 @@ export function problems({ changelog, packageVersion, tag, pins }) {
     found.push(
       `package.json's version is ${packageVersion}, CHANGELOG.md's newest is ${version}: the notes PR bumps both`,
     );
+  }
+  // From 1.1.0 the extension's version is the opentide release it ships (docs/RELEASING.md).
+  if (pins && compareVersions(version, LOCKSTEP_FROM) >= 0) {
+    for (const pin of ["wasi", "highlights", "engine"]) {
+      const pinned = pins[pin]?.version;
+      if (pinned !== version)
+        found.push(
+          `pins.json ${pin} is opentide ${pinned ?? "(none)"}, but ${version} ships opentide ${version}: the extension's version is the opentide release it carries`,
+        );
+    }
   }
   const pending = unreleasedEntries(changelog);
   if (pending.length > 0) {
@@ -183,14 +189,7 @@ export function releaseNotes(changelog, version, { attested = true } = {}) {
   const section = sections(changelog).find((candidate) => candidate.version === version);
   if (!section) throw new ReleaseError(`CHANGELOG.md has no section for ${version}`);
   const tag = `v${version}`;
-  const pre = isPreRelease(version);
   const lines = [];
-  if (pre) {
-    lines.push(
-      `> **Pre-release** (odd minor version). VS Code installs it when you choose **Switch to Pre-Release Version** on the extension; stable releases use even minor versions.`,
-      "",
-    );
-  }
   lines.push(absoluteLinks(unwrap(section.body), tag), "");
   const marketplace = vsixName("marketplace", version);
   const openvsx = vsixName("openvsx", version);
@@ -198,7 +197,7 @@ export function releaseNotes(changelog, version, { attested = true } = {}) {
   lines.push(
     "### Install",
     "",
-    `- **VS Code:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=${MARKETPLACE_ID}), or \`code --install-extension ${MARKETPLACE_ID}${pre ? " --pre-release" : ""}\`.`,
+    `- **VS Code:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=${MARKETPLACE_ID}), or \`code --install-extension ${MARKETPLACE_ID}\`.`,
     `- **Cursor, Kiro, Windsurf, VSCodium and other editors:** [Open VSX](https://open-vsx.org/extension/${publisher}/${name}) (\`${OPENVSX_ID}\`).`,
     `- **Offline or a private gallery:** download \`${marketplace}\` (VS Code, \`${MARKETPLACE_ID}\`) or \`${openvsx}\` (other editors, \`${OPENVSX_ID}\`) below and run \`code --install-extension <file>\`. The two are the same build; only the publisher in their manifest differs.`,
     "- **opentide itself:** `pip install opentide` (or `uv tool install opentide`) in the workspace's environment. The extension runs that opentide, or `python -m opentide` where the `opentide` command cannot run; without one it gives the editor features only.",
@@ -298,12 +297,11 @@ export function storeDifferences(a, b) {
 /**
  * What is wrong with a release's VSIX files (`[{ name, buffer }]`): exactly one universal package per store
  * (package-lib STORES), each named `opentide-<store>-<version>.vsix`, with that store's publisher, at
- * `version`, with the pre-release flag the version's minor gives, and that store's display name; and the
+ * `version`, stable (no release is a pre-release: SPEC §3), and that store's display name; and the
  * packages differ only in their name, publisher and display name. Empty when they are right.
  */
 export function assetProblems(files, { version }) {
   const found = [];
-  const preRelease = isPreRelease(version);
   const checked = [];
   const expected = new Map(STORES.map((candidate) => [vsixName(candidate.store, version), candidate]));
   for (const { name, buffer } of files) {
@@ -326,11 +324,8 @@ export function assetProblems(files, { version }) {
         `${name} is named ${JSON.stringify(identity.displayName)}, not ${JSON.stringify(target.displayName)} (the ${target.label} package)`,
       );
     if (identity.version !== version) found.push(`${name} is version ${identity.version}, not ${version}`);
-    if (identity.preRelease !== preRelease) {
-      found.push(
-        `${name} is ${identity.preRelease ? "" : "not "}packaged as a pre-release, but ${version} is ${preRelease ? "a pre-release (odd minor)" : "stable (even minor)"}`,
-      );
-    }
+    if (identity.preRelease)
+      found.push(`${name} is packaged as a pre-release: every release is stable (SPEC §3)`);
     if (identity.target !== "universal")
       found.push(`${name} is ${identity.target}: the release has universal packages only`);
     checked.push({ name, buffer, store: target });

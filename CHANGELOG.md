@@ -2,10 +2,31 @@
 
 All notable changes to the opentide extension (`opentide.opentide-vscode` on the Visual Studio Marketplace,
 `opentidehq.opentide` on Open VSX). The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Stable releases use even minor versions and
-pre-releases odd ones.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.1.0 the extension's version is the
+opentide release it ships, and every release is stable.
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-11-27
+
+The extension now shares opentide's version: 1.1.0 ships opentide 1.1.0. Rules look like YAML in every
+colour theme, and each object type has its own icon.
+
+### Changed
+
+- **The extension's version is the opentide release it ships.** 1.1.0 carries opentide 1.1.0, and
+  every release is stable: there is no pre-release channel any more.
+- **The bundled opentide (WASI) and the opentide engine (WASM) are 1.1.0.** Editor features with no
+  opentide installed, and in Restricted Mode, come from this release
+  ([opentide 1.1.0](https://github.com/opentidehq/opentide/releases/tag/v1.1.0)).
+- **Rules look like YAML in every colour theme.** Keys, values and enumerations take your theme's
+  YAML colours. In GitHub, Dracula, Monokai and Catppuccin, keys were plain text, and so were
+  `true`, `false` and other fixed values in Dracula and Monokai.
+- **Object and configuration files have opentide icons.** Tabs, the Explorer and breadcrumbs show
+  opentide's wave for objects and a gear for configurations, in place of a plain-text icon.
+- **Threats, objectives and rules have icons of their own.** A biohazard, a target and a siren, in
+  red, blue and green, mark them in the Catalogue, Relations and Find Detection. Elsewhere they show
+  as a bug, a target and a bell.
 
 ## [0.6.0] - 2026-11-25
 

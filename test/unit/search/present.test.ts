@@ -45,12 +45,14 @@ describe("search rows", () => {
   it("describes each result with its techniques, platforms and statuses, and where it is", () => {
     const rule = rows("suspicious").find((row) => row.kind === "result");
     assert.ok(rule?.kind === "result");
-    assert.equal(rule.icon, "shield");
+    assert.equal(rule.icon, "bell");
+    assert.equal(rule.iconFile, "objects/rule");
     assert.equal(rule.description, "T1003.001, T1003 · sentinel DESIGN, defender PRODUCTION");
     assert.equal(rule.detail, "objects/rules/suspicious-lsass-access.yaml");
     const bad = rows("bad.yaml").find((row) => row.kind === "result");
     assert.ok(bad?.kind === "result");
     assert.equal(bad.icon, "error");
+    assert.equal(bad.iconFile, undefined);
     assert.match(bad.detail, /failed to load: mapping values/);
   });
 

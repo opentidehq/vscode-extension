@@ -14,10 +14,11 @@ import {
 } from "./catalogueModel";
 import type { EngineSession } from "./session";
 
+/** The desktop's codicons (src/core/catalog/objectIcons.ts, which the web bundle may not import). */
 const ICONS: Record<Family, string> = {
-  threat: "flame",
+  threat: "bug",
   objective: "target",
-  rule: "shield",
+  rule: "bell",
   signal: "pulse",
   missing: "warning",
   other: "symbol-misc",

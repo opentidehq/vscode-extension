@@ -81,6 +81,10 @@ describe("sidebar: catalogue", () => {
     const rule = find(model.nodes, "Suspicious LSASS Access");
     assert.equal(rule.description, "Sentinel · Splunk (inert)  ✗ 2 ! 1");
     assert.equal(rule.iconColor, "problemsErrorIcon.foreground");
+    // The file icon gives way to the codicon in the problem's colour, so that the row stands out.
+    assert.equal(rule.iconFile, undefined);
+    const clean = find(one(ready()).nodes, "Suspicious LSASS Access");
+    assert.equal(clean.iconFile, "objects/rule");
     assert.equal(problemBadge({ errors: 0, warnings: 0 }), "");
     assert.equal(platformsText(object({ uuid: "x", type: "rule", name: "x" })), "");
   });

@@ -4,8 +4,8 @@
 // The stores' packages differ only in package.json's `name`, `publisher` and `displayName` (package-lib
 // STORES: the Marketplace's `opentide.opentide-vscode` / "opentide for VS Code", Open VSX's
 // `opentidehq.opentide` / "opentide"); this checks that they do, entry by entry.
-//   node scripts/package.mjs [--universal] [--pre-release]
-//   --pre-release is passed to vsce; it is on by itself for an odd minor version (SPEC §3).
+//   node scripts/package.mjs [--universal]
+//   Every package is stable: the extension has no pre-release channel (SPEC §3).
 // vsce runs `vscode:prepublish` (npm run build:production) first, for each package. The VSIXs go to
 // dist-vsix/opentide-<store>-<version>.vsix, each with <name>.size.json next to it. For the Marketplace
 // package, package.json's name, publisher and display name are replaced while vsce runs, and put back afterwards. A package over
@@ -21,7 +21,6 @@ import {
   budgetFor,
   committedManifestProblem,
   formatReport,
-  isPreReleaseVersion,
   mib,
   OUT_DIR,
   PackageError,
@@ -98,7 +97,6 @@ function main() {
   if (leftover) throw new PackageError(leftover);
 
   const vsceArgs = ["package", "--no-dependencies"];
-  if (args.includes("--pre-release") || isPreReleaseVersion(pkg.version)) vsceArgs.push("--pre-release");
   mkdirSync(join(root, OUT_DIR), { recursive: true });
 
   const built = STORES.map((store) => packageFor(store, { manifestPath, original, pkg, pins, vsceArgs }));

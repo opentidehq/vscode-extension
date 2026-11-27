@@ -19,13 +19,21 @@
         "id": "opentide-yaml",
         "aliases": ["Tide YAML", "opentide-yaml"],
         "filenamePatterns": ["**/objects/**/*.yaml", "**/objects/**/*.yml"],
-        "configuration": "./language-configuration/opentide-yaml.json"
+        "configuration": "./language-configuration/opentide-yaml.json",
+        "icon": {
+          "light": "./images/languages/opentide-yaml-light.svg",
+          "dark": "./images/languages/opentide-yaml-dark.svg"
+        }
       },
       {
         "id": "opentide-config",
         "aliases": ["opentide configuration", "opentide-config"],
         "filenamePatterns": ["**/.opentide/configurations/**/*.toml"],
-        "configuration": "./language-configuration/opentide-config.json"
+        "configuration": "./language-configuration/opentide-config.json",
+        "icon": {
+          "light": "./images/languages/opentide-config-light.svg",
+          "dark": "./images/languages/opentide-config-dark.svg"
+        }
       },
       {
         "id": "kql",

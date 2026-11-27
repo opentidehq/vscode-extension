@@ -10,7 +10,6 @@ import { STORES, sizeReport, storeManifest, vsixName } from "../../scripts/packa
 import {
   absoluteLinks,
   assetProblems,
-  isPreRelease,
   MARKETPLACE_ID,
   OPENVSX_ID,
   problems,
@@ -63,7 +62,7 @@ function zip(entries) {
 function vsix({
   version = "0.1.0",
   target,
-  preRelease = true,
+  preRelease = false,
   publisher = "opentidehq",
   displayName = "opentide",
   id = "opentide",
@@ -95,7 +94,6 @@ function storePackages(version, overrides = {}) {
     name: vsixName(store, version),
     buffer: vsix({
       version,
-      preRelease: isPreRelease(version),
       publisher,
       id: name,
       displayName,
@@ -166,17 +164,28 @@ describe("release: the version CHANGELOG.md releases", () => {
       ["- A fix."],
     );
   });
-
-  it("odd minors are pre-releases and even minors stable", () => {
-    assert.equal(isPreRelease("0.1.0"), true);
-    assert.equal(isPreRelease("0.3.7"), true);
-    assert.equal(isPreRelease("0.2.0"), false);
-    assert.equal(isPreRelease("1.0.0"), false);
-    assert.throws(() => isPreRelease("1.0.0-beta.1"), /not a release version/);
-  });
 });
 
 describe("release: check", () => {
+  it("from 1.1.0, refuses a version that is not the opentide release the pins ship", () => {
+    const changelog =
+      "## [Unreleased]\n\n## [1.1.0] - 2026-11-27\n\nopentide 1.1.0.\n\n## [1.0.0] - 2026-11-26\n\nx\n";
+    const pins = (v) => ({ wasi: { version: v }, highlights: { version: v }, engine: { version: v } });
+    // Only the lockstep's problems (the pins here have no digests).
+    const lockstep = (found) => found.filter((f) => f.includes("ships opentide"));
+    assert.deepEqual(lockstep(problems({ changelog, packageVersion: "1.1.0", pins: pins("1.1.0") })), []);
+    const found = lockstep(
+      problems({
+        changelog,
+        packageVersion: "1.1.0",
+        pins: { ...pins("1.1.0"), engine: { version: "1.0.0" } },
+      }),
+    );
+    assert.deepEqual(found, [
+      "pins.json engine is opentide 1.0.0, but 1.1.0 ships opentide 1.1.0: the extension's version is the opentide release it carries",
+    ]);
+  });
+
   it("passes when the notes PR moved [Unreleased] and bumped package.json", () => {
     assert.deepEqual(problems({ changelog: CHANGELOG, packageVersion: "0.3.0", tag: "v0.3.0" }), []);
     assert.deepEqual(problems({ changelog: CHANGELOG, packageVersion: "0.3.0" }), []);
@@ -283,7 +292,8 @@ describe("release: notes", () => {
 
   it("is the version's opening paragraph and lists, then install and verify", () => {
     const notes = releaseNotes(CHANGELOG, "0.3.0");
-    assert.match(notes, /^> \*\*Pre-release\*\*/);
+    // Every release is stable: no banner, no --pre-release, whatever the minor (0.3.0 was odd).
+    assert.doesNotMatch(notes, /Pre-release|--pre-release/);
     assert.match(
       notes,
       /The first pre-release on both stores\. It bundles opentide 0\.21\.0 and checks Tide/,
@@ -298,7 +308,7 @@ describe("release: notes", () => {
       /code --install-extension\n {2}opentidehq\.opentide/,
       "fenced code is left as written",
     );
-    assert.match(notes, /code --install-extension opentide\.opentide-vscode --pre-release/);
+    assert.match(notes, /`code --install-extension opentide\.opentide-vscode`/);
     assert.match(notes, /marketplace\.visualstudio\.com\/items\?itemName=opentide\.opentide-vscode\)/);
     assert.match(notes, /open-vsx\.org\/extension\/opentidehq\/opentide\) \(`opentidehq\.opentide`\)/);
     for (const file of ["opentide-marketplace-0.3.0.vsix", "opentide-openvsx-0.3.0.vsix"]) {
@@ -312,7 +322,7 @@ describe("release: notes", () => {
     );
   });
 
-  it("has no pre-release banner for a stable version", () => {
+  it("is the same for every minor, odd or even", () => {
     const notes = releaseNotes(CHANGELOG, "0.2.0");
     assert.doesNotMatch(notes, /Pre-release/);
     assert.match(notes, /^### Added\n\n- Older\./);
@@ -357,10 +367,11 @@ describe("release: assets", () => {
       id: "opentidehq.opentide",
       version: "0.1.0",
       target: "linux-x64",
-      preRelease: true,
+      preRelease: false,
       displayName: "opentide",
     });
-    assert.equal(vsixIdentity(vsix({ preRelease: false })).target, "universal");
+    assert.equal(vsixIdentity(vsix({ preRelease: true })).preRelease, true);
+    assert.equal(vsixIdentity(vsix({})).target, "universal");
     assert.throws(() => vsixIdentity(zip({ "a.txt": "x" })), /not a VSIX/);
   });
 
@@ -415,7 +426,7 @@ describe("release: assets", () => {
     ]);
   });
 
-  it("names what is missing, extra, of another target, or of the wrong version or channel", () => {
+  it("names what is missing, extra, of another target, or of the wrong version", () => {
     const [marketplace] = storePackages("0.1.0");
     const found = assetProblems(
       [
@@ -423,7 +434,7 @@ describe("release: assets", () => {
         { name: "opentide-universal-0.1.0.vsix", buffer: vsix({}) },
         {
           name: "opentide-openvsx-0.1.0.vsix",
-          buffer: vsix({ target: "linux-x64", version: "0.0.9", preRelease: false }),
+          buffer: vsix({ target: "linux-x64", version: "0.0.9" }),
         },
       ],
       { version: "0.1.0" },
@@ -431,19 +442,19 @@ describe("release: assets", () => {
     assert.deepEqual(found, [
       "opentide-universal-0.1.0.vsix is not a release package: they are opentide-marketplace-0.1.0.vsix and opentide-openvsx-0.1.0.vsix",
       "opentide-openvsx-0.1.0.vsix is version 0.0.9, not 0.1.0",
-      "opentide-openvsx-0.1.0.vsix is not packaged as a pre-release, but 0.1.0 is a pre-release (odd minor)",
       "opentide-openvsx-0.1.0.vsix is linux-x64: the release has universal packages only",
     ]);
     assert.deepEqual(assetProblems([marketplace], { version: "0.1.0" }), ["no opentide-openvsx-0.1.0.vsix"]);
   });
 
-  it("refuses a pre-release package for a stable version", () => {
-    const found = assetProblems(storePackages("0.2.0", { openvsx: { preRelease: true } }), {
-      version: "0.2.0",
-    });
-    assert.deepEqual(found, [
-      "opentide-openvsx-0.2.0.vsix is packaged as a pre-release, but 0.2.0 is stable (even minor)",
-    ]);
+  it("refuses a pre-release package, whatever the minor: every release is stable", () => {
+    for (const version of ["1.1.0", "1.2.0"]) {
+      assert.deepEqual(assetProblems(storePackages(version), { version }), [], version);
+      const found = assetProblems(storePackages(version, { openvsx: { preRelease: true } }), { version });
+      assert.deepEqual(found, [
+        `opentide-openvsx-${version}.vsix is packaged as a pre-release: every release is stable (SPEC §3)`,
+      ]);
+    }
   });
 
   it("package.json's name, publisher and display name are replaced alone, keeping the text as it is", () => {
@@ -567,10 +578,9 @@ describe("release.mjs (the command line)", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it("prints the version, the channel and the notes", () => {
+  it("prints the version and the notes, and has no channel command", () => {
     assert.equal(run("version").stdout, "0.3.0\n");
-    assert.equal(run("prerelease").stdout, "true\n");
-    assert.equal(run("prerelease", "v0.2.0").stdout, "false\n");
+    assert.equal(run("prerelease").status, 1);
     assert.match(run("notes").stdout, /The first pre-release on both stores/);
   });
 
@@ -644,7 +654,7 @@ describe("release.mjs (the command line)", () => {
   it("an unknown command exits 1 and lists the commands", () => {
     const result = run("publish");
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /version, check, prerelease, notes, assets, sums or sizes/);
+    assert.match(result.stderr, /version, check, notes, assets, sums or sizes/);
   });
 });
 

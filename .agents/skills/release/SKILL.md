@@ -20,7 +20,8 @@ The human procedure, the one-time setup and the failure table are in
 | Version | `CHANGELOG.md`'s newest dated heading, `## [x.y.z] - YYYY-MM-DD`: `node scripts/release.mjs version`. `package.json` must match |
 | Tag | `v<version>`, created by the workflow on the built commit. Never push a tag by hand |
 | Release | **Run workflow** on `.github/workflows/publish.yml`, ref `main`, no inputs |
-| Channel | odd minor = pre-release (`--pre-release` at package and publish), even minor = stable: `node scripts/release.mjs prerelease` |
+| Version | The opentide release the extension ships: extension `x.y.z` carries opentide `x.y.z` (`pins.json` `wasi`, `highlights`, `engine`); `release.mjs check` refuses a mismatch |
+| Channel | Stable, always: no pre-release channel, no `--pre-release` anywhere; `release.mjs assets` refuses a pre-release package |
 | Ids | Marketplace `opentide.opentide-vscode`, "opentide for VS Code" (publisher `opentide`: `opentidehq` is banned; name `opentide-vscode`: the Marketplace keeps `opentide` across publishers, so 0.3.1 and 0.3.2 were refused). Open VSX `opentidehq.opentide`, "opentide" (verified namespace). docs/RELEASING.md "Two publishers, and why" |
 | Auth | Marketplace: `vsce publish --oidc` with publisher `opentide`'s policy (owner `opentidehq`, repo `vscode-extension`, `publish.yml`, environment `production`). Open VSX: `ovsx publish --trusted-publishing` (same workflow file and environment); `OVSX_PAT` only for the very first publish |
 | Packages | Two, universal, from one `npm run package`: `opentide-marketplace-<version>.vsix` (`opentide.opentide-vscode`) and `opentide-openvsx-<version>.vsix` (`opentidehq.opentide`), identical but for name, publisher and display name; each job publishes its own. Checked by `node scripts/release.mjs assets` |
@@ -32,8 +33,8 @@ The human procedure, the one-time setup and the failure table are in
 
 - CI, docs-for-agents or test-only changes: no release.
 - `[Unreleased]` empty: nothing to release.
-- A stable release outside the cadence: stable releases follow opentide releases and fixes. A
-  pre-release is fine any time.
+- No opentide release to follow: the extension's version is opentide's, so a change to the extension
+  alone waits for the next opentide release.
 
 ## Step 1: the notes PR
 
@@ -45,8 +46,8 @@ Branch `docs/release-x.y.z` from `origin/main`, one commit, PR to `main`:
    notes. Write and check them as [`release-notes`](../release-notes/SKILL.md) says: a headline of
    at most 25 words, the parts in order (Upgrade, Breaking, Added, Changed, Deprecated, Removed,
    Fixed, Security), a bold lead on every entry.
-2. Pick the number: the next odd minor's patch for a pre-release (`0.3.1`), the next even minor for a
-   stable release (`0.3.4` -> `0.4.0`). Never a `-suffix`.
+2. The number is the opentide release's: bump `pins.json` `wasi`, `highlights` and `engine` to it first
+   (docs/PACKAGING.md, "Bumping what the extension ships"). Never a `-suffix`.
 3. `npm version x.y.z --no-git-tag-version` (package.json and package-lock.json).
 4. Check, and read the notes:
 

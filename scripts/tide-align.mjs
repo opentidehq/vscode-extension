@@ -9,7 +9,16 @@
 // so `npm run grammars --check` still tells a stale copy.
 //
 // When the zip has the Elastic rules, `alignTide` finds its anchors changed and fails instead of applying them twice:
-// delete this script then.
+// delete that part then.
+//
+// It also renames the zip's scopes of keys, values and enumerations (RENAMES), so that a rule looks like a YAML file in
+// every theme, not only in VS Code's own; the rename belongs in opentide's generator too:
+// - A key is `entity.name.tag.yaml`, a YAML key. The zip's `variable.other.property` is the default foreground in
+//   GitHub, Dracula, Monokai and Catppuccin, which leave `variable.other` plain.
+// - A value, plain, quoted or block, is a YAML value (`string.unquoted.plain.out.yaml`): Light+ and Light Modern
+//   colour those blue apart from other strings, which are dark red like their keys.
+// - An enumeration value adds `support.constant` under the zip's `variable.other.enummember`, which Dracula and
+//   Monokai leave plain: a theme with no rule for `support.constant` keeps the enummember colour.
 
 /** The scopes of the zip's grammar, which contrib/highlighting.json maps the semantic token types to. */
 export const PROPERTY = "variable.other.property.tide";
@@ -21,6 +30,25 @@ export const UUID_NUMBER = "constant.numeric.uuid.tide";
 export const STRING_BLOCK = "string.unquoted.block.tide";
 export const HEADING = "entity.name.type.markdown.tide";
 export const CODE = "variable.other.constant.markdown.tide";
+
+/** The zip's scope of a quoted value. */
+export const STRING_QUOTED = "string.quoted.opentide";
+
+/** What a key, a value and an enumeration value are once aligned; contrib/highlighting.json lists them first. */
+export const KEY = "entity.name.tag.yaml.tide";
+export const VALUE = "string.unquoted.plain.out.yaml.tide";
+export const VALUE_BLOCK = "string.unquoted.block.yaml.tide";
+export const ENUM_VALUE = "support.constant.enum.tide";
+
+/** The zip's scope → the scope(s) the aligned grammar has instead (a space pushes both, the last innermost). */
+export const RENAMES = {
+  [PROPERTY]: KEY,
+  [STRING]: VALUE,
+  [STRING_BLOCK]: VALUE_BLOCK,
+  // The server's `string` is the text between the quotes: the quotes take its colour too.
+  [STRING_QUOTED]: `${STRING_QUOTED} ${VALUE}`,
+  [ENUM_MEMBER]: `${ENUM_MEMBER} ${ENUM_VALUE}`,
+};
 
 /** The embedded-language scope names the added rules use, with the language id VS Code needs for each. */
 export const EMBEDDED = {
@@ -141,6 +169,24 @@ export function alignTide(grammar, Failure = Error) {
     ],
   });
 
+  renameScopes(grammar);
   grammar.opentideHandoff = "the language of an Elastic rule's query";
   return grammar;
+}
+
+/** Apply RENAMES to every `name` and `contentName`, in place, scope by scope; a second pass changes nothing. */
+export function renameScopes(node) {
+  if (Array.isArray(node)) {
+    for (const item of node) renameScopes(item);
+    return node;
+  }
+  if (node === null || typeof node !== "object") return node;
+  for (const [key, value] of Object.entries(node)) {
+    if ((key === "name" || key === "contentName") && typeof value === "string")
+      node[key] = [
+        ...new Set(value.split(" ").flatMap((scope) => (RENAMES[scope] ?? scope).split(" "))),
+      ].join(" ");
+    else renameScopes(value);
+  }
+  return node;
 }

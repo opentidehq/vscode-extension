@@ -50,7 +50,7 @@ import {
   tenantVariableNames,
 } from "./platforms";
 import { RELATIONS_VIEW, RelationsView } from "./relationsView";
-import { NodeTree, openTargetUri } from "./tree";
+import { NodeTree, openTargetUri, setImagesFolder } from "./tree";
 
 export const VIEWS = {
   catalogue: "opentide.sidebar.catalogue",
@@ -99,6 +99,7 @@ interface PlatformsValue {
 export default defineFeature({
   id: "sidebar",
   activate(ctx) {
+    setImagesFolder(vscode.Uri.joinPath(ctx.extension.extensionUri, "images"));
     const sidebar = new Sidebar(ctx);
     ctx.subscriptions.push(sidebar);
   },

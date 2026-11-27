@@ -9,7 +9,7 @@ opentide's `publish-pypi.yml` and language-server's `release.yml`. Agents: [`.ag
 
 - [One-time setup](#one-time-setup)
 - [Cutting a release](#cutting-a-release)
-- [Pre-release and stable](#pre-release-and-stable)
+- [Versions and channel](#versions-and-channel)
 - [Release cadence and opentide bumps](#release-cadence-and-opentide-bumps)
 - [What the workflow does](#what-the-workflow-does)
 - [When something fails](#when-something-fails)
@@ -137,7 +137,7 @@ script runs there. To bump them, change `tools/publish/package.json` and run `np
 - [ ] Open VSX: publisher agreement signed, namespace `opentidehq` created (and claimed), `OVSX_PAT`
       saved in `production`.
 - [ ] Marketplace: the publisher `opentide` exists with its trusted-publishing policy (step 4).
-- [ ] The notes PR for the first version has merged (below); its minor is odd, so it is a pre-release.
+- [ ] The notes PR for the first version has merged (below).
 - [ ] Run **Publish** on `main` before the Marketplace policy's deadline.
 - [ ] Both stores list the version: `opentide.opentide-vscode` on the Marketplace, `opentidehq.opentide` on
       Open VSX; install the first in VS Code and the second in VSCodium or Cursor.
@@ -231,26 +231,21 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
   `opentide.opentide-vscode` and [Open VSX](https://open-vsx.org/extension/opentidehq/opentide)
   `opentidehq.opentide` at the version.
 
-## Pre-release and stable
+## Versions and channel
 
-| Minor | Channel | Packaged and published with | GitHub Release |
-|-------|---------|-----------------------------|----------------|
-| odd (`0.1.x`, `0.3.x`) | pre-release | `--pre-release` | marked pre-release |
-| even (`0.2.x`, `1.0.x`) | stable | — | latest |
-
-- The store versions are plain `x.y.z`: the Marketplace accepts no `-beta` suffix, so the minor's parity
-  is the channel. `scripts/release.mjs prerelease` computes it, and `assets` refuses a package whose
-  pre-release flag disagrees.
-- Users on the pre-release channel get the highest version of either channel, so a stable release is
-  the next even minor above the last pre-release (`0.3.4` → `0.4.0`), and the next pre-releases are
-  `0.5.x`.
-- Pre-releases ship along the way, to both stores, so forks' users can try them; stable releases follow
-  the cadence below.
+- **The extension's version is the opentide release it ships**, in lockstep: extension `x.y.z` carries
+  opentide `x.y.z` (`pins.json` `wasi`, `highlights` and `engine`). `release.mjs check` refuses a version
+  that differs from those pins. From 1.1.0 on; 0.x and 1.0.0 had versions of their own.
+- **Every release is stable**: no pre-release channel, no `--pre-release` at packaging or publishing, and
+  the GitHub Release is the latest. `release.mjs assets` refuses a package flagged as a pre-release. (Up to
+  1.0.0 an odd minor was a pre-release; that rule is gone.)
+- A change to the extension alone ships with the next opentide release. The stores never take a version
+  twice, so there is no extension-only `x.y.z`.
 
 ## Release cadence and opentide bumps
 
 The extension bundles no Python (SPEC D1): users upgrade opentide themselves (`pip install --upgrade
-opentide`), and a release follows the extension's own changes. A bump of `pins.json` `opentide.version`
+opentide`). A release follows an opentide release, at its version ([above](#versions-and-channel)). A bump of `pins.json` `opentide.version`
 changes only what CI tests against ([PACKAGING.md](PACKAGING.md#bumping-what-the-extension-ships-and-tests-against)):
 it needs no release unless the extension changes with it. A bump of `wasi`, `highlights` and `engine` (the
 opentide the extension carries) is a change to the package: it ships in the next release. `release.mjs

@@ -3,7 +3,8 @@
 // server's semantic tokens (a snapshot of a real `opentide lsp start`) laid over them as VS Code resolves them. Each
 // theme x language x token type must stay readable (WCAG contrast), coloured (not the default foreground) and apart
 // from the types a reader tells it from (CIEDE2000); a query in a rule must not be painted as one YAML string; and what
-// the grammars alone leave plain may not grow (baseline.json, lowered as opentide's grammars improve).
+// the grammars alone leave plain may not grow (baseline.json, lowered as opentide's grammars improve). Under popular
+// themes of the Marketplace, whose palettes are their authors' choice, a rule must look no plainer than a YAML file.
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,9 +12,15 @@ import { fileURLToPath } from "node:url";
 
 import {
   DEFAULT_THEMES,
+  mainColour,
   measure,
+  MIN_DELTA_E,
+  minDeltaE,
   plainShare,
+  POPULAR_THEMES,
   semanticFailures,
+  yamlColour,
+  yamlFailures,
 } from "../../scripts/highlighting-contrast-lib.mjs";
 import { measureDefaults, sampleNames } from "../../scripts/highlighting-contrast.mjs";
 
@@ -71,6 +78,54 @@ describe("highlighting contrast: VS Code's default themes on opentide's grammars
       worse,
       [],
       `\n${worse.join("\n")}\n(an improvement? run \`node scripts/highlighting-contrast.mjs baseline\`)`,
+    );
+  });
+
+  it("keeps a rule no plainer than a YAML file in popular themes", async () => {
+    const failures = yamlFailures(await measureDefaults(POPULAR_THEMES));
+    assert.deepEqual(failures, [], `\n${failures.join("\n")}`);
+  });
+
+  it("holds a key and a value apart no less than the theme's own YAML does", () => {
+    // High Contrast Light gives YAML keys and values one colour: a rule may too, and no other pair relaxes.
+    const hcLight = rows.find((r) => r.theme.label === "High Contrast Light").theme;
+    assert.equal(yamlColour(hcLight, "property"), yamlColour(hcLight, "string"));
+    const lightPlus = rows.find(
+      (r) => r.theme.label === "Light+" && r.group === "opentide-yaml" && r.type === "property",
+    );
+    assert.equal(mainColour(lightPlus.semantic), yamlColour(lightPlus.theme, "property"));
+  });
+
+  it("relaxes ΔE only for two YAML types in a rule, and only to a bound the theme's own YAML sets", () => {
+    const hcLight = rows.find((r) => r.theme.label === "High Contrast Light").theme;
+    assert.equal(minDeltaE(hcLight, "opentide-yaml", "property", "string"), 0);
+    assert.equal(minDeltaE(hcLight, "kql", "property", "string"), MIN_DELTA_E);
+    assert.equal(minDeltaE(hcLight, "opentide-yaml", "keyword", "string"), MIN_DELTA_E);
+    // A theme that leaves YAML plain sets no bound of its own.
+    const plain = { ...hcLight, tokenColors: [] };
+    assert.equal(minDeltaE(plain, "opentide-yaml", "property", "string"), MIN_DELTA_E);
+  });
+
+  it("fails a rule whose keys are plain where a YAML file's are not (GitHub Dark, opentide 1.0.0's scope)", async () => {
+    const pkg = read(join(root, "package.json"));
+    pkg.contributes.semanticTokenScopes[0].scopes.property = ["variable.other.property"];
+    const failures = yamlFailures(
+      await measure({
+        root,
+        pkg,
+        themesDir: join(fixtures, "themes"),
+        themes: POPULAR_THEMES.filter((t) => t.label === "GitHub Dark Default"),
+        samples: join(fixtures, "samples"),
+        snapshot,
+      }),
+    );
+    assert.ok(
+      failures.some((f) =>
+        f.startsWith(
+          "GitHub Dark Default | opentide-yaml | property: #E6EDF3 is the default foreground for 559 token(s), a YAML file's is #7EE787",
+        ),
+      ),
+      failures.join("\n"),
     );
   });
 

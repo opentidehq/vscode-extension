@@ -4,7 +4,6 @@
 //
 //   node scripts/release.mjs version               the version CHANGELOG.md releases (newest dated section)
 //   node scripts/release.mjs check [vX.Y.Z]        the notes PR merged: package.json agrees, [Unreleased] is empty
-//   node scripts/release.mjs prerelease [X.Y.Z]    "true" for an odd minor, "false" for an even one
 //   node scripts/release.mjs notes [X.Y.Z] [--no-attestation]
 //                                                  the GitHub Release body, from the version's CHANGELOG.md section
 //   node scripts/release.mjs assets DIR [X.Y.Z]    DIR holds this version's two packages, one per store, the same but for the publisher
@@ -18,7 +17,6 @@ import { fileURLToPath } from "node:url";
 
 import {
   assetProblems,
-  isPreRelease,
   problems,
   ReleaseError,
   releasedVersion,
@@ -69,9 +67,6 @@ try {
       console.log(`${tag ?? `v${releasedVersion(changelog())}`} is ready to release`);
       break;
     }
-    case "prerelease":
-      console.log(String(isPreRelease(versionArg(args[0]))));
-      break;
     case "notes": {
       const attested = !args.includes("--no-attestation");
       const version = args.find((arg) => !arg.startsWith("--"));
@@ -107,7 +102,7 @@ try {
     }
     default:
       fail([
-        `unknown command ${JSON.stringify(command ?? "")}: version, check, prerelease, notes, assets, sums or sizes`,
+        `unknown command ${JSON.stringify(command ?? "")}: version, check, notes, assets, sums or sizes`,
       ]);
   }
 } catch (error) {

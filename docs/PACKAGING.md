@@ -53,9 +53,8 @@ each with `<name>.size.json` next to it for the CI summary. vsce runs once per s
 from `package.json` as committed, the Marketplace one with its `publisher` line set to `opentide` while vsce
 runs (and put back afterwards). The script then checks that the two differ in nothing else, entry by entry.
 
-A package whose minor version is odd is a pre-release: `npm run package` passes `--pre-release` to
-`vsce` by itself (and also when given `--pre-release`), because `vsce publish --pre-release` refuses a
-VSIX that was not packaged as one.
+Every package is stable: there is no pre-release channel ([RELEASING.md](RELEASING.md#versions-and-channel)),
+and `release.mjs assets` refuses a package flagged as a pre-release.
 
 ```bash
 npm ci
@@ -63,7 +62,7 @@ npm run package                                            # dist-vsix/opentide-
 npm run smoke -- dist-vsix/opentide-marketplace-<version>.vsix dist-vsix/opentide-openvsx-<version>.vsix
 ```
 
-### `npm run package [-- --pre-release]`
+### `npm run package [-- --universal]`
 
 `scripts/package.mjs`, helpers in `scripts/package-lib.mjs`. It runs `vsce package --no-dependencies`
 (vsce runs `vscode:prepublish`, the production build) with `.vscodeignore`, refuses a package that holds

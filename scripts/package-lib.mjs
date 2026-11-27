@@ -95,15 +95,6 @@ export function storeManifest(text, store) {
 }
 
 /**
- * Pre-releases use odd minor versions (SPEC §3): such a version is always packaged with `--pre-release`,
- * which `vsce publish --pre-release` requires.
- */
-export function isPreReleaseVersion(version) {
-  const match = /^\d+\.(\d+)\./.exec(version);
-  return match?.[1] !== undefined && Number(match[1]) % 2 === 1;
-}
-
-/**
  * The size gate. `vsix.budgetBytes` (SPEC §3: 100 MB), unless `vsix.budgetOverrideBytes` names the
  * pinned opentide version: an explicit, temporary allowance with its reason, dropped by the next bump.
  */

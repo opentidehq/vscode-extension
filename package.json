@@ -2,7 +2,7 @@
   "name": "opentide",
   "displayName": "opentide",
   "description": "The opentide workbench for detection engineering: live checks for Tide objects and their KQL, SPL, ES|QL, EQL, Kibana KQL, Lucene and Falco queries, templates, catalogue, ATT&CK coverage, query results and deploy previews.",
-  "version": "0.6.0",
+  "version": "1.1.0",
   "publisher": "opentidehq",
   "license": "EUPL-1.2",
   "icon": "images/icon.png",
@@ -109,7 +109,11 @@
           "**/objects/**/*.yaml",
           "**/objects/**/*.yml"
         ],
-        "configuration": "./language-configuration/opentide-yaml.json"
+        "configuration": "./language-configuration/opentide-yaml.json",
+        "icon": {
+          "light": "./images/languages/opentide-yaml-light.svg",
+          "dark": "./images/languages/opentide-yaml-dark.svg"
+        }
       },
       {
         "id": "opentide-config",
@@ -120,7 +124,11 @@
         "filenamePatterns": [
           "**/.opentide/configurations/**/*.toml"
         ],
-        "configuration": "./language-configuration/opentide-config.json"
+        "configuration": "./language-configuration/opentide-config.json",
+        "icon": {
+          "light": "./images/languages/opentide-config-light.svg",
+          "dark": "./images/languages/opentide-config-dark.svg"
+        }
       },
       {
         "id": "kql",
@@ -2210,10 +2218,11 @@
             "entity.name.variable"
           ],
           "property": [
-            "variable.other.property.tide",
+            "entity.name.tag.yaml.tide",
             "variable.other.property"
           ],
           "enumMember": [
+            "support.constant.enum.tide",
             "variable.other.enummember.tide",
             "variable.other.enummember"
           ],
@@ -2241,7 +2250,7 @@
             "comment"
           ],
           "string": [
-            "string.unquoted.plain.tide",
+            "string.unquoted.plain.out.yaml.tide",
             "string"
           ],
           "number": [
@@ -2870,7 +2879,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.3",
-    "@opentide/wasi-host": "1.0.0",
+    "@opentide/wasi-host": "1.1.0",
     "@vscode/codicons": "0.0.45",
     "@vscode/wasm-wasi": "1.0.1",
     "cytoscape": "3.34.4",

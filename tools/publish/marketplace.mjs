@@ -5,7 +5,7 @@
 // that window were lost without an error. The Marketplace package is the extension `opentide.opentide-vscode`,
 // one universal VSIX (docs/RELEASING.md); the Open VSX one is not published here.
 //
-//   node tools/publish/marketplace.mjs <publisher.name> <version> <file.vsix> [--pre-release]
+//   node tools/publish/marketplace.mjs <publisher.name> <version> <file.vsix>
 //   node tools/publish/marketplace.mjs --check <publisher.name> <version> <file.vsix>
 //       before `vsce publish`: the package is the Marketplace one of this release, at 0.3.3 or later
 //
@@ -125,8 +125,8 @@ function main() {
   const argv = process.argv.slice(2);
   const checkOnly = argv[0] === "--check";
   const [id, version, file, ...rest] = checkOnly ? argv.slice(1) : argv;
-  if (!id || !version || !file?.endsWith(".vsix")) {
-    console.error("usage: marketplace.mjs [--check] <publisher.name> <version> <file.vsix> [--pre-release]");
+  if (!id || !version || !file?.endsWith(".vsix") || rest.length > 0) {
+    console.error("usage: marketplace.mjs [--check] <publisher.name> <version> <file.vsix>");
     process.exit(2);
   }
   if (!existsSync(file)) {
@@ -147,7 +147,7 @@ function main() {
   const vsce = fileURLToPath(new URL("./node_modules/.bin/vsce", import.meta.url));
   const publish = (pkg) => {
     const { target } = pkg;
-    const args = ["publish", "--oidc", "--skip-duplicate", ...rest, "--packagePath", join(dir, pkg.file)];
+    const args = ["publish", "--oidc", "--skip-duplicate", "--packagePath", join(dir, pkg.file)];
     say(`marketplace: vsce ${args.join(" ")} (${target})`);
     // vsce's own output, its refusal included, goes to the job log as it is. A refusal stops the job here: no
     // further rounds, which would bury it (0.3.1: "The extension 'opentide' already exists in the Marketplace").

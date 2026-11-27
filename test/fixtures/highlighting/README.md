@@ -17,6 +17,19 @@ The data of `test/scripts/highlighting-contrast.test.mjs`. `scripts/highlighting
   `node scripts/highlighting-contrast.mjs baseline` rewrites it; lower it when opentide's grammars improve.
 - `themes/`: VS Code's default themes, `extensions/theme-defaults/themes/*.json` of microsoft/vscode at
   b57d5c9e1b27c4ede570c76940b7aa5207595a54, unchanged (MIT, `themes/LICENSE.txt`).
+- `themes/popular/`: popular themes, unchanged, each under the MIT licence of its `LICENSE.*.txt`, for the gate's
+  YAML check (a rule no plainer than a YAML file in the same theme):
+  - `github-dark-default.json`, `github-light-default.json`: `themes/` of the Open VSX package GitHub.github-vscode-theme
+    6.3.5 (primer/github-vscode-theme), `LICENSE.github-vscode-theme.txt`.
+  - `one-dark-pro.json`: `themes/OneDark-Pro.json` of zhuangtongfa.material-theme 3.20.7 (Binaryify/OneDark-Pro),
+    `LICENSE.one-dark-pro.txt`.
+  - `dracula.json`: `theme/dracula.json` of dracula-theme.theme-dracula 2.25.1 (dracula/visual-studio-code),
+    `LICENSE.dracula.txt`.
+  - `catppuccin-mocha.json`: `themes/mocha.json` of Catppuccin.catppuccin-vsc 3.19.0 (catppuccin/vscode),
+    `LICENSE.catppuccin.txt`.
+  - `monokai-color-theme.json`, `solarized-dark-color-theme.json`, `solarized-light-color-theme.json`:
+    `extensions/theme-{monokai,solarized-dark,solarized-light}/themes/` of microsoft/vscode at the commit above
+    (`themes/LICENSE.txt`).
 
 `node scripts/highlighting-contrast.mjs report` prints every theme × language × token type: the colour and contrast
 before the server answers, and after.

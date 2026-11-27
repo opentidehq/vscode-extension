@@ -31,8 +31,7 @@
 # and pass --skip-duplicate, so a store that already has a package skips it. Dispatching again after the
 # tag exists is refused: release the next version instead.
 #
-# Pre-releases: an odd minor version is packaged and published with --pre-release and marked as a
-# pre-release on GitHub; an even minor is stable (SPEC §3).
+# Every release is stable, at the version of the opentide it ships (SPEC §3): no pre-release channel.
 name: Publish
 
 on:
@@ -59,7 +58,6 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
-      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -89,9 +87,8 @@ jobs:
           {
             echo "version=${version}"
             echo "tag=${tag}"
-            echo "prerelease=$(node scripts/release.mjs prerelease "${version}")"
           } >> "$GITHUB_OUTPUT"
-          echo "Releasing ${tag} (pre-release: $(node scripts/release.mjs prerelease "${version}"))"
+          echo "Releasing ${tag}"
 
   universal:
     name: Package universal
@@ -99,8 +96,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -118,11 +113,7 @@ jobs:
       - run: npm test
       # Every platform, and vscode.dev / github.dev: one package per store, from this commit.
       - name: Package
-        run: |
-          set -euo pipefail
-          flags=(--universal)
-          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
-          npm run package -- "${flags[@]}"
+        run: npm run package -- --universal
       - name: Smoke test, the Marketplace package (opentide.opentide-vscode)
         run: npm run smoke -- dist-vsix/opentide-marketplace-*.vsix
       - name: Smoke test, the Open VSX package (opentidehq.opentide)
@@ -212,7 +203,6 @@ jobs:
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
       VERSION: ${{ needs.prepare.outputs.version }}
-      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
       ATTESTED: ${{ needs.attest.outputs.attested }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -251,14 +241,11 @@ jobs:
           notes=()
           if [[ "${ATTESTED}" != "true" ]]; then notes+=(--no-attestation); fi
           node scripts/release.mjs notes "${VERSION}" "${notes[@]}" > "${RUNNER_TEMP}/notes.md"
-          flags=()
-          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--prerelease); fi
           gh release create "${TAG}" release/* \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "opentide ${VERSION}" \
-            --notes-file "${RUNNER_TEMP}/notes.md" \
-            "${flags[@]}"
+            --notes-file "${RUNNER_TEMP}/notes.md"
       # What a user downloads checks out: the sums, and each package's attestation.
       - name: Verify the published assets
         env:
@@ -294,7 +281,6 @@ jobs:
       id-token: write
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
-      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
       # The Marketplace's package only: publisher `opentide` (the banned `opentidehq` cannot publish there).
       VSIX: release/opentide-marketplace-${{ needs.prepare.outputs.version }}.vsix
     steps:
@@ -325,9 +311,7 @@ jobs:
       - name: vsce publish --oidc
         run: |
           set -euo pipefail
-          flags=(--oidc --skip-duplicate)
-          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
-          tools/publish/node_modules/.bin/vsce publish "${flags[@]}" --packagePath "${VSIX}"
+          tools/publish/node_modules/.bin/vsce publish --oidc --skip-duplicate --packagePath "${VSIX}"
       # vsce reporting "Published" is not the Marketplace listing the package: 0.1.0, the extension's first
       # publish, kept only its first package of eight. Wait until the gallery lists the package, publish it
       # again if it is missing, and fail naming it if it still does not appear.
@@ -336,9 +320,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          flags=()
-          if [[ "${PRERELEASE}" == "true" ]]; then flags+=(--pre-release); fi
-          node tools/publish/marketplace.mjs opentide.opentide-vscode "${VERSION}" "${VSIX}" "${flags[@]}"
+          node tools/publish/marketplace.mjs opentide.opentide-vscode "${VERSION}" "${VSIX}"
 
   publish-openvsx:
     name: Publish to Open VSX
@@ -375,7 +357,6 @@ jobs:
           set -euo pipefail
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir release
           (cd release && sha256sum --check --strict SHA256SUMS)
-      # The pre-release flag is in the package (`vsce package --pre-release`); ovsx reads it from there.
       - name: ovsx publish
         env:
           # Only for the first publish of the extension, which trusted publishing cannot do; remove the

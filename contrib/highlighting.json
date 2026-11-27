@@ -14,8 +14,12 @@
           "typeParameter": ["entity.name.type.parameter"],
           "parameter": ["variable.parameter"],
           "variable": ["variable.other.readwrite", "entity.name.variable"],
-          "property": ["variable.other.property.tide", "variable.other.property"],
-          "enumMember": ["variable.other.enummember.tide", "variable.other.enummember"],
+          "property": ["entity.name.tag.yaml.tide", "variable.other.property"],
+          "enumMember": [
+            "support.constant.enum.tide",
+            "variable.other.enummember.tide",
+            "variable.other.enummember"
+          ],
           "event": ["variable.other.event"],
           "function": ["entity.name.function", "support.function"],
           "method": ["entity.name.function.member", "support.function"],
@@ -23,7 +27,7 @@
           "keyword": ["keyword.control"],
           "modifier": ["storage.modifier"],
           "comment": ["comment"],
-          "string": ["string.unquoted.plain.tide", "string"],
+          "string": ["string.unquoted.plain.out.yaml.tide", "string"],
           "number": ["constant.numeric"],
           "regexp": ["variable.other.constant.markdown.tide", "variable.other.constant"],
           "operator": ["keyword.operator"],

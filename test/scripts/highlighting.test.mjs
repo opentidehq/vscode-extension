@@ -11,7 +11,16 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { alignTide, OPERATOR, OPERATOR_LIST } from "../../scripts/tide-align.mjs";
+import {
+  alignTide,
+  KEY,
+  OPERATOR,
+  OPERATOR_LIST,
+  PROPERTY,
+  renameScopes,
+  VALUE,
+  VALUE_BLOCK,
+} from "../../scripts/tide-align.mjs";
 
 const require = createRequire(import.meta.url);
 const vsctm = require("vscode-textmate");
@@ -217,8 +226,8 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
   });
 
   it("paints a date and a value that starts with digits as one string, not as numbers", () => {
-    assert.equal(lastScope(kql, "created:", "2026-11-22"), "string.unquoted.plain.tide");
-    assert.equal(lastScope(kql, "interval:", "1h"), "string.unquoted.plain.tide");
+    assert.equal(lastScope(kql, "created:", "2026-11-22"), VALUE);
+    assert.equal(lastScope(kql, "interval:", "1h"), VALUE);
     // …and a UUID that starts with digits is a UUID, not a number followed by text.
     assert.equal(
       lastScope(kql, "detection_model:", "00000000-0000-4000-8006-000000000007"),
@@ -228,12 +237,12 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
 
   it("paints list items as the server does: the dash punctuation of its own, the value a string", () => {
     assert.equal(lastScope(kql, "- Acme", "-"), OPERATOR_LIST);
-    assert.equal(lastScope(kql, "- Acme", "Acme"), "string.unquoted.plain.tide");
+    assert.equal(lastScope(kql, "- Acme", "Acme"), VALUE);
   });
 
   it("paints Markdown text of a description as strings, with the marks the server gives them", () => {
     assert.ok(underType(lastScope(esql, "# What it finds", "# What it finds"), "type"));
-    assert.ok(scopesOf(esql, "# What it finds", "What").includes("string.unquoted.block.tide"));
+    assert.ok(scopesOf(esql, "# What it finds", "What").includes(VALUE_BLOCK));
     assert.ok(underType(lastScope(esql, "Elastic ESQL with", "`code`"), "regexp"));
     // not `constant.regexp`, which Dark+ and Dark Modern colour #646695 (3.0:1)
     assert.equal(lastScope(esql, "Elastic ESQL with", "`code`"), "variable.other.constant.markdown.tide");
@@ -379,16 +388,8 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
         const lines = await tokenize(text);
         for (const row of ["process.name:", "user.name:"]) {
           const scopes = lines.find((line) => line.line.includes(row)).flatMap((token) => token.scopes);
-          assert.equal(
-            scopes.includes("variable.other.property.tide"),
-            false,
-            `${row} in ${JSON.stringify(text)}`,
-          );
-          assert.equal(
-            scopes.includes("string.unquoted.plain.tide"),
-            false,
-            `${row} in ${JSON.stringify(text)}`,
-          );
+          assert.equal(scopes.includes(KEY), false, `${row} in ${JSON.stringify(text)}`);
+          assert.equal(scopes.includes(VALUE), false, `${row} in ${JSON.stringify(text)}`);
         }
       }
     });
@@ -398,8 +399,8 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
         "references:\n  - description: |\n      hello\n    url: https://x.y\n  - name: z\n",
       );
       assert.ok(underType(lastScope(lines, "url:", "url"), "property"), lastScope(lines, "url:", "url"));
-      assert.equal(lastScope(lines, "url:", "https://x.y"), "string.unquoted.plain.tide");
-      assert.equal(lastScope(lines, "hello", "hello"), "string.unquoted.block.tide");
+      assert.equal(lastScope(lines, "url:", "https://x.y"), VALUE);
+      assert.equal(lastScope(lines, "hello", "hello"), VALUE_BLOCK);
     });
 
     it("leaves a comment after an inline query out of the embedded language", async () => {
@@ -541,8 +542,27 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     });
   });
 
-  it("refuses a grammar that already has the Elastic rules, instead of applying them twice", () => {
+  it("scopes keys, values and enumerations as a YAML file's, which every theme colours", async () => {
+    // opentide 1.0.0's `variable.other.property` left keys in the default foreground in GitHub, Dracula and Monokai.
+    const lines = await tokenize("metadata:\n  tlp: amber\n  author: qa\nname: 'x'\n");
+    assert.equal(lastScope(lines, "metadata:", "metadata"), "entity.name.tag.yaml.tide");
+    assert.equal(lastScope(lines, "author:", "qa"), "string.unquoted.plain.out.yaml.tide");
+    assert.deepEqual(scopesOf(lines, "tlp:", "amber").slice(-2), [
+      "variable.other.enummember.tide",
+      "support.constant.enum.tide",
+    ]);
+    assert.equal(lastScope(lines, "name:", "'x'"), "string.unquoted.plain.out.yaml.tide");
+  });
+
+  it("renames scopes once: a second pass over the aligned grammar changes nothing", () => {
     const aligned = JSON.parse(readFileSync(join(root, "syntaxes", "tide.tmLanguage.json"), "utf8"));
+    assert.deepEqual(renameScopes(structuredClone(aligned)), aligned);
+  });
+
+  it("refuses a grammar that already has the Elastic rules, instead of applying them twice", () => {
+    // The aligned grammar with the zip's key scope back, so that only the Elastic rules tell it from the zip's.
+    const text = readFileSync(join(root, "syntaxes", "tide.tmLanguage.json"), "utf8");
+    const aligned = JSON.parse(text.replaceAll(KEY, PROPERTY));
     assert.throws(() => alignTide(aligned, Error), /the zip has Elastic rules of its own/);
   });
 });
