@@ -95,7 +95,7 @@
         { "command": "opentide.diagnostics.lintWorkspace", "when": "isWorkspaceTrusted && opentide.hasCli" },
         {
           "command": "opentide.diagnostics.validateFile",
-          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml"
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/"
         },
         { "command": "opentide.diagnostics.explain", "when": "isWorkspaceTrusted && opentide.hasCli" },
         { "command": "opentide.diagnostics.fixAllSafe", "when": "isWorkspaceTrusted && opentide.hasCli" },
@@ -104,7 +104,7 @@
       "editor/title": [
         {
           "command": "opentide.diagnostics.validateFile",
-          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml && resourceScheme == file",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && resourceScheme == file",
           "group": "navigation@50"
         }
       ]

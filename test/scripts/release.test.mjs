@@ -167,23 +167,24 @@ describe("release: the version CHANGELOG.md releases", () => {
 });
 
 describe("release: check", () => {
-  it("from 1.1.0, refuses a version that is not the opentide release the pins ship", () => {
-    const changelog =
-      "## [Unreleased]\n\n## [1.1.0] - 2026-11-27\n\nopentide 1.1.0.\n\n## [1.0.0] - 2026-11-26\n\nx\n";
+  it("from 1.1.0, ships an opentide of its own major and minor, no newer than itself", () => {
+    const changelog = (v) =>
+      `## [Unreleased]\n\n## [${v}] - 2026-11-27\n\nopentide.\n\n## [1.0.0] - 2026-11-26\n\nx\n`;
     const pins = (v) => ({ wasi: { version: v }, highlights: { version: v }, engine: { version: v } });
     // Only the lockstep's problems (the pins here have no digests).
-    const lockstep = (found) => found.filter((f) => f.includes("ships opentide"));
-    assert.deepEqual(lockstep(problems({ changelog, packageVersion: "1.1.0", pins: pins("1.1.0") })), []);
-    const found = lockstep(
-      problems({
-        changelog,
-        packageVersion: "1.1.0",
-        pins: { ...pins("1.1.0"), engine: { version: "1.0.0" } },
-      }),
-    );
-    assert.deepEqual(found, [
-      "pins.json engine is opentide 1.0.0, but 1.1.0 ships opentide 1.1.0: the extension's version is the opentide release it carries",
+    const lockstep = (version, pinned) =>
+      problems({ changelog: changelog(version), packageVersion: version, pins: pinned }).filter((f) =>
+        f.includes("ships an opentide"),
+      );
+    assert.deepEqual(lockstep("1.1.0", pins("1.1.0")), []);
+    // A patch of the extension's own, on the same opentide.
+    assert.deepEqual(lockstep("1.1.1", pins("1.1.0")), []);
+    assert.deepEqual(lockstep("1.1.1", pins("1.1.1")), []);
+    assert.deepEqual(lockstep("1.1.1", { ...pins("1.1.0"), engine: { version: "1.0.0" } }), [
+      "pins.json engine is opentide 1.0.0, but 1.1.1 ships an opentide 1.1.x no newer than itself: the extension's major and minor are opentide's",
     ]);
+    assert.equal(lockstep("1.2.0", pins("1.1.0")).length, 3, "a new minor is opentide's");
+    assert.equal(lockstep("1.1.0", pins("1.1.2")).length, 3, "never older than the opentide it ships");
   });
 
   it("passes when the notes PR moved [Unreleased] and bumped package.json", () => {

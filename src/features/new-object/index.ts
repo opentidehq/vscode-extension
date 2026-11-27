@@ -1,6 +1,6 @@
 // New objects (SPEC §7, #14): "New object…" runs `opentide new` (the only thing that creates an object,
 // D3) from a multi-step quick input, opens the file on its first placeholder, and handles each failure
-// by its code. Also placeholder navigation and the workspace's `tide-*` snippets in `opentide-yaml`.
+// by its code. Also placeholder navigation and the workspace's `tide-*` snippets in object files.
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -9,6 +9,7 @@ import * as vscode from "vscode";
 import { BackendError } from "../../core/backend/types";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { objectSelector } from "../../core/lsp";
 import { explainUnavailable } from "../../core/services/unavailable";
 import { editorOnlyText } from "../../core/unavailable";
 import {
@@ -111,7 +112,7 @@ class NewObject implements vscode.Disposable, vscode.CodeActionProvider {
         });
       }),
       command("opentide.newObject.regenerateTemplates", () => this.regenerate()),
-      vscode.languages.registerCodeActionsProvider({ language: "opentide-yaml" }, this, {
+      vscode.languages.registerCodeActionsProvider(objectSelector(), this, {
         providedCodeActionKinds: [vscode.CodeActionKind.Refactor],
       }),
       ctx.folders.onDidChange(() => this.updateFolderContext()),

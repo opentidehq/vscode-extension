@@ -11,6 +11,14 @@ describe("a window with no opentide content", () => {
     assert.equal(hasOpentideContent(1, []), true);
     assert.equal(hasOpentideContent(0, ["markdown", "opentide-yaml"]), true);
     assert.equal(hasOpentideContent(0, ["opentide-config"]), true);
-    assert.deepEqual([...OPENTIDE_LANGUAGES].sort(), ["opentide-config", "opentide-yaml"]);
+    // A rule opened alone is opentide-rule: it wakes the window too.
+    assert.equal(hasOpentideContent(0, ["opentide-rule"]), true);
+    assert.deepEqual([...OPENTIDE_LANGUAGES].sort(), [
+      "opentide-config",
+      "opentide-objective",
+      "opentide-rule",
+      "opentide-threat",
+      "opentide-yaml",
+    ]);
   });
 });

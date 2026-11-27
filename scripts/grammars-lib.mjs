@@ -106,6 +106,12 @@ export function transformHighlights(files) {
       );
     } else if (embeddedLanguages) entry.embeddedLanguages = embeddedLanguages;
     grammars.push(entry);
+    if (stem === "tide") {
+      for (const wrapper of typeGrammars(entry)) {
+        outputs.set(wrapper.file, wrapper.text);
+        grammars.push(wrapper.entry);
+      }
+    }
   }
   if (!outputs.has("esql.tmLanguage.json"))
     throw new GrammarError("zip has no generated/esql.tmLanguage.json");
@@ -115,6 +121,35 @@ export function transformHighlights(files) {
     }
   }
   return { outputs, grammars };
+}
+
+/**
+ * The languages of each object type (src/engine/languages.ts OBJECT_TYPE_LANGUAGES), which have an icon of their own:
+ * the Explorer and tabs draw a language's. Each one's grammar is the opentide-yaml grammar, included whole.
+ */
+export const TYPE_LANGUAGES = ["opentide-threat", "opentide-objective", "opentide-rule"];
+
+/** A grammar per type language that includes opentide-yaml's (`tide`'s entry), with its embedded languages. */
+export function typeGrammars(tide) {
+  return TYPE_LANGUAGES.map((language) => {
+    const scopeName = `source.${language}`;
+    const grammar = {
+      name: `opentide ${language}`,
+      scopeName,
+      comment: `${language} is opentide-yaml with an icon of its own: the same grammar (scripts/grammars-lib.mjs)`,
+      patterns: [{ include: tide.scopeName }],
+    };
+    return {
+      file: `${language}.tmLanguage.json`,
+      text: `${JSON.stringify(grammar, null, 2)}\n`,
+      entry: {
+        language,
+        scopeName,
+        path: `./syntaxes/${language}.tmLanguage.json`,
+        ...(tide.embeddedLanguages ? { embeddedLanguages: tide.embeddedLanguages } : {}),
+      },
+    };
+  });
 }
 
 /** Rename the copied TOML grammar's scope and fail when the old scope remains. */

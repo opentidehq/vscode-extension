@@ -38,9 +38,9 @@ extension name and the display name differ):
 
 Settings, commands and the MCP server have the same names under either id.
 
-The extension's version is the opentide release it ships: 1.1.0 carries opentide 1.1.0. Every release is
-stable; there is no pre-release channel. A pinned version installs with
-`code --install-extension opentide.opentide-vscode@1.1.0`.
+The extension's major and minor are those of the opentide release it ships: 1.1.x carries opentide 1.1.
+Every release is stable; there is no pre-release channel. A pinned version installs with
+`code --install-extension opentide.opentide-vscode@1.1.1`.
 Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries both
 packages as `.vsix` files (**Extensions: Install from VSIX…**): `opentide-marketplace-<version>.vsix`
 for VS Code and `opentide-openvsx-<version>.vsix` for the other editors, with `SHA256SUMS` and build
@@ -73,7 +73,10 @@ extension runs `python -m opentide` with the same interpreter.
 
 | Language | Files | Id |
 |----------|-------|----|
-| Tide YAML | `objects/**/*.yaml`, and the object folders `paths.toml` names | `opentide-yaml` |
+| opentide threat | `objects/threats/**/*.yaml`, and the threat folder `paths.toml` names | `opentide-threat` |
+| opentide objective | `objects/objectives/**/*.yaml`, and the objective folder `paths.toml` names | `opentide-objective` |
+| opentide rule | `objects/rules/**/*.yaml`, and the rule folder `paths.toml` names | `opentide-rule` |
+| opentide object (Tide YAML) | the rest of `objects/**/*.yaml` | `opentide-yaml` |
 | opentide configuration | `.opentide/configurations/**/*.toml` | `opentide-config` |
 | KQL (Microsoft) | `.kql` | `kql` |
 | SPL | `.spl` | `spl` |
@@ -178,7 +181,7 @@ with a warning icon.
 - **opentide: Show Relations** (Command Palette, the editor title, the editor's context menu) shows the
   view on the active object without taking the focus from the editor. It has no default key; bind
   `opentide.relations.show` in Keyboard Shortcuts, for example to `Ctrl+Shift+Alt+R`
-  (`Cmd+Shift+Alt+R` on macOS) with `when` `editorLangId == opentide-yaml`.
+  (`Cmd+Shift+Alt+R` on macOS) with `when` `editorLangId =~ /^opentide-(yaml|threat|objective|rule)$/`.
 - A CodeLens on each object's `name:` line sums up its relations both ways, for example `Implements →
   Detect LSASS memory access · ← Implemented by 3 rules`; click it to show the view. It needs `info
   catalog`, and `opentide.relations.codeLens` turns it off. The language server's own lens on

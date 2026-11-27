@@ -19,13 +19,13 @@ import {
   type ServerObject,
 } from "../engine/catalog";
 import { type FeedFolder, relativeTo, WorkspaceFeed } from "../engine/feed";
-import { WEB_DOCUMENT_SELECTOR } from "../engine/languages";
+import { isObjectLanguage, objectLanguageOf, WEB_DOCUMENT_SELECTOR } from "../engine/languages";
 import { convertShowReferencesArgs } from "../engine/lsp";
 import { objectFolders } from "../engine/pathsToml";
 import { DID_CHANGE_WORKSPACE, takesWorkspaceUpdates } from "../engine/protocol";
 import { EngineSync, initializationOptions, type SyncAction } from "../engine/sync";
 import type { EnginePort, engineTransports } from "../engine/transport";
-import { isSuppliedPath, objectRoots } from "../engine/workspace";
+import { isConfigurationPath, isSuppliedPath, objectRoots, objectTypeAt } from "../engine/workspace";
 import { uniqueObjects } from "./catalogueModel";
 
 /** What the entry provides: the worker, and the client for this extension host. */
@@ -126,16 +126,18 @@ export class EngineSession implements vscode.Disposable {
   }
 
   /**
-   * Give YAML in a paths.toml object folder the `opentide-yaml` language, as the desktop core does: the
-   * manifest's pattern only knows `objects/`.
+   * Give YAML in a paths.toml object folder its type's language (`opentide-rule`, else `opentide-yaml`), as the
+   * desktop core does: the manifest's patterns only know the default folders under `objects/`.
    */
   private associate(document: vscode.TextDocument): void {
-    if (document.languageId !== "yaml") return;
+    const { languageId } = document;
+    if (languageId !== "yaml" && !isObjectLanguage(languageId)) return;
     for (const folder of this.folders) {
       const relative = relativeTo(folder.uri, document.uri);
       if (relative === undefined) continue;
-      if (isSuppliedPath(relative, folder.objectFolders))
-        void vscode.languages.setTextDocumentLanguage(document, "opentide-yaml");
+      if (!isSuppliedPath(relative, folder.objectFolders) || isConfigurationPath(relative)) return;
+      const language = objectLanguageOf(objectTypeAt(relative, folder.objectFolders));
+      if (language !== languageId) void vscode.languages.setTextDocumentLanguage(document, language);
       return;
     }
   }

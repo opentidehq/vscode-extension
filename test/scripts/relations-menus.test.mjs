@@ -57,7 +57,10 @@ describe("the Relations view in the manifest", () => {
     for (const menu of ["editor/title", "editor/context"]) {
       const entry = menus[menu].find((m) => m.command === "opentide.relations.show");
       assert.ok(entry, menu);
-      assert.match(entry.when, /resourceLangId == opentide-yaml/);
+      assert.ok(
+        entry.when.includes("resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/"),
+        entry.when,
+      );
       assert.match(entry.when, /opentide\.hasWorkspace/);
     }
     const palette = menus.commandPalette.find((m) => m.command === "opentide.relations.show");

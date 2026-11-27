@@ -542,6 +542,28 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
     });
   });
 
+  it("highlights a threat, an objective and a rule as opentide-yaml: each type's grammar includes it whole", async () => {
+    const samples = ["sentinel-full.yaml", "elastic-esql.yaml", "markdown-rich.yaml"].map((name) =>
+      readFileSync(join(root, "test", "fixtures", "highlighting", "samples", "yaml", name), "utf8"),
+    );
+    for (const language of ["opentide-threat", "opentide-objective", "opentide-rule"]) {
+      const entry = pkg.contributes.grammars.find((g) => g.language === language);
+      assert.ok(entry, language);
+      const tide = pkg.contributes.grammars.find((g) => g.language === "opentide-yaml");
+      assert.deepEqual(entry.embeddedLanguages, tide.embeddedLanguages, language);
+      for (const text of samples) {
+        const own = await tokenize(text, entry.scopeName);
+        const yaml = await tokenize(text, "source.opentide-yaml");
+        // The same tokens and scopes (tokenize leaves out the root scope, the only difference).
+        assert.deepEqual(
+          own.map((line) => line.map((t) => [t.start, t.end, t.scopes])),
+          yaml.map((line) => line.map((t) => [t.start, t.end, t.scopes])),
+          language,
+        );
+      }
+    }
+  });
+
   it("scopes keys, values and enumerations as a YAML file's, which every theme colours", async () => {
     // opentide 1.0.0's `variable.other.property` left keys in the default foreground in GitHub, Dracula and Monokai.
     const lines = await tokenize("metadata:\n  tlp: amber\n  author: qa\nname: 'x'\n");

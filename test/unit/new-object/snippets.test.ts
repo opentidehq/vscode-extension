@@ -50,6 +50,10 @@ describe("new-object: snippets", () => {
       ["tide-rule", "tide-sentinel", "tide-splunk", "tide-threat"],
     );
     assert.ok(servedNatively("yaml,opentide-yaml"));
+    // A rule is opentide-rule: VS Code serves it a snippet scoped to opentide-rule, not one scoped to opentide-yaml.
+    assert.ok(!servedNatively("yaml,opentide-yaml", "opentide-rule"));
+    assert.ok(servedNatively("yaml,opentide-rule", "opentide-rule"));
+    assert.ok(servedNatively(undefined, "opentide-rule"));
     assert.ok(servedNatively(undefined));
     assert.ok(!servedNatively("yaml"));
     assert.deepEqual(tideSnippets("not json"), []);

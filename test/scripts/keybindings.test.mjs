@@ -49,11 +49,18 @@ describe("keybindings", () => {
 
   it("is scoped to an opentide file or workspace", () => {
     for (const binding of bindings)
-      assert.match(binding.when ?? "", /\bopentide\.\w+|editorLangId == opentide-/, binding.command);
+      assert.match(
+        binding.when ?? "",
+        /\bopentide\.\w+|editorLangId (==|=~) \/?\^?opentide-/,
+        binding.command,
+      );
   });
 
   it("moves between placeholders only in Tide YAML", () => {
     for (const binding of bindings.filter((b) => b.command.startsWith("opentide.placeholder.")))
-      assert.match(binding.when, /editorLangId == opentide-yaml/);
+      assert.ok(
+        binding.when.includes("editorLangId =~ /^opentide-(yaml|threat|objective|rule)$/"),
+        binding.when,
+      );
   });
 });

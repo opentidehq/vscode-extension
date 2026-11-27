@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { TYPE_LANGUAGES } from "../../scripts/grammars-lib.mjs";
 import {
   DEFAULT_THEMES,
   mainColour,
@@ -58,7 +59,9 @@ describe("highlighting contrast: VS Code's default themes on opentide's grammars
     const pkg = read(join(root, "package.json"));
     const groups = new Set(rows.map((r) => r.group));
     for (const { language } of pkg.contributes.grammars)
-      if (language !== "opentide-config") assert.ok(groups.has(language), `no sample in ${language}`);
+      // A type's language is opentide-yaml's grammar whole (highlighting.test.mjs checks it token by token).
+      if (language !== "opentide-config" && !TYPE_LANGUAGES.includes(language))
+        assert.ok(groups.has(language), `no sample in ${language}`);
   });
 
   it("keeps every token type readable, coloured and distinct once the server's tokens land", () => {

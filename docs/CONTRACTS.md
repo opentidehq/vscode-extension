@@ -131,6 +131,7 @@ language-server is merged into opentide (opentidehq/opentide ADR 0004): its engi
 | opentidehq/language-server#195 | The ES\|QL grammar's `scopeName` is `source.opentide.esql` |
 | opentidehq/language-server#196 | Each release carries `SHA256SUMS` and build-provenance attestations |
 | opentidehq/language-server#197 | `DOCUMENT_SELECTOR` includes `opentide-config`; a scheme-less `WEB_DOCUMENT_SELECTOR` |
+| (the extension) | An object file's `languageId` is its type's language, `opentide-threat`, `opentide-objective` or `opentide-rule`, or `opentide-yaml` for an object of no known type (SPEC §5). The server treats the four alike: tokens, hover, symbols and diagnostics of a rule are the same under `opentide-rule` and `opentide-yaml` (checked with opentide 1.1.0). A server that keyed on `opentide-yaml` would break this |
 | opentidehq/language-server#198 | `opentide/catalog {root?}` (params may be omitted or `null`) → `{roots: [{root, objects: [{uuid, object_type, schema, name, uri, range, refs: [{uuid, field_path, range}]}]}]}` and the notification `opentide/catalogChanged {root}`, also sent when a root appears or goes (`root: null` for the root-less set). `refs` are the reference fields only, not every UUID-valued string. A `root` keeps its own URI scheme (`vscode-vfs://…` in a virtual workspace); a trailing slash still matches |
 
 ## Versions the extension gates on

@@ -9,6 +9,7 @@ import { BackendError } from "../../core/backend/types";
 import { findByUuid } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { isObjectLanguage } from "../../core/lsp";
 import { displayArgv } from "../../core/runtime/env";
 import { ensureSaved } from "../../core/util/saved";
 import { platformName } from "../sidebar/platformNames";
@@ -203,7 +204,7 @@ async function resolveTarget(
   if (
     editor &&
     ctx.folders.isObjectFile(editor.document.uri) &&
-    editor.document.languageId === "opentide-yaml"
+    isObjectLanguage(editor.document.languageId)
   ) {
     const folder = ctx.folders.folderOf(editor.document.uri);
     if (folder)

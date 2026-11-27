@@ -2,10 +2,35 @@
 
 All notable changes to the opentide extension (`opentide.opentide-vscode` on the Visual Studio Marketplace,
 `opentidehq.opentide` on Open VSX). The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.1.0 the extension's version is the
-opentide release it ships, and every release is stable.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.1.0 the extension's major and minor are
+those of the opentide release it ships, and every release is stable.
 
 ## [Unreleased]
+
+## [1.1.1] - 2026-11-27
+
+Fixes 1.1.0's file icons: threats, objectives and rules now show their own in the Explorer and tabs. It
+ships opentide 1.1.0.
+
+### Upgrade
+
+- **If you set `[opentide-yaml]` settings, copy them to `[opentide-threat]`, `[opentide-objective]` and
+  `[opentide-rule]`.** Language settings do not carry over to the new languages. The same goes for
+  keybindings whose `when` names `opentide-yaml`.
+
+### Breaking
+
+- **Threats, objectives and rules have languages of their own:** `opentide-threat`,
+  `opentide-objective` and `opentide-rule`. `opentide-yaml` is now the language of other object files
+  only. Settings, keybindings and `when` clauses that name `opentide-yaml` no longer cover the three.
+
+### Changed
+
+- **Threats, objectives and rules show their own icons in the Explorer and tabs.** A red biohazard, a
+  blue target and a green siren, as in the Catalogue, also in breadcrumbs and Quick Open. A file in a
+  folder only `paths.toml` names shows its icon once opened.
+- **A fix of the extension alone is a patch of its own.** The major and minor follow opentide's, so
+  1.1.1 ships opentide 1.1.0.
 
 ## [1.1.0] - 2026-11-27
 

@@ -10,6 +10,7 @@ import {
   SERVER_CATALOG,
 } from "../../core/catalog/serverCatalog";
 import type { FeatureContext } from "../../core/context";
+import { isObjectLanguage, objectSelector } from "../../core/lsp";
 import { debounce } from "./loader";
 import type { NodeRef, TreeNode } from "./node";
 import {
@@ -158,7 +159,7 @@ export class RelationsView implements vscode.Disposable {
     if (uri.scheme !== "file") return false;
     const folder = this.ctx.folders.folderOf(uri);
     if (!folder) return false;
-    if (editor.document.languageId !== "opentide-yaml" && !this.ctx.folders.isObjectFile(uri)) return false;
+    if (!isObjectLanguage(editor.document.languageId) && !this.ctx.folders.isObjectFile(uri)) return false;
     this.column = editor.viewColumn;
     const current = this.target;
     if (current && "file" in current && current.file === uri.fsPath && current.folder === folder.path)
@@ -344,7 +345,7 @@ export class RelationsView implements vscode.Disposable {
           path: uri.fsPath,
           scheme: uri.scheme,
           folder: this.ctx.folders.folderOf(uri)?.path,
-          isObject: editor?.document.languageId === "opentide-yaml" || this.ctx.folders.isObjectFile(uri),
+          isObject: isObjectLanguage(editor?.document.languageId) || this.ctx.folders.isObjectFile(uri),
         });
         if (target.kind === "file") this.target = { folder: target.folder, file: target.file };
         else void vscode.window.setStatusBarMessage(`$(info) ${target.message}`, 5000);
@@ -442,7 +443,7 @@ export class RelationsView implements vscode.Disposable {
       },
     };
     this.disposables.push(
-      vscode.languages.registerCodeLensProvider({ language: "opentide-yaml", scheme: "file" }, provider),
+      vscode.languages.registerCodeLensProvider(objectSelector({ scheme: "file" }), provider),
     );
   }
 

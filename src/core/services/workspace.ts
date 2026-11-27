@@ -5,7 +5,8 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { FileChangeEvent, FolderService, OpentideFolder } from "../context";
-import { isObjectFile, objectsOnlyByCase, scanFolder } from "../folders";
+import { isObjectFile, objectsOnlyByCase, objectTypeOf, scanFolder } from "../folders";
+import { isObjectLanguage, objectLanguageOf } from "../lsp";
 import { Emitter } from "../util/event";
 
 export class FolderManager implements FolderService, vscode.Disposable {
@@ -124,6 +125,12 @@ export class FolderManager implements FolderService, vscode.Disposable {
     return folder ? isObjectFile(folder.path, uri.fsPath, folder.objectFolders) : false;
   }
 
+  /** The object type of a file (`rule`), from the folder's paths.toml; undefined outside a type's folder. */
+  objectTypeOf(uri: vscode.Uri): string | undefined {
+    const folder = this.folderOf(uri);
+    return folder ? objectTypeOf(folder.path, uri.fsPath, folder.objectFolders) : undefined;
+  }
+
   dispose(): void {
     for (const disposable of [...this.disposables, ...this.layoutWatchers]) disposable.dispose();
     this.emitter.dispose();
@@ -131,17 +138,21 @@ export class FolderManager implements FolderService, vscode.Disposable {
 }
 
 /**
- * Give YAML files in paths.toml object folders the `opentide-yaml` language, and `.opentide` TOML
- * `opentide-config`. A file the static objects-folder glob gave `opentide-yaml` only because VS Code
- * matches it without case (CoreTIDE's `Objects/`) goes back to `yaml`, unless it is an object file.
+ * Give an object file its type's language (`opentide-rule` in the rule folder paths.toml names, `opentide-yaml`
+ * for an object of no known type), and `.opentide` TOML `opentide-config`. The manifest's patterns know only the
+ * default folders (`objects/rules/`), so a renamed folder's files are set here. A file the static objects-folder
+ * globs gave an object language only because VS Code matches them without case (CoreTIDE's `Objects/`) goes back
+ * to `yaml`, unless it is an object file.
  */
 export function registerLanguageAssociation(folders: FolderManager): vscode.Disposable {
   const apply = (document: vscode.TextDocument): void => {
     if (document.uri.scheme !== "file") return;
-    if (document.languageId === "yaml" && folders.isObjectFile(document.uri)) {
-      void vscode.languages.setTextDocumentLanguage(document, "opentide-yaml");
+    const { languageId } = document;
+    if ((languageId === "yaml" || isObjectLanguage(languageId)) && folders.isObjectFile(document.uri)) {
+      const language = objectLanguageOf(folders.objectTypeOf(document.uri));
+      if (language !== languageId) void vscode.languages.setTextDocumentLanguage(document, language);
     } else if (
-      document.languageId === "opentide-yaml" &&
+      isObjectLanguage(languageId) &&
       objectsOnlyByCase(document.uri.fsPath) &&
       !folders.isObjectFile(document.uri)
     ) {
