@@ -33,27 +33,27 @@
         },
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml"
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/"
         }
       ],
       "editor/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/",
           "group": "opentide@10"
         }
       ],
       "explorer/context": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/",
           "group": "opentide@10"
         }
       ],
       "editor/title": [
         {
           "command": "opentide.graph.showInGraph",
-          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasWorkspace && (opentide.hasInfoCatalog || opentide.editorOnly) && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/",
           "group": "navigation@20"
         }
       ]

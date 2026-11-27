@@ -191,6 +191,23 @@ describe("package.json", () => {
     assert.equal(pkg.contributes.configurationDefaults["[opentide-yaml]"]["editor.tabSize"], 2);
   });
 
+  it("tests for an object file by every object language, never opentide-yaml alone", () => {
+    // A threat, an objective and a rule are opentide-threat, opentide-objective and opentide-rule.
+    const whens = [];
+    for (const items of Object.values(pkg.contributes.menus))
+      for (const item of items) whens.push(item.when ?? "");
+    for (const binding of pkg.contributes.keybindings ?? []) whens.push(binding.when ?? "");
+    for (const when of whens) {
+      assert.doesNotMatch(when, /LangId == opentide-yaml/, when);
+      if (/opentide-yaml/.test(when))
+        assert.match(
+          when,
+          /opentide-(yaml\|threat\|objective\|rule|yaml\|opentide-threat\|opentide-objective\|opentide-rule)/,
+          when,
+        );
+    }
+  });
+
   it("points every language and grammar at a file that exists", () => {
     for (const language of pkg.contributes.languages)
       assert.ok(existsSync(join(root, language.configuration)), language.configuration);
@@ -213,6 +230,48 @@ describe("package.json", () => {
       }
     }
     assert.match(shipped, /^!images\/languages\/\*\*$/m);
+  });
+
+  it("gives a threat, an objective and a rule each its type's icon, in the Explorer and tabs", () => {
+    // VS Code draws a language's icon there, and only a language's: one language per type (SPEC §5).
+    const byId = Object.fromEntries(pkg.contributes.languages.map((l) => [l.id, l]));
+    const icons = new Set();
+    for (const [type, folder] of [
+      ["threat", "threats"],
+      ["objective", "objectives"],
+      ["rule", "rules"],
+    ]) {
+      const language = byId[`opentide-${type}`];
+      assert.ok(language, type);
+      assert.deepEqual(language.icon, {
+        light: `./images/objects/${type}-light.svg`,
+        dark: `./images/objects/${type}-dark.svg`,
+      });
+      for (const path of [language.icon.light, language.icon.dark])
+        assert.ok(existsSync(join(root, path)), path);
+      icons.add(language.icon.light);
+      // Longer than opentide-yaml's objects/** pattern, so VS Code picks it for the type's folder.
+      assert.deepEqual(language.filenamePatterns, [
+        `**/objects/${folder}/**/*.yaml`,
+        `**/objects/${folder}/**/*.yml`,
+      ]);
+      assert.equal(language.configuration, "./language-configuration/opentide-yaml.json");
+      assert.ok(
+        pkg.contributes.grammars.some((g) => g.language === language.id),
+        language.id,
+      );
+      assert.ok(
+        pkg.contributes.semanticTokenScopes.some((s) => s.language === language.id),
+        language.id,
+      );
+      assert.ok(pkg.activationEvents.includes(`onLanguage:${language.id}`), language.id);
+      assert.deepEqual(
+        pkg.contributes.configurationDefaults[`[${language.id}]`],
+        pkg.contributes.configurationDefaults["[opentide-yaml]"],
+        language.id,
+      );
+    }
+    assert.equal(icons.size, 3, "three different icons");
   });
 
   it("associates opentide-yaml with objects/** and opentide-config with .opentide/configurations/**", () => {
@@ -241,7 +300,7 @@ describe("Show in Graph", () => {
       const [entry, ...more] = entries(menu);
       assert.ok(entry, `${menu} has Show in Graph`);
       assert.equal(more.length, 0, `${menu} has it once`);
-      assert.match(entry.when, /resourceLangId == opentide-yaml/, menu);
+      assert.ok(entry.when.includes("resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/"), menu);
       assert.match(entry.when, /opentide\.hasInfoCatalog/, `${menu}: only where the graph can draw`);
     }
     assert.match(entries("editor/title")[0].group, /^navigation@/, "an icon in the title bar");
