@@ -199,7 +199,7 @@ function renderHeader(s: MatrixState): void {
           title: "Techniques (not sub-techniques) with at least one rule",
         })
       : null,
-    view ? chip({ text: `${view.rules} rule${view.rules === 1 ? "" : "s"}`, icon: "shield" }) : null,
+    view ? chip({ text: `${view.rules} rule${view.rules === 1 ? "" : "s"}`, icon: "bell" }) : null,
     s.refreshing ? h("span", { class: "ot-hint" }, [mount(spinner("Refreshing")), " refreshing"]) : null,
   ];
   replace(
@@ -817,7 +817,7 @@ function renderDetail(): void {
       h("div", { class: "mono muted", text: d.id }),
       h("h2", { text: d.name }),
     ]),
-    refList("Rules", d.rules, "No rule covers it: a gap.", "shield"),
+    refList("Rules", d.rules, "No rule covers it: a gap.", "bell"),
     f.layer !== "rules"
       ? refList("Planned objectives", d.planned, "No objective without rules names it.", "clock")
       : null,
