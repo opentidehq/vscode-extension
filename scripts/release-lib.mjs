@@ -68,7 +68,10 @@ export function unreleasedEntries(changelog) {
  * What keeps `tag` from being released from this tree; empty when nothing does. Reads CHANGELOG.md and
  * package.json's version; whether the tag already exists is the workflow's check (it needs git).
  */
-/** The first version released in lockstep with opentide: extension x.y.z ships opentide x.y.z. */
+/**
+ * The first version released in lockstep with opentide: extension x.y.z ships an opentide x.y.*, at most x.y.z.
+ * The major and minor are opentide's; a patch may be the extension's own (1.1.1 on opentide 1.1.0).
+ */
 export const LOCKSTEP_FROM = "1.1.0";
 
 export function problems({ changelog, packageVersion, tag, pins }) {
@@ -101,13 +104,15 @@ export function problems({ changelog, packageVersion, tag, pins }) {
       `package.json's version is ${packageVersion}, CHANGELOG.md's newest is ${version}: the notes PR bumps both`,
     );
   }
-  // From 1.1.0 the extension's version is the opentide release it ships (docs/RELEASING.md).
+  // From 1.1.0 the extension's major and minor are those of the opentide it ships (docs/RELEASING.md).
   if (pins && compareVersions(version, LOCKSTEP_FROM) >= 0) {
+    const series = version.split(".").slice(0, 2).join(".");
     for (const pin of ["wasi", "highlights", "engine"]) {
       const pinned = pins[pin]?.version;
-      if (pinned !== version)
+      const sameSeries = typeof pinned === "string" && pinned.split(".").slice(0, 2).join(".") === series;
+      if (!sameSeries || compareVersions(pinned, version) > 0)
         found.push(
-          `pins.json ${pin} is opentide ${pinned ?? "(none)"}, but ${version} ships opentide ${version}: the extension's version is the opentide release it carries`,
+          `pins.json ${pin} is opentide ${pinned ?? "(none)"}, but ${version} ships an opentide ${series}.x no newer than itself: the extension's major and minor are opentide's`,
         );
     }
   }

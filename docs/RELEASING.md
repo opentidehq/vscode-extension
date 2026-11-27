@@ -233,14 +233,15 @@ If `production` has reviewers, approve the two publish jobs when the run pauses.
 
 ## Versions and channel
 
-- **The extension's version is the opentide release it ships**, in lockstep: extension `x.y.z` carries
-  opentide `x.y.z` (`pins.json` `wasi`, `highlights` and `engine`). `release.mjs check` refuses a version
-  that differs from those pins. From 1.1.0 on; 0.x and 1.0.0 had versions of their own.
+- **The extension's major and minor are those of the opentide release it ships**: extension `x.y.z` carries
+  an opentide `x.y.*` no newer than `x.y.z` (`pins.json` `wasi`, `highlights` and `engine`). A new opentide
+  release is shipped at its version (1.1.0 on opentide 1.1.0); a fix of the extension alone is a patch of its
+  own (1.1.1 on opentide 1.1.0), and the next opentide patch, if any, takes the next free number.
+  `release.mjs check` refuses anything else. From 1.1.0 on; 0.x and 1.0.0 had versions of their own.
 - **Every release is stable**: no pre-release channel, no `--pre-release` at packaging or publishing, and
   the GitHub Release is the latest. `release.mjs assets` refuses a package flagged as a pre-release. (Up to
   1.0.0 an odd minor was a pre-release; that rule is gone.)
-- A change to the extension alone ships with the next opentide release. The stores never take a version
-  twice, so there is no extension-only `x.y.z`.
+- The stores never take a version twice: an extension-only patch uses a number no release had.
 
 ## Release cadence and opentide bumps
 
