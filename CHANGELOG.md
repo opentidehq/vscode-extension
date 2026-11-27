@@ -7,6 +7,11 @@ those of the opentide release it ships, and every release is stable.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-27
+
+Fixes 1.1.0's file icons: threats, objectives and rules now show their own in the Explorer and tabs. It
+ships opentide 1.1.0.
+
 ### Upgrade
 
 - **If you set `[opentide-yaml]` settings, copy them to `[opentide-threat]`, `[opentide-objective]` and
@@ -24,6 +29,8 @@ those of the opentide release it ships, and every release is stable.
 - **Threats, objectives and rules show their own icons in the Explorer and tabs.** A red biohazard, a
   blue target and a green siren, as in the Catalogue, also in breadcrumbs and Quick Open. A file in a
   folder only `paths.toml` names shows its icon once opened.
+- **A fix of the extension alone is a patch of its own.** The major and minor follow opentide's, so
+  1.1.1 ships opentide 1.1.0.
 
 ## [1.1.0] - 2026-11-27
 
