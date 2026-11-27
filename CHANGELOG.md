@@ -7,6 +7,11 @@ pre-releases odd ones.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-27
+
+The extension reaches 1.0: rules look like YAML in every colour theme, and threats, objectives and
+rules have icons of their own.
+
 ### Changed
 
 - **Rules look like YAML in every colour theme.** Keys, values and enumerations take your theme's
