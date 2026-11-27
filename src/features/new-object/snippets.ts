@@ -1,7 +1,8 @@
 // The workspace's `tide-*` snippets (`.vscode/*.code-snippets`, written by `opentide generate
 // snippets` and `opentide setup vscode`). VS Code serves a snippet whose `scope` names
-// `opentide-yaml` (opentide#752) or has no scope; the others, scoped to `yaml` alone, vanish in
-// object files, so the extension offers those itself (SPEC §7 "Templates and snippets"). vscode-free.
+// the object file's language (`opentide-yaml`, opentide#752, or a type's: `opentide-rule`) or has no scope; the
+// others, scoped to `yaml` alone, vanish in object files, so the extension offers those itself (SPEC §7
+// "Templates and snippets"). vscode-free.
 
 export interface TideSnippet {
   readonly name: string;
@@ -44,20 +45,20 @@ export function parseJsonc(text: string): unknown {
   return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
 }
 
-/** Does VS Code itself offer a snippet with this `scope` in `opentide-yaml` files? */
-export function servedNatively(scope: unknown): boolean {
+/** Does VS Code itself offer a snippet with this `scope` in a file of `languageId` (an object's language)? */
+export function servedNatively(scope: unknown, languageId = "opentide-yaml"): boolean {
   if (typeof scope !== "string" || !scope.trim()) return true;
   return scope
     .split(",")
     .map((part) => part.trim())
-    .includes("opentide-yaml");
+    .includes(languageId);
 }
 
 /**
  * The `tide-*` snippets of one `.code-snippets` file. `all` includes those VS Code already serves
- * (for "Add <platform> block…"); otherwise only the ones it does not.
+ * (for "Add <platform> block…"); otherwise only the ones it does not in a file of `languageId`.
  */
-export function tideSnippets(text: string, all = false): TideSnippet[] {
+export function tideSnippets(text: string, all = false, languageId = "opentide-yaml"): TideSnippet[] {
   let document: unknown;
   try {
     document = parseJsonc(text);
@@ -72,7 +73,7 @@ export function tideSnippets(text: string, all = false): TideSnippet[] {
     const prefixes = Array.isArray(snippet.prefix) ? snippet.prefix : [snippet.prefix];
     const prefix = prefixes.find((p): p is string => typeof p === "string" && p.startsWith("tide-"));
     if (!prefix) continue;
-    if (!all && servedNatively(snippet.scope)) continue;
+    if (!all && servedNatively(snippet.scope, languageId)) continue;
     const body = Array.isArray(snippet.body)
       ? snippet.body.filter((line): line is string => typeof line === "string").join("\n")
       : typeof snippet.body === "string"

@@ -4,6 +4,7 @@
 import * as vscode from "vscode";
 
 import type { FeatureContext } from "../../core/context";
+import { isObjectLanguage, objectSelector } from "../../core/lsp";
 import { placeholdersLeft } from "./flow";
 import {
   isChanged,
@@ -61,7 +62,7 @@ export class Placeholders implements vscode.Disposable, vscode.CodeActionProvide
       }),
       vscode.commands.registerCommand("opentide.placeholder.next", () => this.go(1)),
       vscode.commands.registerCommand("opentide.placeholder.previous", () => this.go(-1)),
-      vscode.languages.registerCodeActionsProvider([{ language: "opentide-yaml" }], this, {
+      vscode.languages.registerCodeActionsProvider(objectSelector(), this, {
         providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
       }),
     );
@@ -69,7 +70,7 @@ export class Placeholders implements vscode.Disposable, vscode.CodeActionProvide
   }
 
   private applies(document: vscode.TextDocument): boolean {
-    if (document.languageId === "opentide-yaml") return true;
+    if (isObjectLanguage(document.languageId)) return true;
     return document.languageId === "yaml" && this.ctx.folders.isObjectFile(document.uri);
   }
 

@@ -85,13 +85,13 @@
         "command": "opentide.placeholder.next",
         "key": "ctrl+alt+.",
         "mac": "ctrl+alt+.",
-        "when": "editorTextFocus && editorLangId == opentide-yaml && opentide.hasPlaceholders"
+        "when": "editorTextFocus && editorLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && opentide.hasPlaceholders"
       },
       {
         "command": "opentide.placeholder.previous",
         "key": "ctrl+alt+,",
         "mac": "ctrl+alt+,",
-        "when": "editorTextFocus && editorLangId == opentide-yaml && opentide.hasPlaceholders"
+        "when": "editorTextFocus && editorLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && opentide.hasPlaceholders"
       }
     ],
     "colors": [

@@ -1,4 +1,4 @@
-// The workspace's `tide-*` snippets in `opentide-yaml` files, while opentide writes them for `yaml` only
+// The workspace's `tide-*` snippets in object files (opentide-yaml and each type's language), while opentide writes them for `yaml` only
 // (SPEC §7, opentide#752), and "Add <platform> block…" on a rule's `configurations:`. Reads
 // `.vscode/*.code-snippets`; writes nothing (the user applies the insertion).
 import * as fs from "node:fs";
@@ -7,13 +7,14 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { FeatureContext } from "../../core/context";
+import { objectSelector } from "../../core/lsp";
 import { platformLabel } from "./flow";
 import { configurationsLine, indentBlock, type TideSnippet, tideSnippets } from "./snippets";
 
 interface Cached {
   readonly mtimeMs: number;
+  readonly text: string;
   readonly all: TideSnippet[];
-  readonly missing: TideSnippet[];
 }
 
 export class Snippets implements vscode.Disposable, vscode.CompletionItemProvider, vscode.CodeActionProvider {
@@ -25,8 +26,8 @@ export class Snippets implements vscode.Disposable, vscode.CompletionItemProvide
     private readonly enabledPlatforms: (folder: string) => ReadonlySet<string> | undefined,
   ) {
     this.disposables.push(
-      vscode.languages.registerCompletionItemProvider({ language: "opentide-yaml" }, this),
-      vscode.languages.registerCodeActionsProvider({ language: "opentide-yaml" }, this, {
+      vscode.languages.registerCompletionItemProvider(objectSelector(), this),
+      vscode.languages.registerCodeActionsProvider(objectSelector(), this, {
         providedCodeActionKinds: [vscode.CodeActionKind.Refactor],
       }),
       vscode.commands.registerCommand(
@@ -36,8 +37,14 @@ export class Snippets implements vscode.Disposable, vscode.CompletionItemProvide
     );
   }
 
-  /** Every `tide-*` snippet of the folder's `.vscode/*.code-snippets`, re-read when a file changes. */
-  async snippets(folder: string): Promise<{ all: TideSnippet[]; missing: TideSnippet[] }> {
+  /**
+   * Every `tide-*` snippet of the folder's `.vscode/*.code-snippets`, re-read when a file changes, and those VS Code
+   * does not serve in a file of `languageId` (an object's language).
+   */
+  async snippets(
+    folder: string,
+    languageId = "opentide-yaml",
+  ): Promise<{ all: TideSnippet[]; missing: TideSnippet[] }> {
     const dir = path.join(folder, ".vscode");
     let names: string[];
     try {
@@ -54,11 +61,11 @@ export class Snippets implements vscode.Disposable, vscode.CompletionItemProvide
         let cached = this.cache.get(file);
         if (!cached || cached.mtimeMs !== stat.mtimeMs) {
           const text = await fs.promises.readFile(file, "utf8");
-          cached = { mtimeMs: stat.mtimeMs, all: tideSnippets(text, true), missing: tideSnippets(text) };
+          cached = { mtimeMs: stat.mtimeMs, text, all: tideSnippets(text, true) };
           this.cache.set(file, cached);
         }
         all.push(...cached.all);
-        missing.push(...cached.missing);
+        missing.push(...tideSnippets(cached.text, false, languageId));
       } catch {
         // unreadable: skip it
       }
@@ -72,7 +79,7 @@ export class Snippets implements vscode.Disposable, vscode.CompletionItemProvide
   ): Promise<vscode.CompletionItem[]> {
     const folder = this.ctx.folders.folderOf(document.uri);
     if (!folder) return [];
-    const { missing } = await this.snippets(folder.path);
+    const { missing } = await this.snippets(folder.path, document.languageId);
     if (missing.length === 0) return [];
     const before = document.lineAt(position.line).text.slice(0, position.character);
     const word = /[\w-]*$/.exec(before)?.[0] ?? "";
