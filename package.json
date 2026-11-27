@@ -2020,7 +2020,7 @@
         },
         {
           "command": "opentide.relations.show",
-          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
+          "when": "resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && resourceScheme == file && opentide.hasWorkspace",
           "group": "navigation@45"
         }
       ],
@@ -2059,7 +2059,7 @@
         },
         {
           "command": "opentide.relations.show",
-          "when": "resourceLangId == opentide-yaml && resourceScheme == file && opentide.hasWorkspace",
+          "when": "resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && resourceScheme == file && opentide.hasWorkspace",
           "group": "opentide@5"
         }
       ],
