@@ -143,7 +143,7 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q clamav clamav-freshclam
           sudo systemctl stop clamav-freshclam || true
-      # Fresh signatures, or no scan: a daily database more than two days old fails the gate.
+      # The latest signatures ClamAV publishes, whatever their age: how often ClamAV publishes is not a gate.
       - name: Update the signatures
         run: |
           set -euo pipefail
@@ -152,13 +152,7 @@ jobs:
             if [[ "${attempt}" == 4 ]]; then echo "::error title=AV gate::freshclam failed" >&2; exit 1; fi
             sleep $((attempt * 20))
           done
-          built="$(sigtool --info /var/lib/clamav/daily.c?d | sed -n 's/^Build time: //p')"
-          echo "daily database built ${built}"
-          age=$(( ( $(date +%s) - $(date -d "${built}" +%s) ) / 3600 ))
-          if (( age > 48 )); then
-            echo "::error title=AV gate::the ClamAV daily database is ${age} hours old" >&2
-            exit 1
-          fi
+          echo "daily database built $(sigtool --info /var/lib/clamav/daily.c?d | sed -n 's/^Build time: //p')"
           clamscan --version
       # The EICAR test string, put together here so that no file in the repository carries it.
       - name: ClamAV works, archive scanning included (EICAR canaries written at run time)

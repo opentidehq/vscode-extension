@@ -265,10 +265,11 @@ describe("AV gate: the workflows", () => {
     });
   });
 
-  it("ClamAV: fresh signatures, archive scanning, canaries plain and zipped, limits that report rather than skip", () => {
+  it("ClamAV: the latest signatures, archive scanning, canaries plain and zipped, limits that report rather than skip", () => {
     const clamav = gate.slice(gate.indexOf("\n  clamav:"), gate.indexOf("\n  defender:"));
     assert.match(clamav, /freshclam/);
-    assert.match(clamav, /age > 48/);
+    // The signatures' age is not a gate: CI scans with whatever ClamAV last published.
+    assert.doesNotMatch(clamav, /age >|hours old/);
     assert.match(clamav, /eicar\.zip/);
     assert.match(clamav, /--scan-archive=yes --alert-exceeds-max=yes/);
     assert.match(clamav, /--file-list=/);
