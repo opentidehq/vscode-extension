@@ -2,8 +2,8 @@
 
 All notable changes to the opentide extension (`opentide.opentide-vscode` on the Visual Studio Marketplace,
 `opentidehq.opentide` on Open VSX). The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Stable releases use even minor versions and
-pre-releases odd ones.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.1.0 the extension's version is the
+opentide release it ships, and every release is stable.
 
 ## [Unreleased]
 

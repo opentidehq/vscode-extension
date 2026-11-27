@@ -31,7 +31,7 @@ describe("workflows: one universal package per store, no bundled runtime", () =>
         text,
         /runtime:(build|lock)|npm run package -- --target|setup-uv|opentide-universal-/,
       );
-      assert.match(text, /npm run package -- (--universal|"\$\{flags\[@\]\}")/);
+      assert.match(text, /npm run package -- --universal/);
       for (const [name, job] of jobs(text))
         if (/npm run package/.test(job))
           for (const { store } of STORES)
@@ -47,7 +47,7 @@ describe("workflows: one universal package per store, no bundled runtime", () =>
 describe("publish.yml: each store publishes its own package", () => {
   const publish = jobs(read(".github/workflows/publish.yml"));
   const cases = [
-    ["publish-marketplace", "marketplace", /vsce publish "\$\{flags\[@\]\}" --packagePath "\$\{VSIX\}"/],
+    ["publish-marketplace", "marketplace", /vsce publish --oidc --skip-duplicate --packagePath "\$\{VSIX\}"/],
     [
       "publish-openvsx",
       "openvsx",
@@ -112,6 +112,11 @@ describe("workflows: the publish jobs run locked tools only", () => {
       assert.ok(install < job.search(/node_modules\/\.bin\/(vsce|ovsx) publish/));
     });
   }
+
+  it("publishes every release as stable: no pre-release channel, flag or output", () => {
+    const text = readFileSync(join(root, ".github", "workflows", "publish.yml"), "utf8");
+    assert.doesNotMatch(text.replace(/^#.*$/gm, ""), /pre-?release/i);
+  });
 
   it("OVSX_PAT is only in the ovsx publish step's env, not a job's", () => {
     const text = read(".github/workflows/publish.yml");

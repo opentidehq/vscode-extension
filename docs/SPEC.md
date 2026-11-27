@@ -170,8 +170,8 @@ Whether to add a gated "deploy to a development tenant" later is an [open questi
   - Marketplace: `vsce publish --oidc --packagePath opentide-marketplace-<version>.vsix --skip-duplicate`;
   - Open VSX: `ovsx publish --trusted-publishing --skip-duplicate --packagePath opentide-openvsx-<version>.vsix`.
 - **Namespace:** claim the Open VSX namespace before the first publish.
-- **Pre-releases** use odd minor versions with `--pre-release`. Stable uses even minor versions.
-- **Release cadence:** the package is small and carries no opentide, so releases follow the extension's own changes.
+- **Versions:** the extension's version is the opentide release it ships (`x.y.z` carries opentide `x.y.z`), and every release is stable: there is no pre-release channel ([RELEASING.md](RELEASING.md#versions-and-channel)).
+- **Release cadence:** a release follows an opentide release; a change to the extension alone ships with the next one.
 - **Each VSIX carries** `dist/THIRD-PARTY-NOTICES.txt` for the npm packages it bundles, and a GitHub artifact attestation.
 - **Licences:** the extension is **EUPL-1.2** (relicensed from MIT on 2026-11-21 by the owner's decision, [§17](#17-open-questions) question 5), the licence of opentide, of the engine (WASM) and of the grammars from language-server it carries, so everything in the package is under one licence. Third-party code and data keep their own licences, named in `NOTICE` and `THIRD-PARTY-LICENSES` (the Even Better TOML grammar and the bundled npm packages, MIT and others, whose notices ship in `dist/THIRD-PARTY-NOTICES.txt`). The reasoning of earlier drafts, that the engine and the module are separate programs the extension does not link, is no longer the basis of anything: the question it answered is moot.
 - **Smoke test** the package: unpack the VSIX, check it carries no `runtime/`, start the engine's worker and check its `initialize` (`opentide-lsp` at `engine.json`'s version, no host), start the WASI module's `serve` through its launcher and check `initialize` (`opentide/fetch` offered, `wasi.json`'s version) and a run of `commands`, and check the web entry and its Web Worker are there.
@@ -860,7 +860,7 @@ language-server 0.10.0, the engine in opentide 0.22.0, ships L1 (its highlights 
 
 ## 16. Milestones and issues
 
-1.0 is M1–M3 together: the bar this document sets. Pre-releases ship along the way to both stores.
+1.0 is M1–M3 together: the bar this document sets. Releases ship along the way to both stores.
 
 | Milestone | Delivers | Issues |
 |-----------|----------|--------|

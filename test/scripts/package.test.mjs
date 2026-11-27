@@ -10,7 +10,6 @@ import {
   committedManifestProblem,
   EXTENSION_NAME,
   formatReport,
-  isPreReleaseVersion,
   largestDirectories,
   PackageError,
   STORE_FIELDS,
@@ -74,7 +73,7 @@ function zip(entries) {
   return Buffer.concat([...locals, cd, end]);
 }
 
-describe("package: names, ignore file and pre-release", () => {
+describe("package: names, ignore file and channel", () => {
   it("names each store's VSIX, and no other", () => {
     assert.equal(vsixName("marketplace", "0.3.1"), "opentide-marketplace-0.3.1.vsix");
     assert.equal(vsixName("openvsx", "0.3.1"), "opentide-openvsx-0.3.1.vsix");
@@ -161,11 +160,9 @@ describe("package: names, ignore file and pre-release", () => {
     assert.ok(!JSON.stringify(c).includes("opentide-vscode"));
   });
 
-  it("packages an odd minor version as a pre-release", () => {
-    assert.equal(isPreReleaseVersion("0.1.0"), true);
-    assert.equal(isPreReleaseVersion("1.3.2"), true);
-    assert.equal(isPreReleaseVersion("0.2.0"), false);
-    assert.equal(isPreReleaseVersion("1.10.0"), false);
+  it("packages every version as stable: no --pre-release anywhere", () => {
+    const script = readFileSync(join(root, "scripts", "package.mjs"), "utf8");
+    assert.doesNotMatch(script, /"--pre-release"/);
   });
 
   it("the package carries no runtime/", () => {

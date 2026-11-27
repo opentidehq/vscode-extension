@@ -38,15 +38,9 @@ extension name and the display name differ):
 
 Settings, commands and the MCP server have the same names under either id.
 
-Versions with an odd minor (0.1.x, 0.3.x) are pre-releases. In the Extensions view, open opentide and
-choose **Switch to Pre-Release Version**, or from a terminal:
-
-```bash
-code --install-extension opentide.opentide-vscode --pre-release     # VS Code
-cursor --install-extension opentidehq.opentide --pre-release  # an editor that uses Open VSX
-```
-
-A pinned version installs whatever its channel: `code --install-extension opentide.opentide-vscode@0.3.3`.
+The extension's version is the opentide release it ships: 1.1.0 carries opentide 1.1.0. Every release is
+stable; there is no pre-release channel. A pinned version installs with
+`code --install-extension opentide.opentide-vscode@1.1.0`.
 Each [GitHub Release](https://github.com/opentidehq/vscode-extension/releases) also carries both
 packages as `.vsix` files (**Extensions: Install from VSIX…**): `opentide-marketplace-<version>.vsix`
 for VS Code and `opentide-openvsx-<version>.vsix` for the other editors, with `SHA256SUMS` and build
