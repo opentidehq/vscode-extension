@@ -7,13 +7,18 @@ opentide release it ships, and every release is stable.
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-11-27
+## [1.1.0] - 2026-11-27
 
-The extension reaches 1.0: rules look like YAML in every colour theme, and threats, objectives and
-rules have icons of their own.
+The extension now shares opentide's version: 1.1.0 ships opentide 1.1.0. Rules look like YAML in every
+colour theme, and each object type has its own icon.
 
 ### Changed
 
+- **The extension's version is the opentide release it ships.** 1.1.0 carries opentide 1.1.0, and
+  every release is stable: there is no pre-release channel any more.
+- **The bundled opentide (WASI) and the opentide engine (WASM) are 1.1.0.** Editor features with no
+  opentide installed, and in Restricted Mode, come from this release
+  ([opentide 1.1.0](https://github.com/opentidehq/opentide/releases/tag/v1.1.0)).
 - **Rules look like YAML in every colour theme.** Keys, values and enumerations take your theme's
   YAML colours. In GitHub, Dracula, Monokai and Catppuccin, keys were plain text, and so were
   `true`, `false` and other fixed values in Dracula and Monokai.
