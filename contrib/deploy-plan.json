@@ -227,14 +227,14 @@
         {
           "command": "opentide.deployPlan.open",
           "group": "navigation@60",
-          "when": "resourceLangId == opentide-yaml && resourcePath =~ /[\\\\/]rules[\\\\/]/ && opentide.trusted && opentide.hasCli"
+          "when": "resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && resourcePath =~ /[\\\\/]rules[\\\\/]/ && opentide.trusted && opentide.hasCli"
         }
       ],
       "explorer/context": [
         {
           "command": "opentide.deployPlan.open",
           "group": "opentide@20",
-          "when": "resourceLangId == opentide-yaml && opentide.trusted && opentide.hasCli"
+          "when": "resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/ && opentide.trusted && opentide.hasCli"
         }
       ]
     }
