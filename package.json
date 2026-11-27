@@ -2042,7 +2042,7 @@
         },
         {
           "command": "opentide.runner.sharePreview",
-          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId == opentide-yaml",
+          "when": "isWorkspaceTrusted && opentide.hasCli && resourceLangId =~ /^opentide-(yaml|threat|objective|rule)$/",
           "group": "opentide@1"
         }
       ],
