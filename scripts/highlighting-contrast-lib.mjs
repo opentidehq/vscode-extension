@@ -540,9 +540,12 @@ const inRule = (group) => group === "opentide-yaml" || group.startsWith("yaml>")
  * How far apart `a` and `b` must be. Where both are YAML (a key, a value, `true`, a number) in a rule, no further
  * than the theme sets them in a YAML file: High Contrast Light gives keys and values one colour, Light+ 7.5 apart.
  */
-function minDeltaE(theme, group, a, b) {
+export function minDeltaE(theme, group, a, b) {
   if (!inRule(group) || !YAML_SCOPES[a] || !YAML_SCOPES[b]) return MIN_DELTA_E;
-  return Math.min(MIN_DELTA_E, deltaE(yamlColour(theme, a), yamlColour(theme, b), theme.background));
+  const [ya, yb] = [yamlColour(theme, a), yamlColour(theme, b)];
+  // A theme that leaves YAML plain sets no bound of its own: hold it to the threshold.
+  if (isPlain(theme, ya) || isPlain(theme, yb)) return MIN_DELTA_E;
+  return Math.min(MIN_DELTA_E, deltaE(ya, yb, theme.background));
 }
 
 /** Rows by theme and group, then by token type. */

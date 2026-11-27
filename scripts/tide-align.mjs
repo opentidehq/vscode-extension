@@ -174,7 +174,7 @@ export function alignTide(grammar, Failure = Error) {
   return grammar;
 }
 
-/** Apply RENAMES to every `name` and `contentName`, in place, scope by scope. */
+/** Apply RENAMES to every `name` and `contentName`, in place, scope by scope; a second pass changes nothing. */
 export function renameScopes(node) {
   if (Array.isArray(node)) {
     for (const item of node) renameScopes(item);
@@ -183,10 +183,9 @@ export function renameScopes(node) {
   if (node === null || typeof node !== "object") return node;
   for (const [key, value] of Object.entries(node)) {
     if ((key === "name" || key === "contentName") && typeof value === "string")
-      node[key] = value
-        .split(" ")
-        .map((scope) => RENAMES[scope] ?? scope)
-        .join(" ");
+      node[key] = [
+        ...new Set(value.split(" ").flatMap((scope) => (RENAMES[scope] ?? scope).split(" "))),
+      ].join(" ");
     else renameScopes(value);
   }
   return node;

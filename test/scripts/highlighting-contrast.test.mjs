@@ -14,6 +14,8 @@ import {
   DEFAULT_THEMES,
   mainColour,
   measure,
+  MIN_DELTA_E,
+  minDeltaE,
   plainShare,
   POPULAR_THEMES,
   semanticFailures,
@@ -92,6 +94,16 @@ describe("highlighting contrast: VS Code's default themes on opentide's grammars
       (r) => r.theme.label === "Light+" && r.group === "opentide-yaml" && r.type === "property",
     );
     assert.equal(mainColour(lightPlus.semantic), yamlColour(lightPlus.theme, "property"));
+  });
+
+  it("relaxes ΔE only for two YAML types in a rule, and only to a bound the theme's own YAML sets", () => {
+    const hcLight = rows.find((r) => r.theme.label === "High Contrast Light").theme;
+    assert.equal(minDeltaE(hcLight, "opentide-yaml", "property", "string"), 0);
+    assert.equal(minDeltaE(hcLight, "kql", "property", "string"), MIN_DELTA_E);
+    assert.equal(minDeltaE(hcLight, "opentide-yaml", "keyword", "string"), MIN_DELTA_E);
+    // A theme that leaves YAML plain sets no bound of its own.
+    const plain = { ...hcLight, tokenColors: [] };
+    assert.equal(minDeltaE(plain, "opentide-yaml", "property", "string"), MIN_DELTA_E);
   });
 
   it("fails a rule whose keys are plain where a YAML file's are not (GitHub Dark, opentide 1.0.0's scope)", async () => {

@@ -17,6 +17,7 @@ import {
   OPERATOR,
   OPERATOR_LIST,
   PROPERTY,
+  renameScopes,
   VALUE,
   VALUE_BLOCK,
 } from "../../scripts/tide-align.mjs";
@@ -551,6 +552,11 @@ describe("highlighting: the grammar's colours are the server's, for the YAML str
       "support.constant.enum.tide",
     ]);
     assert.equal(lastScope(lines, "name:", "'x'"), "string.unquoted.plain.out.yaml.tide");
+  });
+
+  it("renames scopes once: a second pass over the aligned grammar changes nothing", () => {
+    const aligned = JSON.parse(readFileSync(join(root, "syntaxes", "tide.tmLanguage.json"), "utf8"));
+    assert.deepEqual(renameScopes(structuredClone(aligned)), aligned);
   });
 
   it("refuses a grammar that already has the Elastic rules, instead of applying them twice", () => {
