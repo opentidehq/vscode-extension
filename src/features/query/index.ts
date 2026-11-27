@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import { findByUuid } from "../../core/catalog/rows";
 import type { FeatureContext, OpentideFolder } from "../../core/context";
 import { defineFeature } from "../../core/feature";
+import { isObjectLanguage, objectSelector } from "../../core/lsp";
 import { ensureSaved } from "../../core/util/saved";
 import {
   clampLimit,
@@ -198,7 +199,7 @@ export default defineFeature({
       document: vscode.TextDocument,
       token?: vscode.CancellationToken,
     ): Promise<LensTarget[]> => {
-      if (document.languageId === "opentide-yaml") return (await ruleTargets(document, token)) ?? [];
+      if (isObjectLanguage(document.languageId)) return (await ruleTargets(document, token)) ?? [];
       const candidates = QUERY_FILE_PLATFORMS[document.languageId];
       if (!candidates) return [];
       const folder = ctx.folders.folderOf(document.uri);
@@ -217,7 +218,7 @@ export default defineFeature({
 
     // A command asks when the person does, which can be while the language server restarts: it waits for it.
     const commandTargets = (document: vscode.TextDocument): Promise<LensTarget[]> =>
-      document.languageId === "opentide-yaml"
+      isObjectLanguage(document.languageId)
         ? loadTargets(
             () => ruleTargets(document),
             async () => {
@@ -258,7 +259,7 @@ export default defineFeature({
       compiled,
       vscode.workspace.registerTextDocumentContentProvider(COMPILED_SCHEME, compiled),
       vscode.languages.registerCodeLensProvider(
-        [{ language: "opentide-yaml", scheme: "file" }, ...QUERY_LANGUAGES.map((language) => ({ language }))],
+        [...objectSelector({ scheme: "file" }), ...QUERY_LANGUAGES.map((language) => ({ language }))],
         provider,
       ),
       ctx.onDidChangeFiles(({ folder, uris }) => {
@@ -415,7 +416,7 @@ async function resolveTarget(
     return undefined;
   }
   const document = await vscode.workspace.openTextDocument(uri);
-  if (document.languageId === "opentide-yaml" && !ctx.client.current) await ctx.client.ready();
+  if (isObjectLanguage(document.languageId) && !ctx.client.current) await ctx.client.ready();
   let targets = await targetsOf(document);
   if (only) targets = targets.filter((t) => t.kind === only);
   if (platform) targets = targets.filter((t) => t.platform === platform);
@@ -425,7 +426,7 @@ async function resolveTarget(
         `language server ${ctx.client.current ? "running" : "not running"}, runtime ${ctx.runtime.current?.source ?? "none"})`,
     );
     void vscode.window.showInformationMessage(
-      document.languageId === "opentide-yaml"
+      isObjectLanguage(document.languageId)
         ? "This rule has no platform query, or the language server did not answer yet: try again in a moment."
         : "This file is not a query opentide can run.",
     );

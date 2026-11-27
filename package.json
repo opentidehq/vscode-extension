@@ -1460,15 +1460,15 @@
         },
         {
           "command": "opentide.query.run",
-          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(opentide-yaml|kql|spl|esql|eql|kuery|lucene)$/"
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^(opentide-yaml|opentide-threat|opentide-objective|opentide-rule|kql|spl|esql|eql|kuery|lucene)$/"
         },
         {
           "command": "opentide.query.validateLive",
-          "when": "opentide.trusted && opentide.hasCli && editorLangId == opentide-yaml"
+          "when": "opentide.trusted && opentide.hasCli && editorLangId =~ /^opentide-(yaml|threat|objective|rule)$/"
         },
         {
           "command": "opentide.query.showCompiled",
-          "when": "editorLangId =~ /^(opentide-yaml|kql|spl)$/"
+          "when": "editorLangId =~ /^(opentide-yaml|opentide-threat|opentide-objective|opentide-rule|kql|spl)$/"
         },
         {
           "command": "opentide.query.configureTenant",
