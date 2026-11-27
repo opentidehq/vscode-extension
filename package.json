@@ -2882,7 +2882,7 @@
     "@opentide/wasi-host": "1.1.0",
     "@vscode/codicons": "0.0.45",
     "@vscode/wasm-wasi": "1.0.1",
-    "cytoscape": "3.34.4",
+    "cytoscape": "3.35.0",
     "effect": "4.1.5",
     "vscode-jsonrpc": "10.0.0",
     "vscode-languageclient": "11.0.0"
