@@ -113,6 +113,18 @@ describe("workflows: the publish jobs run locked tools only", () => {
     });
   }
 
+  it("has no empty env: block, which actionlint refuses", () => {
+    for (const file of WORKFLOWS) {
+      const lines = read(file).split("\n");
+      lines.forEach((line, i) => {
+        const env = /^( *)env:\s*$/.exec(line);
+        if (!env) return;
+        const next = lines.slice(i + 1).find((l) => l.trim() && !l.trim().startsWith("#")) ?? "";
+        assert.ok(/^ */.exec(next)[0].length > env[1].length, `${file}:${i + 1}: env: has no entries`);
+      });
+    }
+  });
+
   it("publishes every release as stable: no pre-release channel, flag or output", () => {
     const text = readFileSync(join(root, ".github", "workflows", "publish.yml"), "utf8");
     assert.doesNotMatch(text.replace(/^#.*$/gm, ""), /pre-?release/i);
