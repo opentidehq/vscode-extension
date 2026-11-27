@@ -200,7 +200,23 @@ function openSearch(
           break;
         case "result":
           items.push({
-            label: `$(${row.icon}) ${row.label}`,
+            ...(row.iconFile
+              ? {
+                  label: row.label,
+                  iconPath: {
+                    light: vscode.Uri.joinPath(
+                      ctx.extension.extensionUri,
+                      "images",
+                      `${row.iconFile}-light.svg`,
+                    ),
+                    dark: vscode.Uri.joinPath(
+                      ctx.extension.extensionUri,
+                      "images",
+                      `${row.iconFile}-dark.svg`,
+                    ),
+                  },
+                }
+              : { label: `$(${row.icon}) ${row.label}` }),
             description: row.description,
             detail: row.detail,
             alwaysShow: true,

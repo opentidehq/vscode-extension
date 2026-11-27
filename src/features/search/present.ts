@@ -1,14 +1,16 @@
 // What the quick pick shows for a query: results grouped by type, notices, and syntax hints.
 // vscode-free: the glue turns these into QuickPickItems.
+import { objectIcon } from "../../core/catalog/objectIcons";
 import type { ItemProblems, SearchOutcome, SearchResult } from "./match";
 import type { ParsedQuery } from "./query";
 import type { SearchIndex, SearchItem } from "./searchIndex";
 
+/** The catalogue's codicons (src/core/catalog/objectIcons.ts), the same as the sidebar's and the graph's. */
 export const TYPE_ICONS: Readonly<Record<string, string>> = {
-  threat: "warning",
-  objective: "target",
-  signal: "pulse",
-  rule: "shield",
+  threat: objectIcon("threat").codicon,
+  objective: objectIcon("objective").codicon,
+  signal: objectIcon("signal").codicon,
+  rule: objectIcon("rule").codicon,
 };
 
 const TYPE_GROUPS: Readonly<Record<string, string>> = {
@@ -48,6 +50,8 @@ export type Row =
       readonly kind: "result";
       readonly result: SearchResult;
       readonly icon: string;
+      /** The type's file icon (`objects/rule`, under images/), for a result that loaded. */
+      readonly iconFile?: string;
       readonly label: string;
       readonly description: string;
       readonly detail: string;
@@ -155,10 +159,12 @@ export function present(
     rows.push({ kind: "separator", label: `${TYPE_GROUPS[type] ?? type} (${counts.get(type) ?? 0})` });
     for (const result of byType.get(type) ?? []) {
       const { item } = result;
+      const file = item.loadError ? undefined : objectIcon(item.type).file;
       rows.push({
         kind: "result",
         result,
         icon: item.loadError ? "error" : (TYPE_ICONS[item.type] ?? "symbol-misc"),
+        ...(file ? { iconFile: file } : {}),
         label: item.name,
         description: describeItem(item),
         detail: detailItem(item, options),
